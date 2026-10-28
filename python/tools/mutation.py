@@ -34,8 +34,12 @@ class Target:
 TARGETS = {
     t.name: t
     for t in (
-        Target("sdp-kernel-domain", "sdp-kernel", ("src/sdp/kernel/domain/*",), ("tests/unit/kernel", "tests/property")),
-        Target("sdp-kernel-science", "sdp-kernel", ("src/sdp/kernel/science/*",), ("tests/unit/kernel", "tests/property")),
+        Target(
+            "sdp-kernel-domain", "sdp-kernel", ("src/sdp/kernel/domain/*",), ("tests/unit/kernel", "tests/property")
+        ),
+        Target(
+            "sdp-kernel-science", "sdp-kernel", ("src/sdp/kernel/science/*",), ("tests/unit/kernel", "tests/property")
+        ),
         Target(
             "sdp-kernel-application",
             "sdp-kernel",

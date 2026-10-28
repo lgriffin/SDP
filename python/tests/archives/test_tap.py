@@ -8,9 +8,9 @@ from typing import Any
 
 import pytest
 
-from sdp.adapters.archives import adql
+from sdp.adapters.archives import adql, votable
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
-from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport
+from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport, HttpRequest, HttpResponse
 from sdp.kernel.domain.archive import Box, Filter
 from sdp.testing.contracts.archive_gateway import ArchiveGatewayContract, GatewayCase
 from sdp.testing.fakes.archives import apply_query
@@ -124,3 +124,25 @@ def test_every_packaged_source_declares_licence_citation_limits_and_a_dialect() 
         assert d.release_label in dialects and dialects[d.release_label].ref.dialect_id == d.dialect_id
         assert dialects[d.release_label].native_columns() <= set(d.column_names()), d.source_id
         assert source.service_url.startswith("https://")
+
+
+class _FoldingTap:
+    """A service that reports column names in lower case, as MAST does."""
+
+    def __init__(self, inner: FixtureTap) -> None:
+        self.inner = inner
+
+    def send(self, request: HttpRequest) -> HttpResponse:
+        response = self.inner.send(request)
+        table = votable.parse(response.body)
+        folded = table.rename_columns([n.lower() for n in table.column_names])
+        return HttpResponse(response.status, votable.to_votable(folded), response.headers)
+
+
+def test_column_names_folded_by_the_service_come_back_as_declared() -> None:
+    tap = FixtureTap()
+    adapter = TapArchiveAdapter({"gaia": GAIA}, tap)
+    primed(tap, adapter)
+    folding = TapArchiveAdapter({"gaia": GAIA}, _FoldingTap(tap))
+    batches = list(folding.fetch(folding.query(gaia_query())))
+    assert batches and batches[0].schema.names == list(gaia_query().columns)

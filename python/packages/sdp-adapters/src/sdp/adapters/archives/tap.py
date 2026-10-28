@@ -10,7 +10,7 @@ Adding a source or a release is a new file, not code.
 from __future__ import annotations
 
 import urllib.parse
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -155,10 +155,12 @@ class TapArchiveAdapter:
             if response.status != 200:
                 raise TransportError(f"{q.source_id} part {part}: HTTP {response.status}", response.status)
             validate_votable(response.body)
-            table = self.parser(response.body)
+            table = _declared_names(self.parser(response.body), q.columns)
             missing = set(q.columns) - set(table.column_names)
             if missing:
-                raise TransportError(f"{q.source_id} part {part}: response lacks {sorted(missing)}")
+                raise TransportError(
+                    f"{q.source_id} part {part}: response lacks {sorted(missing)}; it has {sorted(table.column_names)}"
+                )
             chunk = table.select(list(q.columns)).combine_chunks()
             batches = chunk.to_batches()
             batch = batches[0] if batches else pa.RecordBatch.from_pylist([], schema=chunk.schema)
@@ -168,3 +170,12 @@ class TapArchiveAdapter:
             if batch.num_rows < q.chunk_rows:
                 return
             part += 1
+
+
+def _declared_names(table: pa.Table, declared: Iterable[str]) -> pa.Table:
+    """ADQL regular identifiers are case-insensitive and some services fold them (MAST returns
+    lower case); rename response columns to the declared spelling when they match ignoring case."""
+    exact = set(declared)
+    by_fold = {name.casefold(): name for name in exact}
+    names = [n if n in exact else by_fold.get(n.casefold(), n) for n in table.column_names]
+    return table.rename_columns(names) if names != table.column_names else table

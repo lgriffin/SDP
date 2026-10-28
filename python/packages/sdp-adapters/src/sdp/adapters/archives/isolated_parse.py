@@ -1,6 +1,6 @@
 """The child side of IsolatedVotableParser: VOTable on stdin, Arrow IPC stream on stdout.
 
-    python -I -m sdp.adapters.archives.isolated_parse < response.xml > table.arrows
+python -I -m sdp.adapters.archives.isolated_parse < response.xml > table.arrows
 """
 
 from __future__ import annotations

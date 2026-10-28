@@ -45,7 +45,12 @@ def schema_drift(source: TapSource, previous: Mapping[str, str] | None, current:
         for name in sorted(set(previous) & set(current)):
             if previous[name] != current[name]:
                 problems.append(f"{sid}: column {name} retyped from {previous[name]} to {current[name]}")
+    if not current:
+        problems.append(f"{sid}: TAP_SCHEMA lists no columns for table {source.descriptor.table}")
+        return sorted(set(problems))
+    # ADQL regular identifiers are case-insensitive; a service may report them folded
+    folded = {name.casefold() for name in current}
     for column in source.descriptor.columns:
-        if column.name not in current:
+        if column.name.casefold() not in folded:
             problems.append(f"{sid}: declared column {column.name} is not in the archive's table")
     return sorted(set(problems))
