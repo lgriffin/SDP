@@ -1,0 +1,258 @@
+{
+  "uid": "sdp-runs",
+  "title": "SDP runs and GPU",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "sdp"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Experiments with recorded metrics",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(sdp_experiment_info)",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "PostgreSQL up",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_up",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "GPU utilisation (nvidia-smi textfile)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sdp_gpu_utilization_gpu",
+          "legendFormat": "{{gpu}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "GPU memory used (nvidia-smi textfile)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sdp_gpu_memory_used",
+          "legendFormat": "{{gpu}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "GPU temperature",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sdp_gpu_temperature_gpu",
+          "legendFormat": "{{gpu}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "GPU power draw",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sdp_gpu_power_draw",
+          "legendFormat": "{{gpu}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "GPU utilisation (DCGM)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "DCGM_FI_DEV_GPU_UTIL",
+          "legendFormat": "{{gpu}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Experiments",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sdp-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sdp_experiment_info",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "sdp-prometheus"
+          },
+          "format": "table",
+          "instant": true
+        }
+      ]
+    }
+  ],
+  "description": "Run metrics (sdp_experiment_*) and GPU telemetry (sdp_gpu_*, DCGM) for NFR-010."
+}

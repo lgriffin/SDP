@@ -1,0 +1,37 @@
+# sdp-api: GraphQL queries, command endpoints and /health (§16). Database URL and Zenodo token are
+# Podman secrets read through SDP_*_FILE (NFR-009); the NAS is mounted read-only except the
+# artifact and experiment areas.
+[Unit]
+Description=SDP API
+Requires=sdp-postgres.service
+After=sdp-postgres.service
+
+[Container]
+ContainerName=sdp-api
+Image=ghcr.io/lgriffin/sdp-kernel:latest
+Entrypoint=sdp-api
+Exec=--host 0.0.0.0 --port 8000
+Network=sdp.network
+User=10001
+Group=10001
+UserNS=keep-id:uid=10001,gid=10001
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=true
+Tmpfs=/tmp
+Secret=sdp_database_url,type=mount,target=/run/secrets/database_url,uid=10001,mode=0400
+Secret=sdp_zenodo_token,type=mount,target=/run/secrets/zenodo_token,uid=10001,mode=0400
+EnvironmentFile=%h/.config/sdp/sdp.env
+Environment=SDP_DATABASE_URL_FILE=/run/secrets/database_url SDP_ZENODO_TOKEN_FILE=/run/secrets/zenodo_token
+Environment=SDP_ARTIFACT_ROOT=/nas/sdp/artifacts SDP_LEDGER_DIR=/nas/sdp/ledger SDP_METRICS_DIR=/nas/sdp/metrics
+Volume=/mnt/nas/sdp:/nas/sdp:ro
+Volume=/mnt/nas/sdp/artifacts:/nas/sdp/artifacts:rw
+Volume=/mnt/nas/sdp/experiments:/nas/sdp/experiments:rw
+HealthCmd=python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+HealthInterval=30s
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

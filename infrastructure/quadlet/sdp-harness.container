@@ -1,0 +1,23 @@
+# sdp-harness: compiles .ears, verifies manifests, builds release reports (§16). Started on demand
+# with the command as the instance's Exec, for example
+#   systemctl --user start sdp-harness.service   (runs `trace` over the NAS reports)
+[Unit]
+Description=SDP specification harness
+
+[Container]
+ContainerName=sdp-harness
+Image=ghcr.io/lgriffin/sdp-harness:latest
+Exec=trace --junit /nas/sdp/reports/junit --out /nas/sdp/reports/traceability
+WorkingDir=/nas/sdp/repo
+User=1000
+Group=1000
+UserNS=keep-id:uid=1000,gid=1000
+Network=none
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=true
+Volume=/mnt/nas/sdp:/nas/sdp:ro
+Volume=/mnt/nas/sdp/reports:/nas/sdp/reports:rw
+
+[Service]
+Type=oneshot

@@ -10,6 +10,12 @@ on:
         description: Push raised high-water marks to a review branch
         type: boolean
         default: false
+  # The release workflow scores the tagged commit (T10 runs weekly and at release).
+  workflow_call:
+    inputs:
+      update:
+        type: boolean
+        default: false
 
 permissions:
   contents: read

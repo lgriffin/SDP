@@ -1,0 +1,21 @@
+# PostgreSQL exporter for Grafana (NFR-010); its connection string is a Podman secret.
+[Unit]
+Description=SDP postgres exporter
+Requires=sdp-postgres.service
+After=sdp-postgres.service
+
+[Container]
+ContainerName=sdp-postgres-exporter
+Image=quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+Network=sdp.network
+User=65534
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=true
+Secret=sdp_database_url,type=env,target=DATA_SOURCE_NAME
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

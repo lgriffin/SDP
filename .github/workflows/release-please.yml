@@ -1,0 +1,34 @@
+# Versioning with release-please (§16): on main it keeps a release PR with the next version and
+# changelog; merging that PR tags the release, and the release stage runs on the tag.
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  release:
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      packages: write
+    with:
+      version: ${{ needs.release-please.outputs.tag }}

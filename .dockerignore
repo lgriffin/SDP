@@ -1,0 +1,14 @@
+# Build context for infrastructure/containers/*.Containerfile: sources and lock files only.
+**/node_modules
+**/.venv
+**/__pycache__
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+**/.stryker-tmp
+**/mutants
+reports
+typescript/packages/evidence-ui/build
+typescript/packages/evidence-ui/.svelte-kit
+typescript/packages/e2e/playwright-report
+.git

@@ -1,0 +1,19 @@
+# NVIDIA DCGM exporter: GPU telemetry for Grafana (NFR-010). The image tag must match the DGX OS
+# driver and CUDA versions confirmed in the Phase 0 spike (docs/spike/phase0-dgx-spark.md).
+[Unit]
+Description=SDP DCGM exporter
+
+[Container]
+ContainerName=sdp-dcgm-exporter
+Image=nvcr.io/nvidia/k8s/dcgm-exporter:SET-FROM-PHASE0-SPIKE
+Network=sdp.network
+AddDevice=nvidia.com/gpu=all
+DropCapability=ALL
+AddCapability=SYS_ADMIN
+NoNewPrivileges=true
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

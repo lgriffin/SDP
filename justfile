@@ -1,4 +1,4 @@
-# One entry point (§16): just test, just gate, just reproduce.
+# One entry point (§16): just test, just gate, just reproduce <bundle> <inputs>.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -79,3 +79,22 @@ viewer:
 
 # Stages 1-2 of §11.7
 test: contracts ears codegen-check lint pytest integration ts e2e cross-language viewer trace
+
+# Clean-room reproduction of a released experiment in a fresh container (T9, NFR-004)
+reproduce bundle inputs out="reports/reproduction":
+    infrastructure/reproduce.sh {{bundle}} {{inputs}} {{out}}
+
+# T7: a synthetic experiment end to end on the compose stack, through the harness and the UI
+t7 out="reports/t7":
+    infrastructure/t7.sh {{out}}
+
+# Build the kernel, harness and UI images from the pinned lock files
+images engine="podman":
+    for image in kernel harness ui; do {{engine}} build -f infrastructure/containers/$image.Containerfile -t localhost/sdp-$image:dev .; done
+
+# Developer stack: PostgreSQL, sdp-api, the evidence UI, Prometheus and Grafana (see infrastructure/README.md)
+stack *args:
+    podman compose -f infrastructure/compose/compose.yaml {{args}}
+
+# The merge stage of §11.7: static checks, every tier CI runs, and the coverage gate
+gate: contracts ears codegen-check lint pytest integration ts cross-language trace

@@ -1,0 +1,25 @@
+# PostgreSQL 16: metadata, provenance and the event log (§16). The password is a Podman secret:
+#   printf '%s' "$PASSWORD" | podman secret create sdp_postgres_password -
+[Unit]
+Description=SDP PostgreSQL
+
+[Container]
+ContainerName=sdp-postgres
+Image=docker.io/library/postgres:16-bookworm
+Network=sdp.network
+# The postgres image's own unprivileged user; with rootless Podman, uid 0 never reaches the host.
+User=postgres
+UserNS=keep-id:uid=999,gid=999
+Secret=sdp_postgres_password,type=mount,target=/run/secrets/postgres_password,uid=999,mode=0400
+Environment=POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password POSTGRES_USER=sdp POSTGRES_DB=sdp
+Volume=sdp-postgres.volume:/var/lib/postgresql/data
+DropCapability=ALL
+NoNewPrivileges=true
+HealthCmd=pg_isready -U sdp -d sdp
+HealthInterval=10s
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

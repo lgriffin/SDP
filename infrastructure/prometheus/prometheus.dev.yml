@@ -1,0 +1,7 @@
+# The developer compose stack: only the textfile metrics (no GPU, no postgres exporter).
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: sdp-textfile
+    static_configs:
+      - targets: ["node-exporter:9100"]

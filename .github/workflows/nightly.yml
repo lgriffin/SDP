@@ -1,0 +1,53 @@
+# Nightly stage of §11.7: T8 scientific validation on CPU only (NFR-002) and T7 end to end on the
+# full compose stack. GPU agreement tests run on the DGX Spark's self-hosted runner once it exists.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  t8-cpu:
+    name: T8 scientific validation on CPU (NFR-002)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    env:
+      # No accelerator is visible: every gate has to pass on the CPU reference.
+      CUDA_VISIBLE_DEVICES: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - run: uv run pytest -q --tier T8 -m "not gpu and not live" --junitxml=../reports/junit-t8.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-t8
+          path: reports/junit-t8.xml
+
+  t7-stack:
+    name: T7 end to end on the compose stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: cd python && uv sync --python 3.12 --frozen
+      - run: pnpm install --frozen-lockfile
+      - run: infrastructure/t7.sh reports/t7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: t7
+          path: reports/t7

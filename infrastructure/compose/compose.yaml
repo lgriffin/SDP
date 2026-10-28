@@ -1,0 +1,118 @@
+# Developer stack (§16): PostgreSQL, sdp-api, the evidence UI, and the metrics path to Grafana.
+# Credentials are files under compose/secrets/ (git-ignored), never values in this file (NFR-009):
+#   mkdir -p infrastructure/compose/secrets
+#   openssl rand -hex 16 > infrastructure/compose/secrets/postgres_password
+#   printf 'postgresql://sdp:%s@postgres:5432/sdp' "$(cat infrastructure/compose/secrets/postgres_password)" \
+#     > infrastructure/compose/secrets/database_url
+#   openssl rand -hex 16 > infrastructure/compose/secrets/grafana_admin_password
+# Then, from the repository root: podman compose -f infrastructure/compose/compose.yaml up --build
+name: sdp
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  database_url:
+    file: ./secrets/database_url
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+x-kernel: &kernel
+  <<: *hardening
+  build:
+    context: ../..
+    dockerfile: infrastructure/containers/kernel.Containerfile
+  image: localhost/sdp-kernel:dev
+  user: "10001:10001"
+  secrets: [database_url]
+  environment:
+    SDP_DATABASE_URL_FILE: /run/secrets/database_url
+    SDP_ARTIFACT_ROOT: /data/artifacts
+    SDP_LEDGER_DIR: /data/ledger
+    SDP_METRICS_DIR: /data/metrics
+    SDP_ALLOW_UNSIGNED: "1"
+  volumes:
+    - sdp-data:/data
+
+services:
+  postgres:
+    <<: *hardening
+    image: docker.io/library/postgres:16-bookworm
+    # The image's postgres user; the named volume takes the image directory's ownership.
+    user: "999:999"
+    secrets: [postgres_password]
+    environment:
+      POSTGRES_USER: sdp
+      POSTGRES_DB: sdp
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "sdp", "-d", "sdp"]
+      interval: 5s
+      retries: 20
+
+  migrate:
+    <<: *kernel
+    command: ["db", "migrate"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    <<: *kernel
+    entrypoint: ["sdp-api"]
+    command: ["--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  ui:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/ui.Containerfile
+    image: localhost/sdp-ui:dev
+    user: "1000:1000"
+    environment:
+      SDP_API_URL: http://api:8000/graphql
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+
+  node-exporter:
+    <<: *hardening
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    user: "65534"
+    command: ["--collector.disable-defaults", "--collector.textfile", "--collector.textfile.directory=/data/metrics"]
+    volumes:
+      - sdp-data:/data:ro
+    # migrate mounts sdp-data first, so the volume takes the kernel image's /data ownership.
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  prometheus:
+    <<: *hardening
+    image: quay.io/prometheus/prometheus:v2.55.1
+    user: "65534"
+    volumes:
+      - ../prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    <<: *hardening
+    image: docker.io/grafana/grafana-oss:11.3.1
+    user: "472"
+    secrets: [grafana_admin_password]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      SDP_PROMETHEUS_URL: http://prometheus:9090
+    ports: ["127.0.0.1:3001:3000"]
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  postgres:
+  sdp-data:
