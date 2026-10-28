@@ -83,7 +83,7 @@ plugins = []
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["astropy.*", "scipy.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*"]
+module = ["astropy.*", "scipy.*", "photutils.*", "tweakwcs.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
