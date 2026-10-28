@@ -23,7 +23,8 @@ for (const pkg of packages) {
       if (m.status === "Killed" || m.status === "Timeout") detected += 1;
     }
   }
-  scores[`typescript/${pkg}`] = valid ? Math.round((10000 * detected) / valid) / 100 : 0;
+  if (!valid) throw new Error(`${pkg}: Stryker reported no valid mutants; the run failed`);
+  scores[`typescript/${pkg}`] = Math.round((10000 * detected) / valid) / 100;
   console.log(`${pkg}: ${scores[`typescript/${pkg}`]}% of ${valid} mutants`);
 }
 fs.mkdirSync(path.dirname(out), { recursive: true });
