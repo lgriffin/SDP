@@ -1,3 +1,3 @@
 packages:
-  - "ts/packages/*"
-  - "ts/apps/*"
+  - "typescript/packages/*"
+  - "typescript/apps/*"

@@ -24,8 +24,16 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Contract fixtures and draft predeclarations
         run: uv run --no-project --with jsonschema --with referencing python contracts/tools/check_fixtures.py
-      - name: .ears structure
-        run: uv run --no-project --with pyyaml python tools/check_ears.py
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: .ears compile (spec-harness ears)
+        run: pnpm harness ears --out reports/requirements
+      - name: ESLint and dependency-cruiser (T0, TST-005)
+        run: pnpm lint
 
   python-static:
     name: static · ruff, mypy, import-linter (T0)
@@ -93,12 +101,74 @@ jobs:
           name: junit-ts
           path: reports/junit-ts-*.xml
 
+  cross-language:
+    name: fast · kernel manifests through the harness (T6, TST-007)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: cd python && uv sync --python 3.12 --frozen
+      - run: pnpm install --frozen-lockfile
+      - name: Run the synthetic protocol on the kernel
+        run: cd python && uv run python -m sdp.testing.emit ../reports/emitted
+      - name: Every manifest conforms (CTR-004)
+        run: pnpm harness conform reports/emitted/experiments contracts/fixtures/valid/evidence-manifest/synthetic-verified-1.1.json
+      - name: The harness re-derives every verdict (TST-007)
+        run: pnpm harness rederive reports/emitted/experiments --out reports/rederive.json
+
+  guard:
+    name: static · behaviour changes carry an .ears change (TST-002)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm harness guard --base origin/${{ github.base_ref }} --head HEAD
+
+  trace:
+    name: fast · requirement coverage gate (TST-001)
+    needs: [python-fast, ts-fast]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: reports/junit
+          merge-multiple: true
+      - name: spec-harness trace
+        run: pnpm harness trace --junit reports/junit --tiers T0,T1,T2,T3,T4,T6,harness,lint --out reports/traceability
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: traceability
+          path: reports/traceability
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast, contracts-codegen, ts-fast]
+    needs: [static-contracts, python-static, python-fast, contracts-codegen, ts-fast, cross-language, guard, trace]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed
         run: |
-          echo '${{ toJSON(needs) }}' | jq -e 'to_entries | all(.value.result == "success")'
+          # guard runs on pull requests only; elsewhere it is skipped, which is not a failure
+          echo '${{ toJSON(needs) }}' | jq -e 'to_entries | all(.value.result == "success" or (.key == "guard" and .value.result == "skipped"))'

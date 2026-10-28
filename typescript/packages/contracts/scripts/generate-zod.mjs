@@ -57,7 +57,6 @@ class FileGen {
     for (const key of Object.keys(s)) {
       if (!KNOWN.has(key)) throw new Error(`${this.file}: unsupported keyword ${key}`);
     }
-    const pad = "  ".repeat(depth);
     let base;
     if (s.$ref) {
       base = this.ref(s.$ref, owner);

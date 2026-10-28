@@ -43,11 +43,13 @@ export function validate(name: ContractName, document: unknown): ContractError[]
 }
 
 export class ContractViolation extends Error {
-  constructor(
-    readonly contract: ContractName,
-    readonly errors: ContractError[],
-  ) {
+  readonly contract: ContractName;
+  readonly errors: ContractError[];
+
+  constructor(contract: ContractName, errors: ContractError[]) {
     super(`${contract}: ${errors.map((e) => `${e.path || "/"}: ${e.message}`).join("; ")}`);
+    this.contract = contract;
+    this.errors = errors;
   }
 }
 

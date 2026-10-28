@@ -5,7 +5,7 @@ import * as common from "./common.ts";
 import * as predeclaration from "./predeclaration.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json";
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.1.0";
 
 export const Approval = z.object({
     "ledger_entry_id": z.string(),
@@ -88,6 +88,13 @@ export const ManifestVerdict = z.object({
   }).strict();
 export type ManifestVerdict = z.infer<typeof ManifestVerdict>;
 
+export const OracleRecord = z.object({
+    "oracle_id": z.string().min(1),
+    "verified": z.boolean(),
+    "note": z.string().optional(),
+  }).strict();
+export type OracleRecord = z.infer<typeof OracleRecord>;
+
 export const Output = z.object({
     "name": z.string().min(1),
     "artifact_id": common.Sha256Id,
@@ -127,6 +134,7 @@ export const EvidenceManifest = z.object({
     "execution": Execution,
     "outputs": z.array(Output),
     "findings": z.array(Finding),
+    "oracles": z.array(OracleRecord).optional(),
     "checks": z.array(common.Check),
     "verdict": ManifestVerdict.nullable(),
     "provenance": ProvDocument,
