@@ -21,6 +21,16 @@ EVENT_NAMES = (
     "DossierAssembled",
     "ApprovalRecorded",
     "BundlePublished",
+    "InvestigationSetStarted",
+    "InvestigationStageCompleted",
+    "InvestigationStageFailed",
+    "InvestigationOpened",
+    "InvestigationParked",
+    "InvestigationReopened",
+    "InvestigationPromoted",
+    "InvestigationPromotionRefused",
+    "InvestigationClosed",
+    "InvestigationAnnotated",
 )
 
 
@@ -61,6 +71,18 @@ VerdictIssued = _event("VerdictIssued")
 DossierAssembled = _event("DossierAssembled")
 ApprovalRecorded = _event("ApprovalRecorded")
 BundlePublished = _event("BundlePublished")
+# Investigate (UC-03): the four triage transitions of the Investigation aggregate, the set's
+# stage progress, and the refusal INV-009 requires to be recorded.
+InvestigationSetStarted = _event("InvestigationSetStarted")
+InvestigationStageCompleted = _event("InvestigationStageCompleted")
+InvestigationStageFailed = _event("InvestigationStageFailed")
+InvestigationOpened = _event("InvestigationOpened")
+InvestigationParked = _event("InvestigationParked")
+InvestigationReopened = _event("InvestigationReopened")
+InvestigationPromoted = _event("InvestigationPromoted")
+InvestigationPromotionRefused = _event("InvestigationPromotionRefused")
+InvestigationClosed = _event("InvestigationClosed")
+InvestigationAnnotated = _event("InvestigationAnnotated")
 
 EVENT_TYPES: dict[str, type[DomainEvent]] = {
     cls.name: cls
@@ -79,6 +101,16 @@ EVENT_TYPES: dict[str, type[DomainEvent]] = {
         DossierAssembled,
         ApprovalRecorded,
         BundlePublished,
+        InvestigationSetStarted,
+        InvestigationStageCompleted,
+        InvestigationStageFailed,
+        InvestigationOpened,
+        InvestigationParked,
+        InvestigationReopened,
+        InvestigationPromoted,
+        InvestigationPromotionRefused,
+        InvestigationClosed,
+        InvestigationAnnotated,
     )
 }
 

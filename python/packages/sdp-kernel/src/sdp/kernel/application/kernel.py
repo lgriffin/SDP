@@ -15,6 +15,12 @@ from sdp.kernel.application.experiments import (
     ValidateExperimentUseCase,
 )
 from sdp.kernel.application.hypotheses import RegisterHypothesisUseCase
+from sdp.kernel.application.investigate import (
+    InvestigateFieldUseCase,
+    InvestigatePorts,
+    QueryInvestigationsUseCase,
+    TriageInvestigationUseCase,
+)
 from sdp.kernel.application.predeclarations import FreezePredeclarationUseCase
 from sdp.kernel.application.publication import PublishBundleUseCase
 from sdp.kernel.application.queries import QueryEvidenceUseCase
@@ -48,6 +54,7 @@ class KernelPorts:
     services: Mapping[str, Any] = field(default_factory=dict)
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     min_free_bytes: int = 50 * 1024**3
+    investigate: InvestigatePorts | None = None
 
 
 @dataclass
@@ -62,11 +69,14 @@ class Kernel:
     assemble_dossier: AssembleDossierUseCase
     publish_bundle: PublishBundleUseCase
     query_evidence: QueryEvidenceUseCase
+    triage_investigation: TriageInvestigationUseCase | None = None
+    query_investigations: QueryInvestigationsUseCase | None = None
+    investigate_field: InvestigateFieldUseCase | None = None
 
     @classmethod
     def build(cls, ports: KernelPorts) -> Kernel:
         manifests = ManifestWriter(ports.store)
-        return cls(
+        kernel = cls(
             ports=ports,
             register_hypothesis=RegisterHypothesisUseCase(ports.uow, ports.clock),
             freeze_predeclaration=FreezePredeclarationUseCase(ports.uow, ports.ledger, ports.clock),
@@ -101,4 +111,18 @@ class Kernel:
                 ports.uow, ports.ledger, ports.store, ports.publisher, ports.clock, manifests
             ),
             query_evidence=QueryEvidenceUseCase(ports.uow, ports.ledger),
+            triage_investigation=TriageInvestigationUseCase(ports.uow, ports.ledger, ports.clock),
+            query_investigations=QueryInvestigationsUseCase(ports.uow, ports.store),
         )
+        if ports.investigate is not None:
+            kernel.investigate_field = InvestigateFieldUseCase(
+                ports.uow,
+                ports.store,
+                ports.clock,
+                ports.ids,
+                ports.environment,
+                ports.executor,
+                kernel.acquire_dataset,
+                ports.investigate,
+            )
+        return kernel

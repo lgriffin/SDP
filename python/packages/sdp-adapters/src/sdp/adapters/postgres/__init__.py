@@ -23,6 +23,7 @@ from sdp.kernel.domain.events import DomainEvent, event_from_document
 from sdp.kernel.domain.experiment import Experiment
 from sdp.kernel.domain.hypothesis import Hypothesis
 from sdp.kernel.domain.ids import ArtifactId
+from sdp.kernel.domain.investigation import Investigation, InvestigationSet
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration, Predeclaration
 from sdp.kernel.domain.provenance import RELATIONS, ProvGraph
 from sdp.kernel.ports.events import StoredEvent
@@ -290,6 +291,58 @@ class PostgresEvidenceGraph:
         return self._load().ancestors(entity_id)
 
 
+class PostgresInvestigationRepository:
+    """Sets and investigations as documents; the schema refuses deletes (INV-010)."""
+
+    def __init__(self, conn: psycopg.Connection) -> None:
+        self._c = conn
+
+    def save_set(self, investigation_set: InvestigationSet) -> None:
+        self._c.execute(
+            "INSERT INTO investigation_sets (set_id, field_id, profile_hash, document) VALUES (%s, %s, %s, %s)"
+            " ON CONFLICT (set_id) DO UPDATE SET document = EXCLUDED.document, updated_at = now()",
+            (
+                investigation_set.set_id,
+                investigation_set.field.field_id,
+                investigation_set.profile_hash,
+                _json(investigation_set.to_document()),
+            ),
+        )
+
+    def get_set(self, set_id: str) -> InvestigationSet | None:
+        row = self._c.execute("SELECT document FROM investigation_sets WHERE set_id = %s", (set_id,)).fetchone()
+        return InvestigationSet.from_document(row[0]) if row else None
+
+    def list_sets(self) -> Sequence[InvestigationSet]:
+        rows = self._c.execute("SELECT document FROM investigation_sets ORDER BY set_id").fetchall()
+        return [InvestigationSet.from_document(r[0]) for r in rows]
+
+    def save(self, investigation: Investigation) -> None:
+        self._c.execute(
+            "INSERT INTO investigations (investigation_id, set_id, state, document) VALUES (%s, %s, %s, %s)"
+            " ON CONFLICT (investigation_id) DO UPDATE SET state = EXCLUDED.state, document = EXCLUDED.document,"
+            " updated_at = now()",
+            (
+                investigation.investigation_id,
+                investigation.set_id,
+                investigation.state.value,
+                _json(investigation.to_document()),
+            ),
+        )
+
+    def get(self, investigation_id: str) -> Investigation | None:
+        row = self._c.execute(
+            "SELECT document FROM investigations WHERE investigation_id = %s", (investigation_id,)
+        ).fetchone()
+        return Investigation.from_document(row[0]) if row else None
+
+    def for_set(self, set_id: str) -> Sequence[Investigation]:
+        rows = self._c.execute(
+            "SELECT document FROM investigations WHERE set_id = %s ORDER BY investigation_id", (set_id,)
+        ).fetchall()
+        return [Investigation.from_document(r[0]) for r in rows]
+
+
 @dataclass(frozen=True)
 class PostgresDatabase:
     """Composition-root handle: ``unit_of_work`` opens one connection and one transaction."""
@@ -353,6 +406,10 @@ class PostgresUnitOfWork:
     @property
     def evidence(self) -> PostgresEvidenceGraph:
         return PostgresEvidenceGraph(self._c)
+
+    @property
+    def investigations(self) -> PostgresInvestigationRepository:
+        return PostgresInvestigationRepository(self._c)
 
     def commit(self) -> None:
         self._c.commit()
