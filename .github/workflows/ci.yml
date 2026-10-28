@@ -47,7 +47,7 @@ jobs:
       - run: uv sync --python 3.12 --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src packages/sdp-relativity/src tests
+      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src packages/sdp-relativity/src packages/sdp-investigate/src tests
       - run: uv run lint-imports
 
   python-fast:

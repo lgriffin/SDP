@@ -49,3 +49,8 @@ class StorageExhausted(DomainError):
 
 class VerdictInconsistent(DomainError):
     """A science module's validation report disagrees with the gate outcomes the kernel derives."""
+
+
+class PromotionRefused(DomainError):
+    """An investigation was promoted without a frozen confirmatory predeclaration naming
+    evidence it did not use (INV-009)."""

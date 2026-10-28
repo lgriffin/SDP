@@ -1,9 +1,17 @@
+import { readdirSync, readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { EarsDirectory } from "../src/adapters/fs.ts";
 import { compileEars, renderRequirementsMarkdown } from "../src/ears.ts";
 import { compileRequirements } from "../src/harness.ts";
 import { repo } from "./helpers.ts";
+
+/** Every `- id:` entry under requirements/, counted independently of the compiler. */
+const declaredIds = (dir: string): number =>
+  readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .filter((f) => f.endsWith(".ears"))
+    .reduce((n, f) => n + (readFileSync(`${dir}/${f}`, "utf8").match(/^\s*- id:/gm)?.length ?? 0), 0);
 
 const file = (body: string): { path: string; text: string } => ({
   path: "requirements/x.ears",
@@ -20,7 +28,8 @@ describe("[TST-001] .ears compiler", () => {
   it("[TST-001] compiles every requirement in the repository without problems", async () => {
     const compiled = await compileRequirements(new EarsDirectory(`${repo}/requirements`));
     expect(compiled.problems).toEqual([]);
-    expect(compiled.requirements).toHaveLength(62);
+    expect(compiled.requirements).toHaveLength(declaredIds(`${repo}/requirements`));
+    expect(compiled.requirements.length).toBeGreaterThanOrEqual(62);
     expect(renderRequirementsMarkdown(compiled.requirements)).toContain("| KRN-002 | event |");
   });
 

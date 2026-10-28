@@ -3,7 +3,7 @@ name = "sdp-workspace"
 version = "0.1.0"
 description = "SDP uv workspace root"
 requires-python = ">=3.12"
-dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api", "sdp-relativity"]
+dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api", "sdp-relativity", "sdp-investigate"]
 
 [dependency-groups]
 dev = [
@@ -30,6 +30,7 @@ sdp-adapters = { workspace = true }
 sdp-cli = { workspace = true }
 sdp-api = { workspace = true }
 sdp-relativity = { workspace = true }
+sdp-investigate = { workspace = true }
 
 [tool.uv]
 package = false
@@ -70,14 +71,14 @@ ignore = ["RUF001", "RUF002", "RUF003", "N818", "PT011", "PT018", "E501"]
 "pickle".msg = "No pickle anywhere (§15)."
 
 [tool.ruff.lint.isort]
-known-first-party = ["sdp", "sdp_relativity", "sdp_stellar"]
+known-first-party = ["sdp", "sdp_relativity", "sdp_stellar", "sdp_investigate"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src", "packages/sdp-relativity/src"]
+mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src", "packages/sdp-relativity/src", "packages/sdp-investigate/src"]
 plugins = []
 warn_unused_ignores = true
 
@@ -86,7 +87,7 @@ module = ["astropy.*", "scipy.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest
 ignore_missing_imports = true
 
 [tool.importlinter]
-root_packages = ["sdp", "sdp_relativity"]
+root_packages = ["sdp", "sdp_relativity", "sdp_investigate"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -129,4 +130,10 @@ modules = [
 name = "Science modules import only the kernel's domain, science and testing seams (§4, KRN-011)"
 type = "forbidden"
 source_modules = ["sdp_relativity"]
+forbidden_modules = ["sdp.adapters", "sdp.cli", "sdp.api", "sdp.kernel.application", "sdp.kernel.ports.repositories", "psycopg", "httpx"]
+
+[[tool.importlinter.contracts]]
+name = "Investigate tests import only the kernel's domain, science and port types (Investigate §5, §8)"
+type = "forbidden"
+source_modules = ["sdp_investigate"]
 forbidden_modules = ["sdp.adapters", "sdp.cli", "sdp.api", "sdp.kernel.application", "sdp.kernel.ports.repositories", "psycopg", "httpx"]

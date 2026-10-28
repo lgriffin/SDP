@@ -12,6 +12,8 @@ This specification turns SDD 0.2.0 into a buildable architecture: one Python sci
 
 **How to read it.** Sections 2–7 are the architecture proper. Sections 8–10 specify the data layer and the two science modules. Sections 11–13 are verification: the test taxonomy, the EARS requirements and the traceability that binds them. Section 14 records the decisions, 15–18 cover build, run and risk, and 19 lists what only Leigh can decide. Anything carried forward unchanged from 0.2.0 is cited by its old section number rather than repeated.
 
+**The vision in one interaction.** Open a field, select Investigate: the platform identifies the objects in it, retrieves what the archives already know about them, runs the tests you chose, and opens one investigation per candidate, on the Python ecosystem that STScI and Astropy already maintain. That use case, and the bindings it needs, are specified in the companion document [Investigate: Field to Candidate on the STScI Ecosystem](investigate.md); the deltas it made to this specification are marked *(Investigate)* below.
+
 **What changed from 0.2.0 and why**
 
 | Area | SDD 0.2.0 | This specification | Why |
@@ -77,6 +79,10 @@ SDP is one host running a Python kernel, a TypeScript harness and UI, PostgreSQL
 | [MAST](https://archive.stsci.edu/) and [IRSA](https://irsa.ipac.caltech.edu/) | TAP / HTTP | Pan-STARRS and 2MASS corroboration | `MastArchiveAdapter`, `IrsaArchiveAdapter` |
 | Historical record | PDF by DOI | [Dyson, Eddington and Davidson 1920](https://doi.org/10.1098/rsta.1920.0009); [Gilmore and Tausch-Pebody 2020](https://doi.org/10.1098/rsnr.2020.0040); Harvey 1979 | `HistoricalSourceAdapter` |
 | [Zenodo](https://zenodo.org/) | REST | DOI minting for release bundles | `ZenodoPublisherAdapter` (release phase) |
+| [SIMBAD](https://simbad.cds.unistra.fr/) *(Investigate)* | TAP (astroquery.simbad) | Object identifications, types and bibcodes, so a rediscovery is recognised at Identify | `SimbadResolver` |
+| [MAST observations](https://archive.stsci.edu/) *(Investigate)* | astroquery.mast Observations, astrocut | HST, JWST, TESS, Kepler and K2, GALEX, IUE, Digitized Sky Survey plates: observation indices, products, cloud URIs and cutouts | `MastObservationGateway` |
+| [IRSA](https://irsa.ipac.caltech.edu/) time domain *(Investigate)* | astroquery.ipac.irsa | ZTF light curves, WISE and NEOWISE | `IrsaArchiveAdapter` |
+| [DASCH](https://dasch.cfa.harvard.edu/dr7) *(Investigate)* | daschlab over the Starglass web APIs | Harvard plates, about 1880 to 1990: light curves, plate cutouts | `DaschPlateGateway` |
 
 > *Figure: container view · two language hexagons, three stores, five external systems* (see `docs/c4/`)
 
@@ -193,6 +199,8 @@ A resumed experiment re-enters Running from its last checkpoint; Refused and Fai
 - A `ComputePlan` whose `TaskKind` has no CPU reference implementation is invalid.
 - `Findings` from pooled observation sets must cite a `PoolingJustification`; otherwise `interpret()` keeps them separate (UC-02 §9).
 
+**Investigate additions** *(Investigate §2–§6)*. `Field` is a value object: a cone, box or polygon with optional images and their WCS, and an epoch. `Investigation` is an aggregate with four states (Open, Parked, Promoted, Closed) and the events `InvestigationOpened`, `InvestigationParked`, `InvestigationPromoted` and `InvestigationClosed`; every transition records its reason and actor, and an investigation never carries a `Verdict` (its results are labelled `EXPLORATORY`). Invariant: an investigation is promoted only against a frozen confirmatory predeclaration that names evidence the investigation did not use (a different archive, a later release, an independent epoch, or a held-out region); otherwise the kernel refuses and records the refusal (INV-009). The implementation lives in `sdp.kernel.domain.investigation`.
+
 ## 6. Ports catalogue and adapter matrix
 
 Nine driving ports expose the kernel; twelve driven ports are everything it needs from the world, and each driven port ships with an in-memory fake and a contract suite in `sdp.testing`.
@@ -242,6 +250,8 @@ Nine driving ports expose the kernel; twelve driven ports are everything it need
 | `Ledger` | In-memory | Git in a temp repo | Git with required signatures |
 
 A contract suite is one parametrised test module per port, run against the fake and every real adapter available in the environment; the fake is never allowed to pass a case the real adapter fails.
+
+**Investigate additions** *(Investigate §3–§8)*. Driving port `InvestigateField` (with `TriageInvestigation` and `QueryInvestigations` beside it). Driven ports `ObservationArchiveGateway` (products, not rows), `SourceDetector` (photutils; fake `PlantedDetector`), `WcsRefiner` (tweakwcs), `ObjectResolver` (SIMBAD; fake backed by a fixture table), `SourceRegistry` (pyvo), `CandidateRanker`, and `InvestigationRepository` inside the unit of work. Each has a fake and a contract suite in `sdp.testing`. The Jdaviz Imviz plugin is a driving adapter: it reads the viewer footprint as the `Field`, calls `InvestigateField` and overlays the candidates, and holds no analysis logic or archive calls (INV-012).
 
 ## 7. Polyglot boundary and contracts
 
@@ -358,6 +368,8 @@ A `CatalogueQuery` is a value object, not an ADQL string: the adapter renders AD
 **Testing this layer.** Adapter contract tests run against recorded cassettes committed with their query hash, so CI never touches a live archive; a weekly live smoke job re-records one small query per adapter and fails on schema drift (new, renamed or retyped columns). Dialect golden rows are the first thing updated when an archive publishes a release note.
 
 **Future sources.** Local FITS from amateur instruments enters through the same port as a `LocalObservationGateway` adapter reading a read-only curated store, which keeps the astrorepo invariant (never write to the instrument copy) intact.
+
+**Gateway split and DASCH** *(Investigate §4)*. Catalogue rows keep coming through `ArchiveGateway`; observations, where the unit is a product, come through `ObservationArchiveGateway`, whose index is cheap and always fetched while products are fetched only when a test in the profile declares it needs them. DASCH is a registered source (DR7, all access restrictions lifted): cutouts and light curves by object, never bulk. The same rules hold for both gateways: idempotency keys, resumable fetches, licence and citation or retrieval is blocked, cassettes in CI and one weekly live smoke per adapter.
 
 ## 9. Relativity module (UC-02, Einstein 1919) — the validation slice
 
@@ -631,6 +643,8 @@ requirements:
 | NFR-009 | Ubiquitous | Credentials shall live outside Git, containers shall not run as root, and downloads shall be validated before parsing. | Security review, T5 |
 | NFR-010 | Ubiquitous | Run metrics and GPU telemetry shall be exported for Grafana. | Observability test |
 
+**Companion set** *(Investigate §10)*. The thirteen INV requirements live in `requirements/investigate/investigate.ears` and are compiled into the same tables and traceability matrix.
+
 ## 13. Traceability
 
 The harness generates the full matrix from `.ears` files, test markers and gate definitions on every CI run and fails the build on any approved requirement with no passing test; the table below is the hand-maintained seed for the first release and the shape the generated matrix keeps.
@@ -821,6 +835,8 @@ Bands are equal, not to scale; the Gaia DR4 marker falls in the Einstein phase, 
 | 4 Stellar slice | 10–12 | Feature-space policy; CPU clustering adapters; benchmark cross-match; membership and CMD checks; null and injection; candidate dossiers; cuML spike | STL-G-01 to STL-G-09 on CPU; GPU agreement result recorded |
 | 5 Validation and hardening | 13–14 | Full T8 on both modules; mutation baselines and ratchets; T9 clean-room reproduction; Grafana dashboards | Both programmes pass their gates or document failures; mutation thresholds recorded |
 | 6 Release | 15–16 | RO-Crate bundles; Zenodo DOIs; harness release report; architecture report; JOSS draft | An independent clean environment reproduces both reference experiments from the bundles alone |
+
+**Investigate on the roadmap** *(Investigate §9)*. Investigate on one predeclared field becomes the exit criterion of the data-layer phase; the Imviz plugin lands with the stellar slice.
 
 ## 18. Risks and mitigations
 

@@ -13,6 +13,7 @@ members = [
     "sdp-api",
     "sdp-cli",
     "sdp-contracts",
+    "sdp-investigate",
     "sdp-kernel",
     "sdp-relativity",
     "sdp-workspace",
@@ -1862,6 +1863,25 @@ requires-dist = [
 ]
 
 [[package]]
+name = "sdp-investigate"
+version = "0.1.0"
+source = { editable = "packages/sdp-investigate" }
+dependencies = [
+    { name = "astropy" },
+    { name = "numpy" },
+    { name = "scipy" },
+    { name = "sdp-kernel" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "astropy", specifier = ">=6.1" },
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "scipy", specifier = ">=1.13" },
+    { name = "sdp-kernel", editable = "packages/sdp-kernel" },
+]
+
+[[package]]
 name = "sdp-kernel"
 version = "0.1.0"
 source = { editable = "packages/sdp-kernel" }
@@ -1919,6 +1939,7 @@ dependencies = [
     { name = "sdp-api" },
     { name = "sdp-cli" },
     { name = "sdp-contracts" },
+    { name = "sdp-investigate" },
     { name = "sdp-kernel" },
     { name = "sdp-relativity" },
 ]
@@ -1944,6 +1965,7 @@ requires-dist = [
     { name = "sdp-api", editable = "packages/sdp-api" },
     { name = "sdp-cli", editable = "packages/sdp-cli" },
     { name = "sdp-contracts", editable = "packages/sdp-contracts" },
+    { name = "sdp-investigate", editable = "packages/sdp-investigate" },
     { name = "sdp-kernel", editable = "packages/sdp-kernel" },
     { name = "sdp-relativity", editable = "packages/sdp-relativity" },
 ]

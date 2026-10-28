@@ -1,0 +1,109 @@
+# requirements/investigate/investigate.ears
+# Companion set from "Investigate: Field to Candidate on the STScI Ecosystem" §10 (docs/investigate.md).
+capability: Investigate a field
+owner: investigate
+requirements:
+  - id: INV-001
+    pattern: ubiquitous
+    text: "The system shall run Investigate only over a declared Field and a versioned, hashed test profile."
+    rationale: "A profile frozen and hashed before the run cannot be tuned against its own output."
+    verification: test
+    tiers: [T1, T4]
+    status: approved
+    traces: []
+  - id: INV-002
+    pattern: event
+    text: "When Investigate starts, the system shall record the field, the profile hash, the archive releases consulted, the code revision and the seed in an investigation-set manifest."
+    rationale: "An exploratory run is reproducible and auditable like an experiment."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-003
+    pattern: ubiquitous
+    text: "Every identified object shall carry an identification record naming the method, the image or catalogue it came from, and the matched Gaia source key or null."
+    rationale: "Every object says how it was found; an unmatched detection is flagged, not dropped."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces: []
+  - id: INV-004
+    pattern: event
+    text: "When objects are identified, the system shall retrieve catalogue rows and observation indices only through ArchiveGateway and ObservationArchiveGateway."
+    rationale: "Two ports, cassettes in CI, one weekly live smoke per adapter."
+    verification: test
+    tiers: [T0, T3]
+    status: approved
+    traces: []
+  - id: INV-005
+    pattern: ubiquitous
+    text: "Every retrieved row set and product shall be registered as a DatasetArtifact with source release, licence and citation before any test reads it."
+    rationale: "Tests read registered evidence only, so a result is reproducible from the artifacts alone."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces: []
+  - id: INV-006
+    pattern: ubiquitous
+    text: "Every test in a profile shall be a registered TaskKind with a CPU reference implementation and a declared null model."
+    rationale: "Nothing outside the registry runs, and every test has an empirical false-positive rate."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces: []
+  - id: INV-007
+    pattern: event
+    text: "When tests complete, the system shall open one Investigation per candidate above the ranking threshold and record the number of objects and tests examined for the set."
+    rationale: "The multiplicity is recorded so false-discovery control can be applied at set level."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-008
+    pattern: ubiquitous
+    text: "Investigation results shall be labelled EXPLORATORY and shall not carry a Verdict."
+    rationale: "Investigate is how candidates are found, never how a claim is verified."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces: []
+  - id: INV-009
+    pattern: unwanted
+    text: "If an investigation is promoted without a frozen confirmatory predeclaration that names evidence the investigation did not use, then the kernel shall refuse the promotion and record the refusal."
+    rationale: "Exploratory results must not leak into confirmatory claims."
+    verification: test
+    tiers: [T1, T4]
+    status: approved
+    traces: []
+  - id: INV-010
+    pattern: ubiquitous
+    text: "Parked and closed investigations shall be retained with their dossiers and reasons."
+    rationale: "The set is as much evidence as the candidates."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-011
+    pattern: unwanted
+    text: "If a bound ecosystem package is imported outside sdp.adapters or the domain-library allow-list, then the architecture test shall fail the build."
+    rationale: "Each ecosystem package is bound once, behind one port, with a fake and a contract suite."
+    verification: test
+    tiers: [T0]
+    status: approved
+    traces: []
+  - id: INV-012
+    pattern: ubiquitous
+    text: "The field viewer plugin shall contain no analysis logic or archive calls; it shall call InvestigateField and render its results."
+    rationale: "The Imviz plugin is a driving adapter; heavy work stays in the kernel's runner."
+    verification: test
+    tiers: [T0, T4]
+    status: draft
+    traces: []
+  - id: INV-013
+    pattern: optional
+    text: "Where a cloud URI is available for a MAST product, the system shall record the URI and the checksum of the bytes actually read."
+    rationale: "What was read is what is cited."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces: []
