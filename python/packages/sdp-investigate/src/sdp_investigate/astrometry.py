@@ -78,6 +78,11 @@ def predict(row: Mapping[str, Any], epoch: np.ndarray) -> tuple[np.ndarray, np.n
     return ra % 360.0, dec
 
 
+def ra_offset_deg(ra: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """The signed right-ascension difference the shortest way round: 359.9999 and 0.0001 are close."""
+    return np.asarray((np.asarray(ra) - reference + 180.0) % 360.0 - 180.0)
+
+
 class LongBaselineMotion(FieldTest):
     """Does the position history (DASCH plates, DSS) agree with the Gaia proper motion?
 
@@ -110,7 +115,7 @@ class LongBaselineMotion(FieldTest):
             )
             sigma = np.sqrt(history.pos_err_mas**2 + (pm_err * dt / math.sqrt(2)) ** 2)
             cosd = math.cos(math.radians(float(row["dec_deg"])))
-            dra = (history.ra_deg - pra) * cosd * MAS_PER_DEG
+            dra = ra_offset_deg(history.ra_deg, pra) * cosd * MAS_PER_DEG
             ddec = (history.dec_deg - pdec) * MAS_PER_DEG
             keys.append(b.object_key)
             series.append((dra, ddec, sigma, history.epoch_jyear))

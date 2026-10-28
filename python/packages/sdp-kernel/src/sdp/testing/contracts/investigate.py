@@ -16,8 +16,10 @@ import numpy as np
 import pytest
 
 from sdp.kernel.domain.archive import Cone
+from sdp.kernel.domain.dataset import DialectRef
 from sdp.kernel.domain.investigation import (
     EvidenceUsed,
+    FetchedProduct,
     Field,
     Investigation,
     InvestigationSet,
@@ -32,11 +34,13 @@ from sdp.kernel.ports.investigate import (
     ObjectResolver,
     ObservationArchiveGateway,
     ObservationTarget,
+    ProductDialect,
     SourceDetector,
     SourceRegistry,
     WcsRefiner,
 )
 from sdp.kernel.ports.repositories import UnitOfWork
+from sdp.kernel.science import products
 from sdp.testing.investigate import synthetic_profile
 
 AT = datetime(2026, 10, 28, 12, tzinfo=UTC)
@@ -184,6 +188,41 @@ class SourceRegistryContract:
         for s in services:
             assert s.ivoid.startswith("ivo://") and s.access_url and s.title
             assert s.standard.lower() == registry_case.standard.lower()
+
+
+@dataclass(frozen=True)
+class DialectCase:
+    dialect: ProductDialect
+    raw: FetchedProduct
+    product_type: str
+    """A type this dialect curates ``raw`` into (``lightcurve`` or ``astrometry``)."""
+    min_epochs: int = 1
+
+
+class ProductDialectContract:
+    @pytest.mark.req("INV-005")
+    def test_curation_writes_the_canonical_format_tests_read(self, dialect_case: DialectCase) -> None:
+        curated = dialect_case.dialect.curate(dialect_case.product_type, dialect_case.raw)
+        assert curated is not None and curated.media_type == "text/csv"
+        if dialect_case.product_type == products.LIGHTCURVE:
+            lc = products.parse_lightcurve(curated.data)
+            assert len(lc.mjd) >= dialect_case.min_epochs
+            assert np.all(np.diff(lc.mjd) >= 0) and np.all(lc.mag_err > 0)
+        else:
+            pos = products.parse_positions(curated.data)
+            assert len(pos.epoch_jyear) >= dialect_case.min_epochs
+            assert np.all(pos.pos_err_mas > 0)
+            assert np.all((pos.ra_deg >= 0) & (pos.ra_deg < 360)) and np.all(np.abs(pos.dec_deg) <= 90)
+
+    def test_curation_is_deterministic_and_versioned(self, dialect_case: DialectCase) -> None:
+        a = dialect_case.dialect.curate(dialect_case.product_type, dialect_case.raw)
+        b = dialect_case.dialect.curate(dialect_case.product_type, dialect_case.raw)
+        assert a == b
+        assert dialect_case.dialect.dialect_id
+        DialectRef(dialect_case.dialect.dialect_id, dialect_case.dialect.dialect_version)
+
+    def test_types_it_does_not_curate_are_left_raw(self, dialect_case: DialectCase) -> None:
+        assert dialect_case.dialect.curate("no-such-product-type", dialect_case.raw) is None
 
 
 # ---------------------------------------------------------------------------------------------

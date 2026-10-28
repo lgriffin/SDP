@@ -10,6 +10,7 @@ dependencies = [
   "cryptography>=43",
   "duckdb>=2.0",
   "pyyaml>=6",
+  "scikit-learn>=1.5",
   "photutils>=2.0",
   "tweakwcs>=0.8",
 ]

@@ -24,7 +24,7 @@ from sdp.kernel.application.media import JSON, PARQUET, decode_artifact
 from sdp.kernel.domain import events as ev
 from sdp.kernel.domain.archive import CatalogueQuery, idempotency_key
 from sdp.kernel.domain.canonical import canonical_json
-from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, DatasetStatus
+from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, DatasetStatus, DialectRef
 from sdp.kernel.domain.errors import (
     CurationBlocked,
     IntegrityError,
@@ -40,6 +40,7 @@ from sdp.kernel.domain.investigation import (
     ArchiveRole,
     EvidenceBundle,
     EvidenceUsed,
+    FetchedProduct,
     IdentificationMethod,
     IdentifiedObject,
     IdentifyRoute,
@@ -50,6 +51,7 @@ from sdp.kernel.domain.investigation import (
     ObservationCriteria,
     ObservationIndex,
     ProductEvidence,
+    ProductRef,
     RankedCandidate,
     RankingPolicy,
     Stage,
@@ -71,6 +73,7 @@ from sdp.kernel.ports.investigate import (
     ObjectResolver,
     ObservationArchiveGateway,
     ObservationTarget,
+    ProductDialect,
     SourceDetector,
     TriageCommand,
     WcsRefiner,
@@ -114,6 +117,8 @@ class InvestigatePorts:
     ranker: CandidateRanker | None = None
     services: Mapping[str, Any] = field(default_factory=dict)
     """Kernel ports a test may use (for example ``clusterer``: a ClusterSearchAlgorithm)."""
+    product_dialects: Mapping[str, ProductDialect] = field(default_factory=dict)
+    """Dialects that curate an archive's native products into canonical ones, by archive source id."""
 
 
 def load_investigation_tests(group: str = TEST_ENTRY_POINT_GROUP) -> InvestigationTestRegistry:
@@ -545,6 +550,68 @@ class InvestigateFieldUseCase:
             uow.commit()
         return artifact
 
+    def _curate_product(
+        self,
+        set_id: str,
+        raw: DatasetArtifact,
+        fetched: FetchedProduct,
+        product_type: str,
+        dialect: ProductDialect,
+    ) -> DatasetArtifact | None:
+        """The canonical form of a raw product, registered as its curated child naming the dialect
+        (DSI-005); None when the dialect does not curate this product type."""
+        canonical = dialect.curate(product_type, fetched)
+        if canonical is None:
+            return None
+        ref = DialectRef(dialect.dialect_id, dialect.dialect_version)
+        if ArtifactId.of_bytes(canonical.data) == raw.artifact_id:
+            return None  # already canonical: the raw product is what the test reads
+        # The stamp keeps the curated artifact unique to its raw parent and dialect, as the
+        # catalogue path's Parquet metadata does: equal rows from two raw products are two artifacts.
+        stamp = f"# sdp.dialect={ref.dialect_id}@{ref.dialect_version} sdp.raw_parent={raw.artifact_id.value}\n"
+        data = stamp.encode() + canonical.data
+        curated_id = self.store.put(data, canonical.media_type)
+        with self.uow() as uow:
+            existing = uow.datasets.get(curated_id)
+            if existing is not None:
+                self._used(uow, set_id, existing)
+                uow.commit()
+                return existing
+            curated = raw.curate(
+                curated_id=curated_id, byte_count=len(data), dialect=ref, media_type=canonical.media_type
+            )
+            uow.datasets.add(curated)
+            graph = ProvGraph()
+            activity = graph.activity(
+                f"curation/{curated_id.value}",
+                type="Curation",
+                dialect=ref.dialect_id,
+                dialect_version=ref.dialect_version,
+            )
+            graph.entity(curated_id.value, type="DatasetArtifact", kind="curated")
+            graph.entity(raw.artifact_id.value)
+            graph.relate("used", activity, raw.artifact_id.value)
+            graph.relate("wasGeneratedBy", curated_id.value, activity)
+            graph.relate("wasDerivedFrom", curated_id.value, raw.artifact_id.value)
+            uow.evidence.record(graph)
+            uow.events.append(
+                [
+                    ev.DatasetAcquired(
+                        curated_id.value,
+                        self.clock.now(),
+                        {
+                            "curated_from": raw.artifact_id.value,
+                            "dialect": ref.dialect_id,
+                            "dialect_version": ref.dialect_version,
+                            "product_type": product_type,
+                        },
+                    )
+                ]
+            )
+            self._used(uow, set_id, curated)
+            uow.commit()
+        return curated
+
     def _retrieve(self, investigation_set: InvestigationSet, objects: ObjectSet) -> list[EvidenceBundle]:
         done = self._stage_document(investigation_set, Stage.RETRIEVE)
         if done is not None:
@@ -626,23 +693,42 @@ class InvestigateFieldUseCase:
                 investigation_set.archive_releases = tuple(
                     sorted({*investigation_set.archive_releases, index.release_label})
                 )
-                # Products only when a test in the profile declares it needs them.
+                # Products only when a test in the profile declares it needs them; a product offered
+                # as several types (a DASCH light curve is also a position history) is fetched once.
+                retrieved: dict[ProductRef, tuple[FetchedProduct, DatasetArtifact]] = {}
                 for record in index.records:
                     if record.product_type not in needed:
                         continue
-                    fetched = gateway.fetch(record.product)
-                    product = self._register_bytes(
-                        investigation_set.set_id,
-                        data=fetched.data,
-                        media_type=fetched.media_type,
-                        archive=index.archive,
-                        release_label=fetched.release_label,
-                        licence=fetched.licence,
-                        citation=fetched.citation,
-                        rendered=f"GET {fetched.read_from}",
+                    if record.product not in retrieved:
+                        got = gateway.fetch(record.product)
+                        retrieved[record.product] = (
+                            got,
+                            self._register_bytes(
+                                investigation_set.set_id,
+                                data=got.data,
+                                media_type=got.media_type,
+                                archive=index.archive,
+                                release_label=got.release_label,
+                                licence=got.licence,
+                                citation=got.citation,
+                                rendered=f"GET {got.read_from}",
+                            ),
+                        )
+                    fetched, product = retrieved[record.product]
+                    dialect = self.ports.product_dialects.get(selection.source_id)
+                    curated = (
+                        self._curate_product(investigation_set.set_id, product, fetched, record.product_type, dialect)
+                        if dialect is not None
+                        else None
                     )
                     products[o.object_key].append(
-                        ProductEvidence(record.product, record.product_type, product.artifact_id, fetched.read_from)
+                        ProductEvidence(
+                            record.product,
+                            record.product_type,
+                            curated.artifact_id if curated else product.artifact_id,
+                            fetched.read_from,
+                            raw_artifact_id=product.artifact_id if curated else None,
+                        )
                     )
 
         bundles = [
