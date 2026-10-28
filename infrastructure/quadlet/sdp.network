@@ -1,0 +1,5 @@
+# The private network every SDP unit joins; nothing publishes a port except sdp-ui and sdp-grafana,
+# and those bind to the host's loopback.
+[Network]
+NetworkName=sdp
+Internal=false

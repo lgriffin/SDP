@@ -34,3 +34,4 @@ reports/junit/
 .env.*
 !.env.example
 .stryker-tmp/
+infrastructure/compose/secrets/

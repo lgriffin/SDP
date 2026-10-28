@@ -37,8 +37,11 @@ requirements:
     rationale: "Reproducibility level 1 for every release."
     verification: test
     tiers: [T9]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.reproduction.test_reproduce::test_a_synthetic_experiment_reproduces_from_its_manifest_and_inputs"
+      - "python/tests.reproduction.test_reproduce::test_uc01_with_seeded_nulls_and_injections_reproduces_through_the_cli"
+      - "python/tests.reproduction.test_reproduce::test_a_changed_finding_or_verdict_is_named"
   - id: NFR-005
     pattern: ubiquitous
     text: "Logs shall be structured and carry experiment id, task id, duration, resource usage and failure reason."
@@ -86,9 +89,15 @@ requirements:
     text: "Credentials shall live outside Git, containers shall not run as root, and downloads shall be validated before parsing."
     rationale: "Least privilege and untrusted-data handling (§15)."
     verification: test
-    tiers: [T5]
-    status: draft
-    traces: []
+    tiers: [T0, T5]
+    status: approved
+    traces:
+      - "python/tests.architecture.test_deployment::test_the_compose_stack_runs_unprivileged_and_takes_credentials_from_secret_files"
+      - "python/tests.architecture.test_deployment::test_api_and_runner_read_their_credentials_from_mounted_secrets"
+      - "python/tests.publication.test_zenodo::test_credentials_can_come_from_a_mounted_secret_file"
+      - "python/tests.publication.test_zenodo::test_the_database_url_can_come_from_a_secret_file_and_stays_out_of_reprs"
+      - "python/tests.archives.test_untrusted::test_the_gateway_refuses_a_hostile_response_and_parses_others_in_isolation"
+      - "python/tests.archives.test_untrusted::test_the_child_runs_under_the_configured_address_space_limit"
   - id: NFR-010
     pattern: ubiquitous
     text: "Run metrics and GPU telemetry shall be exported for Grafana."

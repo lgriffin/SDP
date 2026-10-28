@@ -1,0 +1,23 @@
+# sdp-ui: the evidence UI, reading sdp-api over the sdp network; published on the host's loopback.
+[Unit]
+Description=SDP evidence UI
+After=sdp-api.service
+
+[Container]
+ContainerName=sdp-ui
+Image=ghcr.io/lgriffin/sdp-ui:latest
+Network=sdp.network
+PublishPort=127.0.0.1:3000:3000
+User=1000
+Group=1000
+UserNS=keep-id:uid=1000,gid=1000
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=true
+Environment=SDP_API_URL=http://sdp-api:8000/graphql
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

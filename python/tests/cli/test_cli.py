@@ -58,6 +58,14 @@ def test_the_whole_signed_workflow_from_the_command_line(k: InMemoryKernel, tmp_
     published = invoke("publish", dossier["dossier_id"])
     assert published["doi"].startswith("10.5072/")
 
+    # The bundle a reviewer downloads reproduces from it and the input alone (NFR-004).
+    bundle = invoke("bundle", dossier["dossier_id"], "--out", str(tmp_path / "bundle.zip"))
+    assert bundle["problems"] == []
+    reproduced = invoke(
+        "reproduce", bundle["bundle"], "--inputs", str(tmp_path), "--out", str(tmp_path / "reproduction")
+    )
+    assert reproduced["ok"] and reproduced["reproduced_verdict"] == "VERIFIED"
+
     assert invoke("ledger", "verify") == {"entries": 2, "problems": []}
     names = [e["name"] for e in invoke("events")]
     assert "VerdictIssued" in names and "PredeclarationFrozen" in names

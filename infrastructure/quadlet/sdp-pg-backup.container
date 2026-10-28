@@ -1,0 +1,21 @@
+# Nightly pg_dump to the NAS backups area (§16), started by sdp-pg-backup.timer.
+# Restore: pg_restore --clean --if-exists -d sdp /nas/sdp/backups/sdp-<date>.dump
+[Unit]
+Description=SDP PostgreSQL backup
+Requires=sdp-postgres.service
+After=sdp-postgres.service
+
+[Container]
+ContainerName=sdp-pg-backup
+Image=docker.io/library/postgres:16-bookworm
+Network=sdp.network
+User=postgres
+UserNS=keep-id:uid=999,gid=999
+DropCapability=ALL
+NoNewPrivileges=true
+Secret=sdp_postgres_password,type=mount,target=/run/secrets/postgres_password,uid=999,mode=0400
+Exec=sh -c 'PGPASSWORD="$$(cat /run/secrets/postgres_password)" pg_dump -h sdp-postgres -U sdp -Fc sdp -f "/backups/sdp-$$(date -u +%%Y-%%m-%%d).dump"'
+Volume=/mnt/nas/sdp/backups:/backups:rw
+
+[Service]
+Type=oneshot

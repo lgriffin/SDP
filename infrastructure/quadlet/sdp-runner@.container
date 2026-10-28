@@ -1,0 +1,33 @@
+# sdp-runner@<experiment-id>: runs (or resumes) one experiment and exits; one at a time initially
+# (§16). The GPU is passed through CDI; GPU results count only after agreement (ADR-007).
+#   systemctl --user start sdp-runner@exp-0123.service
+[Unit]
+Description=SDP runner for %i
+Requires=sdp-postgres.service
+After=sdp-postgres.service
+
+[Container]
+ContainerName=sdp-runner-%i
+Image=ghcr.io/lgriffin/sdp-kernel:latest
+Exec=experiment run %i
+Network=sdp.network
+User=10001
+Group=10001
+UserNS=keep-id:uid=10001,gid=10001
+AddDevice=nvidia.com/gpu=all
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=true
+Tmpfs=/tmp
+Secret=sdp_database_url,type=mount,target=/run/secrets/database_url,uid=10001,mode=0400
+Secret=sdp_signing_key,type=mount,target=/run/secrets/signing_key,uid=10001,mode=0400
+EnvironmentFile=%h/.config/sdp/sdp.env
+Environment=SDP_DATABASE_URL_FILE=/run/secrets/database_url SDP_SIGNING_KEY=/run/secrets/signing_key
+Environment=SDP_ARTIFACT_ROOT=/nas/sdp/artifacts SDP_LEDGER_DIR=/nas/sdp/ledger SDP_METRICS_DIR=/nas/sdp/metrics
+Volume=/mnt/nas/sdp:/nas/sdp:ro
+Volume=/mnt/nas/sdp/artifacts:/nas/sdp/artifacts:rw
+Volume=/mnt/nas/sdp/experiments:/nas/sdp/experiments:rw
+Volume=/mnt/nas/sdp/metrics:/nas/sdp/metrics:rw
+
+[Service]
+Type=oneshot

@@ -1,0 +1,232 @@
+# Release stage of §11.7: every CI stage again on the tagged commit, T10 mutation scores, T9
+# clean-room reproduction in a fresh container, images pushed and pinned by digest, SBOMs, and the
+# harness release report. The report and its inputs are attached to the GitHub release.
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label for a dry run (nothing is pushed or attached)
+        default: dry-run
+  # release-please calls this directly: a release it creates with GITHUB_TOKEN triggers no workflow.
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ github.event.release.tag_name || inputs.version }}
+  PUBLISH: ${{ github.event_name == 'release' || inputs.publish == true }}
+
+jobs:
+  ci:
+    name: every CI stage on the release commit
+    uses: ./.github/workflows/ci.yml
+
+  mutation:
+    name: T10 mutation scores
+    uses: ./.github/workflows/mutation.yml
+    permissions:
+      contents: write
+    with:
+      update: false
+
+  reproduce:
+    name: T9 clean-room reproduction (NFR-004)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: cd python && uv sync --python 3.12 --frozen
+      - run: pnpm install --frozen-lockfile
+      - name: Record the experiments to reproduce
+        run: |
+          set -euo pipefail
+          mkdir -p reports/t9/uc02/inputs
+          (cd python && uv run python -m sdp_relativity.synthetic ../reports/t9/uc02/inputs/bundle.json)
+          node typescript/packages/relativity-fit/src/cli.ts reports/t9/uc02/inputs/bundle.json --out reports/t9/uc02/inputs/independent-fit.json
+          (cd python && uv run python -m sdp.testing.emit ../reports/t9/uc02 --protocol uc02-einstein-1919 \
+            --input observations=../reports/t9/uc02/inputs/bundle.json \
+            --input independent_fit=../reports/t9/uc02/inputs/independent-fit.json --param bootstrap_resamples=200)
+      - name: Reproduce each in a fresh container with no network
+        env:
+          CONTAINER_ENGINE: docker
+        run: |
+          set -euo pipefail
+          for manifest in reports/t9/*/experiments/*/*/manifest.json; do
+            case_dir="${manifest%%/experiments/*}"
+            infrastructure/reproduce.sh "$manifest" "$case_dir/inputs" "$case_dir/reproduction"
+          done
+      - name: Reproduction tests (T9)
+        run: cd python && uv run pytest -q --tier T9 --junitxml=../reports/junit-t9.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-t9
+          path: reports/junit-t9.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reproduction
+          path: reports/t9
+
+  images:
+    name: images · ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [kernel, harness, ui]
+    outputs:
+      kernel: ${{ steps.digest.outputs.kernel }}
+      harness: ${{ steps.digest.outputs.harness }}
+      ui: ${{ steps.digest.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/containers/${{ matrix.image }}.Containerfile
+          # The DGX Spark is ARM64; CI runners are x86-64.
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/sdp-${{ matrix.image }}:${{ env.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/sdp-${{ matrix.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - id: digest
+        run: echo "${{ matrix.image }}=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+      - name: SBOM of the image
+        if: env.PUBLISH == 'true'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/sdp-${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom-image-${{ matrix.image }}.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@v4
+        if: env.PUBLISH == 'true'
+        with:
+          name: sbom-image-${{ matrix.image }}
+          path: sbom-image-${{ matrix.image }}.cdx.json
+
+  sbom:
+    name: SBOM of the locked dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom-source.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-source
+          path: sbom-source.cdx.json
+
+  report:
+    name: harness release report
+    needs: [ci, mutation, reproduce, images, sbom]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: reports/junit
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: mutation-scores
+          path: reports/mutation
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: reproduction
+          path: reports/t9
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sbom-*
+          path: reports/sbom
+          merge-multiple: true
+        continue-on-error: true
+      - name: Quadlet units pinned by digest
+        if: env.PUBLISH == 'true'
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q skopeo
+          owner="ghcr.io/${{ github.repository_owner }}"
+          infrastructure/pin-images.sh reports/quadlet \
+            "$owner/sdp-kernel=${{ needs.images.outputs.kernel }}" \
+            "$owner/sdp-harness=${{ needs.images.outputs.harness }}" \
+            "$owner/sdp-ui=${{ needs.images.outputs.ui }}"
+      - name: spec-harness report
+        run: |
+          set -euo pipefail
+          t9="${{ needs.reproduce.result == 'success' && 'passed' || 'failed' }}"
+          mutation=()
+          [ -f reports/mutation/scores.json ] && mutation=(--mutation reports/mutation/scores.json)
+          pnpm harness report --version "$VERSION" --claim 1 --junit reports/junit \
+            --manifests reports/t9 --external "T9=$t9" "${mutation[@]}" --out reports/release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-report
+          path: reports/release
+      - name: Attach to the release
+        if: always() && env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd reports
+          tar czf quadlet-pinned.tar.gz quadlet 2>/dev/null || true
+          files=(release/release-report.md release/release-report.json)
+          for f in sbom/*.json quadlet-pinned.tar.gz; do [ -f "$f" ] && files+=("$f"); done
+          gh release upload "$VERSION" "${files[@]}" --clobber

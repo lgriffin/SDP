@@ -18,7 +18,7 @@ def _flag(value: str | None) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str
+    database_url: str = field(repr=False)
     artifact_root: Path
     ledger_dir: Path
     repo_root: Path
@@ -43,7 +43,12 @@ class Settings:
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
         env = os.environ if env is None else env
-        missing = [k for k in ("SDP_DATABASE_URL", "SDP_ARTIFACT_ROOT") if not env.get(k)]
+        database_url = secret(env, "SDP_DATABASE_URL")
+        missing = [
+            k
+            for k, v in (("SDP_DATABASE_URL", database_url), ("SDP_ARTIFACT_ROOT", env.get("SDP_ARTIFACT_ROOT")))
+            if not v
+        ]
         if missing:
             raise SettingsError(f"missing environment variables: {', '.join(missing)}")
         repo = Path(env.get("SDP_REPO_ROOT", ".")).resolve()
@@ -52,7 +57,7 @@ class Settings:
             return Path(env[key]) if env.get(key) else None
 
         return cls(
-            database_url=env["SDP_DATABASE_URL"],
+            database_url=str(database_url),
             artifact_root=Path(env["SDP_ARTIFACT_ROOT"]),
             ledger_dir=path("SDP_LEDGER_DIR") or repo / "ledger",
             repo_root=repo,

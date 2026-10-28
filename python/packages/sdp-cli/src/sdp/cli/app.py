@@ -235,11 +235,45 @@ def approve(experiment_id: str, reviewer: Annotated[str, typer.Option(help="Prin
     emit(entry.to_document())
 
 
+@app.command("bundle")
+def bundle(dossier_id: str, out: Annotated[Path, typer.Option(help="Where to write the .zip")]) -> None:
+    """Build the RO-Crate bundle for a dossier without depositing it (for review and `sdp reproduce`)."""
+    from sdp.kernel.application.rocrate import verify_crate
+
+    data = state.runtime().kernel.publish_bundle.build_bundle(dossier_id)
+    out.write_bytes(data)
+    emit({"bundle": str(out), "bytes": len(data), "problems": verify_crate(data)})
+
+
 @app.command("publish")
 def publish(dossier_id: str) -> None:
     """Build the RO-Crate bundle for a dossier and deposit it for a DOI."""
     record = state.runtime().kernel.publish_bundle.publish(dossier_id)
     emit({"doi": record.doi, "url": record.url, "deposition_id": record.deposition_id})
+
+
+@app.command("reproduce")
+def reproduce(
+    evidence: Annotated[Path, typer.Argument(help="RO-Crate bundle (.zip) or manifest.json")],
+    inputs: Annotated[Path, typer.Option(help="Directory holding the input artifacts, found by checksum")],
+    out: Annotated[Path, typer.Option()] = Path("reports/reproduction"),
+) -> None:
+    """Re-run a recorded experiment from its evidence and inputs and compare (T9, NFR-004); exits 1 on a difference."""
+    from sdp.adapters.bootstrap import clusterers
+    from sdp.testing.reproduce import ReproductionError, index_inputs, load_manifest, write_outputs
+    from sdp.testing.reproduce import reproduce as rerun
+
+    try:
+        result = rerun(load_manifest(evidence), index_inputs(inputs), services={"clusterers": clusterers()})
+    except ReproductionError as exc:
+        typer.echo(f"FAIL {exc}", err=True)
+        raise typer.Exit(2) from exc
+    write_outputs(result, out)
+    for difference in result.differences:
+        typer.echo(f"FAIL {difference}", err=True)
+    emit(result.to_document())
+    if not result.ok:
+        raise typer.Exit(1)
 
 
 @app.command("events")

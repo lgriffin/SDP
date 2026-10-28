@@ -1,0 +1,19 @@
+# Prometheus scrapes the exporters for Grafana (NFR-010).
+[Unit]
+Description=SDP Prometheus
+
+[Container]
+ContainerName=sdp-prometheus
+Image=quay.io/prometheus/prometheus:v2.55.1
+Network=sdp.network
+User=65534
+DropCapability=ALL
+NoNewPrivileges=true
+Volume=%h/sdp/infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+Volume=sdp-prometheus.volume:/prometheus
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

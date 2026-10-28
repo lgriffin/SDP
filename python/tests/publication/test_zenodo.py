@@ -116,6 +116,15 @@ def test_credentials_can_come_from_a_mounted_secret_file(tmp_path: Path) -> None
     assert settings.zenodo_token == TOKEN
 
 
+@pytest.mark.req("NFR-009")
+def test_the_database_url_can_come_from_a_secret_file_and_stays_out_of_reprs(tmp_path: Path) -> None:
+    url = "postgresql://sdp:not-a-real-password@db/sdp"
+    secret = tmp_path / "database_url"
+    secret.write_text(url + "\n")
+    settings = Settings.from_env({"SDP_DATABASE_URL_FILE": str(secret), "SDP_ARTIFACT_ROOT": "/tmp"})
+    assert settings.database_url == url and "not-a-real-password" not in repr(settings)
+
+
 def test_the_composition_root_refuses_without_a_token_and_defaults_to_the_sandbox() -> None:
     env = {"SDP_DATABASE_URL": "postgresql://x", "SDP_ARTIFACT_ROOT": "/tmp"}
     assert isinstance(publisher(Settings.from_env(env)), UnconfiguredPublisher)

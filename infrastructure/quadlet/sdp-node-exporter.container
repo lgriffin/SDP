@@ -1,0 +1,21 @@
+# node_exporter's textfile collector exposes the sdp_experiment_* and sdp_gpu_* gauges that
+# sdp-api, the runners and `sdp telemetry gpu` write under the NAS metrics area (NFR-010).
+[Unit]
+Description=SDP node exporter (textfile metrics)
+
+[Container]
+ContainerName=sdp-node-exporter
+Image=quay.io/prometheus/node-exporter:v1.8.2
+Exec=--collector.disable-defaults --collector.textfile --collector.textfile.directory=/metrics
+Network=sdp.network
+User=65534
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=true
+Volume=/mnt/nas/sdp/metrics:/metrics:ro
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
