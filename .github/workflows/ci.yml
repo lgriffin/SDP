@@ -103,10 +103,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
       - run: cd python && uv sync --python 3.12 --frozen
+      - run: pnpm install --frozen-lockfile
       - run: contracts/tools/generate.sh --check
 
   ts-fast:
