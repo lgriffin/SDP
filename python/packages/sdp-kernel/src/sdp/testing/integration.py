@@ -7,6 +7,7 @@ real envelopes come from recorded products (never hand-written archive responses
 
 from __future__ import annotations
 
+import math
 from datetime import date
 
 from sdp.kernel.domain.archive import Cone
@@ -266,6 +267,8 @@ def planted_field() -> tuple[list[CatalogueSource], list[Detection]]:
     - ``gaia-b1`` and ``gaia-b2`` are 1.0 arcsec apart; ``wise-b`` (6 arcsec resolution) blends both,
       so it must associate one-to-many.
     - ``gaia-c`` moves 500 mas/yr in RA; ``jwst-c`` sees it 3.5 years later, about 1.75 arcsec east.
+    - ``gaia-d1`` and ``gaia-d2`` are 0.6 arcsec apart and ``hst-d`` (0.1 arcsec resolution, 0.4 arcsec
+      sigma) sits between them: a genuine two-way ambiguity, not a blend.
     """
     cov_g = PositionCovariance(0.02, 0.02)
     cov_j = PositionCovariance(0.03, 0.03)
@@ -278,9 +281,9 @@ def planted_field() -> tuple[list[CatalogueSource], list[Detection]]:
             "gaia-b2", "gaia", "DR3", "3", ra0 + 20 * ARCSEC, dec0 + 1.0 * ARCSEC, cov_g, 2016.0, Motion(0.0, 0.0)
         ),
         CatalogueSource("gaia-c", "gaia", "DR3", "4", ra0, dec0 + 40 * ARCSEC, cov_g, 2016.0, Motion(500.0, 0.0)),
+        CatalogueSource("gaia-d1", "gaia", "DR3", "5", ra0, dec0 - 30 * ARCSEC, cov_g, 2016.0, Motion(0.0, 0.0)),
+        CatalogueSource("gaia-d2", "gaia", "DR3", "6", ra0, dec0 - 29.4 * ARCSEC, cov_g, 2016.0, Motion(0.0, 0.0)),
     ]
-    import math
-
     cosd = math.cos(math.radians(dec0 + 40 * ARCSEC))
     dets = [
         Detection("jwst-a", "synthetic:JWST/i2d", "SCI", ra0 + 0.05 * ARCSEC, dec0, cov_j, 2019.5, 0.07, "NIRCAM"),
@@ -298,5 +301,114 @@ def planted_field() -> tuple[list[CatalogueSource], list[Detection]]:
             0.07,
             "NIRCAM",
         ),
+        Detection(
+            "hst-d",
+            "synthetic:HST/drz",
+            "SCI",
+            ra0,
+            dec0 - 29.7 * ARCSEC,
+            PositionCovariance(0.4, 0.4),
+            2010.0,
+            0.1,
+            "WFC3",
+        ),
     ]
     return gaia, dets
+
+
+def synthetic_association_field(
+    seed: int, *, stars: int = 40, radius_arcsec: float = 120.0, blend_pairs: int = 3
+) -> tuple[list[CatalogueSource | Detection], dict[str, frozenset[str]]]:
+    """A random field with known truth: Gaia stars with proper motions, a JWST epoch detecting each
+    star with noise, and a WISE epoch that blends ``blend_pairs`` close pairs into one detection.
+
+    Truth maps each detection id to the set of anchor ids that produced it.
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    ra0, dec0 = 150.0, 2.0
+    cosd = math.cos(math.radians(dec0))
+    records: list[CatalogueSource | Detection] = []
+    truth: dict[str, frozenset[str]] = {}
+    pos: list[tuple[float, float]] = []
+    while len(pos) < stars:
+        r = radius_arcsec * math.sqrt(rng.uniform())
+        t = rng.uniform(0, 2 * math.pi)
+        x, y = r * math.cos(t), r * math.sin(t)
+        if all(math.hypot(x - a, y - b) > 8.0 for a, b in pos):
+            pos.append((x, y))
+    motions: list[tuple[float, float]] = []
+    for i, (x, y) in enumerate(pos):
+        pm = (float(rng.normal(0, 30)), float(rng.normal(0, 30)))
+        motions.append(pm)
+        sid = f"gaia-{i:03d}"
+        records.append(
+            CatalogueSource(
+                sid,
+                "gaia",
+                "DR3",
+                str(i),
+                ra0 + x / 3600 / cosd,
+                dec0 + y / 3600,
+                PositionCovariance(0.02, 0.02),
+                2016.0,
+                Motion(pm[0], pm[1], None, 0.05, 0.05),
+            )
+        )
+        dt = 2023.0 - 2016.0
+        jx = x + pm[0] * dt / 1000 + rng.normal(0, 0.03)
+        jy = y + pm[1] * dt / 1000 + rng.normal(0, 0.03)
+        did = f"jwst-{i:03d}"
+        records.append(
+            Detection(
+                did,
+                "synthetic:JWST",
+                "SCI",
+                ra0 + jx / 3600 / cosd,
+                dec0 + jy / 3600,
+                PositionCovariance(0.03, 0.03),
+                2023.0,
+                0.07,
+                "NIRCAM",
+            )
+        )
+        truth[did] = frozenset({sid})
+    for k in range(blend_pairs):
+        x, y = pos[k]
+        sep = float(rng.uniform(1.0, 2.0))
+        j = stars + k
+        bx, by = x + sep, y
+        records.append(
+            CatalogueSource(
+                f"gaia-{j:03d}",
+                "gaia",
+                "DR3",
+                str(j),
+                ra0 + bx / 3600 / cosd,
+                dec0 + by / 3600,
+                PositionCovariance(0.02, 0.02),
+                2016.0,
+                Motion(0.0, 0.0, None, 0.05, 0.05),
+            )
+        )
+        dt = 2019.5 - 2016.0
+        ax = x + motions[k][0] * dt / 1000
+        ay = y + motions[k][1] * dt / 1000
+        wx, wy = (ax + bx) / 2 + rng.normal(0, 0.3), (ay + by) / 2 + rng.normal(0, 0.3)
+        wid = f"wise-{k:03d}"
+        records.append(
+            Detection(
+                wid,
+                "synthetic:WISE",
+                "SCI",
+                ra0 + wx / 3600 / cosd,
+                dec0 + wy / 3600,
+                PositionCovariance(0.5, 0.5),
+                2019.5,
+                6.0,
+                "WISE",
+            )
+        )
+        truth[wid] = frozenset({f"gaia-{k:03d}", f"gaia-{j:03d}"})
+    return records, truth

@@ -40,7 +40,9 @@
         "common_epoch_jyear",
         "search_radius_arcsec",
         "min_posterior",
-        "photometric_terms"
+        "photometric_terms",
+        "counterpart_prior",
+        "anchor_catalogue"
       ],
       "properties": {
         "policy_id": {
@@ -64,6 +66,15 @@
         },
         "photometric_terms": {
           "type": "boolean"
+        },
+        "counterpart_prior": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "anchor_catalogue": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

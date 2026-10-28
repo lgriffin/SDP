@@ -74,7 +74,7 @@ requirements:
     rationale: "Nearest-neighbour matching silently asserts identity (ADR-019)."
     verification: test
     tiers: [T1, T8]
-    status: draft
+    status: approved
     traces: []
   - id: INT-010
     pattern: ubiquitous
@@ -82,7 +82,7 @@ requirements:
     rationale: "A 1950s plate and a 2023 detection are compared at one epoch or not at all."
     verification: test
     tiers: [T1, T2]
-    status: draft
+    status: approved
     traces: []
   - id: INT-011
     pattern: unwanted
@@ -98,7 +98,7 @@ requirements:
     rationale: "Principle 12: anything that issues a probability is implemented twice."
     verification: test
     tiers: [T8]
-    status: draft
+    status: approved
     traces: []
   - id: INT-013
     pattern: event

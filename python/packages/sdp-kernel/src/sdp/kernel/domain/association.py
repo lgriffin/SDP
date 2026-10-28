@@ -280,6 +280,11 @@ class AssociationPolicy:
     min_posterior: float = 1e-3
     """Below this a candidate is negligible; every candidate above it is retained (INT-009)."""
     photometric_terms: bool = False
+    counterpart_prior: float = 0.9
+    """Prior probability that a record has a counterpart among the anchors at all."""
+    anchor_catalogue: str = "gaia"
+    """Catalogue sources from this catalogue anchor the astrometric frame; every other record is
+    matched against them at its own epoch."""
 
     def __post_init__(self) -> None:
         check_semver(self.version)
@@ -287,6 +292,8 @@ class AssociationPolicy:
             raise InvariantViolation("search radius is positive")
         if not 0 <= self.min_posterior < 0.5:
             raise InvariantViolation("the negligible-posterior floor lies in [0, 0.5)")
+        if not 0 < self.counterpart_prior < 1:
+            raise InvariantViolation("the counterpart prior lies strictly between 0 and 1")
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -296,6 +303,8 @@ class AssociationPolicy:
             "search_radius_arcsec": self.search_radius_arcsec,
             "min_posterior": self.min_posterior,
             "photometric_terms": self.photometric_terms,
+            "counterpart_prior": self.counterpart_prior,
+            "anchor_catalogue": self.anchor_catalogue,
         }
 
 

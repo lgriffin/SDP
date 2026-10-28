@@ -8,7 +8,9 @@
     "common_epoch_jyear": 2023.0,
     "search_radius_arcsec": 3.0,
     "min_posterior": 0.001,
-    "photometric_terms": false
+    "photometric_terms": false,
+    "counterpart_prior": 0.9,
+    "anchor_catalogue": "gaia"
   },
   "source_density_per_arcsec2": 0.0,
   "records": [
@@ -113,6 +115,73 @@
       "photometry": []
     },
     {
+      "kind": "catalogue_source",
+      "record_id": "gaia-d1",
+      "catalogue": "gaia",
+      "release_label": "DR3",
+      "source_key": "5",
+      "ra_deg": 53.16,
+      "dec_deg": -27.788333333333334,
+      "covariance": {
+        "sigma_ra_arcsec": 0.02,
+        "sigma_dec_arcsec": 0.02,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2016.0,
+      "motion": {
+        "pmra_mas_yr": 0.0,
+        "pmdec_mas_yr": 0.0,
+        "parallax_mas": null,
+        "sigma_pmra_mas_yr": 0.0,
+        "sigma_pmdec_mas_yr": 0.0,
+        "sigma_parallax_mas": null
+      },
+      "resolution_arcsec": 0.0,
+      "photometry": []
+    },
+    {
+      "kind": "catalogue_source",
+      "record_id": "gaia-d2",
+      "catalogue": "gaia",
+      "release_label": "DR3",
+      "source_key": "6",
+      "ra_deg": 53.16,
+      "dec_deg": -27.78816666666667,
+      "covariance": {
+        "sigma_ra_arcsec": 0.02,
+        "sigma_dec_arcsec": 0.02,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2016.0,
+      "motion": {
+        "pmra_mas_yr": 0.0,
+        "pmdec_mas_yr": 0.0,
+        "parallax_mas": null,
+        "sigma_pmra_mas_yr": 0.0,
+        "sigma_pmdec_mas_yr": 0.0,
+        "sigma_parallax_mas": null
+      },
+      "resolution_arcsec": 0.0,
+      "photometry": []
+    },
+    {
+      "kind": "detection",
+      "record_id": "hst-d",
+      "product_id": "synthetic:HST/drz",
+      "extension": "SCI",
+      "ra_deg": 53.16,
+      "dec_deg": -27.78825,
+      "covariance": {
+        "sigma_ra_arcsec": 0.4,
+        "sigma_dec_arcsec": 0.4,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2010.0,
+      "resolution_arcsec": 0.1,
+      "instrument": "WFC3",
+      "photometry": []
+    },
+    {
       "kind": "detection",
       "record_id": "jwst-a",
       "product_id": "synthetic:JWST/i2d",
@@ -192,6 +261,24 @@
         "gaia-c",
         "jwst-c"
       ]
+    },
+    {
+      "hypothesis_id": "obj:gaia-d1",
+      "members": [
+        "gaia-d1"
+      ]
+    },
+    {
+      "hypothesis_id": "obj:gaia-d2",
+      "members": [
+        "gaia-d2"
+      ]
+    },
+    {
+      "hypothesis_id": "obj:hst-d",
+      "members": [
+        "hst-d"
+      ]
     }
   ],
   "associations": [
@@ -246,6 +333,54 @@
     {
       "record_id": "gaia-c",
       "hypothesis_id": "obj-c",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "gaia-d1",
+      "hypothesis_id": "obj:gaia-d1",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "gaia-d2",
+      "hypothesis_id": "obj:gaia-d2",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "hst-d",
+      "hypothesis_id": "obj:hst-d",
       "method": "planted",
       "method_version": "1.0.0",
       "prior": 0.5,
@@ -328,5 +463,5 @@
       "reason": ""
     }
   ],
-  "graph_id": "sha256:f8824a370900b1eed3d8094eeea2eb63c09a129c31720bbc93b5c68efc8d4ed2"
+  "graph_id": "sha256:339172764a667e365a1b29d6fdeb234430cdcd160c0b1a48fbb682751f1bcef2"
 }

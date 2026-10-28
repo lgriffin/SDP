@@ -106,6 +106,8 @@ class Policy(BaseModel):
     search_radius_arcsec: Annotated[float, Field(gt=0.0)]
     min_posterior: Annotated[float, Field(ge=0.0, lt=0.5)]
     photometric_terms: bool
+    counterpart_prior: Annotated[float, Field(gt=0.0, lt=1.0)]
+    anchor_catalogue: Annotated[str, Field(min_length=1)]
 
 
 class Association(BaseModel):

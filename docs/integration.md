@@ -16,8 +16,8 @@ JWST through a mission-aware MAST adapter is the first acceptance case (§7, ADR
 
 | Stage | Content | Status |
 |---|---|---|
-| Kernel | Value objects, ports and fakes, five schemas and manifest 1.2.0, INT-001 to INT-016, ADR-017 to ADR-022 | This change |
-| D Association | `BayesFactorAssociation` (CPU reference) and `LikelihoodRatioAssociation` in `sdp.adapters.association`; planted-truth fixture; agreement test (INT-009, 010, 012) | Next |
+| Kernel | Value objects, ports and fakes, five schemas and manifest 1.2.0, INT-001 to INT-016, ADR-017 to ADR-022 | Done |
+| D Association | `BayesFactorAssociation` (CPU reference, on the sphere in radians) and `LikelihoodRatioAssociation` (tangent plane in arcsec) in `sdp.adapters.association`, sharing only the kernel's propagation, candidate and blend geometry (`sdp.kernel.science.association`); agreement within 1e-6 on every posterior and recovery of planted identities and blends on synthetic fields (INT-009, 010, 012 approved) | Done |
 | B Product model | `ProductNormalizer` (extends Investigate's `ProductDialect`), `ProductValidator`, the reference-record registry and T5s tier, compatibility records in the manifest, harness `admit` and `claims` | Next |
 | C Capability registry | `PostgresCapabilityRegistry` (migration 0004), VO discovery over the archive `Transport`, replacing the Investigate `SourceRegistry` | After Investigate's VO registry adapter |
 | A JWST ingestion | JWST dialect on Investigate's `MastObservationGateway` (ObsTAP), one public level-2 or level-3 product with full provenance | After Investigate's MAST adapter |
@@ -38,3 +38,11 @@ JWST through a mission-aware MAST adapter is the first acceptance case (§7, ADR
 | Requirements | `requirements/integration/integration.ears` |
 
 Deviations D30 to D33 in `docs/spec-deviations.md` record where the code differs from the document's wording.
+
+## Association: what the methods assume
+
+- **Anchors.** Sources from the policy's `anchor_catalogue` (Gaia by default) anchor the frame. Every other record, whether a detection or a row from another catalogue, is matched against anchors propagated to its own epoch. An anchor without proper motion is compared only within one year of its epoch.
+- **Propagation.** Positions move in a straight line at constant distance, as `SkyCoord.apply_space_motion` does with zero radial velocity. This agrees with astropy to 0.1 mas. Parallax is not applied, and covariance grows by the proper-motion sigmas times the baseline.
+- **Options.** Each record's options are its anchors within the search radius plus "no counterpart". Anchors closer together than the record's resolution form one blend option. Its posterior is split across the members and recorded as `blend_of`, so a coarse detection is never matched one-to-one to a member of a blend.
+- **Priors.** The chance-alignment density is anchors per square arcsecond over the circle that holds the field's records, with a floor of one arcminute in radius. The policy's `counterpart_prior` is the probability that any counterpart exists.
+- **Not yet.** Photometric and spectral likelihood terms, and NWAY-style matching across three or more catalogues jointly, are not implemented. `photometric_terms` is recorded but must stay false.

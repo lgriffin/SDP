@@ -97,6 +97,8 @@ export const AssociationGraph = z.object({
       "search_radius_arcsec": z.number().gt(0),
       "min_posterior": z.number().gte(0).lt(0.5),
       "photometric_terms": z.boolean(),
+      "counterpart_prior": z.number().gt(0).lt(1),
+      "anchor_catalogue": z.string().min(1),
     }).strict(),
     "source_density_per_arcsec2": z.number().gte(0),
     "records": z.array(z.union([Detection, CatalogueSource])),

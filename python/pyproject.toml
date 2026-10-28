@@ -124,6 +124,7 @@ modules = [
   "sdp.adapters.historical",
   "sdp.adapters.archives",
   "sdp.adapters.analytics",
+  "sdp.adapters.association",
 ]
 
 [[tool.importlinter.contracts]]
