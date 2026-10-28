@@ -27,10 +27,43 @@ jobs:
       - name: .ears structure
         run: uv run --no-project --with pyyaml python tools/check_ears.py
 
+  python-static:
+    name: static · ruff, mypy, import-linter (T0)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy packages/sdp-kernel/src tests
+      - run: uv run lint-imports
+
+  python-fast:
+    name: fast · unit, property, contract, use-case (T0-T4)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - name: pytest
+        run: uv run pytest -q -m "not integration and not live and not gpu" --junitxml=../reports/junit-python.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-python
+          path: reports/junit-python.xml
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts]
+    needs: [static-contracts, python-static, python-fast]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

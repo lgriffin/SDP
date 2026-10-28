@@ -8,5 +8,9 @@ requirements:
     rationale: "The harness and UI consume events; a state change without its event is invisible."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_evidence_graph_answers_lineage"
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_exception_inside_unit_of_work_rolls_back"
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_rollback_discards_state_and_events_together"
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_state_and_events_commit_together"

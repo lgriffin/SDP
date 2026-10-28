@@ -1,0 +1,93 @@
+[project]
+name = "sdp-workspace"
+version = "0.1.0"
+description = "SDP uv workspace root"
+requires-python = ">=3.12"
+dependencies = ["sdp-kernel"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "hypothesis>=6.115",
+  "mypy>=1.13",
+  "ruff>=0.8",
+  "import-linter>=2.1",
+  "pytest-archon>=0.0.6",
+  "jsonschema>=4.23",
+  "referencing>=0.35",
+  "types-pyyaml",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+sdp-kernel = { workspace = true }
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+junit_family = "xunit1"
+markers = [
+  "req(id): the requirement id(s) this test verifies (read by spec-harness trace)",
+  "tier(name): the test tier T0..T11 (§11.1)",
+  "scientific: tier T8 scientific validation (nightly)",
+  "integration: tier T5, needs real infrastructure",
+  "live: tier T11, touches live archives (weekly)",
+  "gpu: needs a CUDA device (DGX runner)",
+  "slow: long-running",
+]
+filterwarnings = ["error::DeprecationWarning:sdp.*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["packages/*/src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "TID", "PT", "C4", "PIE", "RET"]
+# E501: the formatter owns line length; PT018: compound asserts read better in scientific checks
+ignore = ["RUF001", "RUF002", "RUF003", "N818", "PT011", "PT018", "E501"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"unittest.mock".msg = "Fakes over mocks (ADR-006, TST-005): use the fakes in sdp.testing."
+"pickle".msg = "No pickle anywhere (§15)."
+
+[tool.ruff.lint.isort]
+known-first-party = ["sdp", "sdp_relativity", "sdp_stellar"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = ["packages/sdp-kernel/src"]
+plugins = []
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["astropy.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*"]
+ignore_missing_imports = true
+
+[tool.importlinter]
+root_packages = ["sdp"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Kernel layers: application > ports > science > domain (§4)"
+type = "layers"
+layers = [
+  "sdp.kernel.application",
+  "sdp.kernel.ports",
+  "sdp.kernel.science",
+  "sdp.kernel.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Kernel never imports testing fakes or infrastructure (NFR-006)"
+type = "forbidden"
+source_modules = ["sdp.kernel"]
+forbidden_modules = ["sdp.testing", "psycopg", "duckdb", "httpx", "sklearn", "strawberry", "typer"]

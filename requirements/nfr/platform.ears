@@ -24,8 +24,11 @@ requirements:
     rationale: "Input integrity (§15)."
     verification: test
     tiers: [T3, T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestArtifactStore::test_get_returns_exactly_what_was_put"
+      - "python/tests.contract.test_kernel_fakes.TestArtifactStore::test_put_returns_the_sha256_of_the_bytes"
+      - "python/tests.usecase.test_acquire_dataset::test_reads_verify_sha256"
   - id: NFR-004
     pattern: ubiquitous
     text: "Released experiments shall reproduce from pinned environments and accessible inputs in a fresh container."
@@ -40,16 +43,20 @@ requirements:
     rationale: "Unattended runs must report plainly."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.usecase.test_run_experiment::test_logs_carry_experiment_task_duration_resources_and_failure"
   - id: NFR-006
     pattern: ubiquitous
     text: "Domain and science code shall not depend on infrastructure implementations."
     rationale: "Hexagonal dependency rule (§4)."
     verification: test
     tiers: [T0]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.architecture.test_architecture::test_domain_and_science_ports_do_not_depend_on_infrastructure"
+      - "python/tests.architecture.test_architecture::test_domain_is_pure"
+      - "python/tests.architecture.test_architecture::test_import_linter_contracts_are_kept"
   - id: NFR-007
     pattern: ubiquitous
     text: "Schema migrations shall be versioned and tested one step forward and one step back."

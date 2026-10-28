@@ -16,24 +16,30 @@ requirements:
     rationale: "Every acquisition is auditable and replayable."
     verification: test
     tiers: [T3]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestArchiveGateway::test_query_renders_text_and_a_stable_idempotency_key"
+      - "python/tests.usecase.test_acquire_dataset::test_acquisition_records_query_release_licence_citation_checksum_size_and_time"
   - id: DSI-003
     pattern: unwanted
     text: "If a downloaded chunk fails checksum verification, then the system shall discard it, emit DatasetRejected and retry within the bounded policy."
     rationale: "A corrupted chunk must never become evidence."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.usecase.test_acquire_dataset::test_corrupted_chunk_is_discarded_rejected_and_retried"
+      - "python/tests.usecase.test_acquire_dataset::test_retries_are_bounded"
   - id: DSI-004
     pattern: event
     text: "When an acquisition repeats an existing idempotency key, the system shall return the existing artifact without a remote call."
     rationale: "Repeat acquisitions are free and identical."
     verification: test
     tiers: [T3]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestDatasetRepository::test_find_by_idempotency_key"
+      - "python/tests.usecase.test_acquire_dataset::test_repeated_idempotency_key_returns_existing_artifact_without_a_remote_call"
   - id: DSI-007
     pattern: ubiquitous
     text: "Archive adapter contract tests shall run from recorded cassettes, and CI shall make no live archive call."

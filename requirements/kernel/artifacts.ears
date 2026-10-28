@@ -8,5 +8,8 @@ requirements:
     rationale: "Raw data are never modified in place (ADR-008)."
     verification: test
     tiers: [T3]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestArtifactStore::test_raw_paths_are_write_once"
+      - "python/tests.contract.test_kernel_fakes.TestDatasetRepository::test_registered_raw_metadata_cannot_be_rewritten"
+      - "python/tests.usecase.test_acquire_dataset::test_raw_artifacts_cannot_be_replaced_through_workflows"

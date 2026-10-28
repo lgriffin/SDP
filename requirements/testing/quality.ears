@@ -40,8 +40,9 @@ requirements:
     rationale: "Mock-heavy tests pass while adapters fail (ADR-006)."
     verification: analysis
     tiers: [lint]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.architecture.test_architecture::test_no_mocks_or_pickle_in_kernel_or_fakes"
   - id: TST-006
     pattern: ubiquitous
     text: "The release report shall claim only reproducibility levels whose tiers passed in that run."
