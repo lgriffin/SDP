@@ -1,0 +1,34 @@
+{
+  "source_key": "gaia:DR3:66727234683960320",
+  "ra_deg": 56.75,
+  "dec_deg": 24.1167,
+  "epoch_jyear": 2016.0,
+  "parallax_mas": 7.36,
+  "parallax_mas_err": 0.02,
+  "pm_ra_cosdec_masyr": 19.99,
+  "pm_ra_cosdec_masyr_err": 0.03,
+  "pm_dec_masyr": -45.44,
+  "pm_dec_masyr_err": 0.02,
+  "astrometric_corr": [
+    0.1,
+    -0.05,
+    0.2,
+    0.01,
+    -0.1,
+    0.03,
+    0.25,
+    -0.02,
+    0.04,
+    0.12
+  ],
+  "g_mag": 10.2,
+  "bp_rp": 0.61,
+  "ruwe": 1.02,
+  "quality_flags": {
+    "ruwe": 1.02,
+    "astrometric_params_solved": 95
+  },
+  "quality_class": "good",
+  "zero_point_corrected": false,
+  "source_release": "gaia:DR3"
+}

@@ -1,0 +1,52 @@
+# requirements/contracts/boundary.ears
+capability: Polyglot contract boundary
+owner: contracts
+requirements:
+  - id: CTR-001
+    pattern: ubiquitous
+    text: "Every boundary type shall be defined once under contracts/schemas and generated into both languages."
+    rationale: "Neither language hand-writes a boundary type (ADR-003)."
+    verification: test
+    tiers: [T6]
+    status: draft
+    traces: []
+  - id: CTR-002
+    pattern: unwanted
+    text: "If committed generated code differs from a fresh generation, then CI shall fail."
+    rationale: "A schema edit without regeneration must not merge."
+    verification: test
+    tiers: [T6]
+    status: draft
+    traces: []
+  - id: CTR-003
+    pattern: ubiquitous
+    text: "Both languages shall accept every fixture under fixtures/valid and reject every fixture under fixtures/invalid at the expected error path."
+    rationale: "Golden fixtures pin agreement between the two toolchains."
+    verification: test
+    tiers: [T6]
+    status: draft
+    traces: []
+  - id: CTR-004
+    pattern: ubiquitous
+    text: "An evidence manifest shall carry schema_version, and the harness shall read the current and the previous major version."
+    rationale: "Manifests outlive releases; the harness reads one major back."
+    verification: test
+    tiers: [T6]
+    status: draft
+    traces: []
+  - id: CTR-005
+    pattern: event
+    text: "When the GraphQL schema changes, the committed schema.graphql and the generated client shall change in the same commit."
+    rationale: "The UI client and the API must not drift."
+    verification: test
+    tiers: [T6]
+    status: draft
+    traces: []
+  - id: CTR-006
+    pattern: ubiquitous
+    text: "Every domain-to-DTO mapper shall round-trip its type."
+    rationale: "Mappers are the only bridge between domain and DTO types."
+    verification: test
+    tiers: [T2]
+    status: draft
+    traces: []

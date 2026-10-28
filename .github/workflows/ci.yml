@@ -1,0 +1,38 @@
+# CI stages of §11.7. The `ci-ok` job is the single required status check for
+# branch protection and auto-merge; it succeeds only when every stage it needs succeeds.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static-contracts:
+    name: static · contracts and requirements
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Contract fixtures and draft predeclarations
+        run: uv run --no-project --with jsonschema --with referencing python contracts/tools/check_fixtures.py
+      - name: .ears structure
+        run: uv run --no-project --with pyyaml python tools/check_ears.py
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [static-contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every stage passed
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -e 'to_entries | all(.value.result == "success")'

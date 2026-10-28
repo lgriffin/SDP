@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/predeclaration.schema.json",
+  "x-version": "1.0.0",
+  "title": "Predeclaration",
+  "description": "Hypotheses, gates, oracle tolerances and targets, hashed over canonical JSON and frozen before any data are touched (ADR-004).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "predeclaration_id",
+    "protocol_id",
+    "protocol_version",
+    "title",
+    "hypotheses",
+    "gates",
+    "oracle_tolerances",
+    "targets",
+    "parameters"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "predeclaration_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "protocol_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "protocol_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hypotheses": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/HypothesisRef"
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "common.schema.json#/$defs/Gate"
+      }
+    },
+    "oracle_tolerances": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/OracleTolerance"
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Target"
+      }
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "Prediction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "model_version",
+        "parameters",
+        "geometry_assumptions"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "predicted": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "geometry_assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "HypothesisRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hypothesis_id",
+        "version",
+        "statement",
+        "predictions",
+        "evaluation_criteria"
+      ],
+      "properties": {
+        "hypothesis_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predictions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Prediction"
+          }
+        },
+        "evaluation_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "OracleTolerance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_id",
+        "rtol",
+        "atol"
+      ],
+      "properties": {
+        "oracle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rtol": {
+          "type": "number",
+          "minimum": 0
+        },
+        "atol": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "kind",
+        "reason",
+        "spec"
+      ],
+      "properties": {
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "region",
+            "source"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spec": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,131 @@
+[
+  {
+    "name": "key-order",
+    "input": {
+      "b": 1,
+      "a": [
+        3,
+        2,
+        1
+      ],
+      "c": {
+        "z": null,
+        "y": true
+      }
+    },
+    "canonical": "{\"a\":[3,2,1],\"b\":1,\"c\":{\"y\":true,\"z\":null}}",
+    "sha256": "sha256:abebfca918a9c06d400778d9ef17e4f437dcee8676e2d9ab95561c8202191bea"
+  },
+  {
+    "name": "numbers",
+    "input": {
+      "n": [
+        1.0,
+        0.1,
+        1e+21,
+        1e-07,
+        1.5e-06,
+        1e-06,
+        -0.0,
+        1.75,
+        -32500000000.0,
+        123.456,
+        1e+20,
+        9007199254740992
+      ]
+    },
+    "canonical": "{\"n\":[1,0.1,1e+21,1e-7,0.0000015,0.000001,0,1.75,-32500000000,123.456,100000000000000000000,9007199254740992]}",
+    "sha256": "sha256:e80b7ab85729f9092638cfadef56d5380133be1e1f6d34a050d0bfccd69a008a"
+  },
+  {
+    "name": "unicode",
+    "input": {
+      "é": "ü",
+      "€": " tab\t\"q\"",
+      "a": "\u0001"
+    },
+    "canonical": "{\"a\":\"\\u0001\",\"é\":\"ü\",\"€\":\" tab\\t\\\"q\\\"\"}",
+    "sha256": "sha256:2bb82c2e1444ea117df3b6d67be9c1f1ac34a201e3f9553ddb36ab7b8a4fff09"
+  },
+  {
+    "name": "synthetic-predeclaration",
+    "input": {
+      "schema_version": "1.0.0",
+      "predeclaration_id": "synthetic-linear-v1",
+      "protocol_id": "synthetic-linear",
+      "protocol_version": "1.0.0",
+      "title": "Synthetic linear recovery (walking skeleton)",
+      "hypotheses": [
+        {
+          "hypothesis_id": "SYN-H1",
+          "version": 1,
+          "statement": "The fitted slope of the synthetic series equals the planted slope.",
+          "predictions": [
+            {
+              "model_id": "linear",
+              "model_version": "1.0.0",
+              "parameters": {
+                "slope": 2.0
+              },
+              "predicted": {
+                "value": 2.0,
+                "unit": ""
+              },
+              "geometry_assumptions": []
+            }
+          ],
+          "evaluation_criteria": [
+            "|slope - 2.0| < 0.05"
+          ]
+        }
+      ],
+      "gates": [
+        {
+          "gate_id": "SYN-G-01",
+          "description": "Fitted slope agrees with the planted slope",
+          "finding": "slope_abs_error",
+          "comparator": "lt",
+          "threshold": 0.05,
+          "severity": "blocking",
+          "oracle_ids": [
+            "planted-slope"
+          ]
+        },
+        {
+          "gate_id": "SYN-G-02",
+          "description": "Residual RMS below the noise ceiling",
+          "finding": "residual_rms",
+          "comparator": "le",
+          "threshold": 0.5,
+          "severity": "warning",
+          "oracle_ids": []
+        }
+      ],
+      "oracle_tolerances": [
+        {
+          "oracle_id": "planted-slope",
+          "rtol": 0.0,
+          "atol": 0.05,
+          "unit": null
+        }
+      ],
+      "targets": [
+        {
+          "target_id": "series-a",
+          "kind": "source",
+          "reason": "Synthetic series generated from a fixed seed",
+          "spec": {
+            "n": 200
+          }
+        }
+      ],
+      "parameters": {
+        "noise_sigma": 0.1,
+        "n": 200
+      },
+      "notes": null
+    },
+    "canonical": "{\"gates\":[{\"comparator\":\"lt\",\"description\":\"Fitted slope agrees with the planted slope\",\"finding\":\"slope_abs_error\",\"gate_id\":\"SYN-G-01\",\"oracle_ids\":[\"planted-slope\"],\"severity\":\"blocking\",\"threshold\":0.05},{\"comparator\":\"le\",\"description\":\"Residual RMS below the noise ceiling\",\"finding\":\"residual_rms\",\"gate_id\":\"SYN-G-02\",\"oracle_ids\":[],\"severity\":\"warning\",\"threshold\":0.5}],\"hypotheses\":[{\"evaluation_criteria\":[\"|slope - 2.0| < 0.05\"],\"hypothesis_id\":\"SYN-H1\",\"predictions\":[{\"geometry_assumptions\":[],\"model_id\":\"linear\",\"model_version\":\"1.0.0\",\"parameters\":{\"slope\":2},\"predicted\":{\"unit\":\"\",\"value\":2}}],\"statement\":\"The fitted slope of the synthetic series equals the planted slope.\",\"version\":1}],\"notes\":null,\"oracle_tolerances\":[{\"atol\":0.05,\"oracle_id\":\"planted-slope\",\"rtol\":0,\"unit\":null}],\"parameters\":{\"n\":200,\"noise_sigma\":0.1},\"predeclaration_id\":\"synthetic-linear-v1\",\"protocol_id\":\"synthetic-linear\",\"protocol_version\":\"1.0.0\",\"schema_version\":\"1.0.0\",\"targets\":[{\"kind\":\"source\",\"reason\":\"Synthetic series generated from a fixed seed\",\"spec\":{\"n\":200},\"target_id\":\"series-a\"}],\"title\":\"Synthetic linear recovery (walking skeleton)\"}",
+    "sha256": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6"
+  }
+]

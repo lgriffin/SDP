@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_id": "sha256:97237ed9325a20ef8fa812603a294f8bed8879bd1896cc9e6cb4913bf0a96e53",
+  "kind": "curated",
+  "status": "curated",
+  "media_type": "application/vnd.apache.parquet",
+  "byte_count": 150002,
+  "source_ref": {
+    "kind": "archive",
+    "identity": "esa.gaia.tap",
+    "release_label": "gaia:DR3",
+    "query_text": "SELECT TOP 5000 source_id, ra, dec FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',56.75,24.12,1.0))",
+    "doi": null,
+    "bibcode": null,
+    "licence": "CC BY-SA 3.0 IGO",
+    "citation": "Gaia Collaboration, Vallenari et al. 2023, A&A 674, A1"
+  },
+  "dialect": {
+    "dialect_id": "gaia-dr3",
+    "dialect_version": "1.0.0"
+  },
+  "parents": [
+    "sha256:2bfd662205589a2d535391e5eb2d34c46666ebcdf566e832a0e07c30be0afa23"
+  ],
+  "acquisition": null,
+  "rejection_reason": null
+}

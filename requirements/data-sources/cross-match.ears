@@ -1,0 +1,12 @@
+# requirements/data-sources/cross-match.ears
+capability: Cross-match
+owner: data-sources
+requirements:
+  - id: DSI-009
+    pattern: ubiquitous
+    text: "A cross-match adapter shall agree with AstropyCrossMatch on the fixture within tolerance before any gate uses it."
+    rationale: "A remote cross-match must agree with the CPU reference before it is trusted."
+    verification: test
+    tiers: [T3]
+    status: draft
+    traces: []

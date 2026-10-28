@@ -1,0 +1,5 @@
+# §15: the .ears files, ADRs and ledger may not change without review.
+/requirements/   @lgriffin
+/docs/adr/       @lgriffin
+/ledger/         @lgriffin
+/contracts/      @lgriffin

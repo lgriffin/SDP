@@ -1,0 +1,22 @@
+{
+  "source_key": "2mass:03470000+2407000",
+  "ra_deg": 56.75,
+  "dec_deg": 24.1167,
+  "epoch_jyear": 1998.9,
+  "parallax_mas": null,
+  "parallax_mas_err": null,
+  "pm_ra_cosdec_masyr": null,
+  "pm_ra_cosdec_masyr_err": null,
+  "pm_dec_masyr": null,
+  "pm_dec_masyr_err": null,
+  "astrometric_corr": null,
+  "g_mag": null,
+  "bp_rp": null,
+  "ruwe": null,
+  "quality_flags": {
+    "ph_qual": "AAA"
+  },
+  "quality_class": "unknown",
+  "zero_point_corrected": false,
+  "source_release": "2mass:psc"
+}

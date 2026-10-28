@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "entry_id": "led-000002",
+  "sequence": 1,
+  "kind": "approval",
+  "subject_id": "exp-0001",
+  "subject_hash": "sha256:07af6e90faf9c3bc1477133ce2bd0cf8927ef342d3d55a51d6b8e45d82442006",
+  "recorded_at": "2026-10-28T12:00:00Z",
+  "signer": "leigh",
+  "signature": {
+    "method": "test-hmac",
+    "value": "3c1f"
+  },
+  "previous_entry_hash": "sha256:e60bc829d064e09e0bbc9ba5dc8f01ef231e51a91984f0fbdabee2e7f1731a6a",
+  "payload": {
+    "experiment_id": "exp-0001",
+    "verdict_status": "VERIFIED",
+    "reviewer_role": "reviewer"
+  }
+}

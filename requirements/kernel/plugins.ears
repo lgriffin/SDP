@@ -1,0 +1,12 @@
+# requirements/kernel/plugins.ears
+capability: Science module plugins
+owner: kernel
+requirements:
+  - id: KRN-011
+    pattern: ubiquitous
+    text: "The kernel shall invoke science modules only through the ScientificProtocol port."
+    rationale: "The kernel never imports science modules (ADR-001)."
+    verification: test
+    tiers: [T0]
+    status: draft
+    traces: []
