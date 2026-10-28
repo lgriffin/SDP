@@ -1,0 +1,134 @@
+# requirements/integration/integration.ears
+# Integration Architecture v0.4.0 §10 (docs/integration.md). ADR-017 to ADR-022 accepted 2026-10-28;
+# each requirement flips to approved in the pull request that lands its behaviour and tests.
+capability: Capability-driven integration
+owner: integration
+requirements:
+  - id: INT-001
+    pattern: ubiquitous
+    text: "Every registered source shall have a SourceCapabilityDescriptor with a verification date, read from the IVOA registry and VOSI where the source publishes them."
+    rationale: "Read, not invent: the registry already describes most sources (ADR-017)."
+    verification: test
+    tiers: [T3, T11]
+    status: draft
+    traces: []
+  - id: INT-002
+    pattern: unwanted
+    text: "If a descriptor claims a product type for which no IntegrationConformanceSuite has passed in the current release, then the harness shall remove the claim and fail the release report."
+    rationale: "A source cannot advertise a capability its adapter has not proven (ADR-021)."
+    verification: test
+    tiers: [harness]
+    status: draft
+    traces: []
+  - id: INT-003
+    pattern: event
+    text: "When a capability match is requested for a field and an evidence requirement, the system shall return every registered source with a per-field reason."
+    rationale: "A planner and a reviewer read the same explanation."
+    verification: test
+    tiers: [T1, T4]
+    status: approved
+    traces: []
+  - id: INT-004
+    pattern: ubiquitous
+    text: "Cutout support shall be recorded per product from DataLink and SODA descriptors, never assumed per archive."
+    rationale: "Server-side cutouts differ product by product."
+    verification: test
+    tiers: [T3, T5s]
+    status: draft
+    traces: []
+  - id: INT-005
+    pattern: ubiquitous
+    text: "Every ingested product shall keep its original bytes as an immutable raw artifact with a SHA-256 of the bytes actually read."
+    rationale: "Curation never rewrites the raw file (ADR-018)."
+    verification: test
+    tiers: [T3, T5]
+    status: draft
+    traces: []
+  - id: INT-006
+    pattern: ubiquitous
+    text: "Every product envelope shall carry frame, epoch, time scale, units, calibration level, uncertainty and quality presence, access status, rights, citation and relationships."
+    rationale: "Scientific meaning is part of the envelope, not implied."
+    verification: test
+    tiers: [T5s]
+    status: approved
+    traces: []
+  - id: INT-007
+    pattern: unwanted
+    text: "If a curated representation would lose an extension, a WCS, an uncertainty array or a quality mask present in the raw product, then the validator shall block curation."
+    rationale: "Curation preserves what the science reads."
+    verification: test
+    tiers: [T5s]
+    status: draft
+    traces: []
+  - id: INT-008
+    pattern: unwanted
+    text: "If a product's product_type is preview, thumbnail or auxiliary, then the system shall not curate it as science."
+    rationale: "Previews and auxiliaries are never evidence."
+    verification: test
+    tiers: [T1, T5s]
+    status: approved
+    traces: []
+  - id: INT-009
+    pattern: ubiquitous
+    text: "The association service shall retain every candidate association with its posterior, prior and evidence, and shall not select a nearest neighbour on its own."
+    rationale: "Nearest-neighbour matching silently asserts identity (ADR-019)."
+    verification: test
+    tiers: [T1, T8]
+    status: approved
+    traces: []
+  - id: INT-010
+    pattern: ubiquitous
+    text: "Associations shall be computed at a common epoch using propagated astrometry with grown covariance."
+    rationale: "A 1950s plate and a 2023 detection are compared at one epoch or not at all."
+    verification: test
+    tiers: [T1, T2]
+    status: approved
+    traces: []
+  - id: INT-011
+    pattern: unwanted
+    text: "If an association is set to accepted without a ledger entry, then the kernel shall refuse the transition."
+    rationale: "Identity is a reviewer's signed decision."
+    verification: test
+    tiers: [T1, T4]
+    status: approved
+    traces: []
+  - id: INT-012
+    pattern: ubiquitous
+    text: "The two association implementations shall agree on the reference fixture within the declared tolerance before either feeds a gate."
+    rationale: "Principle 12: anything that issues a probability is implemented twice."
+    verification: test
+    tiers: [T8]
+    status: approved
+    traces: []
+  - id: INT-013
+    pattern: event
+    text: "When an investigation is planned, the system shall write a content-addressed AcquisitionPlan naming every item, its expected size, its purpose and its access status before any acquisition."
+    rationale: "Plans become reproducible evidence (ADR-020)."
+    verification: test
+    tiers: [T4]
+    status: draft
+    traces: []
+  - id: INT-014
+    pattern: unwanted
+    text: "If a plan exceeds the profile's AcquisitionBudget threshold, then the system shall require a signed ledger approval before execution."
+    rationale: "Large downloads become signed decisions."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INT-015
+    pattern: unwanted
+    text: "If an acquisition is requested that no approved plan item names, then the executor shall refuse it and record the refusal."
+    rationale: "Nothing is downloaded that a hashed plan did not name."
+    verification: test
+    tiers: [T1, T4]
+    status: draft
+    traces: []
+  - id: INT-016
+    pattern: unwanted
+    text: "If a manifest names an adapter without a passing AdapterCompatibilityRecord for a product type the experiment used, then the kernel shall not issue a verdict and the harness shall block publication."
+    rationale: "Admission to a gate is checked, not asserted (ADR-021)."
+    verification: test
+    tiers: [T1, harness]
+    status: draft
+    traces: []
