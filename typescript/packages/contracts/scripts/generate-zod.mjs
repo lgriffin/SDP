@@ -1,7 +1,7 @@
 // Generate Zod schemas from contracts/schemas (CTR-001). CI reruns this and fails on any diff (CTR-002).
 //
 // Covers the JSON Schema subset the contracts use: type (incl. type arrays), properties, required,
-// additionalProperties, enum, const, pattern, minLength, minimum, maximum, exclusiveMaximum,
+// additionalProperties, enum, const, pattern, minLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum,
 // items, minItems, maxItems, uniqueItems, oneOf, anyOf, allOf, if/then and $ref (local, to
 // another schema file, or to another file's $defs). Anything else fails generation loudly.
 
@@ -15,7 +15,7 @@ const outDir = process.env.SDP_ZOD_OUT ? path.resolve(process.env.SDP_ZOD_OUT) :
 
 const KNOWN = new Set([
   "$schema", "$id", "$ref", "x-version", "x-unit", "title", "description", "$defs", "type", "properties", "required",
-  "additionalProperties", "enum", "const", "pattern", "minLength", "minimum", "maximum", "exclusiveMaximum",
+  "additionalProperties", "enum", "const", "pattern", "minLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
   "items", "minItems", "maxItems", "uniqueItems", "oneOf", "anyOf", "allOf", "if", "then", "format",
 ]);
 
@@ -129,6 +129,7 @@ class FileGen {
         let out = s.type === "integer" ? "z.number().int()" : "z.number()";
         if (s.minimum !== undefined) out += `.gte(${s.minimum})`;
         if (s.maximum !== undefined) out += `.lte(${s.maximum})`;
+        if (s.exclusiveMinimum !== undefined) out += `.gt(${s.exclusiveMinimum})`;
         if (s.exclusiveMaximum !== undefined) out += `.lt(${s.exclusiveMaximum})`;
         return out;
       }

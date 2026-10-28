@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "source_id": "synthetic-dasch",
+  "ivoid": null,
+  "title": "Synthetic DASCH",
+  "publisher": "SDP test fixtures",
+  "origin": "hand-written",
+  "verified_on": "2026-09-01",
+  "protocols": [],
+  "data_models": [],
+  "product_types": [
+    "image",
+    "timeseries"
+  ],
+  "missions": [
+    "DASCH"
+  ],
+  "instruments": [],
+  "coverage": {
+    "all_sky": null,
+    "regions": [],
+    "t_min_mjd": 7000.0,
+    "t_max_mjd": 48000.0,
+    "em_min_m": null,
+    "em_max_m": null
+  },
+  "operations": [
+    "cone",
+    "cutout",
+    "download"
+  ],
+  "cutout_support": {
+    "image": "native"
+  },
+  "access": "public",
+  "limits": {
+    "max_rows": null,
+    "page_size": null,
+    "requests_per_second": null,
+    "max_concurrent": null,
+    "upload": false,
+    "throughput_bytes_per_s": null
+  },
+  "rights": {
+    "licence": "CC-BY-4.0",
+    "citation": "DASCH",
+    "acknowledgement": ""
+  },
+  "adapter": {
+    "name": "dasch",
+    "version": "1.0.0",
+    "last_compatibility_check": null,
+    "conformance": {}
+  }
+}
