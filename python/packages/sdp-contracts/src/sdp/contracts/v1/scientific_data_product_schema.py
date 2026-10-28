@@ -100,6 +100,14 @@ class Relationship(BaseModel):
     description: str
 
 
+class CalibrationReference(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    keyword: Annotated[str, Field(min_length=1)]
+    file: Annotated[str, Field(min_length=1)]
+
+
 class ProductMetadata(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -135,6 +143,7 @@ class ProductMetadata(BaseModel):
     checksum: common_schema.Sha256Id
     size_bytes: Annotated[int, Field(ge=0)]
     relationships: list[Relationship]
+    calibration_references: list[CalibrationReference]
 
 
 class Check(BaseModel):

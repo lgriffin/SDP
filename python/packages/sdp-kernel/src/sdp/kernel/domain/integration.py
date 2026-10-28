@@ -649,6 +649,8 @@ class ProductMetadata:
     checksum: str
     size_bytes: int
     relationships: tuple[ProductRelationship, ...] = ()
+    calibration_references: tuple[tuple[str, str], ...] = ()
+    """Calibration reference files named in the header (keyword, file), recorded as provenance."""
 
     def __post_init__(self) -> None:
         if not self.frame:
@@ -706,6 +708,7 @@ class ProductMetadata:
             "checksum": self.checksum,
             "size_bytes": self.size_bytes,
             "relationships": [r.to_document() for r in self.relationships],
+            "calibration_references": [{"keyword": k, "file": f} for k, f in self.calibration_references],
         }
 
 
@@ -797,6 +800,133 @@ def _require_curatable(metadata: ProductMetadata, report: SemanticValidationRepo
     if report is None or not report.passed:
         failed = ", ".join(c.field for c in report.failures()) if report else "no semantic report"
         raise CurationBlocked(f"curation blocked by semantic validation: {failed} (INT-007)")
+
+
+class ReferenceStatus(StrEnum):
+    """Verification status of a reference record, as for the relativity oracles (v0.4.0 §6, §14)."""
+
+    TO_VERIFY = "to_verify"
+    VERIFIED = "verified"
+    SYNTHETIC = "synthetic"
+    """Truth built with the fixture, for code tests; never admits an adapter to a gate."""
+
+
+@dataclass(frozen=True)
+class ReferenceRecord:
+    """The hand-verified meaning of one fixture product, written from the mission documentation.
+
+    T5s normalises the fixture through the adapter and dialect and compares field by field; any
+    difference fails with the field named (v0.4.0 §6). ``documentation`` cites the page each value
+    was read from.
+    """
+
+    product_id: str
+    product_type: ProductType
+    mission: str
+    instrument: str | None
+    frame: str
+    time_scale: str
+    units: str | None
+    calibration_level: int | None
+    extensions: Mapping[str, str]
+    """Extension (or ``HDU:COLUMN``) name -> role."""
+    has_wcs: bool
+    documentation: str
+    status: ReferenceStatus
+    detector: str | None = None
+    filter_or_grating: str | None = None
+    time_start_mjd: float | None = None
+    time_end_mjd: float | None = None
+    progenitors: tuple[str, ...] = ()
+    verified_by: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.status is ReferenceStatus.VERIFIED and len(set(self.verified_by)) < 2:
+            raise InvariantViolation("a verified reference record carries two independent passes")
+        if not self.documentation:
+            raise InvariantViolation("a reference record cites the documentation it was read from")
+
+    @property
+    def admits(self) -> bool:
+        """Only a second-pass verified record can admit an adapter to a gate."""
+        return self.status is ReferenceStatus.VERIFIED
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> ReferenceRecord:
+        return cls(
+            product_id=doc["product_id"],
+            product_type=ProductType(doc["product_type"]),
+            mission=doc["mission"],
+            instrument=doc.get("instrument"),
+            detector=doc.get("detector"),
+            filter_or_grating=doc.get("filter_or_grating"),
+            frame=doc["frame"],
+            time_scale=doc["time_scale"],
+            time_start_mjd=doc.get("time_start_mjd"),
+            time_end_mjd=doc.get("time_end_mjd"),
+            units=doc.get("units"),
+            calibration_level=doc.get("calibration_level"),
+            extensions=dict(doc.get("extensions", {})),
+            has_wcs=bool(doc["has_wcs"]),
+            progenitors=tuple(doc.get("progenitors", ())),
+            documentation=doc["documentation"],
+            status=ReferenceStatus(doc["status"]),
+            verified_by=tuple(doc.get("verified_by", ())),
+        )
+
+
+TIME_TOLERANCE_DAYS = 1e-6
+"""About 0.09 s: tighter than any exposure boundary a test depends on, looser than float round-trips."""
+
+
+def compare_to_reference(metadata: ProductMetadata, ref: ReferenceRecord) -> tuple[SemanticCheck, ...]:
+    """The T5s comparison: the normalised envelope against its reference record, field by field."""
+    checks: list[SemanticCheck] = []
+
+    def same(field_name: str, got: Any, want: Any) -> None:
+        a = None if got is None else str(got).strip().upper()
+        b = None if want is None else str(want).strip().upper()
+        checks.append(SemanticCheck(field_name, a == b, f"got {got!r}, reference {want!r}"))
+
+    same("product_id", metadata.product_id, ref.product_id)
+    same("product_type", metadata.product_type.value, ref.product_type.value)
+    same("mission", metadata.mission, ref.mission)
+    same("instrument", metadata.instrument, ref.instrument)
+    same("detector", metadata.detector, ref.detector)
+    same("filter_or_grating", metadata.filter_or_grating, ref.filter_or_grating)
+    same("frame", metadata.frame, ref.frame)
+    same("time_scale", metadata.time_scale, ref.time_scale)
+    same("units", metadata.units, ref.units)
+    same("calibration_level", metadata.calibration_level, ref.calibration_level)
+    same("has_wcs", metadata.has_wcs, ref.has_wcs)
+    for name, got_t, want_t in (
+        ("time_start_mjd", metadata.time_start_mjd, ref.time_start_mjd),
+        ("time_end_mjd", metadata.time_end_mjd, ref.time_end_mjd),
+    ):
+        if want_t is None:
+            continue
+        ok = got_t is not None and abs(got_t - want_t) <= TIME_TOLERANCE_DAYS
+        checks.append(SemanticCheck(name, ok, f"got {got_t}, reference {want_t}"))
+    got_ext = {e.name: e.role for e in metadata.extensions}
+    for name, role in sorted(ref.extensions.items()):
+        checks.append(
+            SemanticCheck(
+                f"extensions.{name}", got_ext.get(name) == role, f"got {got_ext.get(name)!r}, reference {role!r}"
+            )
+        )
+    for name in sorted(set(got_ext) - set(ref.extensions)):
+        if got_ext[name] != "other":
+            checks.append(SemanticCheck(f"extensions.{name}", False, "not in the reference record"))
+    if ref.progenitors:
+        got_p = sorted(metadata.progenitors())
+        checks.append(
+            SemanticCheck(
+                "relationships.progenitors",
+                got_p == sorted(ref.progenitors),
+                f"got {got_p}, reference {sorted(ref.progenitors)}",
+            )
+        )
+    return tuple(checks)
 
 
 # ---------------------------------------------------------------------------------------------
