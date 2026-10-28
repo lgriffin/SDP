@@ -33,7 +33,13 @@ from sdp.kernel.domain.predeclaration import Predeclaration
 from sdp.kernel.ports.driving import FreezePredeclarationCommand
 from sdp.kernel.ports.investigate import Detection, InvestigateFieldCommand, InvestigationRun, TriageCommand
 from sdp.testing.fakes.archives import FakeArchive
-from sdp.testing.fakes.investigate import FakeObservationArchive, NearestWcsRefiner, PlantedDetector, tan_header
+from sdp.testing.fakes.investigate import (
+    FakeObservationArchive,
+    NearestWcsRefiner,
+    PlantedDetector,
+    ThinningDialect,
+    tan_header,
+)
 from sdp.testing.investigate import (
     PLANTED,
     ProperMotionExcessTest,
@@ -240,6 +246,38 @@ def test_cloud_uris_and_checksums_of_bytes_actually_read_are_recorded() -> None:
     assert artifact.acquisition.rendered_query == "GET s3://fake-bucket/lc-0.csv"
     assert artifact.acquisition.checksum == product.artifact_id
     assert world.k.store.get(product.artifact_id) == world.plates.products["lc-0"]
+
+
+@pytest.mark.req("INV-005")
+def test_a_product_dialect_registers_a_curated_child_and_tests_read_it() -> None:
+    world = make_world(
+        ProperMotionExcessTest(needs_products=("lightcurve",)), product_dialects={"fake-plates": ThinningDialect()}
+    )
+    run = world.run(profile=synthetic_profile(needs_products=("lightcurve",)))
+    product = next(p for b in run.bundles for p in b.products if p.product.product_id == "lc-1")
+    assert product.raw_artifact_id is not None and product.artifact_id != product.raw_artifact_id
+    raw = world.k.db.state.datasets.get(product.raw_artifact_id)
+    curated = world.k.db.state.datasets.get(product.artifact_id)
+    assert raw is not None and curated is not None
+    assert raw.status is DatasetStatus.ACQUIRED and curated.status is DatasetStatus.CURATED
+    assert curated.parents == (raw.artifact_id,)
+    assert curated.dialect is not None and curated.dialect.dialect_id == "fixture-thinning"
+    assert world.k.store.get(product.raw_artifact_id) == world.plates.products["lc-1"]
+    raw_rows = world.plates.products["lc-1"].decode().splitlines()
+    assert world.k.store.get(product.artifact_id).decode().splitlines() == [raw_rows[0], *raw_rows[1::2]]
+    resumed = world.run(profile=synthetic_profile(needs_products=("lightcurve",)), set_id=run.investigation_set.set_id)
+    assert resumed.bundles == run.bundles
+
+
+def test_a_dialect_that_changes_nothing_leaves_the_raw_product_to_be_read() -> None:
+    world = make_world(
+        ProperMotionExcessTest(needs_products=("lightcurve",)),
+        product_dialects={"fake-plates": ThinningDialect(every=1)},
+    )
+    run = world.run(profile=synthetic_profile(needs_products=("lightcurve",)))
+    for p in (p for b in run.bundles for p in b.products):
+        assert p.raw_artifact_id is None
+        assert world.k.db.state.datasets.get(p.artifact_id).status is DatasetStatus.ACQUIRED  # type: ignore[union-attr]
 
 
 @pytest.mark.req("INV-005")

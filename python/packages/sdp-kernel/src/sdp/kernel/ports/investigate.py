@@ -187,6 +187,31 @@ class InvestigationRepository(Protocol):
     def for_set(self, set_id: str) -> Sequence[Investigation]: ...
 
 
+@dataclass(frozen=True)
+class CuratedProduct:
+    """A product in one of the canonical formats tests read (``sdp.kernel.science.products``)."""
+
+    data: bytes
+    media_type: str
+
+
+class ProductDialect(Protocol):
+    """Turns an archive's native product into a canonical one, as a catalogue dialect turns native
+    rows into canonical astrometry (DSI-005). The kernel registers the result as a curated child of
+    the raw product, naming the dialect and its version."""
+
+    @property
+    def dialect_id(self) -> str: ...
+
+    @property
+    def dialect_version(self) -> str: ...
+
+    def curate(self, product_type: str, raw: FetchedProduct) -> CuratedProduct | None:
+        """The canonical form for ``product_type``, or None when this dialect does not curate it
+        (the raw product is then what the test reads)."""
+        ...
+
+
 # ---------------------------------------------------------------------------------------------
 # Driving ports
 

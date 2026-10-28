@@ -1,7 +1,7 @@
 [project]
 name = "sdp-adapters"
 version = "0.1.0"
-description = "Driven adapters for the SDP kernel: NAS artifact store, PostgreSQL metadata, Git-signed ledger, CPU executor, archives and dialects, DuckDB analytics, system probes, telemetry"
+description = "Driven adapters for the SDP kernel: NAS artifact store, PostgreSQL metadata, Git-signed ledger, CPU executor, archives and dialects, DuckDB analytics, image detection and WCS refinement, system probes, telemetry"
 requires-python = ">=3.12"
 license = { text = "See repository LICENSE" }
 dependencies = [
@@ -11,6 +11,8 @@ dependencies = [
   "duckdb>=2.0",
   "pyyaml>=6",
   "scikit-learn>=1.5",
+  "photutils>=2.0",
+  "tweakwcs>=0.8",
 ]
 
 [build-system]
