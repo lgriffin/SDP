@@ -13,7 +13,7 @@ from sdp.kernel.domain.ids import ArtifactId, check_semver
 from sdp.kernel.domain.sources import SourceRef
 
 SCHEMA_VERSION = "1.0.0"
-SCHEMA_VERSION_WITH_PRODUCT = "1.1.0"
+SCHEMA_VERSION_WITH_PRODUCT = "1.2.0"
 """Documents carry 1.1.0 only when ``product`` is set, so artifacts registered before it keep their
 exact metadata and re-registration still compares equal (KRN-014)."""
 
@@ -43,15 +43,19 @@ class DialectRef:
 
 @dataclass(frozen=True)
 class ProductUse:
-    """Which integration adapter acquired an artifact and as which product type (Integration v0.4.0
-    §6). The kernel copies it into the manifest's inputs; admission is checked per pair (INT-016)."""
+    """Which integration adapter, at which version, acquired an artifact and as which product type
+    (Integration v0.4.0 §6). The kernel copies it into the manifest's inputs; admission is checked
+    per adapter version and product type, so a record for an older version never admits a newer one
+    (INT-016)."""
 
     adapter: str
+    adapter_version: str
     product_type: str
 
     def __post_init__(self) -> None:
         if not self.adapter:
             raise InvariantViolation("a product use names its adapter")
+        check_semver(self.adapter_version)
         if self.product_type not in ADMITTABLE_PRODUCT_TYPES:
             raise InvariantViolation(f"{self.product_type!r} is not a product type an adapter is admitted for")
 
@@ -151,6 +155,7 @@ class DatasetArtifact:
             source_ref=self.source_ref,
             dialect=dialect,
             parents=(self.artifact_id,),
+            product=self.product,
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -193,7 +198,11 @@ class DatasetArtifact:
             "rejection_reason": self.rejection_reason,
         }
         if self.product:
-            doc["product"] = {"adapter": self.product.adapter, "product_type": self.product.product_type}
+            doc["product"] = {
+                "adapter": self.product.adapter,
+                "adapter_version": self.product.adapter_version,
+                "product_type": self.product.product_type,
+            }
         return doc
 
     @classmethod
@@ -226,7 +235,9 @@ class DatasetArtifact:
                 else None
             ),
             rejection_reason=doc.get("rejection_reason"),
-            product=ProductUse(doc["product"]["adapter"], doc["product"]["product_type"])
+            product=ProductUse(
+                doc["product"]["adapter"], doc["product"]["adapter_version"], doc["product"]["product_type"]
+            )
             if doc.get("product")
             else None,
         )

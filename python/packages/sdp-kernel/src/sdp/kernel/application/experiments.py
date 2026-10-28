@@ -72,12 +72,12 @@ class ManifestWriter:
         return out
 
     def records_for(self, products: Mapping[str, ProductUse]) -> tuple[AdapterCompatibilityRecord, ...]:
-        used = {(p.adapter, p.product_type) for p in products.values()}
+        used = {(p.adapter, p.adapter_version, p.product_type) for p in products.values()}
         available = self.compatibility.records() if self.compatibility else ()
         return tuple(
             sorted(
-                (r for r in available if (r.adapter, r.product_type.value) in used),
-                key=lambda r: (r.adapter, r.product_type.value),
+                (r for r in available if (r.adapter, r.adapter_version, r.product_type.value) in used),
+                key=lambda r: (r.adapter, r.adapter_version, r.product_type.value),
             )
         )
 
@@ -85,7 +85,8 @@ class ManifestWriter:
         """No verdict while an input's adapter lacks a passing record for its product type (INT-016)."""
         products = self.products(uow, experiment)
         require_admitted(
-            self.records_for(products), [(p.adapter, ProductType(p.product_type)) for p in products.values()]
+            self.records_for(products),
+            [(p.adapter, p.adapter_version, ProductType(p.product_type)) for p in products.values()],
         )
 
     def write(self, uow: UnitOfWork, experiment: Experiment) -> dict[str, Any]:

@@ -9,14 +9,21 @@ from pathlib import Path
 
 import pytest
 
-from sdp.adapters.archives.capabilities import VoCapabilityDiscovery, VoSource
-from sdp.adapters.archives.mast import CITATION, LICENCE, MAST_OBSCORE
+from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
+from sdp.adapters.archives.mast import MAST_OBSCORE
 from sdp.adapters.archives.mast_inventory import MastProductInventory
-from sdp.adapters.archives.reference_recording import REFERENCE_FIELDS, describe_mast, ivoid_request, record_product
+from sdp.adapters.archives.reference_recording import (
+    REFERENCE_FIELDS,
+    ProductTooLarge,
+    describe_mast,
+    ivoid_request,
+    mast_source,
+    record_product,
+)
 from sdp.adapters.archives.transport import HttpRequest
 from sdp.adapters.archives.vo import literal, sync_request
 from sdp.contracts import validate
-from sdp.kernel.domain.integration import ReferenceRecord, ReferenceStatus, Rights
+from sdp.kernel.domain.integration import ReferenceRecord, ReferenceStatus
 from sdp.kernel.domain.investigation import ProductRef
 from sdp.testing.fakes.integration import InMemoryCapabilityRegistry
 
@@ -35,7 +42,7 @@ DATA = b"SIMPLE  =                    T / synthetic bytes, never parsed by the r
 
 def prime_mast(fake: PrimedService, data: bytes) -> None:
     fake.table(ivoid_request(MAST_OBSCORE), {"ivoid": [IVOID]})
-    source = VoSource("mast", IVOID, MAST_OBSCORE, Rights(LICENCE, CITATION))
+    source = mast_source(IVOID)
     primed_discovery(fake, VoCapabilityDiscovery(fake, InMemoryCapabilityRegistry(), {"mast": source}), source)
     fake.table(
         sync_request(MAST_OBSCORE, f"SELECT access_url FROM ivoa.obscore WHERE obs_id = {literal(OBS_ID)}", 100),
@@ -100,3 +107,11 @@ def test_a_file_obscore_does_not_list_is_named_with_what_it_does_list(tmp_path: 
     prime_mast(fake, DATA)
     with pytest.raises(LookupError, match=r"_i2d\.jpg"):
         record_product(fake, OBS_ID, "jw00000_cal.fits", tmp_path / "x")
+
+
+def test_a_product_too_large_to_commit_is_refused_before_anything_is_written(tmp_path: Path) -> None:
+    fake = PrimedService()
+    prime_mast(fake, DATA)
+    with pytest.raises(ProductTooLarge, match="over the 100-byte limit"):
+        record_product(fake, OBS_ID, NAME, tmp_path / "big", max_bytes=100)
+    assert not (tmp_path / "big").exists()

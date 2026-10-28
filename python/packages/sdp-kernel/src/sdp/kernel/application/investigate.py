@@ -115,18 +115,35 @@ def mjd_to_jyear(mjd: float) -> float:
     return 2000.0 + (mjd - 51544.5) / 365.25
 
 
+def _warn_if_product_lost(existing: DatasetArtifact, product: ProductUse | None) -> None:
+    """Records are immutable (KRN-014): bytes first registered without a product use keep none."""
+    if product is not None and existing.product != product:
+        log.warning(
+            "artifact already registered with another product use",
+            extra={"artifact_id": existing.artifact_id.value, "had": str(existing.product), "offered": str(product)},
+        )
+
+
 @dataclass(frozen=True)
 class ProductEnvelopes:
     """How one archive's products get their ScientificDataProduct envelope (Integration v0.4.0 §3).
 
-    ``adapter`` is the name admission is checked under (an ``AdapterCompatibilityRecord``'s
-    ``adapter``); it is stamped on each raw product so the manifest can name it (INT-016).
+    ``adapter`` and ``adapter_version`` are what admission is checked under (an
+    ``AdapterCompatibilityRecord``'s ``adapter`` and ``adapter_version``); they are stamped on each
+    raw product so the manifest can name them (INT-016). ``missions``, when set, limits the envelopes
+    to records of those missions (MAST serves every mission; the JWST dialect reads only JWST); other
+    records take the archive's ordinary product path.
     """
 
     adapter: str
+    adapter_version: str
     normalizer: ProductNormalizer
     validator: ProductValidator
     inventory: ProductInventory
+    missions: frozenset[str] = frozenset()
+
+    def covers(self, mission: str) -> bool:
+        return not self.missions or mission.strip().upper() in {m.upper() for m in self.missions}
 
 
 @dataclass
@@ -548,7 +565,8 @@ class InvestigateFieldUseCase:
     ) -> DatasetArtifact:
         """Register bytes read from an archive as a raw DatasetArtifact before any test reads them
         (INV-005); the checksum is of the bytes actually read (INV-013). ``product`` names the
-        adapter and product type for admission; bytes registered earlier keep what they were given."""
+        adapter and product type for admission. Records are immutable (KRN-014), so bytes registered
+        earlier keep what they were given; a product use that cannot be added is logged."""
         if not licence.strip() or not citation.strip():
             raise CurationBlocked(f"{archive} declares no licence or citation; retrieval is blocked (DSI-006)")
         checksum = ArtifactId.of_bytes(data)
@@ -558,6 +576,7 @@ class InvestigateFieldUseCase:
         with self.uow() as uow:
             existing = uow.datasets.get(checksum)
             if existing is not None:
+                _warn_if_product_lost(existing, product)
                 self._used(uow, set_id, existing)
                 uow.commit()
                 return existing
@@ -622,14 +641,19 @@ class InvestigateFieldUseCase:
         ref = DialectRef(dialect.dialect_id, dialect.dialect_version)
         if ArtifactId.of_bytes(canonical.data) == raw.artifact_id:
             return None  # already canonical: the raw product is what the test reads
-        # The stamp keeps the curated artifact unique to its raw parent and dialect, as the
+        # The stamp keeps a text curated artifact unique to its raw parent and dialect, as the
         # catalogue path's Parquet metadata does: equal rows from two raw products are two artifacts.
-        stamp = f"# sdp.dialect={ref.dialect_id}@{ref.dialect_version} sdp.raw_parent={raw.artifact_id.value}\n"
-        data = stamp.encode() + canonical.data
+        # A binary form (FITS) is never stamped, since a prefix would make it unreadable; equal bytes
+        # from two raw products are then one artifact, and the provenance graph names each parent.
+        data = canonical.data
+        if canonical.media_type.startswith("text/"):
+            stamp = f"# sdp.dialect={ref.dialect_id}@{ref.dialect_version} sdp.raw_parent={raw.artifact_id.value}\n"
+            data = stamp.encode() + data
         curated_id = self.store.put(data, canonical.media_type)
         with self.uow() as uow:
             existing = uow.datasets.get(curated_id)
             if existing is not None:
+                _warn_if_product_lost(existing, raw.product)
                 self._used(uow, set_id, existing)
                 uow.commit()
                 return existing
@@ -810,16 +834,24 @@ class InvestigateFieldUseCase:
                 # as several types (a DASCH light curve is also a position history) is fetched once.
                 retrieved: dict[ProductRef, tuple[FetchedProduct, DatasetArtifact]] = {}
                 envelopes = self.ports.product_envelopes.get(selection.source_id)
+                # One artifact per product, so one use: the first admittable type it is offered as.
+                uses: dict[ProductRef, ProductUse] = {}
+                if envelopes is not None:
+                    for record in index.records:
+                        if (
+                            record.product_type in needed
+                            and record.product_type in ADMITTABLE_PRODUCT_TYPES
+                            and envelopes.covers(record.mission)
+                        ):
+                            uses.setdefault(
+                                record.product,
+                                ProductUse(envelopes.adapter, envelopes.adapter_version, record.product_type),
+                            )
                 for record in index.records:
                     if record.product_type not in needed:
                         continue
                     if record.product not in retrieved:
                         got = gateway.fetch(record.product)
-                        use = (
-                            ProductUse(envelopes.adapter, record.product_type)
-                            if envelopes is not None and record.product_type in ADMITTABLE_PRODUCT_TYPES
-                            else None
-                        )
                         retrieved[record.product] = (
                             got,
                             self._register_bytes(
@@ -831,14 +863,27 @@ class InvestigateFieldUseCase:
                                 licence=got.licence,
                                 citation=got.citation,
                                 rendered=f"GET {got.read_from}",
-                                product=use,
+                                product=uses.get(record.product),
                             ),
                         )
                     fetched, product = retrieved[record.product]
-                    if envelopes is not None:
-                        products[o.object_key].append(
-                            self._enveloped(investigation_set.set_id, product, fetched, record.product_type, envelopes)
-                        )
+                    if envelopes is not None and envelopes.covers(record.mission):
+                        try:
+                            evidence = self._enveloped(
+                                investigation_set.set_id, product, fetched, record.product_type, envelopes
+                            )
+                        except (LookupError, ValueError, RuntimeError) as exc:
+                            # An inventory miss, unreadable bytes or a transport failure (an adapter's
+                            # TransportError is a RuntimeError): the raw product is still evidence, but
+                            # without an envelope it is never curated (INT-006).
+                            log.warning(
+                                "product not enveloped",
+                                extra={"artifact_id": product.artifact_id.value, "error": str(exc)},
+                            )
+                            evidence = ProductEvidence(
+                                record.product, record.product_type, product.artifact_id, fetched.read_from
+                            )
+                        products[o.object_key].append(evidence)
                         continue
                     dialect = self.ports.product_dialects.get(selection.source_id)
                     curated = (

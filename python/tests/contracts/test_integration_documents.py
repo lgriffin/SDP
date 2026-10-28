@@ -22,6 +22,7 @@ from sdp.testing.integration import (
     compatibility,
     dasch_descriptor,
     image_metadata,
+    ledger_approval,
     mast_descriptor,
     planted_field,
     sample_plan,
@@ -44,7 +45,7 @@ def test_descriptors_conform_and_round_trip() -> None:
 
 def test_products_conform() -> None:
     m = image_metadata()
-    rep = SemanticValidationReport(m.product_id, "v", "1.0.0", (SemanticCheck("frame", True),))
+    rep = SemanticValidationReport(m.product_id, "v", "1.0.0", (SemanticCheck("frame", True),), m.digest())
     _ok("scientific-data-product", ScientificDataProduct(SHA, m).validated(rep).to_document())
 
 
@@ -58,7 +59,8 @@ def test_association_graphs_conform() -> None:
 
 def test_plans_conform_drafted_and_approved() -> None:
     _ok("acquisition-plan", sample_plan().to_document())
-    _ok("acquisition-plan", sample_plan(image_bytes=50_000_000).decide(actor="l", ledger_entry_id="e").to_document())
+    big = sample_plan(image_bytes=50_000_000)
+    _ok("acquisition-plan", big.decide(actor="l", ledger_entry=ledger_approval(big, "l")).to_document())
 
 
 def test_compatibility_records_conform_and_round_trip() -> None:
@@ -74,6 +76,6 @@ def test_plan_hashing_is_canonical(image_bytes: int, threshold: int) -> None:
     threshold = min(threshold, 1_000_000_000)
     plan = sample_plan(image_bytes=image_bytes, threshold=threshold)
     assert plan.plan_id == sample_plan(image_bytes=image_bytes, threshold=threshold).plan_id
-    decided = plan.decide(actor="l", ledger_entry_id="e")
+    decided = plan.decide(actor="l", ledger_entry=ledger_approval(plan, "l"))
     assert decided.plan_id == plan.plan_id
     _ok("acquisition-plan", decided.to_document())

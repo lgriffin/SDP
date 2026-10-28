@@ -91,3 +91,41 @@ def test_propagation_agrees_with_astropy_apply_space_motion(
     theirs = c.apply_space_motion(new_obstime=Time(epoch, format="jyear"))
     dx, dy = offset_arcsec(theirs.ra.deg, theirs.dec.deg, ours.ra_deg, ours.dec_deg)
     assert math.hypot(dx, dy) < 1e-4, "more than 0.1 mas from astropy"
+
+
+@pytest.mark.tier("T1")
+@pytest.mark.req("INT-009")
+def test_an_anchor_at_the_antipode_is_never_a_candidate() -> None:
+    from sdp.kernel.domain.association import Detection
+    from sdp.kernel.science.association import candidate_options, separation_arcsec
+    from sdp.testing.integration import association_policy
+
+    assert offset_arcsec(10.0, 20.0, 190.0, -20.0) == (math.inf, math.inf)
+    assert separation_arcsec(10.0, 20.0, 190.0, -20.0) == pytest.approx(180 * 3600)
+    near = star(10.0, 20.0, 0.0, 0.0)
+    antipode = CatalogueSource(
+        "far", "gaia", "DR3", "2", 190.0, -20.0, PositionCovariance(0.02, 0.03), 2016.0, Motion(0.0, 0.0)
+    )
+    det = Detection("d", "p", "SCI", 190.0 + 1e-6, -20.0, PositionCovariance(0.1, 0.1), 2016.0, 0.1, "X")
+    options = {o.record.record_id: o for o in candidate_options([near, antipode, det], association_policy())}
+    assert [o.members for o in options["d"].options] == [("far",)], "the star at the antipode is not a candidate"
+
+
+@pytest.mark.tier("T1")
+@pytest.mark.parametrize("sigma", [math.inf, math.nan, 0.0, -1.0])
+def test_a_positional_sigma_is_finite_and_positive(sigma: float) -> None:
+    from sdp.kernel.domain.errors import InvariantViolation
+
+    with pytest.raises(InvariantViolation):
+        PositionCovariance(sigma, 0.1)
+
+
+@pytest.mark.tier("T1")
+def test_resolutions_are_finite() -> None:
+    from sdp.kernel.domain.association import Detection
+    from sdp.kernel.domain.errors import InvariantViolation
+
+    with pytest.raises(InvariantViolation):
+        Detection("d", "p", "SCI", 1.0, 1.0, PositionCovariance(0.1, 0.1), 2016.0, math.inf, "X")
+    with pytest.raises(InvariantViolation):
+        CatalogueSource("c", "g", "DR3", "1", 1.0, 1.0, PositionCovariance(0.1, 0.1), 2016.0, resolution_arcsec=-1.0)

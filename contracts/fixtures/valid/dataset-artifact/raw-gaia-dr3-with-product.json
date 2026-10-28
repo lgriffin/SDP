@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "artifact_id": "sha256:2bfd662205589a2d535391e5eb2d34c46666ebcdf566e832a0e07c30be0afa23",
   "kind": "raw",
   "status": "acquired",
@@ -36,6 +36,7 @@
   "rejection_reason": null,
   "product": {
     "adapter": "gaia-tap",
+    "adapter_version": "1.0.0",
     "product_type": "catalogue"
   }
 }

@@ -43,7 +43,14 @@ class Input(BaseModel):
     adapter: Annotated[
         str | None,
         Field(
-            description="The SDP adapter that acquired this input, when it came through an integration adapter (1.3.0); the harness checks it against environment.adapter_compatibility (INT-016)."
+            description="The SDP adapter that acquired this input, when it came through an integration adapter (1.3.0); the harness checks it against environment.adapter_compatibility (INT-016).",
+            min_length=1,
+        ),
+    ] = None
+    adapter_version: Annotated[
+        common_schema.SchemaVersion | None,
+        Field(
+            description="The version of that adapter (1.4.0). Admission is per adapter version: a record for another version admits nothing, and the harness treats an input naming an adapter without its version as unadmitted (INT-016)."
         ),
     ] = None
     product_type: Annotated[

@@ -142,6 +142,21 @@ def test_the_descriptor_is_read_from_the_registry_vosi_and_obscore() -> None:
     assert validate("capability-descriptor", d.to_document()) == []
 
 
+def test_a_large_archive_is_scanned_by_collection_and_its_extent_falls_back_to_the_registry() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(discovery.extent_request(source), b"<html>504 Gateway Time-out</html>", status=504)
+    products = discovery.products_request(source).body.decode()
+    assert "obs_collection+IN+%28%27JWST%27%29" in products and "data_rights" not in products
+    d = discovery.describe(source.source_id)
+    assert d.coverage.t_min_mjd == 40000.0, "the registry's coverage stands in for the timed-out extent"
+    assert d.access is AccessStatus.PUBLIC, "without a rights column, access is read per product"
+
+
 @pytest.mark.req("INT-004")
 def test_operations_and_cutouts_follow_the_declared_protocols() -> None:
     fake = PrimedService()

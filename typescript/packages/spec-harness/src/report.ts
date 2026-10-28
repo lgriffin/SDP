@@ -115,7 +115,7 @@ export function buildReleaseReport(inputs: ReleaseInputs): ReleaseReport {
     if (!admission.length || admission.length < r.disagreements.length) {
       blocking.push(`${r.experimentId}: harness re-derived ${r.harnessVerdict}, kernel issued ${r.kernelVerdict}`);
     }
-    for (const u of r.unadmitted) blocking.push(`${r.experimentId}: verdict issued with ${u.adapter} not admitted for ${u.productType} (${u.reason})`);
+    for (const u of r.unadmitted) blocking.push(`${r.experimentId}: verdict issued with ${u.adapter} ${u.adapterVersion ?? "(no version)"} not admitted for ${u.productType} (${u.reason})`);
   }
   for (const v of inputs.traceability.violations) blocking.push(`traceability: ${v.message}`);
   for (const c of inputs.claims ?? []) {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/scientific-data-product.schema.json",
-  "x-version": "1.0.0",
+  "x-version": "1.1.0",
   "title": "ScientificDataProduct",
   "description": "A raw artifact kept byte for byte plus its ObsCore 1.1-shaped envelope and semantic validation report (v0.4.0 \u00a73, ADR-018).",
   "type": "object",
@@ -426,6 +426,10 @@
         "validator_version": {
           "$ref": "common.schema.json#/$defs/SchemaVersion"
         },
+        "envelope_digest": {
+          "description": "The digest of the envelope the checks ran on (1.1.0); a report never validates a changed envelope.",
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
         "passed": {
           "type": "boolean"
         },
@@ -455,5 +459,49 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "curated_artifact_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "curated_artifact_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "metadata": {
+            "properties": {
+              "product_type": {
+                "enum": [
+                  "image",
+                  "spectrum",
+                  "cube",
+                  "timeseries",
+                  "measurements",
+                  "catalogue"
+                ]
+              }
+            }
+          },
+          "validation": {
+            "type": "object",
+            "required": [
+              "passed",
+              "envelope_digest"
+            ],
+            "properties": {
+              "passed": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

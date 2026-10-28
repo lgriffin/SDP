@@ -13,7 +13,7 @@ from sdp.kernel.domain.predeclaration import FrozenPredeclaration
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.domain.sources import SourceRef
 
-SCHEMA_VERSION = "1.3.0"
+SCHEMA_VERSION = "1.4.0"
 
 
 def iso(at: datetime | None) -> str | None:
@@ -32,8 +32,8 @@ def build_manifest(
     """Every field group of §7: identity, intent, inputs, environment, execution, outputs,
     findings and checks, verdict, provenance.
 
-    An input acquired through an integration adapter names the adapter and product type, and the
-    environment carries the compatibility records for those pairs (Integration v0.4.0 §6). Both are
+    An input acquired through an integration adapter names the adapter, its version and the product
+    type, and the environment carries the compatibility records for them (Integration v0.4.0 §6). Both are
     left out when no input came through one, so earlier manifests keep their shape.
     """
     d = experiment.definition
@@ -87,7 +87,11 @@ def build_manifest(
                 "dialect_id": None,
                 "acquisition_key": None,
                 **(
-                    {"adapter": products[b.role].adapter, "product_type": products[b.role].product_type}
+                    {
+                        "adapter": products[b.role].adapter,
+                        "adapter_version": products[b.role].adapter_version,
+                        "product_type": products[b.role].product_type,
+                    }
                     if b.role in products
                     else {}
                 ),

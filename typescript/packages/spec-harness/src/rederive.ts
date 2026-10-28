@@ -68,7 +68,7 @@ export function rederive(manifest: Manifest): Rederivation {
   const unadmitted = admit(manifest);
   if (kernelVerdict !== null) {
     for (const u of unadmitted) {
-      disagreements.push({ subject: `admission ${u.adapter}/${u.productType}`, kernel: "verdict issued", harness: `not admitted: ${u.reason}` });
+      disagreements.push({ subject: `admission ${u.adapter}/${u.adapterVersion ?? "?"}/${u.productType}`, kernel: "verdict issued", harness: `not admitted: ${u.reason}` });
     }
   }
 

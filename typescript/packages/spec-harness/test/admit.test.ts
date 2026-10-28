@@ -15,7 +15,7 @@ const contract = (name: string): unknown =>
   JSON.parse(fs.readFileSync(path.join(repo, "contracts/fixtures/valid", name), "utf8"));
 
 const admitted = (): Manifest => {
-  const r = readManifest(contract("evidence-manifest/synthetic-verified-1.3-admitted.json"));
+  const r = readManifest(contract("evidence-manifest/synthetic-verified-1.4-admitted.json"));
   if (!r.ok) throw new Error(JSON.stringify(r.errors));
   return r.manifest;
 };
@@ -35,13 +35,15 @@ describe("[INT-016] the harness checks adapter admission before accepting a verd
     const m = clone(admitted());
     m.environment.adapter_compatibility = [];
     const r = rederive(m);
-    expect(r.unadmitted).toEqual([{ adapter: "mast-observations", productType: "image", reason: "no compatibility record" }]);
+    expect(r.unadmitted).toEqual([
+      { adapter: "mast-observations", adapterVersion: "1.0.0", productType: "image", reason: "no compatibility record" },
+    ]);
     expect(r.state).toBe("disagree");
     expect(r.publishable).toBe(false);
     const report = buildReleaseReport({ version: "t", claimedLevels: [], tests: [], traceability: trace([], []), rederivations: [r] });
     expect(report.ok).toBe(false);
     expect(report.blocking).toEqual([
-      "exp-0001: verdict issued with mast-observations not admitted for image (no compatibility record)",
+      "exp-0001: verdict issued with mast-observations 1.0.0 not admitted for image (no compatibility record)",
     ]);
     expect(renderReleaseReport(report)).toContain("## Adapter admission");
   });
@@ -53,8 +55,48 @@ describe("[INT-016] the harness checks adapter admission before accepting a verd
     rec.results = rec.results.map((x) => (x.kind === "semantic" ? { ...x, passed: false } : x));
     expect(rec.passed).toBe(true);
     expect(admit(m)).toEqual([
-      { adapter: "mast-observations", productType: "image", reason: "1.0.0: semantic did not pass although the record says passed" },
+      {
+        adapter: "mast-observations",
+        adapterVersion: "1.0.0",
+        productType: "image",
+        reason: "1.0.0: semantic did not pass although the record says passed",
+      },
     ]);
+  });
+
+  it("[INT-016] a kind reported twice fails, whichever result comes last", () => {
+    for (const order of [[false, true], [true, false]]) {
+      const m = clone(admitted());
+      const rec = records(m)[0];
+      if (!rec) throw new Error("fixture has no record");
+      rec.results = [...order.map((passed) => ({ kind: "semantic" as const, passed, ci_run_id: "ci-run-1" })), ...rec.results.filter((x) => x.kind !== "semantic")];
+      expect(admit(m).map((u) => u.reason)).toEqual(["1.0.0: semantic did not pass although the record says passed"]);
+    }
+  });
+
+  it("[INT-016] a record for another adapter version does not admit this one", () => {
+    const m = clone(admitted());
+    const input = m.inputs[0];
+    if (!input) throw new Error("fixture has no input");
+    input.adapter_version = "1.1.0";
+    expect(admit(m)).toEqual([
+      { adapter: "mast-observations", adapterVersion: "1.1.0", productType: "image", reason: "records exist only for versions 1.0.0, not 1.1.0" },
+    ]);
+  });
+
+  it("[INT-016] an input that names only part of adapter, version and product type is unadmitted, never skipped", () => {
+    const cases: [Partial<Record<"adapter" | "adapter_version" | "product_type", null>>, string][] = [
+      [{ adapter_version: null }, "input names no adapter version"],
+      [{ product_type: null }, "input names an adapter but no product type"],
+      [{ adapter: null }, "input names a product type or version but no adapter"],
+    ];
+    for (const [cleared, reason] of cases) {
+      const m = clone(admitted());
+      const input = m.inputs[0];
+      if (!input) throw new Error("fixture has no input");
+      Object.assign(input, cleared);
+      expect(admit(m).map((u) => u.reason)).toEqual([reason]);
+    }
   });
 
   it("[INT-016] a record for another product type does not admit this one", () => {
@@ -80,6 +122,7 @@ describe("[INT-016] the harness checks adapter admission before accepting a verd
     const m = clone(admitted());
     for (const input of m.inputs) {
       delete input.adapter;
+      delete input.adapter_version;
       delete input.product_type;
     }
     m.environment.adapter_compatibility = [];

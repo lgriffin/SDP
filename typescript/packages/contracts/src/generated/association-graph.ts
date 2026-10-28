@@ -1,10 +1,10 @@
 // Generated from contracts/schemas/association-graph.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
-import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 import * as common from "./common.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/association-graph.schema.json";
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.0.1";
 
 export const Association = z.object({
     "record_id": z.string().min(1),
@@ -26,13 +26,18 @@ export const Association = z.object({
       "state": z.literal("accepted"),
     }).passthrough())), z.unknown().superRefine(ifObject(z.object({
       "ledger_entry_id": z.string().min(1).optional(),
+    }).passthrough()))))
+  .superRefine(when(z.unknown().superRefine(ifObject(z.object({
+      "state": z.literal("rejected"),
+    }).passthrough())), z.unknown().superRefine(ifObject(z.object({
+      "reason": z.string().min(1).optional(),
     }).passthrough()))));
 export type Association = z.infer<typeof Association>;
 
 export const Covariance = z.object({
     "sigma_ra_arcsec": z.number().gt(0),
     "sigma_dec_arcsec": z.number().gt(0),
-    "rho": z.number().gte(-1).lte(1),
+    "rho": z.number().gt(-1).lt(1),
   }).strict();
 export type Covariance = z.infer<typeof Covariance>;
 
@@ -59,8 +64,8 @@ export const CatalogueSource = z.object({
     "catalogue": z.string().min(1),
     "release_label": z.string().min(1),
     "source_key": z.string().min(1),
-    "ra_deg": z.number(),
-    "dec_deg": z.number(),
+    "ra_deg": z.number().gte(0).lt(360),
+    "dec_deg": z.number().gte(-90).lte(90),
     "covariance": Covariance,
     "epoch_jyear": z.number(),
     "motion": Motion.nullable(),
@@ -74,8 +79,8 @@ export const Detection = z.object({
     "record_id": z.string().min(1),
     "product_id": z.string().min(1),
     "extension": z.string().min(1),
-    "ra_deg": z.number(),
-    "dec_deg": z.number(),
+    "ra_deg": z.number().gte(0).lt(360),
+    "dec_deg": z.number().gte(-90).lte(90),
     "covariance": Covariance,
     "epoch_jyear": z.number(),
     "resolution_arcsec": z.number().gt(0),
@@ -110,4 +115,4 @@ export const AssociationGraph = z.object({
   }).strict();
 export type AssociationGraph = z.infer<typeof AssociationGraph>;
 // silence unused-import checks in files without refinements
-void also; void ifObject; void requireKeys; void uniqueItems; void when;
+void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;

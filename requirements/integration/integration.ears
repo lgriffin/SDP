@@ -7,7 +7,7 @@ requirements:
   - id: INT-001
     pattern: ubiquitous
     text: "Every registered source shall have a SourceCapabilityDescriptor with a verification date, read from the IVOA registry and VOSI where the source publishes them."
-    rationale: "Read, not invent: the registry already describes most sources (ADR-017)."
+    rationale: "Read, not invent: the registry already describes most sources (ADR-017). A large archive is scanned only over the collections SDP uses, and where its own extent query times out the registry's coverage stands in."
     verification: test
     tiers: [T3, T11]
     status: draft
@@ -23,7 +23,7 @@ requirements:
   - id: INT-003
     pattern: event
     text: "When a capability match is requested for a field and an evidence requirement, the system shall return every registered source with a per-field reason."
-    rationale: "A planner and a reviewer read the same explanation."
+    rationale: "A planner and a reviewer read the same explanation. Every requested constraint is a reported field, one-sided bands and calibration levels included; what a source does not publish is partial, never satisfied."
     verification: test
     tiers: [T1, T4]
     status: approved
@@ -39,7 +39,7 @@ requirements:
   - id: INT-005
     pattern: ubiquitous
     text: "Every ingested product shall keep its original bytes as an immutable raw artifact with a SHA-256 of the bytes actually read."
-    rationale: "Curation never rewrites the raw file (ADR-018)."
+    rationale: "Curation never rewrites the raw file (ADR-018), and a binary curated form is never stamped. A reference product is refused before it is written when it is too large to commit."
     verification: test
     tiers: [T3, T5]
     status: draft
@@ -47,7 +47,7 @@ requirements:
   - id: INT-006
     pattern: ubiquitous
     text: "Every product envelope shall carry frame, epoch, time scale, units, calibration level, uncertainty and quality presence, access status, rights, citation and relationships."
-    rationale: "Scientific meaning is part of the envelope, not implied."
+    rationale: "Scientific meaning is part of the envelope, not implied. A product that cannot be enveloped (not in the archive's inventory, or unreadable) stays raw evidence and is never curated; envelopes apply only to the missions their dialect reads."
     verification: test
     tiers: [T5s]
     status: approved
@@ -71,7 +71,7 @@ requirements:
   - id: INT-009
     pattern: ubiquitous
     text: "The association service shall retain every candidate association with its posterior, prior and evidence, and shall not select a nearest neighbour on its own."
-    rationale: "Nearest-neighbour matching silently asserts identity (ADR-019)."
+    rationale: "Nearest-neighbour matching silently asserts identity (ADR-019). Candidates are selected by true angular separation, so a source near the antipode is never one."
     verification: test
     tiers: [T1, T8]
     status: approved
@@ -111,7 +111,7 @@ requirements:
   - id: INT-014
     pattern: unwanted
     text: "If a plan exceeds the profile's AcquisitionBudget threshold, then the system shall require a signed ledger approval before execution."
-    rationale: "Large downloads become signed decisions."
+    rationale: "Large downloads become signed decisions. The approval is the ledger entry itself, bound to the plan id and the actor; an entry id alone, an entry for another plan or an automatic approval approves nothing above the threshold, and every budget limit is checked, not only bytes."
     verification: test
     tiers: [T4]
     status: approved
@@ -127,7 +127,7 @@ requirements:
   - id: INT-016
     pattern: unwanted
     text: "If a manifest names an adapter without a passing AdapterCompatibilityRecord for a product type the experiment used, then the kernel shall not issue a verdict and the harness shall block publication."
-    rationale: "Admission to a gate is checked, not asserted (ADR-021)."
+    rationale: "Admission to a gate is checked, not asserted (ADR-021). It is checked per adapter version, so a record for an older version never admits a newer one, and an input naming only part of adapter, version and product type is unadmitted."
     verification: test
     tiers: [T1, harness]
     status: approved

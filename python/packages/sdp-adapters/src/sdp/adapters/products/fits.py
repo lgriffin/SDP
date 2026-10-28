@@ -46,11 +46,16 @@ def _plain(value: Any) -> Any:
 
 
 def read_hdus(data: bytes) -> tuple[HduInfo, ...]:
-    """Every HDU's structure. Raises ``ValueError`` for bytes that are not FITS."""
+    """Every HDU's structure. Raises ``ValueError`` for bytes that are not FITS, or are FITS too
+    malformed to read (a truncated file, an unparseable card, a non-integer NAXIS)."""
     try:
-        hdul = fits.open(io.BytesIO(data), memmap=False, lazy_load_hdus=False)
-    except OSError as exc:
-        raise ValueError(f"not a FITS file: {exc}") from exc
+        return _read_hdus(data)
+    except (OSError, KeyError, TypeError, IndexError, fits.VerifyError) as exc:
+        raise ValueError(f"not a readable FITS file: {exc}") from exc
+
+
+def _read_hdus(data: bytes) -> tuple[HduInfo, ...]:
+    hdul = fits.open(io.BytesIO(data), memmap=False, lazy_load_hdus=False)
     out = []
     with hdul:
         for i, hdu in enumerate(hdul):

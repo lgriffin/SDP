@@ -26,7 +26,7 @@ class Covariance(BaseModel):
     )
     sigma_ra_arcsec: Annotated[float, Field(gt=0.0)]
     sigma_dec_arcsec: Annotated[float, Field(gt=0.0)]
-    rho: Annotated[float, Field(ge=-1.0, le=1.0)]
+    rho: Annotated[float, Field(gt=-1.0, lt=1.0)]
 
 
 class Photometry(BaseModel):
@@ -58,8 +58,8 @@ class Detection(BaseModel):
     record_id: Annotated[str, Field(min_length=1)]
     product_id: Annotated[str, Field(min_length=1)]
     extension: Annotated[str, Field(min_length=1)]
-    ra_deg: float
-    dec_deg: float
+    ra_deg: Annotated[float, Field(ge=0.0, lt=360.0)]
+    dec_deg: Annotated[float, Field(ge=-90.0, le=90.0)]
     covariance: Covariance
     epoch_jyear: float
     resolution_arcsec: Annotated[float, Field(gt=0.0)]
@@ -76,8 +76,8 @@ class CatalogueSource(BaseModel):
     catalogue: Annotated[str, Field(min_length=1)]
     release_label: Annotated[str, Field(min_length=1)]
     source_key: Annotated[str, Field(min_length=1)]
-    ra_deg: float
-    dec_deg: float
+    ra_deg: Annotated[float, Field(ge=0.0, lt=360.0)]
+    dec_deg: Annotated[float, Field(ge=-90.0, le=90.0)]
     covariance: Covariance
     epoch_jyear: float
     motion: Motion | None

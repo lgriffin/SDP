@@ -1,12 +1,12 @@
 // Generated from contracts/schemas/evidence-manifest.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
-import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 import * as adapterCompatibility from "./adapter-compatibility.ts";
 import * as common from "./common.ts";
 import * as predeclaration from "./predeclaration.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json";
-export const SCHEMA_VERSION = "1.3.0";
+export const SCHEMA_VERSION = "1.4.0";
 
 export const Approval = z.object({
     "ledger_entry_id": z.string(),
@@ -78,9 +78,13 @@ export const Input = z.object({
     "source_ref": common.SourceRef,
     "dialect_id": z.string().nullable().optional(),
     "acquisition_key": common.Sha256Id.nullable().optional(),
-    "adapter": z.string().nullable().optional(),
+    "adapter": z.string().min(1).nullable().optional(),
+    "adapter_version": common.SchemaVersion.nullable().optional(),
     "product_type": z.enum(["image","spectrum","cube","timeseries","measurements","catalogue"]).nullable().optional(),
-  }).strict();
+  }).strict()
+  .superRefine(when(z.unknown().superRefine(requireKeys(["adapter"])), z.unknown().superRefine(requireKeys(["product_type"]))))
+  .superRefine(when(z.unknown().superRefine(requireKeys(["product_type"])), z.unknown().superRefine(requireKeys(["adapter"]))))
+  .superRefine(when(z.unknown().superRefine(requireKeys(["adapter_version"])), z.unknown().superRefine(requireKeys(["adapter"]))));
 export type Input = z.infer<typeof Input>;
 
 export const ManifestVerdict = z.object({
@@ -146,4 +150,4 @@ export const EvidenceManifest = z.object({
   }).strict();
 export type EvidenceManifest = z.infer<typeof EvidenceManifest>;
 // silence unused-import checks in files without refinements
-void also; void ifObject; void requireKeys; void uniqueItems; void when;
+void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;

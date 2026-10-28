@@ -12,6 +12,7 @@ from typing import Any
 from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
 from sdp.adapters.archives.dialect import YamlDialectCurator
 from sdp.adapters.archives.mast import MastObservationGateway
+from sdp.adapters.archives.mast_inventory import MastProductInventory
 from sdp.adapters.archives.simbad import SimbadResolver
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
@@ -24,12 +25,18 @@ from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
+from sdp.adapters.products import EnvelopeValidator, JwstDialect
 from sdp.adapters.publication.zenodo import ZenodoPublisher, creators_from
 from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import SystemClock, SystemEnvironmentProbe, UlidGenerator
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker
-from sdp.kernel.application.investigate import InvestigatePorts, load_candidate_rankers, load_investigation_tests
+from sdp.kernel.application.investigate import (
+    InvestigatePorts,
+    ProductEnvelopes,
+    load_candidate_rankers,
+    load_investigation_tests,
+)
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.application.plugins import EntryPointProtocolRegistry
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
@@ -136,30 +143,55 @@ def clusterers() -> dict[str, Any]:
     return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan())}
 
 
-def observation_gateways(settings: Settings) -> dict[str, ObservationArchiveGateway]:
+def observation_gateways(settings: Settings, mast: Transport | None = None) -> dict[str, ObservationArchiveGateway]:
     """MAST (every mission, through ObsCore) and DASCH, each on its own polite transport (Investigate §4)."""
     return {
-        "mast": MastObservationGateway(archive_transport(settings, "mast", 1.0)),
+        "mast": MastObservationGateway(mast or archive_transport(settings, "mast", 1.0)),
         "dasch": DaschGateway(archive_transport(settings, "dasch", 1.0)),
+    }
+
+
+#: The adapter name and version MAST products are admitted under (INT-016): a compatibility record
+#: for ``mast-observations`` at this version and the product type admits them.
+MAST_ADAPTER = ("mast-observations", "1.0.0")
+
+
+def product_envelopes(mast: Transport) -> dict[str, ProductEnvelopes]:
+    """JWST products from MAST are normalised by the JWST dialect, validated, and curated only when
+    both pass (Integration v0.4.0 §3); MAST's other missions keep the ordinary product path. The
+    inventory shares the MAST gateway's polite transport."""
+    adapter, version = MAST_ADAPTER
+    return {
+        "mast": ProductEnvelopes(
+            adapter,
+            version,
+            JwstDialect(),
+            EnvelopeValidator(),
+            MastProductInventory(mast),
+            missions=frozenset({"JWST"}),
+        )
     }
 
 
 def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> InvestigatePorts:
     """Investigate wired to the ecosystem adapters (Investigate §7): the tests installed under the
-    ``sdp.investigation_tests`` entry point, SIMBAD, MAST and DASCH with the DASCH product dialect,
+    ``sdp.investigation_tests`` entry point, SIMBAD, MAST (JWST products enveloped) and DASCH with the
+    DASCH product dialect,
     photutils and tweakwcs, and the installed candidate rankers (the stellar module's under the
     ``stellar`` policy). The ``clusterer`` a structure test uses is UC-01's CPU reference HDBSCAN
     unless ``services`` names another."""
+    mast = archive_transport(settings, "mast", 1.0)
     return InvestigatePorts(
         tests=load_investigation_tests(),
         cross_match=cross_match(settings),
-        observation_gateways=observation_gateways(settings),
+        observation_gateways=observation_gateways(settings, mast),
         detector=PhotutilsDetector(),
         refiner=TweakwcsRefiner(),
         resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
         services={"clusterer": SklearnHdbscan(), **services},
         product_dialects={"dasch": DaschDialect()},
         rankers=load_candidate_rankers(),
+        product_envelopes=product_envelopes(mast),
     )
 
 

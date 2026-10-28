@@ -1,6 +1,6 @@
 // Generated from contracts/schemas/canonical-astrometry.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
-import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/canonical-astrometry.schema.json";
 export const SCHEMA_VERSION = "1.0.0";
@@ -28,4 +28,4 @@ export const CanonicalAstrometryRow = z.object({
   }).strict();
 export type CanonicalAstrometryRow = z.infer<typeof CanonicalAstrometryRow>;
 // silence unused-import checks in files without refinements
-void also; void ifObject; void requireKeys; void uniqueItems; void when;
+void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;

@@ -56,6 +56,14 @@ def test_investigate_is_wired_to_the_ecosystem_adapters_on_cassettes(tmp_path: P
     assert isinstance(ports.resolver, SimbadResolver)
     assert isinstance(ports.detector, PhotutilsDetector) and isinstance(ports.refiner, TweakwcsRefiner)
     assert isinstance(ports.product_dialects["dasch"], DaschDialect)
+    envelopes = ports.product_envelopes["mast"]
+    assert (envelopes.adapter, envelopes.adapter_version, envelopes.missions) == (
+        "mast-observations",
+        "1.0.0",
+        frozenset({"JWST"}),
+    )
+    assert envelopes.covers("jwst") and not envelopes.covers("HST"), "only JWST products get the JWST dialect"
+    assert envelopes.inventory.transport is ports.observation_gateways["mast"].transport  # type: ignore[attr-defined]
     assert "clusterer" in ports.services
     assert "stellar" in ports.rankers  # the stellar module's CandidateRanker, by entry point
     default = investigate_ports(settings, {})

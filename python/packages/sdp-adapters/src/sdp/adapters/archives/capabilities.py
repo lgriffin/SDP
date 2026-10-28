@@ -14,6 +14,7 @@ registered descriptors, so a stage only ever finds services SDP has admitted.
 from __future__ import annotations
 
 import json
+import logging
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -42,6 +43,8 @@ from sdp.kernel.domain.integration import (
 from sdp.kernel.domain.investigation import Field
 from sdp.kernel.ports.integration import CapabilityRegistry
 from sdp.kernel.ports.investigate import ServiceRecord
+
+log = logging.getLogger("sdp.adapters.capabilities")
 
 MAX_CAPABILITIES_BYTES = 4 * 1024**2
 H_C_J_M = 6.62607015e-34 * 299792458.0
@@ -169,6 +172,17 @@ class VoSource:
     rights: Rights
     adapter: AdapterInfo | None = None
     obscore_table: str = "ivoa.obscore"
+    collections: tuple[str, ...] = ()
+    """When set, the ObsCore scans read only these ``obs_collection`` values: a whole-table scan of a
+    large archive (MAST) times out, and SDP only uses the collections it names."""
+    rights_column: str | None = "data_rights"
+    """ObsCore's optional ``data_rights`` column; None for a service without it (MAST's view has
+    none, so access is read per product from its inventory)."""
+
+    def collection_filter(self) -> str:
+        if not self.collections:
+            return ""
+        return f" WHERE obs_collection IN ({', '.join(literal(c) for c in self.collections)})"
 
 
 @dataclass
@@ -200,14 +214,18 @@ class VoCapabilityDiscovery:
         return HttpRequest("GET", f"{source.obscore_url}/capabilities")
 
     def products_request(self, source: VoSource) -> HttpRequest:
-        adql = (
-            "SELECT DISTINCT dataproduct_type, obs_collection, instrument_name, data_rights "
-            f"FROM {source.obscore_table}"
-        )
+        columns = ["dataproduct_type", "obs_collection", "instrument_name"]
+        if source.rights_column:
+            columns.append(source.rights_column)
+        columns.append("calib_level")
+        adql = f"SELECT DISTINCT {', '.join(columns)} FROM {source.obscore_table}{source.collection_filter()}"
         return sync_request(source.obscore_url, adql, 100000)
 
     def extent_request(self, source: VoSource) -> HttpRequest:
-        adql = f"SELECT MIN(t_min) AS t_min, MAX(t_max) AS t_max, MIN(em_min) AS em_min, MAX(em_max) AS em_max FROM {source.obscore_table}"
+        adql = (
+            "SELECT MIN(t_min) AS t_min, MAX(t_max) AS t_max, MIN(em_min) AS em_min, MAX(em_max) AS em_max "
+            f"FROM {source.obscore_table}{source.collection_filter()}"
+        )
         return sync_request(source.obscore_url, adql, 1)
 
     # -- the port
@@ -243,9 +261,18 @@ class VoCapabilityDiscovery:
             raise TransportError(f"VOSI capabilities of {source.source_id}: HTTP {response.status}", response.status)
         vosi = parse_capabilities(response.body)
         rows = run_sync(self.transport, self.products_request(source), f"ObsCore products of {source.source_id}")
-        extent = run_sync(self.transport, self.extent_request(source), f"ObsCore extent of {source.source_id}")
         products = rows.to_pylist()
-        ext = extent.to_pylist()[0] if extent.num_rows else {}
+        try:
+            extent = run_sync(self.transport, self.extent_request(source), f"ObsCore extent of {source.source_id}")
+            ext = extent.to_pylist()[0] if extent.num_rows else {}
+        except TransportError as exc:
+            # An aggregate over a large archive can time out (MAST answers 504); the registry's
+            # coverage stands in, as it does for any bound the service leaves null.
+            log.warning(
+                "ObsCore extent unavailable; using the registry's",
+                extra={"source": source.source_id, "error": str(exc)},
+            )
+            ext = {}
 
         types = frozenset(
             OBSCORE_PRODUCT_TYPES[t]
@@ -254,7 +281,14 @@ class VoCapabilityDiscovery:
         )
         missions = tuple(sorted({str(r["obs_collection"]).strip() for r in products if r.get("obs_collection")}))
         instruments = tuple(sorted({str(r["instrument_name"]).strip() for r in products if r.get("instrument_name")}))
-        rights_seen = {str(r.get("data_rights") or "").strip().lower() for r in products}
+        levels = frozenset(
+            level for level in (_calibration_level(r.get("calib_level")) for r in products) if level is not None
+        )
+        rights_seen = (
+            {str(r.get(source.rights_column) or "").strip().lower() for r in products}
+            if source.rights_column
+            else set()
+        )
         # Public as soon as any product is; a service that only serves proprietary data says so.
         restricted = bool(rights_seen & {"proprietary", "secure"})
         access = AccessStatus.EXCLUSIVE_ACCESS if restricted and "public" not in rights_seen else AccessStatus.PUBLIC
@@ -283,6 +317,7 @@ class VoCapabilityDiscovery:
             product_types=types,
             missions=missions,
             instruments=instruments,
+            calibration_levels=levels,
             coverage=Coverage(
                 all_sky=None,
                 t_min_mjd=_first_number(ext.get("t_min"), record.get("t_min")),
@@ -297,6 +332,12 @@ class VoCapabilityDiscovery:
             rights=Rights(licence, source.rights.citation, source.rights.acknowledgement),
             adapter=source.adapter,
         )
+
+
+def _calibration_level(value: object) -> int | None:
+    """An ObsCore ``calib_level`` (0 to 4), or None for a missing or masked value."""
+    number = _number(value)
+    return int(number) if number is not None and number.is_integer() and 0 <= number <= 4 else None
 
 
 def _number(value: object) -> float | None:

@@ -291,7 +291,7 @@
       "evidence": {
         "role": "anchor",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2016.0
+        "comparison_epoch_jyear": 2016.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -311,7 +311,7 @@
       "evidence": {
         "role": "anchor",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2016.0
+        "comparison_epoch_jyear": 2016.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -331,7 +331,7 @@
       "evidence": {
         "role": "anchor",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2016.0
+        "comparison_epoch_jyear": 2016.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -351,7 +351,7 @@
       "evidence": {
         "role": "anchor",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2016.0
+        "comparison_epoch_jyear": 2016.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -371,7 +371,7 @@
       "evidence": {
         "role": "anchor",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2016.0
+        "comparison_epoch_jyear": 2016.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -391,7 +391,7 @@
       "evidence": {
         "role": "anchor",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2016.0
+        "comparison_epoch_jyear": 2016.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -413,7 +413,7 @@
       "evidence": {
         "role": "counterpart",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2010.0
+        "comparison_epoch_jyear": 2010.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -435,7 +435,7 @@
       "evidence": {
         "role": "counterpart",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2010.0
+        "comparison_epoch_jyear": 2010.0
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -455,7 +455,7 @@
       "evidence": {
         "role": "counterpart",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2019.5
+        "comparison_epoch_jyear": 2019.5
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -475,7 +475,7 @@
       "evidence": {
         "role": "counterpart",
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2019.5
+        "comparison_epoch_jyear": 2019.5
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -502,7 +502,7 @@
         ],
         "option_posterior": 0.9999072678593063,
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2019.5
+        "comparison_epoch_jyear": 2019.5
       },
       "state": "proposed",
       "ledger_entry_id": null,
@@ -529,7 +529,7 @@
         ],
         "option_posterior": 0.9999072678593063,
         "density_per_arcsec2": 0.0005305164769729845,
-        "common_epoch_jyear": 2019.5
+        "comparison_epoch_jyear": 2019.5
       },
       "state": "proposed",
       "ledger_entry_id": null,

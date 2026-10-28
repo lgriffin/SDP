@@ -59,16 +59,25 @@ def _archive(data: bytes) -> tuple[FakeObservationArchive, ProductRef]:
     return archive, ref
 
 
-def run(data: bytes, normalizer: JwstDialect | None = None) -> Jwst:
+def run(
+    data: bytes,
+    normalizer: JwstDialect | None = None,
+    *,
+    listed: bool = True,
+    missions: frozenset[str] = frozenset(),
+) -> Jwst:
     archive, ref = _archive(data)
     template = raw_product(data, NAME)
     inventory = StaticProductInventory()
-    inventory.prime(ref, ProductRows(template.inventory_row, template.obscore_row, (), "inventory for " + NAME))
+    if listed:
+        inventory.prime(ref, ProductRows(template.inventory_row, template.obscore_row, (), "inventory for " + NAME))
     catalogue = synthetic_catalogue()
     test = ProperMotionExcessTest(needs_products=("image",))
     ports = investigate_ports(test, catalogue=catalogue, observations=archive)
     ports.product_envelopes = {
-        "fake-plates": ProductEnvelopes(ADAPTER, normalizer or JwstDialect(), EnvelopeValidator(), inventory)
+        "fake-plates": ProductEnvelopes(
+            ADAPTER, "1.0.0", normalizer or JwstDialect(), EnvelopeValidator(), inventory, missions=missions
+        )
     }
     k = build_in_memory_kernel(
         gateways={"synthetic-gaia": gaia_archive(catalogue), "synthetic-2mass": twomass_archive(catalogue)},
@@ -95,7 +104,7 @@ def test_a_jwst_image_is_registered_with_its_adapter_and_its_envelope_is_stored(
     world = run(image())
     (product,) = world.products
     raw = world.k.db.state.datasets.get(product.artifact_id)
-    assert raw is not None and raw.product == ProductUse(ADAPTER, "image")
+    assert raw is not None and raw.product == ProductUse(ADAPTER, "1.0.0", "image")
     doc = envelope(world, product)
     assert doc["raw_artifact_id"] == product.artifact_id.value
     assert doc["metadata"]["mission"] == "JWST" and doc["metadata"]["calibration_level"] == 3
@@ -156,3 +165,35 @@ def test_curation_that_keeps_every_array_is_registered_and_named_in_the_envelope
     (product,) = world.products
     assert product.raw_artifact_id is not None
     assert envelope(world, product)["curated_artifact_id"] == product.artifact_id.value
+
+
+@pytest.mark.req("INT-007", "INT-016")
+def test_a_curated_fits_product_is_not_stamped_and_keeps_its_parents_product_use() -> None:
+    world = run(image(), FaithfulDialect())
+    (product,) = world.products
+    curated = world.k.db.state.datasets.get(product.artifact_id)
+    assert curated is not None and curated.product == ProductUse(ADAPTER, "1.0.0", "image")
+    with fits.open(io.BytesIO(world.k.store.get(product.artifact_id))) as hdul:
+        assert hdul[0].header["SDPCURAT"] == "faithful", "the curated bytes are still a FITS file"
+
+
+@pytest.mark.req("INT-006")
+@pytest.mark.parametrize(
+    ("data", "listed"),
+    [(image(), False), (b"SIMPLE  =                    T / truncated".ljust(2880, b" "), True)],
+    ids=["not-in-the-inventory", "malformed-fits"],
+)
+def test_a_product_that_cannot_be_enveloped_is_kept_raw_and_retrieval_goes_on(data: bytes, listed: bool) -> None:
+    world = run(data, listed=listed)
+    (product,) = world.products
+    assert product.envelope_artifact_id is None and product.raw_artifact_id is None
+    assert world.k.db.state.datasets.get(product.artifact_id) is not None
+    assert world.k.db.state.datasets.children(product.artifact_id) == []
+
+
+def test_envelopes_for_another_mission_leave_the_product_on_the_ordinary_path() -> None:
+    world = run(image(), missions=frozenset({"HST"}))
+    (product,) = world.products
+    assert product.envelope_artifact_id is None
+    raw = world.k.db.state.datasets.get(product.artifact_id)
+    assert raw is not None and raw.product is None, "no use is claimed for a product the adapter did not envelope"

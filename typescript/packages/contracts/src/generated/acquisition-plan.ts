@@ -1,6 +1,6 @@
 // Generated from contracts/schemas/acquisition-plan.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
-import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 import * as common from "./common.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/acquisition-plan.schema.json";
@@ -102,4 +102,4 @@ export const AcquisitionPlan = z.object({
   }).strict();
 export type AcquisitionPlan = z.infer<typeof AcquisitionPlan>;
 // silence unused-import checks in files without refinements
-void also; void ifObject; void requireKeys; void uniqueItems; void when;
+void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;

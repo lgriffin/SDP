@@ -66,3 +66,13 @@ export function uniqueItems(value: unknown[], ctx: z.RefinementCtx): void {
     seen.add(key);
   });
 }
+
+/** contains with minContains and maxContains: how many items of an array match `schema`. */
+export function contains(schema: z.ZodTypeAny, min: number, max: number): Refinement {
+  return (value, ctx) => {
+    if (!Array.isArray(value)) return;
+    const count = value.filter((item) => schema.safeParse(item).success).length;
+    if (count < min) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `at least ${min} item(s) must match`, path: [] });
+    if (count > max) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `at most ${max} item(s) may match`, path: [] });
+  };
+}

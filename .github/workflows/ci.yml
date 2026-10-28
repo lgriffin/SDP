@@ -176,7 +176,7 @@ jobs:
       - name: The harness re-derives every verdict (TST-007)
         run: pnpm harness rederive reports/emitted/experiments --out reports/rederive.json
       - name: No verdict on an unadmitted adapter (INT-016)
-        run: pnpm harness admit reports/emitted/experiments contracts/fixtures/valid/evidence-manifest/synthetic-verified-1.3-admitted.json
+        run: pnpm harness admit reports/emitted/experiments contracts/fixtures/valid/evidence-manifest/synthetic-verified-1.4-admitted.json
       - name: No descriptor claim without admission (INT-002)
         run: pnpm harness claims
       - name: UC-02 with the independent TypeScript fitter feeding the kernel (REL-007)

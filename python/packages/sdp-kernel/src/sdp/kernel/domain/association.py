@@ -39,7 +39,7 @@ class PositionCovariance:
     rho: float = 0.0
 
     def __post_init__(self) -> None:
-        if not (self.sigma_ra_arcsec > 0 and self.sigma_dec_arcsec > 0):
+        if not all(math.isfinite(s) and s > 0 for s in (self.sigma_ra_arcsec, self.sigma_dec_arcsec)):
             raise InvariantViolation("positional sigmas are positive; a record without them cannot be associated")
         if not -1 < self.rho < 1:
             raise InvariantViolation("correlation lies strictly between -1 and 1")
@@ -105,7 +105,7 @@ class Detection:
         _finite(self.dec_deg, "dec")
         if not (0 <= self.ra_deg < 360 and -90 <= self.dec_deg <= 90):
             raise InvariantViolation("detection position out of range")
-        if not self.resolution_arcsec > 0:
+        if not (math.isfinite(self.resolution_arcsec) and self.resolution_arcsec > 0):
             raise InvariantViolation("a detection carries its instrument's resolution")
 
     @property
@@ -147,6 +147,8 @@ class CatalogueSource:
     def __post_init__(self) -> None:
         if not (0 <= self.ra_deg < 360 and -90 <= self.dec_deg <= 90):
             raise InvariantViolation("catalogue position out of range")
+        if not (math.isfinite(self.resolution_arcsec) and self.resolution_arcsec >= 0):
+            raise InvariantViolation("a catalogue resolution is finite and not negative")
 
     @property
     def kind(self) -> str:
@@ -276,6 +278,8 @@ class AssociationPolicy:
     policy_id: str
     version: str
     common_epoch_jyear: float
+    """The epoch a reviewer compares positions at. The two methods instead propagate each anchor to
+    each record's own epoch and record that as ``comparison_epoch_jyear`` in the evidence."""
     search_radius_arcsec: float
     min_posterior: float = 1e-3
     """Below this a candidate is negligible; every candidate above it is retained (INT-009)."""

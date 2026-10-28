@@ -38,6 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$NAME" in *[!a-z0-9-]*|"") echo "name must be lowercase letters, digits and dashes"; exit 1;; esac
+          mkdir -p ../reports
           uv run sdp integration record --obs-id "$OBS_ID" --filename "$FILENAME" --name "$NAME" \
             --out ../fixtures/reference-products --cassettes ../reports/cassettes | tee ../reports/integration-recording.json
       - uses: actions/upload-artifact@v4
