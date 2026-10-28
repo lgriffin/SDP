@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ from sdp.adapters.bootstrap import UnconfiguredPublisher, publisher
 from sdp.adapters.publication.zenodo import (
     Creator,
     PublicationError,
+    PublicationOutcomeUnknown,
     Response,
     ZenodoPublisher,
     creators_from,
@@ -36,6 +38,8 @@ class FakeZenodo:
     bucket: str = f"{BASE}/api/files/b-1"
     echo_auth: bool = False
     lose_publish_reply: bool = False
+    fail_status_check: bool = False
+    publish_body: bytes | None = None
     deleted: bool = False
     calls: list[tuple[str, str]] = field(default_factory=list)
     files: dict[str, bytes] = field(default_factory=dict)
@@ -51,6 +55,8 @@ class FakeZenodo:
         if method == "DELETE" and url == f"{BASE}/api/deposit/depositions/4242":
             self.deleted = True
             return Response(204, b"")
+        if method == "GET" and url == f"{BASE}/api/deposit/depositions/4242" and self.fail_status_check:
+            raise http.client.IncompleteRead(b"")
         if method == "GET" and url == f"{BASE}/api/deposit/depositions/4242":
             doi = "10.5072/zenodo.4242"
             return Response(200, json.dumps({"id": 4242, "submitted": self.published, "doi": doi}).encode())
@@ -66,6 +72,8 @@ class FakeZenodo:
             self.metadata = meta
             return Response(200, json.dumps({"id": 4242}).encode())
         if method == "POST" and url == f"{BASE}/api/deposit/depositions/4242/actions/publish":
+            if self.publish_body is not None:
+                return Response(202, self.publish_body)
             self.published = True
             if self.lose_publish_reply:
                 raise TimeoutError("the read operation timed out")
@@ -129,6 +137,19 @@ def test_a_lost_reply_to_publish_returns_the_doi_zenodo_minted() -> None:
     service = FakeZenodo(lose_publish_reply=True)
     record = _publisher(service).publish(b"b", "b.zip", {"title": "t"})
     assert record.doi == "10.5072/zenodo.4242" and service.calls[-1][0] == "GET"
+
+
+def test_when_the_state_cannot_be_read_after_a_lost_reply_the_outcome_is_unknown() -> None:
+    service = FakeZenodo(lose_publish_reply=True, fail_status_check=True)
+    with pytest.raises(PublicationOutcomeUnknown, match=r"deposition 4242.*before retrying"):
+        _publisher(service).publish(b"b", "b.zip", {"title": "t"})
+
+
+def test_a_reply_that_is_not_json_does_not_count_as_a_failed_publication() -> None:
+    # a proxy page in place of Zenodo's reply: the deposition is still a draft, but may not stay one
+    service = FakeZenodo(publish_body=b"<html>gateway</html>")
+    with pytest.raises(PublicationOutcomeUnknown, match="not JSON"):
+        _publisher(service).publish(b"b", "b.zip", {"title": "t"})
 
 
 @pytest.mark.req("NFR-009")

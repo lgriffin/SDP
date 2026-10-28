@@ -124,16 +124,9 @@ def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
             shutil.copytree(ROOT / path, work / path, ignore=shutil.ignore_patterns("__pycache__"))
         (work / "pytest.ini").write_text(PYTEST_INI)
         (work / "setup.cfg").write_text(setup_cfg(target))
-        done = subprocess.run(
-            [sys.executable, "-m", "mutmut", "run", "--max-children", str(children)],
-            cwd=work,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        # mutmut exits non-zero when mutants survive, so the status alone does not mean failure;
-        # the tail stays in the log so a failed baseline can be diagnosed
-        print("\n".join((done.stdout + done.stderr).splitlines()[-40:]), flush=True)
+        # mutmut's output streams straight into the job log, so a failed baseline is visible as it
+        # happens; its exit status is non-zero whenever mutants survive, so score() judges the run
+        subprocess.run([sys.executable, "-m", "mutmut", "run", "--max-children", str(children)], cwd=work, check=False)
         subprocess.run([sys.executable, "-m", "mutmut", "export-cicd-stats"], cwd=work, check=True)
         stats = json.loads((work / "mutants" / "mutmut-cicd-stats.json").read_text())
     return score(stats), stats

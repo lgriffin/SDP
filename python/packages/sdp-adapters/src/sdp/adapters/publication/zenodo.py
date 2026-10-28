@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -30,6 +31,14 @@ LICENCES = {"CC-BY-4.0": "cc-by-4.0", "CC0-1.0": "cc-zero", "MIT": "mit", "Apach
 
 class PublicationError(RuntimeError):
     pass
+
+
+class ZenodoUnreachable(PublicationError):
+    """No usable reply arrived: the request may or may not have taken effect."""
+
+
+class PublicationOutcomeUnknown(PublicationError):
+    """Zenodo may have published the deposition; check it before any retry, or a second DOI follows."""
 
 
 @dataclass(frozen=True)
@@ -108,16 +117,18 @@ class ZenodoPublisher:
         # the token goes only to the configured service, whatever a response says the next URL is
         if self._origin(url) != self._origin(self.base_url) or self._origin(url)[0] != "https":
             raise PublicationError(f"refusing to send the Zenodo token to {self._origin(url)[1] or url!r}")
+        call = f"Zenodo {method} {urllib.parse.urlsplit(url).path}"
         try:
             response = self.client.request(method, url, self._headers(content_type), body)
-        except (OSError, urllib.error.URLError) as exc:
-            raise PublicationError(f"Zenodo {method} {urllib.parse.urlsplit(url).path}: {exc}") from exc
+        except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
+            raise ZenodoUnreachable(f"{call}: {exc}") from exc
         if response.status not in ok:
             detail = response.body[:500].decode("utf-8", "replace").replace(self.token, "[token]")
-            raise PublicationError(
-                f"Zenodo {method} {urllib.parse.urlsplit(url).path}: HTTP {response.status}: {detail}"
-            )
-        return response.json()
+            raise PublicationError(f"{call}: HTTP {response.status}: {detail}")
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise ZenodoUnreachable(f"{call}: HTTP {response.status} with a body that is not JSON") from exc
 
     def metadata(self, metadata: Mapping[str, Any]) -> dict[str, Any]:
         licence = str(metadata.get("license", "CC-BY-4.0"))
@@ -164,8 +175,20 @@ class ZenodoPublisher:
             published = self._call("POST", f"{dep_url}/actions/publish", b"", "application/json", (202,))
         except PublicationError as exc:
             # a lost reply may hide a publication that happened: ask before anyone retries and mints a second DOI
-            state = self._call("GET", dep_url, b"", "application/json", (200,))
+            try:
+                state = self._call("GET", dep_url, b"", "application/json", (200,))
+            except PublicationError as check:
+                raise PublicationOutcomeUnknown(
+                    f"deposition {dep_id}: publishing failed ({exc}) and its state could not be read ({check}); "
+                    "check it on Zenodo before retrying"
+                ) from exc
             if not (state.get("submitted") and state.get("doi")):
+                if isinstance(exc, ZenodoUnreachable):
+                    # Zenodo may still be processing a request whose reply was lost
+                    raise PublicationOutcomeUnknown(
+                        f"deposition {dep_id} is not published yet but the publish request may still complete "
+                        f"({exc}); check it on Zenodo before retrying"
+                    ) from exc
                 raise PublicationError(f"deposition {dep_id} is a draft and was not published: {exc}") from exc
             published = state
         doi = str(published.get("doi") or "")
