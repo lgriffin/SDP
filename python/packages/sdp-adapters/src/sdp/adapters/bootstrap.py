@@ -9,8 +9,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-import pyarrow as pa
-
+from sdp.adapters.archives.dialect import YamlDialectCurator
+from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
+from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
+from sdp.adapters.archives.xmatch import CdsXMatchAdapter
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.logs import configure_logging
@@ -21,7 +23,6 @@ from sdp.adapters.system import SystemClock, SystemEnvironmentProbe, UlidGenerat
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.application.plugins import EntryPointProtocolRegistry
-from sdp.kernel.domain.dataset import DialectRef
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.evidence import ExperimentTracker
 from sdp.kernel.ports.plugins import ProtocolRegistry
@@ -37,16 +38,6 @@ class UnconfiguredPublisher:
 
     def publish(self, bundle: bytes, filename: str, metadata: Mapping[str, Any]) -> DoiRecord:
         raise NotConfigured("no bundle publisher is configured for this deployment")
-
-
-class NoDialectsCurator:
-    """Stands in until archive dialects are installed; refuses rather than guessing columns."""
-
-    def dialect_for(self, source_id: str, release_label: str) -> DialectRef:
-        raise NotConfigured(f"no dialect is installed for {source_id} {release_label}")
-
-    def curate(self, native: pa.Table, dialect: DialectRef) -> pa.Table:
-        raise NotConfigured(f"no dialect is installed for {dialect}")
 
 
 class _NullTracker:
@@ -91,6 +82,32 @@ def build_ledger(settings: Settings) -> GitSignedLedger:
     )
 
 
+def archive_transport(settings: Settings, name: str, min_seconds_between_calls: float) -> Transport:
+    """The transport one archive adapter gets: live and polite, or cassettes under ``<cassette_dir>/<name>``."""
+    live = PoliteTransport(UrllibTransport(), min_seconds_between_calls=min_seconds_between_calls)
+    if settings.archive_mode == "live":
+        return live
+    if settings.cassette_dir is None:
+        raise NotConfigured("SDP_ARCHIVE_MODE replay and record need SDP_CASSETTE_DIR")
+    directory = settings.cassette_dir / name
+    if settings.archive_mode == "replay":
+        return CassetteTransport(directory, "replay")
+    return CassetteTransport(directory, "record", inner=live)
+
+
+def archive_gateways(settings: Settings) -> dict[str, ArchiveGateway]:
+    """One TAP gateway per packaged source, each with its own rate limit (§8)."""
+    gateways: dict[str, ArchiveGateway] = {}
+    for source_id, source in load_sources().items():
+        transport = archive_transport(settings, source_id, source.descriptor.min_seconds_between_calls)
+        gateways[source_id] = TapArchiveAdapter({source_id: source}, transport)
+    return gateways
+
+
+def cross_match(settings: Settings) -> CdsXMatchAdapter:
+    return CdsXMatchAdapter(archive_transport(settings, "cds-xmatch", 1.0))
+
+
 def build_application(settings: Settings, overrides: Overrides | None = None, *, logging: bool = True) -> Application:
     overrides = overrides or Overrides()
     if logging:
@@ -112,8 +129,8 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         environment=SystemEnvironmentProbe(repo=settings.repo_root),
         tracker=tracker,
         publisher=overrides.publisher or UnconfiguredPublisher(),
-        curator=overrides.curator or NoDialectsCurator(),
-        gateways=dict(overrides.gateways),
+        curator=overrides.curator or YamlDialectCurator.packaged(),
+        gateways={**archive_gateways(settings), **overrides.gateways},
         services=dict(overrides.services),
         min_free_bytes=settings.min_free_bytes,
     )

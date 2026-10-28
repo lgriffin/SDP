@@ -1,0 +1,31 @@
+# T11: weekly live smoke against every archive source (DSI-008, ADR-015). The only job that calls a live archive.
+name: Archive live smoke
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: live · archive schema drift and cassette recording (T11)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - name: Record and compare against the committed cassettes
+        run: uv run sdp archive smoke --baseline tests/cassettes --record ../reports/cassettes | tee ../reports/archive-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cassettes
+          path: |
+            reports/cassettes
+            reports/archive-smoke.json
