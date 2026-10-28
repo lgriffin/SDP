@@ -1,0 +1,25 @@
+# Gaia DR3 gaia_source to canonical astrometry. Gaia pmra already includes cos(dec).
+dialect_id: gaia-dr3
+dialect_version: 1.0.0
+source_id: gaia
+source_release: gaia:DR3
+source_key: "gaia:DR3:{source_id}"
+epoch: {column: ref_epoch, kind: jyear}
+columns:
+  ra_deg: {column: ra, unit: deg}
+  dec_deg: {column: dec, unit: deg}
+  parallax_mas: {column: parallax, unit: mas}
+  parallax_mas_err: {column: parallax_error, unit: mas}
+  pm_ra_cosdec_masyr: {column: pmra, unit: mas / yr}
+  pm_ra_cosdec_masyr_err: {column: pmra_error, unit: mas / yr}
+  pm_dec_masyr: {column: pmdec, unit: mas / yr}
+  pm_dec_masyr_err: {column: pmdec_error, unit: mas / yr}
+  g_mag: {column: phot_g_mean_mag, unit: mag}
+  bp_rp: {column: bp_rp, unit: mag}
+  ruwe: {column: ruwe}
+astrometric_corr: [ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr, dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr]
+quality_flags: [ruwe, astrometric_params_solved, duplicated_source]
+# RUWE < 1.4 is the usual well-behaved single-star threshold (Lindegren et al. 2021).
+quality_class: {column: ruwe, below: [[1.4, good], [2.0, marginal]], otherwise: poor}
+# The Lindegren et al. 2021 parallax zero point is NOT applied; downstream code decides, and says so.
+zero_point_corrected: false

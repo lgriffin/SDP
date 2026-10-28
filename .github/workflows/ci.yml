@@ -200,9 +200,29 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm harness guard --base origin/${{ github.base_ref }} --head HEAD
 
+  viewer:
+    name: fast · Imviz plugin in its own environment (INV-012)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: viewer/sdp-imviz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - name: pytest
+        run: uv run pytest -q --junitxml=../../reports/junit-viewer.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-viewer
+          path: reports/junit-viewer.xml
+
   trace:
     name: fast · requirement coverage gate (TST-001)
-    needs: [python-fast, python-integration, ts-fast]
+    needs: [python-fast, python-integration, ts-fast, viewer]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -228,7 +248,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace]
+    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace, viewer]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

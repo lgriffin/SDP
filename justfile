@@ -73,5 +73,9 @@ ui:
 e2e:
     pnpm --filter @sdp/e2e e2e
 
+# The Imviz plugin, in its own Jdaviz environment (INV-012)
+viewer:
+    cd viewer/sdp-imviz && uv sync && uv run ruff check . && uv run pytest -q --junitxml=../../reports/junit-viewer.xml
+
 # Stages 1-2 of §11.7
-test: contracts ears codegen-check lint pytest integration ts e2e cross-language trace
+test: contracts ears codegen-check lint pytest integration ts e2e cross-language viewer trace

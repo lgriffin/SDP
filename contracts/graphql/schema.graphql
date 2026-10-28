@@ -75,6 +75,77 @@ type Hypothesis {
   supersedes: Int
 }
 
+"""One candidate from a field: EXPLORATORY, never a verdict (INV-008)."""
+type Investigation {
+  id: ID!
+  setId: String!
+  fieldId: String!
+  candidateKey: String!
+  candidate: JSON!
+  state: String!
+  label: String!
+  score: Float!
+  rankingPolicy: String!
+  testResults: JSON!
+  evidenceBundleIds: [String!]!
+  evidenceUsed: JSON!
+  transitions: [InvestigationTransition!]!
+  notes: JSON!
+  links: JSON!
+
+  """The candidate's dossier, rebuilt from the set's stage artifacts."""
+  dossier: JSON
+}
+
+"""
+One run of Investigate over a field under a profile, with its multiplicity.
+"""
+type InvestigationSet {
+  id: ID!
+  fieldId: String!
+  field: JSON!
+  profileId: String!
+  profileVersion: String!
+  profileHash: String!
+  profile: JSON!
+  seed: Int!
+  startedAt: String!
+  complete: Boolean!
+  stages: [InvestigationStage!]!
+  objectsExamined: Int!
+  testsApplied: JSON!
+  archiveReleases: [String!]!
+  nullResults: JSON!
+  investigationIds: [String!]!
+  manifestId: String
+  label: String!
+
+  """The set's manifest, as written to the store."""
+  manifest: JSON
+
+  """The set's investigations, highest score first."""
+  investigations(state: String = null): [Investigation!]!
+}
+
+"""One Investigate stage of a set (Investigate §1)."""
+type InvestigationStage {
+  stage: String!
+  state: String!
+  artifactId: String
+  finishedAt: String
+  error: String
+  summary: JSON!
+}
+
+"""A state change of an investigation, with who made it and why."""
+type InvestigationTransition {
+  fromState: String
+  toState: String!
+  reason: String!
+  actor: String!
+  at: String!
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
 """
@@ -107,6 +178,11 @@ type Query {
   """Ancestors of an entity in the provenance graph."""
   lineage(entityId: ID!): [String!]!
   ledger: [LedgerEntry!]!
+
+  """Investigation sets, newest first (Investigate)."""
+  investigationSets: [InvestigationSet!]!
+  investigationSet(id: ID!): InvestigationSet
+  investigation(id: ID!): Investigation
 }
 
 type Task {

@@ -1,0 +1,24 @@
+# Pan-STARRS1 DR2 mean object table through the MAST TAP service.
+source_id: ps1
+release_label: ps1:DR2
+service_url: https://mast.stsci.edu/vo-tap/api/v0.1/ps1dr2
+table: dbo.MeanObjectView
+ra_column: raMean
+dec_column: decMean
+key_column: objID
+paging: single
+max_rows_per_call: 50000
+min_seconds_between_calls: 1.0
+dialect_id: ps1-dr2
+licence: "Pan-STARRS1 data are public through MAST; acknowledge per https://outerspace.stsci.edu/display/PANSTARRS/Acknowledging+PS1"
+citation: Chambers et al. 2016, arXiv:1612.05560; Flewelling et al. 2020, ApJS 251, 7
+doi: 10.3847/1538-4365/abb82d
+columns:
+  - {name: objID, datatype: long}
+  - {name: raMean, datatype: double, unit: deg}
+  - {name: decMean, datatype: double, unit: deg}
+  - {name: epochMean, datatype: double, unit: d, description: "mean MJD of the detections"}
+  - {name: gMeanPSFMag, datatype: float, unit: mag}
+  - {name: rMeanPSFMag, datatype: float, unit: mag}
+  - {name: iMeanPSFMag, datatype: float, unit: mag}
+  - {name: nDetections, datatype: short}

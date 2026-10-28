@@ -1,6 +1,6 @@
 # @sdp/evidence-ui
 
-The reviewer's view of the evidence (ADR-002, ADR-016): experiments, the dossier page with every predeclared gate and the ones that decided the verdict, failure tracebacks, tasks, provenance and lineage, the manifest download, the signed ledger and the domain events. It only reads; freezing and approval stay on the `sdp` CLI.
+The reviewer's view of the evidence (ADR-002, ADR-016): experiments, the dossier page with every predeclared gate and the ones that decided the verdict, failure tracebacks, tasks, provenance and lineage, the manifest download, the signed ledger and the domain events; and Investigate sets with their stages, candidates and null-field rates, and each investigation with its results, evidence, triage history and the evidence promotion must avoid. It only reads; freezing, approval and triage stay on the `sdp` CLI.
 
 - `src/lib/ports.ts` is the one driven port, `EvidenceSource`, typed by the GraphQL client generated from `contracts/graphql/schema.graphql`.
 - `src/lib/adapters/graphql.ts` reads `sdp-api` at `SDP_API_URL` (default `http://127.0.0.1:8000/graphql`).

@@ -3,13 +3,18 @@ import { describe, expect, it } from "vitest";
 import type { GateCheck, LedgerEntry } from "../src/lib/ports.ts";
 import { FIXTURES } from "../src/lib/testing/fixtures.ts";
 import {
+  belowAlpha,
   chainProblems,
   decisiveChecks,
   describeGate,
   formatNumber,
+  formatPercent,
+  investigationTone,
   isSelfApproval,
   orderChecks,
   shortHash,
+  stageTone,
+  type TestResultDoc,
   verdictTone,
 } from "../src/lib/view.ts";
 
@@ -96,5 +101,25 @@ describe("ledger view", () => {
     const approval = FIXTURES.ledger[1] as LedgerEntry;
     expect(isSelfApproval(approval)).toBe(false);
     expect(isSelfApproval({ ...approval, payload: { self_approval: true } })).toBe(true);
+  });
+});
+
+describe("investigation view", () => {
+  it("tones triage and stage states", () => {
+    expect(["open", "parked", "promoted", "closed"].map(investigationTone)).toEqual(["neutral", "warn", "good", "neutral"]);
+    expect(["pending", "completed", "failed"].map(stageTone)).toEqual(["neutral", "good", "bad"]);
+  });
+
+  it("marks results below alpha only when both are known", () => {
+    const r = { p_value: 0.01 } as TestResultDoc;
+    expect(belowAlpha(r, 0.05)).toBe(true);
+    expect(belowAlpha(r, 0.001)).toBe(false);
+    expect(belowAlpha(r, undefined)).toBe(false);
+    expect(belowAlpha({ p_value: null } as TestResultDoc, 0.05)).toBe(false);
+  });
+
+  it("formats rates as percentages", () => {
+    expect(formatPercent(0.16333333)).toBe("16.33%");
+    expect(formatPercent(0)).toBe("0%");
   });
 });

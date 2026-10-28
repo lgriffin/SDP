@@ -122,6 +122,8 @@ modules = [
   "sdp.adapters.compute",
   "sdp.adapters.telemetry",
   "sdp.adapters.historical",
+  "sdp.adapters.archives",
+  "sdp.adapters.analytics",
 ]
 
 [[tool.importlinter.contracts]]

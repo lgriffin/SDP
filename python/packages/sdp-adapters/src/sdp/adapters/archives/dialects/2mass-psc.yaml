@@ -1,0 +1,14 @@
+# 2MASS PSC to canonical astrometry: positions at each source's observation epoch, no astrometric solution.
+dialect_id: 2mass-psc
+dialect_version: 1.0.0
+source_id: 2mass
+source_release: 2mass:psc
+source_key: "2mass:{designation}"
+epoch: {column: jdate, kind: jd}
+columns:
+  ra_deg: {column: ra, unit: deg}
+  dec_deg: {column: dec, unit: deg}
+astrometric_corr: null
+quality_flags: [ph_qual, j_m, h_m, k_m]
+quality_class: {column: ph_qual, map: {AAA: good, AAB: marginal, ABA: marginal, BAA: marginal}, default: poor}
+zero_point_corrected: false

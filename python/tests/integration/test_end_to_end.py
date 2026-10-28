@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from sdp.adapters.archives.dialect import DialectError
 from sdp.adapters.bootstrap import Application, NotConfigured, Overrides, build_application
 from sdp.adapters.settings import Settings
 from sdp.kernel.domain.experiment import ExperimentState
@@ -82,5 +83,7 @@ def test_predeclare_run_validate_and_approve_on_real_adapters(app: Application, 
 def test_unconfigured_ports_refuse_instead_of_pretending(app: Application) -> None:
     with pytest.raises(NotConfigured):
         app.kernel.ports.publisher.publish(b"", "bundle.zip", {})
-    with pytest.raises(NotConfigured):
-        app.kernel.ports.curator.dialect_for("gaia", "DR3")
+    # The packaged dialects are installed; a release without one is refused, never guessed (DSI-001).
+    assert app.kernel.ports.curator.dialect_for("gaia", "gaia:DR3").dialect_id == "gaia-dr3"
+    with pytest.raises(DialectError):
+        app.kernel.ports.curator.dialect_for("gaia", "gaia:DR4")
