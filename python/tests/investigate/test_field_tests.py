@@ -35,7 +35,7 @@ from sdp.testing.investigate import (
 )
 from sdp.testing.wiring import build_in_memory_kernel
 from sdp_investigate import registered_tests
-from sdp_investigate.astrometry import ParallaxConsistency
+from sdp_investigate.astrometry import ParallaxConsistency, ra_offset_deg
 from sdp_investigate.base import Features
 from sdp_investigate.formats import lightcurve_csv, parse_lightcurve, parse_positions, positions_csv
 from sdp_investigate.photometry import ColourMagnitudeCoherence, robust_polyfit
@@ -202,3 +202,8 @@ def test_robust_fit_ignores_outliers() -> None:
     y[::10] += 5
     coeffs = robust_polyfit(x, y, 1)
     assert coeffs == pytest.approx([2.0, 1.0], abs=1e-6)
+
+
+def test_motion_residuals_take_right_ascension_the_shortest_way_round() -> None:
+    offsets = ra_offset_deg(np.array([359.9999, 0.0001, 10.0]), np.array([0.0001, 359.9999, 9.0]))
+    assert offsets == pytest.approx([-0.0002, 0.0002, 1.0])

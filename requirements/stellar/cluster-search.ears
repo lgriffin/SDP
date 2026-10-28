@@ -9,24 +9,30 @@ requirements:
     verification: test
     tiers: [T1]
     gates: [STL-G-01]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_components::test_every_predeclared_region_carries_its_reason_and_an_empty_one_is_refused"
   - id: STL-002
     pattern: ubiquitous
     text: "Feature-space transformations shall be versioned policies, and raw five-axis Euclidean clustering shall not feed a gate."
     rationale: "Five raw Euclidean axes mix incommensurate units."
     verification: test
     tiers: [T1]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_components::test_clustering_takes_only_a_feature_matrix_from_a_registered_policy"
+      - "python/tests.stellar.test_components::test_rescaling_proper_motion_units_leaves_the_feature_matrix_unchanged"
+      - "python/tests.stellar.test_components::test_a_small_rigid_rotation_of_the_field_leaves_memberships_unchanged"
   - id: STL-003
     pattern: ubiquitous
     text: "Quality cuts shall be configuration recorded in the manifest."
     rationale: "Quality cuts change results; they are configuration, not code."
     verification: test
     tiers: [T4]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_components::test_quality_cuts_report_what_each_cut_removed"
+      - "python/tests.stellar.test_protocol::test_the_quality_cuts_and_their_effect_are_in_the_manifest"
   - id: STL-004
     pattern: optional
     text: "Where a GPU clustering adapter is used, the system shall exclude its results from gates unless the agreement test passed in the same release."
@@ -34,8 +40,10 @@ requirements:
     verification: test
     tiers: [T8]
     gates: [STL-G-08]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_clustering::test_agreement_passes_only_when_labels_and_memberships_match_the_cpu_reference"
+      - "python/tests.stellar.test_protocol::test_gpu_results_reach_the_gates_only_after_agreement"
   - id: STL-005
     pattern: ubiquitous
     text: "A candidate shall be cross-matched against two benchmarks before it is labelled potentially new."
@@ -43,16 +51,21 @@ requirements:
     verification: test
     tiers: []
     gates: [STL-G-06]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_protocol::test_without_a_second_benchmark_nothing_is_called_potentially_new"
   - id: STL-006
     pattern: ubiquitous
     text: "Null-field and injection tests shall run per region with recorded seeds."
     rationale: "False-positive and completeness estimates need reproducible seeds."
     verification: test
     tiers: [T8]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_components::test_null_fields_are_seeded_and_destroy_the_planted_kinematics"
+      - "python/tests.stellar.test_components::test_injection_is_seeded_and_scored_by_best_overlap"
+      - "python/tests.stellar.test_protocol::test_null_and_injection_runs_cover_every_region_with_recorded_seeds"
+      - "python/tests.stellar.test_protocol::test_the_same_seed_reproduces_the_findings"
   - id: STL-007
     pattern: ubiquitous
     text: "Rejected and inconclusive candidates shall be retained with failure reasons."
@@ -60,5 +73,6 @@ requirements:
     verification: test
     tiers: []
     gates: [STL-G-07]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.stellar.test_protocol::test_rejected_candidates_are_retained_with_their_reasons"

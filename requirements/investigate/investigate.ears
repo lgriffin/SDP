@@ -38,7 +38,7 @@ requirements:
   - id: INV-005
     pattern: ubiquitous
     text: "Every retrieved row set and product shall be registered as a DatasetArtifact with source release, licence and citation before any test reads it."
-    rationale: "Tests read registered evidence only, so a result is reproducible from the artifacts alone. A product a dialect curates is registered as the curated child of its raw parent, naming the dialect and its version."
+    rationale: "Tests read registered evidence only, so a result is reproducible from the artifacts alone. A product a dialect curates is registered as the curated child of its raw parent, naming the dialect and its version; its first line stamps both, so equal rows from two raw products stay two artifacts with their own lineage. A product offered as two types is fetched and registered once."
     verification: test
     tiers: [T3, T4]
     status: approved

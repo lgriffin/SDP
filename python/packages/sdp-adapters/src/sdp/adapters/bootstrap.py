@@ -17,6 +17,7 @@ from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
 from sdp.adapters.archives.untrusted import IsolatedVotableParser
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
+from sdp.adapters.compute.clustering import SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
@@ -130,6 +131,11 @@ def publisher(settings: Settings) -> BundlePublisher:
     )
 
 
+def clusterers() -> dict[str, Any]:
+    """The CPU reference ClusterSearchAlgorithms by algorithm id (UC-01); GPU ones join only after agreement."""
+    return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan())}
+
+
 def observation_gateways(settings: Settings) -> dict[str, ObservationArchiveGateway]:
     """MAST (every mission, through ObsCore) and DASCH, each on its own polite transport (Investigate §4)."""
     return {
@@ -177,7 +183,7 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         publisher=overrides.publisher or publisher(settings),
         curator=overrides.curator or YamlDialectCurator.packaged(),
         gateways={**archive_gateways(settings), **overrides.gateways},
-        services=dict(overrides.services),
+        services={"clusterers": clusterers(), **overrides.services},
         min_free_bytes=settings.min_free_bytes,
         investigate=overrides.investigate or investigate_ports(settings, overrides.services),
     )

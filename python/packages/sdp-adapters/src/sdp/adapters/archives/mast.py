@@ -34,9 +34,12 @@ HAPCUT = "https://mast.stsci.edu/hapcut/api/v0.1/astrocut"
 LICENCE = "MAST data are public after any exclusive-access period; see https://archive.stsci.edu/publishing/data-use"
 CITATION = "Data from the Mikulski Archive for Space Telescopes (MAST), STScI; cite each mission's own reference"
 
-#: ObsCore dataproduct_type to the product types Investigate tests declare.
-PRODUCT_TYPES = {"timeseries": "lightcurve", "image": "image", "spectrum": "spectrum", "cube": "cube"}
+#: ObsCore dataproduct_type to the product types Investigate tests declare. A MAST time series is
+#: mission FITS, not the canonical ``lightcurve`` CSV, so it keeps its own type until a MAST
+#: product dialect curates it; a variability test never reads FITS bytes as CSV.
+PRODUCT_TYPES = {"timeseries": "timeseries", "image": "image", "spectrum": "spectrum", "cube": "cube"}
 OBSCORE_TYPES = {v: k for k, v in PRODUCT_TYPES.items()}
+HAPCUT_PREFIX = "hapcut/"
 
 COLUMNS = (
     "obs_id",
@@ -132,6 +135,12 @@ class MastObservationGateway:
         response = self.transport.send(HttpRequest("GET", product.uri))
         if response.status != 200:
             raise TransportError(f"MAST {product.product_id}: HTTP {response.status}", response.status)
+        if product.product_id.startswith(HAPCUT_PREFIX):
+            member = product.product_id.removeprefix(HAPCUT_PREFIX)
+            _, data = _fits_member(response.body, member)
+            return FetchedProduct(
+                product, data, "image/fits", self.release_label, self.licence, self.citation, product.uri
+            )
         media = response.headers.get("Content-Type", "application/octet-stream").split(";")[0].strip()
         return FetchedProduct(
             product, response.body, media, self.release_label, self.licence, self.citation, product.uri
@@ -151,12 +160,19 @@ class MastObservationGateway:
         response = self.transport.send(request)
         if response.status != 200:
             raise TransportError(f"HAPCut: HTTP {response.status}", response.status)
-        if not zipfile.is_zipfile(io.BytesIO(response.body)):
-            raise TransportError(f"HAPCut returned no cutout: {response.body[:200]!r}")
-        with zipfile.ZipFile(io.BytesIO(response.body)) as zf:
-            names = sorted(n for n in zf.namelist() if n.lower().endswith((".fits", ".fits.gz", ".fit")))
-            if not names:
-                raise TransportError("HAPCut zip holds no FITS file")
-            data = zf.read(names[0])
-        product = ProductRef(self.archive_id, f"hapcut/{names[0]}", request.url)
+        name, data = _fits_member(response.body)
+        product = ProductRef(self.archive_id, f"{HAPCUT_PREFIX}{name}", request.url)
         return FetchedProduct(product, data, "image/fits", self.release_label, self.licence, self.citation, request.url)
+
+
+def _fits_member(body: bytes, member: str | None = None) -> tuple[str, bytes]:
+    """A FITS file from HAPCut's zip: the named member, or the first by name."""
+    if not zipfile.is_zipfile(io.BytesIO(body)):
+        raise TransportError(f"HAPCut returned no cutout: {body[:200]!r}")
+    with zipfile.ZipFile(io.BytesIO(body)) as zf:
+        names = sorted(n for n in zf.namelist() if n.lower().endswith((".fits", ".fits.gz", ".fit")))
+        if member is not None:
+            names = [n for n in names if n == member]
+        if not names:
+            raise TransportError(f"HAPCut zip holds no FITS file{f' named {member}' if member else ''}")
+        return names[0], zf.read(names[0])

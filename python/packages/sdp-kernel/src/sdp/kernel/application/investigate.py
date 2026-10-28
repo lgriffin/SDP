@@ -51,6 +51,7 @@ from sdp.kernel.domain.investigation import (
     ObservationCriteria,
     ObservationIndex,
     ProductEvidence,
+    ProductRef,
     RankedCandidate,
     RankingPolicy,
     Stage,
@@ -565,7 +566,11 @@ class InvestigateFieldUseCase:
         ref = DialectRef(dialect.dialect_id, dialect.dialect_version)
         if ArtifactId.of_bytes(canonical.data) == raw.artifact_id:
             return None  # already canonical: the raw product is what the test reads
-        curated_id = self.store.put(canonical.data, canonical.media_type)
+        # The stamp keeps the curated artifact unique to its raw parent and dialect, as the
+        # catalogue path's Parquet metadata does: equal rows from two raw products are two artifacts.
+        stamp = f"# sdp.dialect={ref.dialect_id}@{ref.dialect_version} sdp.raw_parent={raw.artifact_id.value}\n"
+        data = stamp.encode() + canonical.data
+        curated_id = self.store.put(data, canonical.media_type)
         with self.uow() as uow:
             existing = uow.datasets.get(curated_id)
             if existing is not None:
@@ -573,7 +578,7 @@ class InvestigateFieldUseCase:
                 uow.commit()
                 return existing
             curated = raw.curate(
-                curated_id=curated_id, byte_count=len(canonical.data), dialect=ref, media_type=canonical.media_type
+                curated_id=curated_id, byte_count=len(data), dialect=ref, media_type=canonical.media_type
             )
             uow.datasets.add(curated)
             graph = ProvGraph()
@@ -688,21 +693,28 @@ class InvestigateFieldUseCase:
                 investigation_set.archive_releases = tuple(
                     sorted({*investigation_set.archive_releases, index.release_label})
                 )
-                # Products only when a test in the profile declares it needs them.
+                # Products only when a test in the profile declares it needs them; a product offered
+                # as several types (a DASCH light curve is also a position history) is fetched once.
+                retrieved: dict[ProductRef, tuple[FetchedProduct, DatasetArtifact]] = {}
                 for record in index.records:
                     if record.product_type not in needed:
                         continue
-                    fetched = gateway.fetch(record.product)
-                    product = self._register_bytes(
-                        investigation_set.set_id,
-                        data=fetched.data,
-                        media_type=fetched.media_type,
-                        archive=index.archive,
-                        release_label=fetched.release_label,
-                        licence=fetched.licence,
-                        citation=fetched.citation,
-                        rendered=f"GET {fetched.read_from}",
-                    )
+                    if record.product not in retrieved:
+                        got = gateway.fetch(record.product)
+                        retrieved[record.product] = (
+                            got,
+                            self._register_bytes(
+                                investigation_set.set_id,
+                                data=got.data,
+                                media_type=got.media_type,
+                                archive=index.archive,
+                                release_label=got.release_label,
+                                licence=got.licence,
+                                citation=got.citation,
+                                rendered=f"GET {got.read_from}",
+                            ),
+                        )
+                    fetched, product = retrieved[record.product]
                     dialect = self.ports.product_dialects.get(selection.source_id)
                     curated = (
                         self._curate_product(investigation_set.set_id, product, fetched, record.product_type, dialect)
