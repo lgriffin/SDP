@@ -35,7 +35,7 @@ from sdp.kernel.domain.investigation import (
     TestSelection,
 )
 from sdp.kernel.domain.policy import NumericalPolicy
-from sdp.kernel.ports.investigate import ObjectResolver, SourceDetector, WcsRefiner
+from sdp.kernel.ports.investigate import ObjectResolver, ProductDialect, SourceDetector, WcsRefiner
 from sdp.kernel.science.investigation import InvestigationTest, InvestigationTestRegistry
 from sdp.kernel.science.plan import TaskContext
 from sdp.testing.fakes.archives import AstropyCrossMatch, FakeArchive
@@ -402,6 +402,7 @@ def investigate_ports(
     resolver: ObjectResolver | None = None,
     observations: FakeObservationArchive | None = None,
     resolve: bool = True,
+    product_dialects: Mapping[str, ProductDialect] | None = None,
 ) -> InvestigatePorts:
     """InvestigatePorts wired to the synthetic world's fakes."""
     catalogue = catalogue or synthetic_catalogue()
@@ -412,4 +413,5 @@ def investigate_ports(
         detector=detector,
         refiner=refiner,
         resolver=(resolver or fixture_resolver(catalogue)) if resolve else None,
+        product_dialects=dict(product_dialects or {}),
     )

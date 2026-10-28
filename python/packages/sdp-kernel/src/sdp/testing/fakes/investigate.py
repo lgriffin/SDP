@@ -25,6 +25,7 @@ from sdp.kernel.domain.investigation import (
     region_centre,
 )
 from sdp.kernel.ports.investigate import (
+    CuratedProduct,
     Detection,
     DetectionList,
     ImageFrame,
@@ -241,3 +242,21 @@ class StaticSourceRegistry:
 
     def services(self, field: Field, standard: str) -> Sequence[ServiceRecord]:
         return [r for r in self.records if r.standard.lower() == standard.lower()]
+
+
+@dataclass(frozen=True)
+class ThinningDialect:
+    """A ProductDialect over products already in canonical CSV: keeps every ``every``-th epoch of the
+    product types it curates, so the curated child differs from its raw parent."""
+
+    product_types: tuple[str, ...] = ("lightcurve", "astrometry")
+    every: int = 2
+    dialect_id: str = "fixture-thinning"
+    dialect_version: str = "1.0.0"
+
+    def curate(self, product_type: str, raw: FetchedProduct) -> CuratedProduct | None:
+        if product_type not in self.product_types:
+            return None
+        header, *rows = raw.data.decode("utf-8").splitlines()
+        kept = rows[:: self.every]
+        return CuratedProduct(("\n".join([header, *kept]) + "\n").encode(), "text/csv")
