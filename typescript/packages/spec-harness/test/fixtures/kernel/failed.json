@@ -1,0 +1,241 @@
+{
+  "checks": [],
+  "environment": {
+    "agreement_test_id": null,
+    "backend": "cpu",
+    "code_revision": "0000000000000000000000000000000000000000",
+    "constants_version": "codata2018",
+    "cuda_version": null,
+    "driver_version": null,
+    "image_digest": null,
+    "lock_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "packages": {},
+    "platform": "linux-x86_64",
+    "python_version": "3.12.13"
+  },
+  "execution": {
+    "failure": {
+      "reason": "InjectedFailure: injected failure in residuals",
+      "task_id": "residuals"
+    },
+    "finished_at": "2026-10-28T12:00:05Z",
+    "parameters": {
+      "inject_failure": "residuals"
+    },
+    "seed": 42,
+    "started_at": "2026-10-28T12:00:03Z",
+    "state": "failed",
+    "tasks": [
+      {
+        "checkpoint_artifact_id": "sha256:2dbf26fe1889eef010cc5453f3843759531145e2a6e62ba9f4b3bc6e3f6686be",
+        "depends_on": [],
+        "duration_s": 0.00016954500006249873,
+        "policy": {
+          "atol": 1e-12,
+          "determinism": "tolerance",
+          "dtype": "float64",
+          "rtol": 1e-09,
+          "seed_handling": "explicit"
+        },
+        "status": "completed",
+        "task_id": "fit",
+        "task_kind": "synthetic.fit_line"
+      },
+      {
+        "checkpoint_artifact_id": null,
+        "depends_on": [
+          "fit"
+        ],
+        "duration_s": null,
+        "policy": {
+          "atol": 1e-12,
+          "determinism": "tolerance",
+          "dtype": "float64",
+          "rtol": 1e-09,
+          "seed_handling": "explicit"
+        },
+        "status": "failed",
+        "task_id": "residuals",
+        "task_kind": "synthetic.residuals"
+      }
+    ]
+  },
+  "findings": [],
+  "identity": {
+    "experiment_id": "exp-000001",
+    "protocol_id": "synthetic-linear",
+    "protocol_version": "1.0.0"
+  },
+  "inputs": [
+    {
+      "acquisition_key": null,
+      "artifact_id": "sha256:f7f71ab99b80703d2a19ee1b54cea0932698ab3d39d557d5429fd0cde895b8c6",
+      "dialect_id": null,
+      "media_type": "application/json",
+      "role": "series",
+      "source_ref": {
+        "bibcode": null,
+        "citation": "unregistered artifact",
+        "doi": null,
+        "identity": "artifact sha256:f7f71ab99b80703d2a19ee1b54cea0932698ab3d39d557d5429fd0cde895b8c6",
+        "kind": "local",
+        "licence": "unknown",
+        "query_text": null,
+        "release_label": null
+      }
+    }
+  ],
+  "intent": {
+    "ledger_entry_id": "led-000001",
+    "predeclaration": {
+      "gates": [
+        {
+          "comparator": "lt",
+          "description": "Fitted slope agrees with the planted slope",
+          "finding": "slope_abs_error",
+          "gate_id": "SYN-G-01",
+          "oracle_ids": [
+            "planted-slope"
+          ],
+          "severity": "blocking",
+          "threshold": 0.05
+        },
+        {
+          "comparator": "le",
+          "description": "Residual RMS below the noise ceiling",
+          "finding": "residual_rms",
+          "gate_id": "SYN-G-02",
+          "oracle_ids": [],
+          "severity": "warning",
+          "threshold": 0.5
+        }
+      ],
+      "hypotheses": [
+        {
+          "evaluation_criteria": [
+            "|slope - 2.0| < 0.05"
+          ],
+          "hypothesis_id": "SYN-H1",
+          "predictions": [
+            {
+              "geometry_assumptions": [],
+              "model_id": "linear",
+              "model_version": "1.0.0",
+              "parameters": {
+                "slope": 2.0
+              },
+              "predicted": {
+                "unit": "",
+                "value": 2.0
+              }
+            }
+          ],
+          "statement": "The fitted slope of the synthetic series equals the planted slope.",
+          "version": 1
+        }
+      ],
+      "notes": null,
+      "oracle_tolerances": [
+        {
+          "atol": 0.05,
+          "oracle_id": "planted-slope",
+          "rtol": 0.0,
+          "unit": null
+        }
+      ],
+      "parameters": {
+        "n": 200,
+        "noise_sigma": 0.1
+      },
+      "predeclaration_id": "synthetic-linear-v1",
+      "protocol_id": "synthetic-linear",
+      "protocol_version": "1.0.0",
+      "schema_version": "1.0.0",
+      "targets": [
+        {
+          "kind": "source",
+          "reason": "Synthetic series generated from a fixed seed",
+          "spec": {
+            "n": 200
+          },
+          "target_id": "series-a"
+        }
+      ],
+      "title": "Synthetic linear recovery (walking skeleton)"
+    },
+    "predeclaration_hash": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6"
+  },
+  "oracles": [],
+  "outputs": [],
+  "provenance": {
+    "activity": {
+      "sdp:experiment/exp-000001": {
+        "sdp:protocol": "synthetic-linear@1.0.0",
+        "sdp:type": "Experiment"
+      }
+    },
+    "agent": {
+      "sdp:kernel": {
+        "prov:type": "prov:SoftwareAgent"
+      },
+      "sdp:leigh": {
+        "prov:type": "prov:Person"
+      },
+      "sdp:protocol/synthetic-linear@1.0.0": {
+        "prov:type": "prov:SoftwareAgent"
+      }
+    },
+    "entity": {
+      "sdp:sha256:2dbf26fe1889eef010cc5453f3843759531145e2a6e62ba9f4b3bc6e3f6686be": {
+        "sdp:task_id": "fit",
+        "sdp:type": "Checkpoint"
+      },
+      "sdp:sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6": {
+        "sdp:predeclaration_id": "synthetic-linear-v1",
+        "sdp:type": "Predeclaration"
+      },
+      "sdp:sha256:f7f71ab99b80703d2a19ee1b54cea0932698ab3d39d557d5429fd0cde895b8c6": {
+        "sdp:role": "series"
+      }
+    },
+    "prefix": {
+      "prov": "http://www.w3.org/ns/prov#",
+      "sdp": "https://github.com/lgriffin/SDP/ns#"
+    },
+    "used": {
+      "_:use0": {
+        "prov:activity": "sdp:experiment/exp-000001",
+        "prov:entity": "sdp:sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6"
+      },
+      "_:use1": {
+        "prov:activity": "sdp:experiment/exp-000001",
+        "prov:entity": "sdp:sha256:f7f71ab99b80703d2a19ee1b54cea0932698ab3d39d557d5429fd0cde895b8c6"
+      }
+    },
+    "wasAssociatedWith": {
+      "_:was0": {
+        "prov:activity": "sdp:experiment/exp-000001",
+        "prov:agent": "sdp:kernel"
+      },
+      "_:was1": {
+        "prov:activity": "sdp:experiment/exp-000001",
+        "prov:agent": "sdp:protocol/synthetic-linear@1.0.0"
+      }
+    },
+    "wasAttributedTo": {
+      "_:was0": {
+        "prov:agent": "sdp:leigh",
+        "prov:entity": "sdp:sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6"
+      }
+    },
+    "wasDerivedFrom": {},
+    "wasGeneratedBy": {
+      "_:was0": {
+        "prov:activity": "sdp:experiment/exp-000001",
+        "prov:entity": "sdp:sha256:2dbf26fe1889eef010cc5453f3843759531145e2a6e62ba9f4b3bc6e3f6686be"
+      }
+    }
+  },
+  "schema_version": "1.1.0",
+  "verdict": null
+}

@@ -11,7 +11,7 @@ requirements:
     status: approved
     traces:
       - "python/tests.contracts.test_contracts_python::test_packaged_schemas_are_the_source_schemas"
-      - "ts/packages/contracts/test/contracts.test.ts::[CTR-001] has a generated schema for every contract"
+      - "typescript/packages/contracts/test/contracts.test.ts::[CTR-001] has a generated schema for every contract"
   - id: CTR-002
     pattern: unwanted
     text: "If committed generated code differs from a fresh generation, then CI shall fail."
@@ -21,7 +21,7 @@ requirements:
     status: approved
     traces:
       - "python/tests.contracts.test_contracts_python::test_committed_pydantic_models_match_a_fresh_generation"
-      - "ts/packages/contracts/test/contracts.test.ts::[CTR-002] matches a fresh generation byte for byte"
+      - "typescript/packages/contracts/test/contracts.test.ts::[CTR-002] matches a fresh generation byte for byte"
   - id: CTR-003
     pattern: ubiquitous
     text: "Both languages shall accept every fixture under fixtures/valid and reject every fixture under fixtures/invalid at the expected error path."
@@ -33,15 +33,18 @@ requirements:
       - "python/tests.contracts.test_contracts_python::test_invalid_fixtures_are_rejected_at_the_expected_path"
       - "python/tests.contracts.test_contracts_python::test_valid_fixtures_are_accepted"
       - "python/tests.unit.kernel.test_canonical::test_canonical_vectors_reproduce_byte_for_byte"
-      - "ts/packages/contracts/test/contracts.test.ts::[CTR-003] rejects invalid fixtures at the expected path"
+      - "typescript/packages/contracts/test/contracts.test.ts::[CTR-003] rejects invalid fixtures at the expected path"
   - id: CTR-004
     pattern: ubiquitous
     text: "An evidence manifest shall carry schema_version, and the harness shall read the current and the previous major version."
     rationale: "Manifests outlive releases; the harness reads one major back."
     verification: test
     tiers: [T6]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "typescript/packages/contracts/test/contracts.test.ts::[CTR-004] reads the major version of every manifest fixture"
+      - "typescript/packages/spec-harness/test/conform.test.ts::[CTR-004] reads every valid manifest fixture, 1.0 and 1.1"
+      - "typescript/packages/spec-harness/test/conform.test.ts::[CTR-004] refuses a major it does not support, naming the path"
   - id: CTR-005
     pattern: event
     text: "When the GraphQL schema changes, the committed schema.graphql and the generated client shall change in the same commit."

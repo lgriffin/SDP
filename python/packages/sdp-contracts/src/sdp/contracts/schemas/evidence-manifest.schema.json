@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json",
-  "x-version": "1.0.0",
+  "x-version": "1.1.0",
   "title": "EvidenceManifest",
   "description": "The durable contract between the kernel and the harness: one document per experiment, written atomically to the NAS and mirrored in PostgreSQL (§7).",
   "type": "object",
@@ -88,6 +88,13 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Finding"
+      }
+    },
+    "oracles": {
+      "type": "array",
+      "description": "Oracle verification status as the findings recorded it, so the harness can re-derive every check (TST-007). Added in 1.1.0; absent means no oracle records.",
+      "items": {
+        "$ref": "#/$defs/OracleRecord"
       }
     },
     "checks": {
@@ -570,6 +577,26 @@
           "additionalProperties": {
             "type": "object"
           }
+        }
+      }
+    },
+    "OracleRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_id",
+        "verified"
+      ],
+      "properties": {
+        "oracle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
         }
       }
     }

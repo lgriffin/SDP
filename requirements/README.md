@@ -28,4 +28,9 @@ Every requirement starts as `draft`. The pull request that lands the behaviour a
 ## Test markers
 
 - Python: `@pytest.mark.req("KRN-002")`
-- TypeScript: `it(req("CTR-003", "accepts every valid fixture"), ...)`, which prefixes the test name with `[CTR-003]`.
+- Python gates: `@pytest.mark.gate("REL-G-01")` on the test that evaluates a predeclared gate.
+- TypeScript: put the id in brackets in the test title, `it("[CTR-003] accepts every valid fixture", ...)`; gates as `[gate:REL-G-01]`, tiers as `[tier:T6]`.
+
+pytest writes markers as JUnit `<property>` elements (`junit_family = "xunit1"`); vitest writes titles. `spec-harness trace` reads both. It fails the build when an approved test-verified requirement in scope has no passing test, when a marker names an unknown requirement, or when a gate of a frozen predeclaration (its hash is in the ledger) has no passing evaluating test. Gates of draft predeclarations are reported as warnings.
+
+`spec-harness guard` fails a pull request that adds a use case, port, adapter or gate without touching any `.ears` file (TST-002).

@@ -19,7 +19,7 @@ contracts/
 | Language | Generator | Output | Entry point |
 |---|---|---|---|
 | Python | `datamodel-code-generator` (pinned in `python/pyproject.toml`) | `python/packages/sdp-contracts/src/sdp/contracts/v1/` plus a byte copy of the schemas | `sdp.contracts.load(name, document)` validates against the schema, then builds the Pydantic model |
-| TypeScript | `ts/packages/contracts/scripts/generate-zod.mjs` | `ts/packages/contracts/src/generated/` | `parse(name, document)` from `@sdp/contracts` |
+| TypeScript | `typescript/packages/contracts/scripts/generate-zod.mjs` | `typescript/packages/contracts/src/generated/` | `parse(name, document)` from `@sdp/contracts` |
 
 The Zod generator is ours, because off-the-shelf converters drop cross-file `$ref` and `if`/`then`. It supports exactly the keywords the schemas use and fails generation on anything else, so a schema change that needs a new keyword cannot silently weaken TypeScript validation.
 

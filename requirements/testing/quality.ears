@@ -8,16 +8,22 @@ requirements:
     rationale: "Requirements become a checkable artifact (ADR-005)."
     verification: test
     tiers: [harness]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "typescript/packages/spec-harness/test/coverage-gate.test.ts::[TST-001] counts failing and skipped tests as not covering"
+      - "typescript/packages/spec-harness/test/coverage-gate.test.ts::[TST-001] fails a marker that names no requirement"
+      - "typescript/packages/spec-harness/test/coverage-gate.test.ts::[TST-001] fails an approved test requirement with no passing marker"
   - id: TST-002
     pattern: unwanted
     text: "If a change adds a use case, port, adapter or gate without an .ears change, then CI shall fail."
     rationale: "Behaviour without a requirement is unreviewable."
     verification: test
     tiers: [harness]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "typescript/packages/spec-harness/test/guard.test.ts::[TST-002] fails a new use case without an .ears change"
+      - "typescript/packages/spec-harness/test/guard.test.ts::[TST-002] ignores edits, deletions and package markers"
+      - "typescript/packages/spec-harness/test/guard.test.ts::[TST-002] passes the same change when an .ears file changes too"
   - id: TST-003
     pattern: ubiquitous
     text: "Each driven port shall have one contract suite run against its fake and each available real adapter."
@@ -32,8 +38,11 @@ requirements:
     rationale: "Test strength may not silently erode."
     verification: test
     tiers: [T10]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "typescript/packages/spec-harness/test/ratchet.test.ts::[TST-004] allows a drop of up to 2 points below the high-water mark"
+      - "typescript/packages/spec-harness/test/ratchet.test.ts::[TST-004] fails a drop of more than 2 points"
+      - "typescript/packages/spec-harness/test/ratchet.test.ts::[TST-004] fails when a tracked package has no score"
   - id: TST-005
     pattern: ubiquitous
     text: "Mocks shall not be used under domain, application or science modules."
@@ -49,13 +58,19 @@ requirements:
     rationale: "A reproducibility claim must be backed by the tier that proves it."
     verification: test
     tiers: [harness]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "typescript/packages/spec-harness/test/report.test.ts::[TST-006] a failing test fails its tier even if others passed"
+      - "typescript/packages/spec-harness/test/report.test.ts::[TST-006] grants Level 1 when T9 passed and refuses Level 2 without T7 and T8"
+      - "typescript/packages/spec-harness/test/report.test.ts::[TST-006] never grants Level 4 without cited independent evidence"
   - id: TST-007
     pattern: unwanted
     text: "If the harness's re-derived verdict differs from the kernel's, then publication shall be blocked."
     rationale: "The verdict is computed twice, independently."
     verification: test
     tiers: [T7, harness]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "typescript/packages/spec-harness/test/rederive-verdict.test.ts::[TST-007] agrees with the kernel on its candidate manifest"
+      - "typescript/packages/spec-harness/test/rederive-verdict.test.ts::[TST-007] agrees with the kernel on its rejected manifest"
+      - "typescript/packages/spec-harness/test/rederive-verdict.test.ts::[TST-007] agrees with the kernel on its verified manifest"

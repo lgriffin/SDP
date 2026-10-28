@@ -11,6 +11,7 @@
     "declaration": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
   }
 }

@@ -36,6 +36,7 @@ junit_family = "xunit1"
 markers = [
   "req(id): the requirement id(s) this test verifies (read by spec-harness trace)",
   "tier(name): the test tier T0..T11 (§11.1)",
+  "gate(id): the predeclared gate(s) this test evaluates (read by spec-harness trace)",
   "scientific: tier T8 scientific validation (nightly)",
   "integration: tier T5, needs real infrastructure",
   "live: tier T11, touches live archives (weekly)",

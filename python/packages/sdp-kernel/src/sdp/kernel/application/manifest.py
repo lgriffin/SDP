@@ -11,7 +11,7 @@ from sdp.kernel.domain.predeclaration import FrozenPredeclaration
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.domain.sources import SourceRef
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
 
 
 def iso(at: datetime | None) -> str | None:
@@ -106,6 +106,14 @@ def build_manifest(
             for name, artifact in sorted(experiment.outputs.items())
         ],
         "findings": [f.to_document() for f in experiment.findings] if experiment.findings else [],
+        "oracles": (
+            [
+                {"oracle_id": o.oracle_id, "verified": o.verified, "note": o.note}
+                for _, o in sorted(experiment.findings.oracles.items())
+            ]
+            if experiment.findings
+            else []
+        ),
         "checks": [c.to_document() for c in experiment.report.checks] if experiment.report else [],
         "verdict": verdict,
         "provenance": provenance.to_prov_json(),

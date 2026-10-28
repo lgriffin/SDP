@@ -161,6 +161,15 @@ class ProvDocument(BaseModel):
     wasAttributedTo: dict[str, dict[str, Any]] | None = None
 
 
+class OracleRecord(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    oracle_id: Annotated[str, Field(min_length=1)]
+    verified: bool
+    note: str | None = None
+
+
 class Intent(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -186,6 +195,12 @@ class EvidenceManifest(BaseModel):
     execution: Execution
     outputs: list[Output]
     findings: list[Finding]
+    oracles: Annotated[
+        list[OracleRecord] | None,
+        Field(
+            description="Oracle verification status as the findings recorded it, so the harness can re-derive every check (TST-007). Added in 1.1.0; absent means no oracle records."
+        ),
+    ] = None
     checks: list[common_schema.Check]
     verdict: ManifestVerdict | None
     provenance: ProvDocument

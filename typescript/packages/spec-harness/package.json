@@ -1,0 +1,25 @@
+{
+  "name": "@sdp/spec-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The specification harness: .ears compiler, traceability, manifest conformance, independent verdict re-derivation, release report",
+  "bin": { "spec-harness": "./bin/spec-harness.mjs" },
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "cli": "node src/cli.ts"
+  },
+  "dependencies": {
+    "@sdp/contracts": "workspace:*",
+    "fast-xml-parser": "4.5.1",
+    "yaml": "2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "fast-check": "3.23.2",
+    "typescript": "5.8.3",
+    "vitest": "2.1.8"
+  }
+}
