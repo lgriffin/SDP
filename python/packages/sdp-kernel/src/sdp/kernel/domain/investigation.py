@@ -823,6 +823,9 @@ class ProductEvidence:
     artifact_id: ArtifactId
     read_from: str
     raw_artifact_id: ArtifactId | None = None
+    envelope_artifact_id: ArtifactId | None = None
+    """The product's ScientificDataProduct envelope with its validation report, when the source has a
+    normaliser (Integration v0.4.0 §3)."""
 
     def to_document(self) -> dict[str, Any]:
         doc: dict[str, Any] = {
@@ -833,6 +836,8 @@ class ProductEvidence:
         }
         if self.raw_artifact_id is not None:
             doc["raw_artifact_id"] = self.raw_artifact_id.value
+        if self.envelope_artifact_id is not None:
+            doc["envelope_artifact_id"] = self.envelope_artifact_id.value
         return doc
 
     @classmethod
@@ -843,6 +848,7 @@ class ProductEvidence:
             ArtifactId(doc["artifact_id"]),
             doc["read_from"],
             ArtifactId(doc["raw_artifact_id"]) if doc.get("raw_artifact_id") else None,
+            ArtifactId(doc["envelope_artifact_id"]) if doc.get("envelope_artifact_id") else None,
         )
 
 

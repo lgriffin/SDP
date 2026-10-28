@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import astropy.units as u
 
-from sdp.adapters.products.fits import HduInfo, merged_header, read_hdus
+from sdp.adapters.products.fits import FITS_MEDIA_TYPES, HduInfo, effective_media_type, merged_header, read_hdus
 from sdp.kernel.domain.integration import (
     NON_SCIENCE,
     AccessStatus,
@@ -25,7 +25,7 @@ from sdp.kernel.domain.integration import (
 from sdp.kernel.ports.integration import RawProduct
 from sdp.kernel.ports.investigate import CuratedProduct
 
-FITS_TYPES = ("application/fits", "image/fits")
+FITS_TYPES = FITS_MEDIA_TYPES
 #: FITS keyword -> (envelope attribute, ObsCore column). Keyword wins; any disagreement fails (v0.4.0 §3).
 KEYWORD_FIELDS = {
     "TELESCOP": ("mission", "obs_collection"),
@@ -108,9 +108,10 @@ class EnvelopeValidator:
                 SemanticCheck("product_type", False, f"{metadata.product_type.value} is never curated as science")
             )
             return self._report(metadata, checks)
-        if curated.media_type not in FITS_TYPES:
+        curated_type = effective_media_type(curated.data, curated.media_type)
+        if curated_type not in FITS_TYPES:
             ok = metadata.product_type not in (ProductType.IMAGE, ProductType.SPECTRUM, ProductType.CUBE)
-            checks.append(SemanticCheck("format", ok, f"curated as {curated.media_type}"))
+            checks.append(SemanticCheck("format", ok, f"curated as {curated_type}"))
             return self._report(metadata, checks)
         raw_hdus = {h.name: h for h in read_hdus(product.data)}
         cur = read_hdus(curated.data)

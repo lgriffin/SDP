@@ -22,7 +22,7 @@ from typing import Any
 
 from astropy.time import Time
 
-from sdp.adapters.products.fits import HduInfo, merged_header, read_hdus
+from sdp.adapters.products.fits import FITS_MEDIA_TYPES, HduInfo, effective_media_type, merged_header, read_hdus
 from sdp.kernel.domain.integration import (
     AccessStatus,
     PayloadExtension,
@@ -132,7 +132,7 @@ def _times(header: Mapping[str, Any], obscore: Mapping[str, Any]) -> tuple[float
     scale = (_str(header.get("TIMESYS")) or "").lower()
     beg, end = _str(header.get("DATE-BEG")), _str(header.get("DATE-END"))
     if beg and end and scale:
-        return Time(beg, scale=scale).mjd, Time(end, scale=scale).mjd, scale.upper()
+        return float(Time(beg, scale=scale).mjd), float(Time(end, scale=scale).mjd), scale.upper()
     start, stop = _float(header.get("EXPSTART")), _float(header.get("EXPEND"))
     if start is not None and stop is not None:
         return start, stop, (scale or "utc").upper()
@@ -164,7 +164,8 @@ class JwstDialect:
         raw, inv, obs = product.fetched, product.inventory_row, product.obscore_row
         filename = filename_of(raw, inv)
         suffix = suffix_of(filename)
-        hdus = read_hdus(raw.data) if raw.media_type in ("application/fits", "image/fits") else ()
+        media_type = effective_media_type(raw.data, raw.media_type)
+        hdus = read_hdus(raw.data) if media_type in FITS_MEDIA_TYPES else ()
         header = merged_header(hdus)
         kind = INVENTORY_KIND.get(str(inv.get("productType", "")).upper())
         if kind is None:
@@ -219,7 +220,7 @@ class JwstDialect:
             field_of_view_deg=_float(obs.get("s_fov")),
             calibration_level=int(level) if level is not None else None,
             pipeline_version=_str(header.get("CAL_VER")) or _str(inv.get("prvversion")),
-            media_type=raw.media_type,
+            media_type=media_type,
             dimensions=dims,
             units=data_units,
             extensions=exts,

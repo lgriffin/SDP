@@ -77,3 +77,17 @@ def merged_header(hdus: tuple[HduInfo, ...]) -> dict[str, Any]:
     if sci is not None:
         merged.update(sci.header)
     return merged
+
+
+FITS_MEDIA_TYPES = ("application/fits", "image/fits")
+GENERIC_MEDIA_TYPES = ("", "application/octet-stream", "binary/octet-stream")
+FITS_SIGNATURE = b"SIMPLE  ="
+
+
+def effective_media_type(data: bytes, declared: str) -> str:
+    """The declared media type, or ``application/fits`` when a server labels FITS bytes generically
+    (archives often serve downloads as ``application/octet-stream``); never overrides a specific type."""
+    declared = (declared or "").split(";")[0].strip().lower()
+    if declared in GENERIC_MEDIA_TYPES and data[:80].startswith(FITS_SIGNATURE):
+        return "application/fits"
+    return declared or "application/octet-stream"

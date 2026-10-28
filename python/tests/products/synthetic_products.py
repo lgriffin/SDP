@@ -211,7 +211,8 @@ def load_reference_products(root: Path = REFERENCE_ROOT) -> list[tuple[str, RawP
     out: list[tuple[str, RawProduct, ReferenceRecord]] = []
     if not root.is_dir():
         return out
-    for d in sorted(p for p in root.iterdir() if p.is_dir()):
+    # A directory with only reference.template.json is recorded but not yet described by a person.
+    for d in sorted(p for p in root.iterdir() if p.is_dir() and (p / "reference.json").exists()):
         ref = ReferenceRecord.from_document(json.loads((d / "reference.json").read_text()))
         inventory = json.loads((d / "inventory.json").read_text())
         obscore = json.loads((d / "obscore.json").read_text())

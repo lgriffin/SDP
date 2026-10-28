@@ -21,7 +21,23 @@ from sdp.kernel.domain.integration import (
     match_requirement,
     order_matches,
 )
-from sdp.kernel.domain.investigation import Field
+from sdp.kernel.domain.investigation import Field, ProductRef
+from sdp.kernel.ports.integration import ProductRows
+
+
+class StaticProductInventory:
+    """ProductInventory over rows primed by product URI; an unprimed product raises KeyError."""
+
+    def __init__(self, rows: Mapping[str, ProductRows] | None = None) -> None:
+        self._rows = dict(rows or {})
+
+    def prime(self, product: ProductRef, rows: ProductRows) -> None:
+        self._rows[product.uri] = rows
+
+    def rows(self, product: ProductRef) -> ProductRows:
+        if product.uri not in self._rows:
+            raise KeyError(f"no inventory rows primed for {product.uri}")
+        return self._rows[product.uri]
 
 
 class StaticCompatibilityRecords:

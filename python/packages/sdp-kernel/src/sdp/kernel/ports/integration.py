@@ -24,7 +24,7 @@ from sdp.kernel.domain.integration import (
     SemanticValidationReport,
     SourceCapabilityDescriptor,
 )
-from sdp.kernel.domain.investigation import FetchedProduct, Field, TestProfile
+from sdp.kernel.domain.investigation import FetchedProduct, Field, ProductRef, TestProfile
 from sdp.kernel.ports.investigate import CuratedProduct
 
 # ---------------------------------------------------------------------------------------------
@@ -107,6 +107,28 @@ class RawProduct:
         return self.fetched.product.archive
 
 
+@dataclass(frozen=True)
+class ProductRows:
+    """The archive's own description of one product, read beside its bytes (v0.4.0 §3, §7)."""
+
+    inventory_row: Mapping[str, Any]
+    obscore_row: Mapping[str, Any]
+    links: tuple[Mapping[str, Any], ...] = ()
+    rendered_query: str = ""
+    """Every request that produced the rows, so the envelope's provenance can be replayed."""
+
+
+class ProductInventory(Protocol):
+    """The product-inventory and ObsCore rows for a product a gateway fetched (Stage A).
+
+    ObsCore lists observations, not the files in them; the inventory gives the product's own type,
+    calibration level, rights, size and file name, which the envelope needs. Fake:
+    StaticProductInventory.
+    """
+
+    def rows(self, product: ProductRef) -> ProductRows: ...
+
+
 class ProductNormalizer(Protocol):
     """Fills the ObsCore-shaped envelope from ObsCore, inventory and FITS keywords (v0.4.0 §3).
 
@@ -136,6 +158,13 @@ class ProductValidator(Protocol):
     def validator_version(self) -> str: ...
 
     def validate(self, metadata: ProductMetadata, product: RawProduct) -> SemanticValidationReport: ...
+
+    def validate_curation(
+        self, metadata: ProductMetadata, product: RawProduct, curated: CuratedProduct
+    ) -> SemanticValidationReport:
+        """Refuse a curated form that loses an extension, the WCS, an uncertainty array or a quality
+        mask the raw product has, or that curates a non-science product (INT-007, INT-008)."""
+        ...
 
 
 # ---------------------------------------------------------------------------------------------

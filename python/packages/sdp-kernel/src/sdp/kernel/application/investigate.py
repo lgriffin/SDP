@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib.metadata import entry_points
 from typing import Any
 
@@ -24,7 +24,14 @@ from sdp.kernel.application.media import JSON, PARQUET, decode_artifact
 from sdp.kernel.domain import events as ev
 from sdp.kernel.domain.archive import CatalogueQuery, idempotency_key
 from sdp.kernel.domain.canonical import canonical_json
-from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, DatasetStatus, DialectRef
+from sdp.kernel.domain.dataset import (
+    ADMITTABLE_PRODUCT_TYPES,
+    AcquisitionRecord,
+    DatasetArtifact,
+    DatasetStatus,
+    DialectRef,
+    ProductUse,
+)
 from sdp.kernel.domain.errors import (
     CurationBlocked,
     IntegrityError,
@@ -35,6 +42,7 @@ from sdp.kernel.domain.errors import (
     PromotionRefused,
 )
 from sdp.kernel.domain.ids import ArtifactId
+from sdp.kernel.domain.integration import ScientificDataProduct, SemanticValidationReport
 from sdp.kernel.domain.investigation import (
     EXPLORATORY,
     UNMATCHED,
@@ -66,8 +74,10 @@ from sdp.kernel.ports.archives import CrossMatchService
 from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe
 from sdp.kernel.ports.determinism import Clock, IdGenerator
 from sdp.kernel.ports.driving import AcquireDatasetCommand
+from sdp.kernel.ports.integration import ProductInventory, ProductNormalizer, ProductValidator, RawProduct
 from sdp.kernel.ports.investigate import (
     CandidateRanker,
+    CuratedProduct,
     ImageFrame,
     InvestigateFieldCommand,
     InvestigationRun,
@@ -105,6 +115,20 @@ def mjd_to_jyear(mjd: float) -> float:
     return 2000.0 + (mjd - 51544.5) / 365.25
 
 
+@dataclass(frozen=True)
+class ProductEnvelopes:
+    """How one archive's products get their ScientificDataProduct envelope (Integration v0.4.0 §3).
+
+    ``adapter`` is the name admission is checked under (an ``AdapterCompatibilityRecord``'s
+    ``adapter``); it is stamped on each raw product so the manifest can name it (INT-016).
+    """
+
+    adapter: str
+    normalizer: ProductNormalizer
+    validator: ProductValidator
+    inventory: ProductInventory
+
+
 @dataclass
 class InvestigatePorts:
     """The driven ports Investigate adds to the kernel's own."""
@@ -123,6 +147,10 @@ class InvestigatePorts:
     rankers: Mapping[str, CandidateRanker] = field(default_factory=dict)
     """Candidate rankers by ranking policy id; ``significance`` is the kernel's own. ``ranker``, when
     set, overrides the choice for every policy (fixtures)."""
+    product_envelopes: Mapping[str, ProductEnvelopes] = field(default_factory=dict)
+    """Normaliser, validator and inventory by archive source id. A source listed here has every
+    product normalised and validated before any curation, and curation is refused when either fails
+    (INT-006, INT-007); its normaliser is also its product dialect."""
 
 
 def load_investigation_tests(group: str = TEST_ENTRY_POINT_GROUP) -> InvestigationTestRegistry:
@@ -516,9 +544,11 @@ class InvestigateFieldUseCase:
         licence: str,
         citation: str,
         rendered: str,
+        product: ProductUse | None = None,
     ) -> DatasetArtifact:
         """Register bytes read from an archive as a raw DatasetArtifact before any test reads them
-        (INV-005); the checksum is of the bytes actually read (INV-013)."""
+        (INV-005); the checksum is of the bytes actually read (INV-013). ``product`` names the
+        adapter and product type for admission; bytes registered earlier keep what they were given."""
         if not licence.strip() or not citation.strip():
             raise CurationBlocked(f"{archive} declares no licence or citation; retrieval is blocked (DSI-006)")
         checksum = ArtifactId.of_bytes(data)
@@ -552,6 +582,8 @@ class InvestigateFieldUseCase:
                     byte_count=len(data),
                 ),
             )
+            if product is not None:
+                artifact = replace(artifact, product=product)
             uow.datasets.add(artifact)
             uow.events.append(
                 [
@@ -573,12 +605,20 @@ class InvestigateFieldUseCase:
         fetched: FetchedProduct,
         product_type: str,
         dialect: ProductDialect,
+        guard: Callable[[CuratedProduct], SemanticValidationReport] | None = None,
     ) -> DatasetArtifact | None:
         """The canonical form of a raw product, registered as its curated child naming the dialect
-        (DSI-005); None when the dialect does not curate this product type."""
+        (DSI-005); None when the dialect does not curate this product type, or when ``guard``
+        refuses the curated form (INT-007)."""
         canonical = dialect.curate(product_type, fetched)
         if canonical is None:
             return None
+        if guard is not None:
+            verdict = guard(canonical)
+            if not verdict.passed:
+                failed = ", ".join(c.field for c in verdict.failures())
+                log.warning("curation refused", extra={"artifact_id": raw.artifact_id.value, "failed": failed})
+                return None
         ref = DialectRef(dialect.dialect_id, dialect.dialect_version)
         if ArtifactId.of_bytes(canonical.data) == raw.artifact_id:
             return None  # already canonical: the raw product is what the test reads
@@ -627,6 +667,63 @@ class InvestigateFieldUseCase:
             self._used(uow, set_id, curated)
             uow.commit()
         return curated
+
+    def _enveloped(
+        self,
+        set_id: str,
+        raw: DatasetArtifact,
+        fetched: FetchedProduct,
+        product_type: str,
+        envelopes: ProductEnvelopes,
+    ) -> ProductEvidence:
+        """Normalise and validate a raw product, curate it only when both pass, and store the
+        envelope with its report beside the product (Integration v0.4.0 §3, INT-006 to INT-008)."""
+        rows = envelopes.inventory.rows(fetched.product)
+        raw_product = RawProduct(
+            fetched, raw.artifact_id.value, rows.rendered_query, rows.inventory_row, rows.obscore_row, rows.links
+        )
+        metadata = envelopes.normalizer.normalize(raw_product)
+        report = envelopes.validator.validate(metadata, raw_product)
+        envelope = ScientificDataProduct(raw.artifact_id.value, metadata).validated(report)
+        curated = None
+        if report.passed and metadata.product_type.is_science:
+            curated = self._curate_product(
+                set_id,
+                raw,
+                fetched,
+                product_type,
+                envelopes.normalizer,
+                guard=lambda c: envelopes.validator.validate_curation(metadata, raw_product, c),
+            )
+            if curated is not None:
+                envelope = envelope.curate(curated.artifact_id.value)
+        envelope_id = self.store.put(canonical_json(envelope.to_document()).encode(), JSON)
+        with self.uow() as uow:
+            graph = ProvGraph()
+            activity = graph.activity(
+                f"normalisation/{envelope_id.value}",
+                type="Normalisation",
+                dialect=envelopes.normalizer.dialect_id,
+                dialect_version=envelopes.normalizer.dialect_version,
+                validator=envelopes.validator.validator_id,
+                validator_version=envelopes.validator.validator_version,
+                passed=report.passed,
+            )
+            graph.entity(envelope_id.value, type="ProductEnvelope", product_type=metadata.product_type.value)
+            graph.entity(raw.artifact_id.value)
+            graph.relate("used", activity, raw.artifact_id.value)
+            graph.relate("wasGeneratedBy", envelope_id.value, activity)
+            graph.relate("wasDerivedFrom", envelope_id.value, raw.artifact_id.value)
+            uow.evidence.record(graph)
+            uow.commit()
+        return ProductEvidence(
+            fetched.product,
+            product_type,
+            curated.artifact_id if curated else raw.artifact_id,
+            fetched.read_from,
+            raw_artifact_id=raw.artifact_id if curated else None,
+            envelope_artifact_id=envelope_id,
+        )
 
     def _retrieve(self, investigation_set: InvestigationSet, objects: ObjectSet) -> list[EvidenceBundle]:
         done = self._stage_document(investigation_set, Stage.RETRIEVE)
@@ -712,11 +809,17 @@ class InvestigateFieldUseCase:
                 # Products only when a test in the profile declares it needs them; a product offered
                 # as several types (a DASCH light curve is also a position history) is fetched once.
                 retrieved: dict[ProductRef, tuple[FetchedProduct, DatasetArtifact]] = {}
+                envelopes = self.ports.product_envelopes.get(selection.source_id)
                 for record in index.records:
                     if record.product_type not in needed:
                         continue
                     if record.product not in retrieved:
                         got = gateway.fetch(record.product)
+                        use = (
+                            ProductUse(envelopes.adapter, record.product_type)
+                            if envelopes is not None and record.product_type in ADMITTABLE_PRODUCT_TYPES
+                            else None
+                        )
                         retrieved[record.product] = (
                             got,
                             self._register_bytes(
@@ -728,9 +831,15 @@ class InvestigateFieldUseCase:
                                 licence=got.licence,
                                 citation=got.citation,
                                 rendered=f"GET {got.read_from}",
+                                product=use,
                             ),
                         )
                     fetched, product = retrieved[record.product]
+                    if envelopes is not None:
+                        products[o.object_key].append(
+                            self._enveloped(investigation_set.set_id, product, fetched, record.product_type, envelopes)
+                        )
+                        continue
                     dialect = self.ports.product_dialects.get(selection.source_id)
                     curated = (
                         self._curate_product(investigation_set.set_id, product, fetched, record.product_type, dialect)
