@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/ledger-entry.schema.json",
+  "x-version": "1.0.0",
+  "title": "LedgerEntry",
+  "description": "One signed, append-only, hash-chained entry in ledger/*.jsonl: a frozen predeclaration or a reviewer approval of a verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "entry_id",
+    "sequence",
+    "kind",
+    "subject_id",
+    "subject_hash",
+    "recorded_at",
+    "signer",
+    "signature",
+    "previous_entry_hash",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "entry_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "predeclaration",
+        "approval"
+      ]
+    },
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_hash": {
+      "$ref": "common.schema.json#/$defs/Sha256Id"
+    },
+    "recorded_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "signer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "value"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "ssh",
+            "gpg",
+            "test-hmac",
+            "unsigned"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "previous_entry_hash": {
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

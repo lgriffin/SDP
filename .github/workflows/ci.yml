@@ -39,7 +39,7 @@ jobs:
       - run: uv sync --python 3.12 --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy packages/sdp-kernel/src tests
+      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src tests
       - run: uv run lint-imports
 
   python-fast:
@@ -60,10 +60,43 @@ jobs:
           name: junit-python
           path: reports/junit-python.xml
 
+  contracts-codegen:
+    name: static · generated contract code is fresh (CTR-002)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd python && uv sync --python 3.12 --frozen
+      - run: contracts/tools/generate.sh --check
+
+  ts-fast:
+    name: fast · TypeScript typecheck and tests (T6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-ts
+          path: reports/junit-ts-*.xml
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast]
+    needs: [static-contracts, python-static, python-fast, contracts-codegen, ts-fast]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

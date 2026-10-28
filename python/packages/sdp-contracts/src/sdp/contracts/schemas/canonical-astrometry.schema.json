@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/canonical-astrometry.schema.json",
+  "x-version": "1.0.0",
+  "title": "CanonicalAstrometryRow",
+  "description": "One row of the canonical astrometry table (§8). Curated Parquet carries exactly these columns; x-unit names the astropy unit of each physical column.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_key",
+    "ra_deg",
+    "dec_deg",
+    "epoch_jyear",
+    "parallax_mas",
+    "parallax_mas_err",
+    "pm_ra_cosdec_masyr",
+    "pm_ra_cosdec_masyr_err",
+    "pm_dec_masyr",
+    "pm_dec_masyr_err",
+    "astrometric_corr",
+    "g_mag",
+    "bp_rp",
+    "ruwe",
+    "quality_flags",
+    "quality_class",
+    "zero_point_corrected",
+    "source_release"
+  ],
+  "properties": {
+    "source_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+:([A-Za-z0-9._-]+:)?[^\\s]+$"
+    },
+    "ra_deg": {
+      "type": "number",
+      "minimum": 0,
+      "exclusiveMaximum": 360,
+      "x-unit": "deg"
+    },
+    "dec_deg": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90,
+      "x-unit": "deg"
+    },
+    "epoch_jyear": {
+      "type": "number",
+      "x-unit": "yr"
+    },
+    "parallax_mas": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-unit": "mas"
+    },
+    "parallax_mas_err": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "x-unit": "mas"
+    },
+    "pm_ra_cosdec_masyr": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-unit": "mas / yr"
+    },
+    "pm_ra_cosdec_masyr_err": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "x-unit": "mas / yr"
+    },
+    "pm_dec_masyr": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-unit": "mas / yr"
+    },
+    "pm_dec_masyr_err": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "x-unit": "mas / yr"
+    },
+    "astrometric_corr": {
+      "description": "Upper triangle of the 5x5 correlation matrix in Gaia order (ra, dec, parallax, pmra, pmdec): ra_dec, ra_parallax, ra_pmra, ra_pmdec, dec_parallax, dec_pmra, dec_pmdec, parallax_pmra, parallax_pmdec, pmra_pmdec.",
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": -1,
+            "maximum": 1
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "g_mag": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-unit": "mag"
+    },
+    "bp_rp": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-unit": "mag"
+    },
+    "ruwe": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "quality_flags": {
+      "type": "object"
+    },
+    "quality_class": {
+      "type": "string",
+      "enum": [
+        "good",
+        "marginal",
+        "poor",
+        "unknown"
+      ]
+    },
+    "zero_point_corrected": {
+      "type": "boolean",
+      "description": "Parallax zero-point correction is a recorded flag, never silently applied."
+    },
+    "source_release": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+:[A-Za-z0-9._-]+$"
+    }
+  }
+}

@@ -60,12 +60,13 @@ def test_domain_is_pure() -> None:
 
 @pytest.mark.req("TST-005")
 def test_no_mocks_or_pickle_in_kernel_or_fakes() -> None:
-    (
-        archrule("fakes, not mocks; no pickle")
-        .match("sdp.kernel*", "sdp.testing*")
-        .should_not_import("unittest.mock", "mock", "pickle", "dill", "cloudpickle")
-        .check("sdp")
-    )
+    for package in ("sdp.kernel", "sdp.testing", "sdp.contracts"):
+        (
+            archrule(f"fakes, not mocks; no pickle ({package})")
+            .match(f"{package}*")
+            .should_not_import("unittest.mock", "mock", "pickle", "dill", "cloudpickle")
+            .check(package)
+        )
 
 
 @pytest.mark.req("NFR-006")
