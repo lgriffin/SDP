@@ -1,10 +1,12 @@
 # Pan-STARRS1 DR2 mean objects to canonical astrometry: mean positions at the mean detection epoch.
 dialect_id: ps1-dr2
-dialect_version: 1.0.0
+dialect_version: 1.1.0
 source_id: ps1
 source_release: ps1:DR2
 source_key: "ps1:DR2:{objID}"
-epoch: {column: epochMean, kind: mjd}
+# epochMean is -999 for objects with no usable detection epoch (seen in the live recordings); such
+# objects have no epoch to propagate from, so curation leaves them out and records how many.
+epoch: {column: epochMean, kind: mjd, missing: [-999], exclude_rows_without_epoch: true}
 columns:
   ra_deg: {column: raMean, unit: deg}
   dec_deg: {column: decMean, unit: deg}
