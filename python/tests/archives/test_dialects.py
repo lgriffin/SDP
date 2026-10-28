@@ -127,3 +127,14 @@ def test_the_parallax_zero_point_is_a_recorded_flag_never_applied() -> None:
     row = DIALECTS["gaia-dr3"].curate(native_table("gaia-dr3")).to_pylist()[0]
     assert row["zero_point_corrected"] is False
     assert row["parallax_mas"] == load_golden("gaia-dr3")["native"][0]["parallax"]
+
+
+def test_an_epoch_sentinel_is_missing_and_such_rows_are_left_out_and_counted() -> None:
+    epoch = {"column": "ep", "kind": "mjd", "missing": [-999]}
+    native = pa.table({"id": [1, 2], "ra": [10.0, 11.0], "dec": [5.0, 6.0], "ep": [51544.5, -999.0]})
+    with pytest.raises(DialectError, match="without an epoch"):
+        Dialect.from_document(base_doc(epoch=epoch)).curate(native)
+    curated = Dialect.from_document(base_doc(epoch={**epoch, "exclude_rows_without_epoch": True})).curate(native)
+    assert curated.column("source_key").to_pylist() == ["x:1"]
+    assert curated.column("epoch_jyear").to_pylist() == [pytest.approx(2000.0)]
+    assert json.loads(curated.schema.metadata[b"sdp.excluded_rows"])["count"] == 1
