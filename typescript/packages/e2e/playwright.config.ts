@@ -23,6 +23,6 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { SDP_UI_FIXTURES: "1", PORT: String(port), HOST: "127.0.0.1" },
+    env: { SDP_UI_FIXTURES: "1", PORT: String(port), HOST: "127.0.0.1", ORIGIN: `http://127.0.0.1:${port}` },
   },
 });

@@ -1,56 +1,138 @@
 <script lang="ts">
   import Badge from "$lib/components/Badge.svelte";
-  import { stateTone, verdictTone } from "$lib/view.ts";
+  import Journey from "$lib/components/Journey.svelte";
+  import {
+    experimentJourney,
+    experimentNextStep,
+    experimentStateLabel,
+    fieldLabel,
+    humanTime,
+    programmeName,
+    setJourney,
+    verdictTitle,
+    waitingItems,
+  } from "$lib/plain.ts";
+  import { verdictTone } from "$lib/view.ts";
 
   let { data } = $props();
-  const states = ["defined", "running", "failed", "completed", "validated", "approved", "published"];
+  const waiting = $derived(waitingItems(data.experiments, data.sets, data.openBySet, data.plans));
+  const planFor = (setId: string) => data.plans.find((p) => p.setId === setId) ?? null;
 </script>
 
-<svelte:head><title>Experiments · SDP evidence</title></svelte:head>
+<svelte:head><title>Home · SDP</title></svelte:head>
 
-<h1>Experiments</h1>
-<p class="muted">Every experiment the kernel knows about, with its lifecycle state and verdict.</p>
-
-<form method="get" class="filter">
-  <label>
-    State
-    <select name="state" onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}>
-      <option value="" selected={!data.state}>all</option>
-      {#each states as s (s)}
-        <option value={s} selected={data.state === s}>{s}</option>
-      {/each}
-    </select>
-  </label>
-  <noscript><button>Filter</button></noscript>
-</form>
-
-{#if data.experiments.length === 0}
-  <p data-testid="empty">No experiments{data.state ? ` in state ${data.state}` : ""}.</p>
-{:else}
-  <div class="table-wrap">
-    <table data-testid="experiments">
-      <thead>
-        <tr><th>Experiment</th><th>Protocol</th><th>State</th><th>Verdict</th><th>Seed</th><th>Finished</th></tr>
-      </thead>
-      <tbody>
-        {#each data.experiments as e (e.id)}
-          <tr>
-            <td><a href="/experiments/{e.id}" class="mono">{e.id}</a></td>
-            <td>{e.protocol} <span class="muted">{e.protocolVersion}</span></td>
-            <td><Badge tone={stateTone(e.state)} label={e.state} /></td>
-            <td>
-              {#if e.verdict}<Badge tone={verdictTone(e.verdict.status)} label={e.verdict.status} />{:else}<span class="muted">—</span>{/if}
-            </td>
-            <td class="mono">{e.seed}</td>
-            <td class="muted">{e.finishedAt ?? "—"}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+<div class="intro">
+  <div>
+    <h1>Your work</h1>
+    <p class="lede">Everything that has been started, where each piece is, and the next step for it.</p>
   </div>
+  <a class="button" href="/start">Start something new</a>
+</div>
+
+<section aria-labelledby="waiting-h">
+  <h2 id="waiting-h">Waiting for you</h2>
+  {#if waiting.length === 0}
+    <p class="muted" data-testid="nothing-waiting">Nothing is waiting for you right now.</p>
+  {:else}
+    <ul class="waiting" data-testid="waiting">
+      {#each waiting as item (item.href + item.action)}
+        <li>
+          <div>
+            <a href={item.href} class="title">{item.title}</a>
+            <div class="muted">{item.detail}</div>
+          </div>
+          <a class="button secondary" href={item.href}>{item.action}</a>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</section>
+
+<section aria-labelledby="work-h">
+  <h2 id="work-h">Hypothesis tests</h2>
+  {#if data.experiments.length === 0}
+    <p class="muted">No experiments yet. <a href="/start">Start one</a>.</p>
+  {:else}
+    <ul class="work" data-testid="work-experiments">
+      {#each data.experiments as e (e.id)}
+        {@const step = experimentNextStep(e)}
+        <li>
+          <div class="what">
+            <a href="/experiments/{e.id}" class="title">{programmeName(e.protocol)}</a>
+            <div class="muted meta"><span class="mono">{e.id}</span> · {e.finishedAt ? `finished ${humanTime(e.finishedAt)}` : experimentStateLabel(e.state)}</div>
+          </div>
+          <div class="where"><Journey steps={experimentJourney(e.state)} label="Progress of {e.id}" /></div>
+          <div class="outcome">
+            {#if e.verdict}<Badge tone={verdictTone(e.verdict.status)} label={verdictTitle(e.verdict.status)} />
+            {:else if e.state === "failed"}<Badge tone="bad" label="Run failed" />{/if}
+          </div>
+          <div class="next">
+            {#if step.kind !== "none" && step.kind !== "wait"}
+              <a class="button secondary" href="/experiments/{e.id}">{step.label}</a>
+            {/if}
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  <h2>Field investigations</h2>
+  {#if data.sets.length === 0}
+    <p class="muted">No fields explored yet. <a href="/start#field">Explore one</a>.</p>
+  {:else}
+    <ul class="work" data-testid="work-sets">
+      {#each data.sets as s (s.id)}
+        {@const open = data.openBySet[s.id] ?? 0}
+        <li>
+          <div class="what">
+            <a href="/investigations/{s.id}" class="title">{s.profileId} on {s.fieldId}</a>
+            <div class="muted meta"><span class="mono">{s.id}</span> · started {humanTime(s.startedAt)} · {s.objectsExamined} objects examined</div>
+          </div>
+          <div class="where"><Journey steps={setJourney(s, planFor(s.id), open)} label="Progress of {s.id}" /></div>
+          <div class="outcome"><Badge tone="warn" label="Exploratory" /></div>
+          <div class="next">
+            {#if open > 0}<a class="button secondary" href="/investigations/{s.id}">Review {open} candidate{open === 1 ? "" : "s"}</a>{/if}
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</section>
+
+{#if !data.planner}
+  <p class="muted planner-note">Download plans will appear here once this server offers the planner.</p>
 {/if}
 
 <style>
-  .filter { margin: 1rem 0; }
-  select { margin-left: 0.4rem; padding: 0.2rem; }
+  .intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+  .intro .lede { margin-bottom: 0; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  .waiting { display: grid; gap: 0.6rem; }
+  .waiting li {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--line));
+    border-radius: var(--radius); padding: 0.8rem 1rem; box-shadow: var(--shadow);
+  }
+  .title { font-weight: 650; font-size: 1.02rem; }
+  .work { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .work li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "what outcome next" "where outcome next";
+    gap: 0.5rem 1.2rem;
+    align-items: center;
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .work li:last-child { border-bottom: 0; }
+  .what { grid-area: what; }
+  .where { grid-area: where; }
+  .outcome { grid-area: outcome; }
+  .next { grid-area: next; justify-self: end; }
+  .meta { font-size: 0.9rem; overflow-wrap: anywhere; }
+  .planner-note { margin-top: 2rem; }
+  @media (max-width: 700px) {
+    .work li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "what outcome" "where where" "next next"; }
+    .next { justify-self: start; }
+  }
 </style>

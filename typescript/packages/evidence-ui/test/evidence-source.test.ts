@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GraphQLEvidenceSource } from "../src/lib/adapters/graphql.ts";
-import { EvidenceUnavailable, type EvidenceSource } from "../src/lib/ports.ts";
+import { EvidenceUnavailable, PlannerUnavailable, type EvidenceSource } from "../src/lib/ports.ts";
 import { fakeApi } from "../src/lib/testing/fake-api.ts";
 import { FIXTURES, InMemoryEvidenceSource } from "../src/lib/testing/fixtures.ts";
 
@@ -49,6 +49,15 @@ function contract(name: string, make: () => EvidenceSource): void {
       expect(await source.investigationSet("invset-missing")).toBeNull();
       expect(await source.investigation("inv-missing")).toBeNull();
     });
+
+    it("returns plans with their state and document, or null", async () => {
+      const source = make();
+      const plans = await source.plans();
+      expect(plans.map((p) => p.state)).toEqual(["executed", "drafted", "drafted"]);
+      const first = plans[0]!;
+      expect((await source.plan(first.id))?.document.plan_id).toBe(first.id);
+      expect(await source.plan("sha256:missing")).toBeNull();
+    });
   });
 }
 
@@ -72,6 +81,13 @@ describe("GraphQL adapter failures", () => {
     };
     const source = new GraphQLEvidenceSource("http://api.test/graphql", refuse);
     await expect(source.ledger()).rejects.toThrow("cannot reach http://api.test/graphql");
+  });
+
+  it("says the planner is missing on a server from before Stage E", async () => {
+    const source = new GraphQLEvidenceSource("http://api.test/graphql", fakeApi(FIXTURES, 200, false).fetch);
+    await expect(source.plans()).rejects.toBeInstanceOf(PlannerUnavailable);
+    await expect(source.plan("p")).rejects.toBeInstanceOf(PlannerUnavailable);
+    expect((await source.experiments()).length).toBe(4);
   });
 
   it("sends variables, not interpolated strings", async () => {
