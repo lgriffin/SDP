@@ -43,6 +43,20 @@ PRODUCT_TYPES = (products.LIGHTCURVE, products.ASTROMETRY)
 #: AFLAGS bits daschlab's standard cleaning rejects: high background, large isophotal and local RMS,
 #: close to the limiting magnitude, unknown radial bin.
 STANDARD_BAD_AFLAGS = (1 << 6) | (1 << 11) | (1 << 12) | (1 << 13) | (1 << 15)
+#: The DR7 light-curve columns DaschDialect reads; the weekly smoke fails naming any that disappear.
+LIGHTCURVE_COLUMNS = frozenset(
+    {
+        "date_jd",
+        "magcal_magdep",
+        "magcal_magdep_rms",
+        "ra_deg",
+        "dec_deg",
+        "gsc_bin_index",
+        "sextractor_number",
+        "aflags",
+        "drad_rms2",
+    }
+)
 RMS_FLAG = 99.0
 MJD_OFFSET = 2400000.5
 J2000_JD = 2451545.0
