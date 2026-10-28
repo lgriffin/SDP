@@ -38,11 +38,26 @@ DASCH_API = "https://api.starglass.cfa.harvard.edu/public"
 LICENCE = "DASCH DR7 public data; acknowledge as https://dasch.cfa.harvard.edu/citing/ asks"
 CITATION = "Grindlay et al. 2009, ASP Conf. Ser. 410, 101 (DASCH)"
 MISSION = "DASCH"
+CUTOUT_PREFIX = "cutout/"
 PRODUCT_TYPES = (products.LIGHTCURVE, products.ASTROMETRY)
 
 #: AFLAGS bits daschlab's standard cleaning rejects: high background, large isophotal and local RMS,
 #: close to the limiting magnitude, unknown radial bin.
 STANDARD_BAD_AFLAGS = (1 << 6) | (1 << 11) | (1 << 12) | (1 << 13) | (1 << 15)
+#: The DR7 light-curve columns DaschDialect reads; the weekly smoke fails naming any that disappear.
+LIGHTCURVE_COLUMNS = frozenset(
+    {
+        "date_jd",
+        "magcal_magdep",
+        "magcal_magdep_rms",
+        "ra_deg",
+        "dec_deg",
+        "gsc_bin_index",
+        "sextractor_number",
+        "aflags",
+        "drad_rms2",
+    }
+)
 RMS_FLAG = 99.0
 MJD_OFFSET = 2400000.5
 J2000_JD = 2451545.0
@@ -173,9 +188,15 @@ class DaschGateway:
         )
 
     def fetch(self, product: ProductRef) -> FetchedProduct:
-        """The star's DR7 light curve, as DASCH sent it (a JSON list of CSV lines)."""
+        """The star's DR7 light curve, as DASCH sent it (a JSON list of CSV lines), or a plate
+        cutout this gateway made earlier (its URI keeps the request)."""
         if product.archive != self.archive_id:
             raise ValueError(f"{product.product_id} is a {product.archive} product, not a DASCH one")
+        if product.product_id.startswith(CUTOUT_PREFIX):
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(product.uri).query)
+            plate_id, solnum = query["plate_id"][0], int(query["solution_number"][0])
+            ra, dec = float(query["ra"][0]), float(query["dec"][0])
+            return self._cutout(plate_id, solnum, ra, dec)
         refcat, gsc_bin, ref = product.product_id.split(":")
         response = self.transport.send(self.lightcurve_request(refcat, int(gsc_bin), int(ref)))
         if response.status != 200:
@@ -200,12 +221,18 @@ class DaschGateway:
         if not exposures:
             raise TransportError(f"DASCH has no plate with a solved WCS at ({ra:.5f}, {dec:.5f})")
         series, platenum, solnum = exposures[0]
-        plate_id = f"{series}{platenum:05d}"
+        return self._cutout(f"{series}{platenum:05d}", solnum, ra, dec)
+
+    def _cutout(self, plate_id: str, solnum: int, ra: float, dec: float) -> FetchedProduct:
+        ra, dec = round(ra, 6), round(dec, 6)  # the precision the product URI keeps
         request = self.cutout_request(plate_id, solnum, ra, dec)
         answer = self.transport.send(request)
         if answer.status != 200:
             raise TransportError(f"DASCH cutout {plate_id}: HTTP {answer.status}", answer.status)
-        encoded = json.loads(answer.body)
+        try:
+            encoded = json.loads(answer.body)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise TransportError(f"DASCH cutout {plate_id}: not JSON") from exc
         if not isinstance(encoded, str):
             raise TransportError(f"DASCH cutout {plate_id} failed: {str(encoded)[:200]}")
         try:
@@ -213,7 +240,7 @@ class DaschGateway:
         except (binascii.Error, OSError) as exc:
             raise TransportError(f"DASCH cutout {plate_id}: not a gzipped FITS file") from exc
         uri = f"{request.url}?plate_id={plate_id}&solution_number={solnum}&ra={ra:.6f}&dec={dec:.6f}"
-        product = ProductRef(self.archive_id, f"cutout/{plate_id}/{solnum}", uri)
+        product = ProductRef(self.archive_id, f"{CUTOUT_PREFIX}{plate_id}/{solnum}", uri)
         return FetchedProduct(product, data, "image/fits", self.release_label, self.licence, self.citation, uri)
 
 

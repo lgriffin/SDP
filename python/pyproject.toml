@@ -3,7 +3,7 @@ name = "sdp-workspace"
 version = "0.1.0"
 description = "SDP uv workspace root"
 requires-python = ">=3.12"
-dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api", "sdp-relativity", "sdp-investigate"]
+dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api", "sdp-relativity", "sdp-investigate", "sdp-stellar"]
 
 [dependency-groups]
 dev = [
@@ -31,6 +31,7 @@ sdp-cli = { workspace = true }
 sdp-api = { workspace = true }
 sdp-relativity = { workspace = true }
 sdp-investigate = { workspace = true }
+sdp-stellar = { workspace = true }
 
 [tool.uv]
 package = false
@@ -78,16 +79,16 @@ python_version = "3.12"
 strict = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src", "packages/sdp-relativity/src", "packages/sdp-investigate/src"]
+mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src", "packages/sdp-relativity/src", "packages/sdp-investigate/src", "packages/sdp-stellar/src"]
 plugins = []
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["astropy.*", "scipy.*", "photutils.*", "tweakwcs.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*"]
+module = ["astropy.*", "scipy.*", "photutils.*", "tweakwcs.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*", "sklearn.*", "cuml.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
-root_packages = ["sdp", "sdp_relativity", "sdp_investigate"]
+root_packages = ["sdp", "sdp_relativity", "sdp_investigate", "sdp_stellar"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -129,7 +130,7 @@ modules = [
 [[tool.importlinter.contracts]]
 name = "Science modules import only the kernel's domain, science and testing seams (§4, KRN-011)"
 type = "forbidden"
-source_modules = ["sdp_relativity"]
+source_modules = ["sdp_relativity", "sdp_stellar"]
 forbidden_modules = ["sdp.adapters", "sdp.cli", "sdp.api", "sdp.kernel.application", "sdp.kernel.ports.repositories", "psycopg", "httpx"]
 
 [[tool.importlinter.contracts]]

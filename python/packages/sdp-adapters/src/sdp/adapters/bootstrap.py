@@ -9,11 +9,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
 from sdp.adapters.archives.dialect import YamlDialectCurator
+from sdp.adapters.archives.mast import MastObservationGateway
+from sdp.adapters.archives.simbad import SimbadResolver
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
+from sdp.adapters.compute.clustering import SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
+from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
+from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
@@ -21,10 +27,12 @@ from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import SystemClock, SystemEnvironmentProbe, UlidGenerator
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker
+from sdp.kernel.application.investigate import InvestigatePorts, load_investigation_tests
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.application.plugins import EntryPointProtocolRegistry
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.evidence import ExperimentTracker
+from sdp.kernel.ports.investigate import ObservationArchiveGateway
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher, DoiRecord
 
@@ -60,6 +68,7 @@ class Overrides:
     publisher: BundlePublisher | None = None
     protocols: ProtocolRegistry | None = None
     services: Mapping[str, Any] = field(default_factory=dict)
+    investigate: InvestigatePorts | None = None
 
 
 @dataclass
@@ -108,6 +117,35 @@ def cross_match(settings: Settings) -> CdsXMatchAdapter:
     return CdsXMatchAdapter(archive_transport(settings, "cds-xmatch", 1.0))
 
 
+def clusterers() -> dict[str, Any]:
+    """The CPU reference ClusterSearchAlgorithms by algorithm id (UC-01); GPU ones join only after agreement."""
+    return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan())}
+
+
+def observation_gateways(settings: Settings) -> dict[str, ObservationArchiveGateway]:
+    """MAST (every mission, through ObsCore) and DASCH, each on its own polite transport (Investigate §4)."""
+    return {
+        "mast": MastObservationGateway(archive_transport(settings, "mast", 1.0)),
+        "dasch": DaschGateway(archive_transport(settings, "dasch", 1.0)),
+    }
+
+
+def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> InvestigatePorts:
+    """Investigate wired to the ecosystem adapters (Investigate §7): the tests installed under the
+    ``sdp.investigation_tests`` entry point, SIMBAD, MAST and DASCH with the DASCH product dialect,
+    photutils and tweakwcs. Kernel services a test needs (``clusterer``) come from ``services``."""
+    return InvestigatePorts(
+        tests=load_investigation_tests(),
+        cross_match=cross_match(settings),
+        observation_gateways=observation_gateways(settings),
+        detector=PhotutilsDetector(),
+        refiner=TweakwcsRefiner(),
+        resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
+        services=dict(services),
+        product_dialects={"dasch": DaschDialect()},
+    )
+
+
 def build_application(settings: Settings, overrides: Overrides | None = None, *, logging: bool = True) -> Application:
     overrides = overrides or Overrides()
     if logging:
@@ -131,7 +169,8 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         publisher=overrides.publisher or UnconfiguredPublisher(),
         curator=overrides.curator or YamlDialectCurator.packaged(),
         gateways={**archive_gateways(settings), **overrides.gateways},
-        services=dict(overrides.services),
+        services={"clusterers": clusterers(), **overrides.services},
         min_free_bytes=settings.min_free_bytes,
+        investigate=overrides.investigate or investigate_ports(settings, overrides.services),
     )
     return Application(settings, Kernel.build(ports), database, store, ledger)

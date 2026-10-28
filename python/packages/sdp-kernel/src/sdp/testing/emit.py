@@ -70,13 +70,17 @@ def emit(out: Path) -> list[Path]:
     return written
 
 
+def _media_type(path: Path) -> str:
+    return "application/vnd.apache.parquet" if path.suffix == ".parquet" else "application/json"
+
+
 def emit_protocol(
     out: Path, protocol_name: str, inputs: dict[str, Path], params: dict[str, Any], seed: int = 1919
 ) -> tuple[Path, str]:
     protocol = EntryPointProtocolRegistry().get(protocol_name)
     k = build_in_memory_kernel(protocol)
     frozen, _ = k.kernel.freeze_predeclaration.execute(FreezePredeclarationCommand(protocol.predeclare(), "ci"))
-    artifacts = {role: k.store.put(path.read_bytes(), "application/json") for role, path in inputs.items()}
+    artifacts = {role: k.store.put(path.read_bytes(), _media_type(path)) for role, path in inputs.items()}
     experiment = k.kernel.define_experiment.execute(
         DefineExperimentCommand(protocol_name, frozen.hash, artifacts, params, seed=seed)
     )
