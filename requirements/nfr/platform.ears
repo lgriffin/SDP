@@ -63,8 +63,11 @@ requirements:
     rationale: "Metadata outlives code versions."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.integration.test_migrations::test_downgrade_to_zero_leaves_only_the_version_table"
+      - "python/tests.integration.test_migrations::test_every_migration_steps_forward_and_back"
+      - "python/tests.integration.test_migrations::test_upgrade_is_idempotent_and_records_versions"
   - id: NFR-008
     pattern: ubiquitous
     text: "Nondeterminism that prevents bitwise reproduction shall be documented per TaskKind."
@@ -87,5 +90,7 @@ requirements:
     rationale: "Operability of multi-hour runs (§2)."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.integration.test_adapters_specific::test_gpu_telemetry_parses_nvidia_smi_and_is_empty_without_a_gpu"
+      - "python/tests.integration.test_adapters_specific::test_tracker_writes_prometheus_gauges_per_experiment"

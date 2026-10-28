@@ -51,8 +51,11 @@ requirements:
     rationale: "The UI client and the API must not drift."
     verification: test
     tiers: [T6]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.api.test_api::test_committed_schema_matches_the_app"
+      - "typescript/packages/contracts/test/graphql.test.ts::[CTR-005] regenerate byte for byte from the committed schema"
+      - "typescript/packages/contracts/test/graphql.test.ts::[CTR-005] were generated from the committed schema.graphql"
   - id: CTR-006
     pattern: ubiquitous
     text: "Every domain-to-DTO mapper shall round-trip its type."

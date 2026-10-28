@@ -47,7 +47,7 @@ jobs:
       - run: uv sync --python 3.12 --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src tests
+      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src tests
       - run: uv run lint-imports
 
   python-fast:
@@ -67,6 +67,35 @@ jobs:
         with:
           name: junit-python
           path: reports/junit-python.xml
+
+  python-integration:
+    name: integration · real adapters on PostgreSQL (T5, TST-003)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: sdp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: python
+    env:
+      SDP_TEST_DATABASE_URL: postgresql://postgres:sdp@127.0.0.1:5432/postgres
+      SDP_REQUIRE_DATABASE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - name: pytest -m integration
+        run: uv run pytest -q -m integration --junitxml=../reports/junit-python-integration.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-python-integration
+          path: reports/junit-python-integration.xml
 
   contracts-codegen:
     name: static · generated contract code is fresh (CTR-002)
@@ -139,7 +168,7 @@ jobs:
 
   trace:
     name: fast · requirement coverage gate (TST-001)
-    needs: [python-fast, ts-fast]
+    needs: [python-fast, python-integration, ts-fast]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -155,7 +184,7 @@ jobs:
           path: reports/junit
           merge-multiple: true
       - name: spec-harness trace
-        run: pnpm harness trace --junit reports/junit --tiers T0,T1,T2,T3,T4,T6,harness,lint --out reports/traceability
+        run: pnpm harness trace --junit reports/junit --tiers T0,T1,T2,T3,T4,T5,T6,harness,lint --out reports/traceability
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -165,7 +194,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast, contracts-codegen, ts-fast, cross-language, guard, trace]
+    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, cross-language, guard, trace]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

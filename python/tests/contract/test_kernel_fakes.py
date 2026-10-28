@@ -50,7 +50,7 @@ from sdp.testing.fakes import (
 )
 from sdp.testing.synthetic import SyntheticLinearProtocol, make_series
 
-pytestmark = pytest.mark.tier("T3")
+pytestmark = [pytest.mark.tier("T3"), pytest.mark.req("TST-003")]
 
 
 class TestArtifactStore(ArtifactStoreContract):

@@ -3,7 +3,7 @@ name = "sdp-workspace"
 version = "0.1.0"
 description = "SDP uv workspace root"
 requires-python = ">=3.12"
-dependencies = ["sdp-kernel", "sdp-contracts"]
+dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api"]
 
 [dependency-groups]
 dev = [
@@ -17,6 +17,7 @@ dev = [
   "referencing>=0.35",
   "types-pyyaml",
   "datamodel-code-generator==0.87.0",
+  "httpx>=0.27",
 ]
 
 [tool.uv.workspace]
@@ -25,6 +26,9 @@ members = ["packages/*"]
 [tool.uv.sources]
 sdp-kernel = { workspace = true }
 sdp-contracts = { workspace = true }
+sdp-adapters = { workspace = true }
+sdp-cli = { workspace = true }
+sdp-api = { workspace = true }
 
 [tool.uv]
 package = false
@@ -43,7 +47,11 @@ markers = [
   "gpu: needs a CUDA device (DGX runner)",
   "slow: long-running",
 ]
-filterwarnings = ["error::DeprecationWarning:sdp.*"]
+filterwarnings = [
+  "error::DeprecationWarning:sdp.*",
+  # starlette 1.x nudges TestClient users towards httpx2; httpx still works and is what we pin
+  "ignore:Using `httpx` with `starlette.testclient`",
+]
 
 [tool.ruff]
 line-length = 120
@@ -68,7 +76,7 @@ python_version = "3.12"
 strict = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src"]
+mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src"]
 plugins = []
 warn_unused_ignores = true
 
@@ -95,3 +103,20 @@ name = "Kernel never imports testing fakes or infrastructure (NFR-006)"
 type = "forbidden"
 source_modules = ["sdp.kernel"]
 forbidden_modules = ["sdp.testing", "sdp.contracts", "pydantic", "psycopg", "duckdb", "httpx", "sklearn", "strawberry", "typer"]
+
+[[tool.importlinter.contracts]]
+name = "Kernel never imports adapters (§4)"
+type = "forbidden"
+source_modules = ["sdp.kernel", "sdp.testing"]
+forbidden_modules = ["sdp.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "Adapters do not import each other; only bootstrap composes them (§4)"
+type = "independence"
+modules = [
+  "sdp.adapters.postgres",
+  "sdp.adapters.storage",
+  "sdp.adapters.ledger",
+  "sdp.adapters.compute",
+  "sdp.adapters.telemetry",
+]

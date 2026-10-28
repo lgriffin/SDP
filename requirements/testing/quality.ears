@@ -29,9 +29,17 @@ requirements:
     text: "Each driven port shall have one contract suite run against its fake and each available real adapter."
     rationale: "Fakes must never pass what real adapters fail (ADR-006)."
     verification: test
-    tiers: [T3]
-    status: draft
-    traces: []
+    tiers: [T3, T5]
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestArtifactStore::test_get_returns_exactly_what_was_put"
+      - "python/tests.contract.test_kernel_fakes.TestLedger::test_append_returns_a_signed_chained_entry"
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_state_and_events_commit_together"
+      - "python/tests.integration.test_real_adapters.TestCpuExecutor::test_runs_every_task_and_checkpoints_each"
+      - "python/tests.integration.test_real_adapters.TestGitSignedLedger::test_append_returns_a_signed_chained_entry"
+      - "python/tests.integration.test_real_adapters.TestNasArtifactStore::test_get_returns_exactly_what_was_put"
+      - "python/tests.integration.test_real_adapters.TestPostgresDatasetRepository::test_registered_raw_metadata_cannot_be_rewritten"
+      - "python/tests.integration.test_real_adapters.TestPostgresUnitOfWork::test_state_and_events_commit_together"
   - id: TST-004
     pattern: ubiquitous
     text: "A package's mutation score shall not drop below its high-water mark minus 2 points."

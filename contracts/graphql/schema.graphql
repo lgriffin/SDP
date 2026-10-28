@@ -1,0 +1,125 @@
+type Dataset {
+  id: ID!
+  kind: String!
+  status: String!
+  mediaType: String!
+  byteCount: Int!
+  parents: [String!]!
+  document: JSON!
+}
+
+type Dossier {
+  id: ID!
+  experimentId: String!
+  manifestId: String!
+  verdict: String!
+  findings: JSON!
+  limitations: [String!]!
+  sections: JSON!
+  approvals: JSON!
+}
+
+type Event {
+  sequence: Int!
+  name: String!
+  aggregateId: String!
+  occurredAt: String!
+  payload: JSON!
+}
+
+type Experiment {
+  id: ID!
+  state: String!
+  protocol: String!
+  protocolVersion: String!
+  predeclarationHash: String!
+  seed: Int!
+  backend: String!
+  parameters: JSON!
+  inputs: JSON!
+  tasks: [Task!]!
+  verdict: Verdict
+  checks: [GateCheck!]!
+  failure: JSON
+  refusal: String
+  limitations: [String!]!
+  manifestId: String
+  bundleDoi: String
+  startedAt: String
+  finishedAt: String
+
+  """The evidence manifest, as written to the NAS."""
+  manifest: JSON
+  dossiers: [Dossier!]!
+}
+
+"""One predeclared gate evaluated against a finding."""
+type GateCheck {
+  gateId: String!
+  finding: String!
+  value: JSON
+  unit: String
+  comparator: String!
+  threshold: JSON!
+  severity: String!
+  oracleIds: [String!]!
+  oraclesVerified: Boolean!
+  outcome: String!
+}
+
+type Hypothesis {
+  id: ID!
+  version: Int!
+  statement: String!
+  evaluationCriteria: [String!]!
+  supersedes: Int
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+type LedgerEntry {
+  id: ID!
+  sequence: Int!
+  kind: String!
+  subjectId: String!
+  subjectHash: String!
+  recordedAt: String!
+  signer: String!
+  signatureMethod: String!
+  previousEntryHash: String
+  payload: JSON!
+}
+
+type Query {
+  experiments(state: String = null): [Experiment!]!
+  experiment(id: ID!): Experiment
+  hypotheses: [Hypothesis!]!
+  hypothesisVersions(id: ID!): [Hypothesis!]!
+  dossier(id: ID!): Dossier
+  datasets: [Dataset!]!
+
+  """Domain events after a sequence number, oldest first."""
+  events(after: Int! = 0, limit: Int! = 100): [Event!]!
+
+  """Ancestors of an entity in the provenance graph."""
+  lineage(entityId: ID!): [String!]!
+  ledger: [LedgerEntry!]!
+}
+
+type Task {
+  taskId: String!
+  taskKind: String!
+  dependsOn: [String!]!
+  status: String!
+  checkpoint: String
+  durationS: Float
+}
+
+type Verdict {
+  status: String!
+  protocolVersion: String!
+  reasons: [String!]!
+}
