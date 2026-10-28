@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -108,8 +109,9 @@ def test_resume_reads_completed_stages_back(k: InMemoryKernel, profile: Path) ->
 
 
 def test_without_a_region_or_profile_it_prints_help(k: InMemoryKernel) -> None:
-    result = runner.invoke(cli.app, ["investigate"])
-    assert result.exit_code == 2 and "--region" in result.output
+    result = runner.invoke(cli.app, ["investigate"], env={"NO_COLOR": "1", "TERM": "dumb"})
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert result.exit_code == 2 and "--region" in plain
 
 
 def test_without_investigate_ports_the_run_is_refused_but_queries_work(profile: Path) -> None:
