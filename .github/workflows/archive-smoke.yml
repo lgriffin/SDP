@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # write only so a manual run can push its recordings to an archive-cassettes/ branch for review
+  contents: write
 
 jobs:
   smoke:
@@ -21,7 +22,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --python 3.12 --frozen
       - name: Record and compare against the committed cassettes
-        run: uv run sdp archive smoke --baseline tests/cassettes --record ../reports/cassettes | tee ../reports/archive-smoke.json
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ../reports
+          uv run sdp archive smoke --baseline tests/cassettes --record ../reports/cassettes | tee ../reports/archive-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -29,3 +34,19 @@ jobs:
           path: |
             reports/cassettes
             reports/archive-smoke.json
+      - name: Push the recordings to a branch (manual runs only)
+        # The recordings are reviewed and merged like code; the scheduled run only reports drift.
+        if: always() && github.event_name == 'workflow_dispatch'
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if [ ! -d reports/cassettes ]; then echo "nothing recorded"; exit 0; fi
+          branch="archive-cassettes/run-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          cp -R reports/cassettes/. python/tests/cassettes/
+          git add python/tests/cassettes
+          git commit -m "Archive live smoke recordings from run ${GITHUB_RUN_ID}"
+          git push origin "$branch"
