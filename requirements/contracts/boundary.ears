@@ -8,24 +8,32 @@ requirements:
     rationale: "Neither language hand-writes a boundary type (ADR-003)."
     verification: test
     tiers: [T6]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contracts.test_contracts_python::test_packaged_schemas_are_the_source_schemas"
+      - "ts/packages/contracts/test/contracts.test.ts::[CTR-001] has a generated schema for every contract"
   - id: CTR-002
     pattern: unwanted
     text: "If committed generated code differs from a fresh generation, then CI shall fail."
     rationale: "A schema edit without regeneration must not merge."
     verification: test
     tiers: [T6]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contracts.test_contracts_python::test_committed_pydantic_models_match_a_fresh_generation"
+      - "ts/packages/contracts/test/contracts.test.ts::[CTR-002] matches a fresh generation byte for byte"
   - id: CTR-003
     pattern: ubiquitous
     text: "Both languages shall accept every fixture under fixtures/valid and reject every fixture under fixtures/invalid at the expected error path."
     rationale: "Golden fixtures pin agreement between the two toolchains."
     verification: test
     tiers: [T6]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contracts.test_contracts_python::test_invalid_fixtures_are_rejected_at_the_expected_path"
+      - "python/tests.contracts.test_contracts_python::test_valid_fixtures_are_accepted"
+      - "python/tests.unit.kernel.test_canonical::test_canonical_vectors_reproduce_byte_for_byte"
+      - "ts/packages/contracts/test/contracts.test.ts::[CTR-003] rejects invalid fixtures at the expected path"
   - id: CTR-004
     pattern: ubiquitous
     text: "An evidence manifest shall carry schema_version, and the harness shall read the current and the previous major version."
@@ -48,5 +56,8 @@ requirements:
     rationale: "Mappers are the only bridge between domain and DTO types."
     verification: test
     tiers: [T2]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contracts.test_mappers::test_dataset_artifacts_round_trip"
+      - "python/tests.contracts.test_mappers::test_ledger_entry_round_trips"
+      - "python/tests.contracts.test_mappers::test_predeclaration_round_trips"

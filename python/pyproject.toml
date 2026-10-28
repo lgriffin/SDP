@@ -3,7 +3,7 @@ name = "sdp-workspace"
 version = "0.1.0"
 description = "SDP uv workspace root"
 requires-python = ">=3.12"
-dependencies = ["sdp-kernel"]
+dependencies = ["sdp-kernel", "sdp-contracts"]
 
 [dependency-groups]
 dev = [
@@ -16,6 +16,7 @@ dev = [
   "jsonschema>=4.23",
   "referencing>=0.35",
   "types-pyyaml",
+  "datamodel-code-generator==0.87.0",
 ]
 
 [tool.uv.workspace]
@@ -23,6 +24,7 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 sdp-kernel = { workspace = true }
+sdp-contracts = { workspace = true }
 
 [tool.uv]
 package = false
@@ -46,6 +48,7 @@ filterwarnings = ["error::DeprecationWarning:sdp.*"]
 line-length = 120
 target-version = "py312"
 src = ["packages/*/src", "tests"]
+extend-exclude = ["packages/sdp-contracts/src/sdp/contracts/v1"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "TID", "PT", "C4", "PIE", "RET"]
@@ -64,7 +67,7 @@ python_version = "3.12"
 strict = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = ["packages/sdp-kernel/src"]
+mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src"]
 plugins = []
 warn_unused_ignores = true
 
@@ -90,4 +93,4 @@ layers = [
 name = "Kernel never imports testing fakes or infrastructure (NFR-006)"
 type = "forbidden"
 source_modules = ["sdp.kernel"]
-forbidden_modules = ["sdp.testing", "psycopg", "duckdb", "httpx", "sklearn", "strawberry", "typer"]
+forbidden_modules = ["sdp.testing", "sdp.contracts", "pydantic", "psycopg", "duckdb", "httpx", "sklearn", "strawberry", "typer"]
