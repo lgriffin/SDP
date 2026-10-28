@@ -25,6 +25,12 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200): FakeApi {
         return { lineage: data.lineage[String(v.entityId)] ?? [] };
       case "Ledger":
         return { ledger: data.ledger };
+      case "InvestigationSets":
+        return { investigationSets: data.investigationSets };
+      case "InvestigationSet":
+        return { investigationSet: data.investigationSet[String(v.id)] ?? null };
+      case "Investigation":
+        return { investigation: data.investigation[String(v.id)] ?? null };
       case "Events":
         return { events: data.events.filter((e) => e.sequence > Number(v.after)).slice(0, Number(v.limit)) };
       default:

@@ -94,8 +94,58 @@ test.describe("ledger and events", () => {
   });
 });
 
+test.describe("investigations", () => {
+  test("lists the set with its stages, and opens it", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Investigations" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Investigations" })).toBeVisible();
+    const rows = page.getByTestId("sets").locator("tbody tr");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("field-");
+    await rows.first().getByRole("link", { name: "invset-000001" }).click();
+    await expect(page.getByTestId("stages").locator("tbody tr")).toHaveCount(4);
+    await expect(page.getByTestId("stages")).not.toContainText("failed");
+    await expect(page.getByTestId("examined")).toHaveText("60");
+    const candidates = page.getByTestId("candidates").locator("tbody tr");
+    await expect(candidates).toHaveCount(5);
+    await expect(candidates.filter({ hasText: "gaia:DR3:1" })).toContainText("parked");
+    await expect(candidates.filter({ hasText: "gaia:DR3:4" })).toContainText("closed");
+    await expect(page.getByTestId("nulls").locator("tbody tr")).toHaveCount(1);
+  });
+
+  test("an investigation shows its results beside the null rate, its evidence and its triage", async ({ page }) => {
+    await page.goto("/investigations/invset-000001/inv-000002");
+    await expect(page.getByRole("heading", { level: 1, name: "gaia:DR3:1" })).toBeVisible();
+    await expect(page.getByTestId("exploratory")).toContainText("cannot confirm anything");
+    await expect(page.getByTestId("results").locator("tbody tr")).toHaveCount(1);
+    await expect(page.getByTestId("results")).toContainText("pm-excess@1.0.0");
+    await expect(page.getByTestId("known-as")).toHaveText("known as HD 999999");
+    await expect(page.getByTestId("observations").first()).toContainText("reaching back to 1884");
+    await expect(page.getByTestId("transitions").locator("li")).toHaveCount(2);
+    await expect(page.getByTestId("transitions")).toContainText("Revisit when Gaia DR4 lands.");
+    await expect(page.getByTestId("evidence-used")).toContainText("gaia:DR3");
+  });
+
+  test("notes are shown, and an investigation from another set is a 404", async ({ page }) => {
+    await page.goto("/investigations/invset-000001/inv-000001");
+    await expect(page.getByTestId("notes")).toContainText("Check the plate positions.");
+    const response = await page.goto("/investigations/invset-other/inv-000001");
+    expect(response?.status()).toBe(404);
+    expect((await page.goto("/investigations/invset-missing"))?.status()).toBe(404);
+  });
+});
+
 test("pages never scroll sideways", async ({ page }) => {
-  for (const path of ["/", "/experiments/exp-000001", "/experiments/exp-000003", "/ledger", "/events"]) {
+  for (const path of [
+    "/",
+    "/experiments/exp-000001",
+    "/experiments/exp-000003",
+    "/ledger",
+    "/events",
+    "/investigations",
+    "/investigations/invset-000001",
+    "/investigations/invset-000001/inv-000002",
+  ]) {
     await page.goto(path);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, path).toBeLessThanOrEqual(0);

@@ -17,14 +17,17 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
+from sdp.kernel.application.investigate import QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.domain.errors import DomainError
+from sdp.kernel.domain.investigation import Field, Investigation, InvestigationSet, TestProfile, parse_region
 from sdp.kernel.ports.driving import (
     ApproveVerdictCommand,
     AssembleDossierCommand,
     DefineExperimentCommand,
     FreezePredeclarationCommand,
 )
+from sdp.kernel.ports.investigate import InvestigateFieldCommand, TriageCommand
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.storage import ArtifactStore
 from sdp.kernel.science.plan import Backend
@@ -78,6 +81,10 @@ db_app = typer.Typer(help="Database schema migrations (NFR-007).", no_args_is_he
 artifact_app = typer.Typer(help="Put and fetch content-addressed artifacts.", no_args_is_help=True)
 telemetry_app = typer.Typer(help="Prometheus textfile telemetry (NFR-010).", no_args_is_help=True)
 archive_app = typer.Typer(help="Archive sources, acquisition and the live schema smoke (§8).", no_args_is_help=True)
+investigate_app = typer.Typer(
+    help="Investigate a field: identify, retrieve, test, candidates (Investigate §1). Results are EXPLORATORY.",
+    invoke_without_command=True,
+)
 for name, sub in (
     ("predeclaration", predeclaration_app),
     ("experiment", experiment_app),
@@ -87,6 +94,7 @@ for name, sub in (
     ("artifact", artifact_app),
     ("telemetry", telemetry_app),
     ("archive", archive_app),
+    ("investigate", investigate_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -286,6 +294,163 @@ def artifact_get(artifact_id: str, out: Annotated[Path | None, typer.Option()] =
         sys.stdout.buffer.write(data)
     else:
         out.write_bytes(data)
+
+
+# --- investigate ------------------------------------------------------------------------------
+
+
+def load_profile(path: Path) -> TestProfile:
+    """A profile is a versioned YAML (or JSON) document; its hash is recorded before anything runs."""
+    import yaml
+
+    document = yaml.safe_load(path.read_text())
+    if not isinstance(document, dict):
+        raise ValueError(f"{path} is not a profile document")
+    return TestProfile.from_document(document)
+
+
+def _set_summary(s: InvestigationSet) -> dict[str, Any]:
+    return {
+        "set_id": s.set_id,
+        "field_id": s.field.field_id,
+        "profile": f"{s.profile.profile_id}@{s.profile.version}",
+        "profile_hash": s.profile_hash,
+        "stages": {stage.value: record.state.value for stage, record in s.stages.items()},
+        "objects_examined": len(s.objects_examined),
+        "investigations": len(s.investigation_ids),
+        "manifest_id": s.manifest_id.value if s.manifest_id else None,
+        "label": s.label,
+    }
+
+
+def _investigation_summary(i: Investigation) -> dict[str, Any]:
+    return {
+        "investigation_id": i.investigation_id,
+        "candidate": i.candidate.key,
+        "score": i.rank.score,
+        "state": i.state.value,
+        "label": i.label,
+    }
+
+
+@investigate_app.callback()
+def investigate(
+    ctx: typer.Context,
+    region: Annotated[str | None, typer.Option(help='DS9 region, e.g. "icrs;circle(120.0,-10.0,0.5)"')] = None,
+    profile: Annotated[Path | None, typer.Option(help="Test profile (YAML)")] = None,
+    epoch: Annotated[float, typer.Option(help="Field epoch, Julian year")] = 2016.0,
+    label: Annotated[str, typer.Option()] = "",
+    seed: Annotated[int, typer.Option()] = 0,
+    actor: Annotated[str, typer.Option()] = "cli",
+    resume: Annotated[str | None, typer.Option(help="Resume this set: completed stages are read back")] = None,
+) -> None:
+    """Run InvestigateField over a region under a profile, or use a subcommand to query and triage."""
+    if ctx.invoked_subcommand is not None:
+        return
+    if region is None or profile is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(2)
+    use_case = state.runtime().kernel.investigate_field
+    if use_case is None:
+        raise DomainError("Investigate is not wired: no observation archive or cross-match adapters are configured")
+    run = use_case.execute(
+        InvestigateFieldCommand(
+            Field(parse_region(region), epoch_jyear=epoch, label=label),
+            load_profile(profile),
+            seed=seed,
+            actor=actor,
+            set_id=resume,
+        )
+    )
+    emit(
+        {
+            **_set_summary(run.investigation_set),
+            "candidates": [_investigation_summary(i) for i in run.investigations],
+        }
+    )
+
+
+def _query() -> QueryInvestigationsUseCase:
+    query = state.runtime().kernel.query_investigations
+    if query is None:
+        raise DomainError("investigation queries are not wired")
+    return query
+
+
+@investigate_app.command("sets")
+def investigate_sets() -> None:
+    """Every investigation set, oldest first."""
+    emit([_set_summary(s) for s in _query().sets()])
+
+
+@investigate_app.command("show")
+def investigate_show(set_id: str) -> None:
+    """The set's manifest: field, profile hash, tests, multiplicity, nulls and archive releases."""
+    manifest = _query().manifest(set_id)
+    if manifest is None:
+        raise DomainError(f"no manifest for {set_id}")
+    emit(manifest)
+
+
+@investigate_app.command("list")
+def investigate_list(set_id: str) -> None:
+    """The set's investigations, highest score first."""
+    found = sorted(_query().investigations(set_id), key=lambda i: -i.rank.score)
+    emit([_investigation_summary(i) for i in found])
+
+
+@investigate_app.command("dossier")
+def investigate_dossier(investigation_id: str) -> None:
+    """The candidate's dossier: rows by source, observation index, results with null comparisons."""
+    dossier = _query().dossier(investigation_id)
+    if dossier is None:
+        raise DomainError(f"no dossier for {investigation_id}")
+    emit(dossier)
+
+
+def _triage(command: TriageCommand) -> None:
+    use_case = state.runtime().kernel.triage_investigation
+    if use_case is None:
+        raise DomainError("triage is not wired")
+    investigation = use_case.execute(command)
+    emit({**_investigation_summary(investigation), "transitions": len(investigation.transitions)})
+
+
+Actor = Annotated[str, typer.Option(help="Who is triaging")]
+Reason = Annotated[str, typer.Option(help="Why; recorded with the transition (required)")]
+
+
+@investigate_app.command("park")
+def investigate_park(investigation_id: str, actor: Actor, reason: Reason) -> None:
+    _triage(TriageCommand(investigation_id, "park", actor, reason))
+
+
+@investigate_app.command("reopen")
+def investigate_reopen(investigation_id: str, actor: Actor, reason: Reason) -> None:
+    _triage(TriageCommand(investigation_id, "reopen", actor, reason))
+
+
+@investigate_app.command("close")
+def investigate_close(investigation_id: str, actor: Actor, reason: Reason) -> None:
+    _triage(TriageCommand(investigation_id, "close", actor, reason))
+
+
+@investigate_app.command("annotate")
+def investigate_annotate(investigation_id: str, actor: Actor, note: Annotated[str, typer.Option()]) -> None:
+    _triage(TriageCommand(investigation_id, "annotate", actor, note))
+
+
+@investigate_app.command("promote")
+def investigate_promote(
+    investigation_id: str,
+    actor: Actor,
+    predeclaration: Annotated[str, typer.Option(help="Hash of a frozen confirmatory predeclaration")],
+    experiment: Annotated[str | None, typer.Option(help="The confirmatory experiment, if defined")] = None,
+    reason: Reason = "",
+) -> None:
+    """Promote to a confirmatory experiment (INV-009): refused unless the frozen predeclaration names
+    evidence this investigation did not use. A refusal is recorded and exits 1."""
+    _triage(TriageCommand(investigation_id, "promote", actor, reason, predeclaration, experiment))
 
 
 # --- database and telemetry (need only settings) ------------------------------------------------

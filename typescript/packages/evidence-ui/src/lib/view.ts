@@ -104,3 +104,54 @@ export function isSelfApproval(entry: LedgerEntry): boolean {
   const payload = entry.payload as { self_approval?: unknown } | null;
   return entry.kind === "approval" && payload?.self_approval === true;
 }
+
+/** Triage states: promoted is the only one that leaves exploration; parked waits; closed is final. */
+export function investigationTone(state: string): Tone {
+  switch (state) {
+    case "promoted":
+      return "good";
+    case "parked":
+      return "warn";
+    default:
+      return "neutral";
+  }
+}
+
+export function stageTone(state: string): Tone {
+  if (state === "completed") return "good";
+  if (state === "failed") return "bad";
+  return "neutral";
+}
+
+export interface TestResultDoc {
+  test_name: string;
+  test_version: string;
+  statistic: number;
+  p_value: number | null;
+  effect_size: number | null;
+  uncertainty: number | null;
+  seed: number;
+  subject: { object_key: string | null; structure_id: string | null; members: string[] };
+  details: Record<string, unknown>;
+  null?: NullResultDoc | null;
+}
+
+export interface NullResultDoc {
+  test_name: string;
+  test_version: string;
+  trials: number;
+  examined: number;
+  false_positives: number;
+  false_positive_rate: number;
+  alpha: number;
+  null_model: string;
+}
+
+/** A result is below the profile's alpha; the null comparison says how often the field alone does that. */
+export function belowAlpha(result: TestResultDoc, alpha: number | undefined): boolean {
+  return alpha !== undefined && result.p_value !== null && result.p_value < alpha;
+}
+
+export function formatPercent(rate: number): string {
+  return `${formatNumber(rate * 100)}%`;
+}

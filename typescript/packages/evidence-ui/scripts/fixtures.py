@@ -4,7 +4,8 @@
         ../typescript/packages/evidence-ui/src/lib/testing/fixtures.json
 
 One approved VERIFIED experiment with a dossier, one REJECTED (data with another slope), one FAILED
-(an injected task failure) and one only defined. Task durations differ between runs.
+(an injected task failure) and one only defined; then one investigation set over the synthetic field,
+with one candidate parked, one closed and one promotion refused. Task durations differ between runs.
 """
 
 import json
@@ -19,16 +20,34 @@ from sdp.kernel.ports.driving import (
     DefineExperimentCommand,
     FreezePredeclarationCommand,
 )
+from sdp.kernel.ports.investigate import InvestigateFieldCommand, TriageCommand
+from sdp.testing.investigate import (
+    gaia_archive,
+    investigate_ports,
+    observation_archive,
+    synthetic_catalogue,
+    synthetic_field,
+    synthetic_profile,
+    twomass_archive,
+)
 from sdp.testing.synthetic import SyntheticLinearProtocol, make_series
 from sdp.testing.wiring import build_in_memory_kernel
 from starlette.testclient import TestClient
 
 ts = (Path(__file__).resolve().parents[1] / "src/lib/adapters/graphql.ts").read_text()
 summary = re.search(r'const SUMMARY = "([^"]+)"', ts).group(1)
-queries = dict((m.group(1), m.group(2).replace("${SUMMARY}", summary)) for m in re.finditer(r"(\w+): `([^`]+)`", ts))
+set_summary = re.search(r'const SET_SUMMARY =\s*"([^"]+)"', ts).group(1)
+queries = {
+    m.group(1): m.group(2).replace("${SUMMARY}", summary).replace("${SET_SUMMARY}", set_summary)
+    for m in re.finditer(r"(\w+): `([^`]+)`", ts)
+}
 
 
-k = build_in_memory_kernel()
+catalogue = synthetic_catalogue()
+k = build_in_memory_kernel(
+    gateways={"synthetic-gaia": gaia_archive(catalogue), "synthetic-2mass": twomass_archive(catalogue)},
+    investigate=investigate_ports(catalogue=catalogue, observations=observation_archive(catalogue)),
+)
 frozen, _ = k.kernel.freeze_predeclaration.execute(
     FreezePredeclarationCommand(SyntheticLinearProtocol().predeclare(), "leigh")
 )
@@ -60,6 +79,17 @@ k.kernel.run_experiment.execute(failed.experiment_id)
 
 pending = define(make_series(seed=17))
 
+run = k.kernel.investigate_field.execute(InvestigateFieldCommand(synthetic_field(), synthetic_profile(), seed=11))
+ranked = sorted(run.investigations, key=lambda i: -i.rank.score)
+triage = k.kernel.triage_investigation
+triage.execute(TriageCommand(ranked[1].investigation_id, "park", "leigh", "Revisit when Gaia DR4 lands."))
+triage.execute(TriageCommand(ranked[-1].investigation_id, "close", "leigh", "Proper motion within the field spread."))
+triage.execute(TriageCommand(ranked[0].investigation_id, "annotate", "leigh", "Check the plate positions."))
+try:
+    triage.execute(TriageCommand(ranked[0].investigation_id, "promote", "leigh", "", "sha256:" + "0" * 64))
+except Exception as refused:  # recorded as InvestigationPromotionRefused
+    print("promotion refused:", type(refused).__name__)
+
 client = TestClient(create_app(k))
 
 
@@ -77,6 +107,13 @@ out = {
     },
     "ledger": q("ledger")["ledger"],
     "events": q("events", after=0, limit=1000)["events"],
+    "investigationSets": q("investigationSets")["investigationSets"],
+}
+out["investigationSet"] = {s["id"]: q("investigationSet", id=s["id"])["investigationSet"] for s in out["investigationSets"]}
+out["investigation"] = {
+    i["id"]: q("investigation", id=i["id"])["investigation"]
+    for s in out["investigationSet"].values()
+    for i in s["investigations"]
 }
 out["lineage"] = {}
 for e in out["experiment"].values():

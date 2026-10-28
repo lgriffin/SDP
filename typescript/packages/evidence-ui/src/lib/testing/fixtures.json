@@ -38,7 +38,7 @@
       "occurredAt": "2026-10-28T12:00:04+00:00",
       "payload": {
         "artifact_id": "sha256:2dbf26fe1889eef010cc5453f3843759531145e2a6e62ba9f4b3bc6e3f6686be",
-        "duration_s": 0.0004987270003766753,
+        "duration_s": 0.0005046219998803281,
         "task_id": "fit"
       },
       "sequence": 4
@@ -49,7 +49,7 @@
       "occurredAt": "2026-10-28T12:00:05+00:00",
       "payload": {
         "artifact_id": "sha256:d1fdfa4fdaf13199444d06a3214ef2a2b7811d11b0c2de5a315bae8454287dc0",
-        "duration_s": 7.615300000907155e-05,
+        "duration_s": 7.245300002978183e-05,
         "task_id": "residuals"
       },
       "sequence": 5
@@ -128,7 +128,7 @@
       "occurredAt": "2026-10-28T12:00:13+00:00",
       "payload": {
         "artifact_id": "sha256:ba0f4c5844b1f373258e808c575bb215411f1389962932f9a34a6f05b7080025",
-        "duration_s": 0.00022705299943481805,
+        "duration_s": 0.00021631300023727817,
         "task_id": "fit"
       },
       "sequence": 12
@@ -139,7 +139,7 @@
       "occurredAt": "2026-10-28T12:00:14+00:00",
       "payload": {
         "artifact_id": "sha256:3fc31b7990635a650e9e4a7bd1e7033fee0322230bea4240adb2d54433b4e904",
-        "duration_s": 8.591499954491155e-05,
+        "duration_s": 9.946600039256737e-05,
         "task_id": "residuals"
       },
       "sequence": 13
@@ -198,7 +198,7 @@
       "occurredAt": "2026-10-28T12:00:19+00:00",
       "payload": {
         "artifact_id": "sha256:bfd03103f4c6893d16e9a28527df6eea0670df31ef4697b435313282aa93949f",
-        "duration_s": 0.00021838500015292084,
+        "duration_s": 0.00022188600041772588,
         "task_id": "fit"
       },
       "sequence": 18
@@ -224,6 +224,926 @@
         "seed": 42
       },
       "sequence": 20
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "InvestigationSetStarted",
+      "occurredAt": "2026-10-28T12:00:22+00:00",
+      "payload": {
+        "actor": "kernel",
+        "code_revision": "0000000000000000000000000000000000000000",
+        "field_id": "field-5b0e0dd709cd2e8c",
+        "profile_hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+        "profile_id": "synthetic-comoving",
+        "profile_version": "1.0.0",
+        "seed": 11
+      },
+      "sequence": 21
+    },
+    {
+      "aggregateId": "sha256:c82c944b1a00bad31fe44a534a4daaf92eefb3a09e14006f9f76319528b4208b",
+      "name": "CheckpointWritten",
+      "occurredAt": "2026-10-28T12:00:23+00:00",
+      "payload": {
+        "artifact_id": "sha256:60e3bd061225bc1a8452436867edf18210de713ec647d8a3824750b6a17fd6b1",
+        "part": 0,
+        "rows": 40
+      },
+      "sequence": 22
+    },
+    {
+      "aggregateId": "sha256:c82c944b1a00bad31fe44a534a4daaf92eefb3a09e14006f9f76319528b4208b",
+      "name": "CheckpointWritten",
+      "occurredAt": "2026-10-28T12:00:24+00:00",
+      "payload": {
+        "artifact_id": "sha256:120067d1e9b9c614f1b993b57e45acfca1b41361fda802440510453d8a56f842",
+        "part": 1,
+        "rows": 20
+      },
+      "sequence": 23
+    },
+    {
+      "aggregateId": "sha256:968b232edc50a94ee679a2514e2dc5a702c5d35782f8193ff5de5037a8f754f8",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:26+00:00",
+      "payload": {
+        "release": "gaia:DR3",
+        "rows": 60,
+        "source": "synthetic-gaia"
+      },
+      "sequence": 24
+    },
+    {
+      "aggregateId": "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:27+00:00",
+      "payload": {
+        "curated_from": "sha256:968b232edc50a94ee679a2514e2dc5a702c5d35782f8193ff5de5037a8f754f8",
+        "dialect": "identity-synthetic-gaia",
+        "rows": 60
+      },
+      "sequence": 25
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "InvestigationStageCompleted",
+      "occurredAt": "2026-10-28T12:00:28+00:00",
+      "payload": {
+        "artifact_id": "sha256:ed2f74cdb17ac9e0d2b726c02704ae545723a98ac400d23fd1f650f6ae680a8a",
+        "objects": 60,
+        "resolved": 1,
+        "route": "catalogue",
+        "stage": "identify",
+        "unmatched": 0
+      },
+      "sequence": 26
+    },
+    {
+      "aggregateId": "sha256:46edd684fa6f77af4a8d67130c2894b2d70cb73d1f75fb1af3096623df863ce7",
+      "name": "CheckpointWritten",
+      "occurredAt": "2026-10-28T12:00:29+00:00",
+      "payload": {
+        "artifact_id": "sha256:f2e97455d69a0082b051fd79024a6426184aedd430d334a408bd5d5f86791c1a",
+        "part": 0,
+        "rows": 30
+      },
+      "sequence": 27
+    },
+    {
+      "aggregateId": "sha256:f2e97455d69a0082b051fd79024a6426184aedd430d334a408bd5d5f86791c1a",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:31+00:00",
+      "payload": {
+        "release": "twomass:psc",
+        "rows": 30,
+        "source": "synthetic-2mass"
+      },
+      "sequence": 28
+    },
+    {
+      "aggregateId": "sha256:9d81b04646999e9b523627639e4ca02fa85c75c664c55b0b281e48ae77c0d53e",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:32+00:00",
+      "payload": {
+        "curated_from": "sha256:f2e97455d69a0082b051fd79024a6426184aedd430d334a408bd5d5f86791c1a",
+        "dialect": "identity-synthetic-2mass",
+        "rows": 30
+      },
+      "sequence": 29
+    },
+    {
+      "aggregateId": "sha256:9da6572c4901c6abd4215e4d4f8c1a8febffeffec26dcd4da3d5f2e8f6b0a5b6",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:34+00:00",
+      "payload": {
+        "bytes": 1257,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 30
+    },
+    {
+      "aggregateId": "sha256:c8e5d0801713762ae56cd30b1c61ab6e17cd854b8e33a4b0f0eed59d270ace85",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:36+00:00",
+      "payload": {
+        "bytes": 1235,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 31
+    },
+    {
+      "aggregateId": "sha256:1305c020f0a8e413e3e55006689a2e09411dd117ebb6444f4a71331189cbbec3",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:38+00:00",
+      "payload": {
+        "bytes": 1234,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 32
+    },
+    {
+      "aggregateId": "sha256:4ae334a45d32aa502d7fd12ce77cb73ce72c17728390558bcf9d88ddb2ecebbc",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:40+00:00",
+      "payload": {
+        "bytes": 1234,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 33
+    },
+    {
+      "aggregateId": "sha256:85c317303245ec8156d69585af75e809893833d4b5976b50f16981d1072c26bc",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:42+00:00",
+      "payload": {
+        "bytes": 1234,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 34
+    },
+    {
+      "aggregateId": "sha256:9e56dd39a68797acf3b1c381eae277de44f58ea9711109a122cf99f84e667a11",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:44+00:00",
+      "payload": {
+        "bytes": 641,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 35
+    },
+    {
+      "aggregateId": "sha256:826222dc227f47d8c58c6caa4cbd61e4f47313d6a1ef36770d95e2abe3356428",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:46+00:00",
+      "payload": {
+        "bytes": 642,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 36
+    },
+    {
+      "aggregateId": "sha256:fce6a83bb3543371e0610ddbc3d88d573d8ac5300f7f1b68861493d78b11db72",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:48+00:00",
+      "payload": {
+        "bytes": 640,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 37
+    },
+    {
+      "aggregateId": "sha256:cee1b839384dfc11d1f135675620f6c99ef2b276a3f35b4c0b63cac4ca7b4c5c",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:50+00:00",
+      "payload": {
+        "bytes": 642,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 38
+    },
+    {
+      "aggregateId": "sha256:e115e40d7f352cf8c517b458e80caa5d1035c1024bcc14d3742d23f048cb6b20",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:52+00:00",
+      "payload": {
+        "bytes": 642,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 39
+    },
+    {
+      "aggregateId": "sha256:df85171984053c636bdb4c4bfa6e63494f7c5f4e93911eed8d417e52a3390f88",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:54+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 40
+    },
+    {
+      "aggregateId": "sha256:8e73fcd650c403cf4d6e6ebd5a9793b11c7c9d9fcdb71ae69fc749c47d03f1a3",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:56+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 41
+    },
+    {
+      "aggregateId": "sha256:a7d4983d2402e1817d3870a3d18cebfc873844742c02defd0c454e35c2482808",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:00:58+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 42
+    },
+    {
+      "aggregateId": "sha256:bf0993d5c2c22a673743d65fc0490d86243e882b819d340819495cf6256bcb3b",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:00+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 43
+    },
+    {
+      "aggregateId": "sha256:c53189c5f098e249b46c60ebab4363ebd71f7c28f6baaf3d0909f9d2236221a0",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:02+00:00",
+      "payload": {
+        "bytes": 644,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 44
+    },
+    {
+      "aggregateId": "sha256:6db8274774708ddc5188847e61a768617b5b583ec7d614e3a6ddf22d6b59d1d8",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:04+00:00",
+      "payload": {
+        "bytes": 644,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 45
+    },
+    {
+      "aggregateId": "sha256:143f9c05b806c0e6ed17d1fa6436643a1ade20621f14485287ee9199500fb2e3",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:06+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 46
+    },
+    {
+      "aggregateId": "sha256:14437b758b893ef68455c972c1fd680cfa389db31e3fb2f0d712a3ab180b2490",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:08+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 47
+    },
+    {
+      "aggregateId": "sha256:ae96b8db2b990eb3c4d9dac65478a09ad18be2e9cefde9bb8fe6f043f58e31a3",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:10+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 48
+    },
+    {
+      "aggregateId": "sha256:0cac726da898733bda63be0ffa571100ce17868eb4699f3da97111cb3392c3de",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:12+00:00",
+      "payload": {
+        "bytes": 644,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 49
+    },
+    {
+      "aggregateId": "sha256:380838f99f7937736a967cc5796ba20d02dc432990c1eac5f5f6571b88dd7683",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:14+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 50
+    },
+    {
+      "aggregateId": "sha256:f1f49b2426570913672c1fff5ca34e38ea76c1f2f61ec241de4ce30bf9ed32ea",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:16+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 51
+    },
+    {
+      "aggregateId": "sha256:b878f8190de7b0503862d2c350b879054e6f131d223cdab0415fe05658c3524f",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:18+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 52
+    },
+    {
+      "aggregateId": "sha256:42c82d3ab1370042cfdd94eb8bbfe61332eec26fdeb261d82836c14535342014",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:20+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 53
+    },
+    {
+      "aggregateId": "sha256:bd92845854c537ee59d575f4d01ad96a1f84a071ea3b89c6b0a4241544613aac",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:22+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 54
+    },
+    {
+      "aggregateId": "sha256:6f1d126e76690565cd94173cc2c658040d4b0f8b45d4c1e8e67f5e0faab14345",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:24+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 55
+    },
+    {
+      "aggregateId": "sha256:edb21c9d1c5c3d8f5ec95f73f877ec7515faa4c75f13047bfe86b2418f3e88ad",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:26+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 56
+    },
+    {
+      "aggregateId": "sha256:331ebdf7606699ce611299110f9720f9dcf8062b2ac075b03e5fc939114873c7",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:28+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 57
+    },
+    {
+      "aggregateId": "sha256:298c4c80a52cc8a7190689493cae1a54b5c78859cf573907eeb15c201022526e",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:30+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 58
+    },
+    {
+      "aggregateId": "sha256:86772488540495408eb4c5f9edb76bda7519a59671fc5a06d9cec349052591ba",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:32+00:00",
+      "payload": {
+        "bytes": 644,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 59
+    },
+    {
+      "aggregateId": "sha256:c2c7691d000be59403fb0e7563ce5929d6a7e63335b0ffc41e410e79b44c5fc0",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:34+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 60
+    },
+    {
+      "aggregateId": "sha256:45f5165ea04ab4b3c20cf6d72698a588c45b5bdd901f26bb899d85c4b7f38868",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:36+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 61
+    },
+    {
+      "aggregateId": "sha256:d8f281ab7aff5a796e3944faff69a15f077d900c997e77c49f345fea5bfa334d",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:38+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 62
+    },
+    {
+      "aggregateId": "sha256:5e65d1f48c3eb3743cddb8868330bc46884ddb5594588be1a5039b3d02cdb3f9",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:40+00:00",
+      "payload": {
+        "bytes": 644,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 63
+    },
+    {
+      "aggregateId": "sha256:543cfbef6af135dc717914b4e447242bf74bbf3807d9b22c25f043a3c9ecddfe",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:42+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 64
+    },
+    {
+      "aggregateId": "sha256:c6eb116f5d29cf41b31a94b402552810fe02c1a4c3ba6c060396d5a61cba7b82",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:44+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 65
+    },
+    {
+      "aggregateId": "sha256:3484d6625c5333a236b6888853b14f9a8960bb829ebd4cb0249e84ae86439519",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:46+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 66
+    },
+    {
+      "aggregateId": "sha256:58fd7f322c1fd9a3b5fa52c57158bdc4a0453bfebf62fcaf5fc99c380468167c",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:48+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 67
+    },
+    {
+      "aggregateId": "sha256:fb0b3ef5248838f43236ffabf8bde71cfa9ad7c68d66fc5d5e4fcaa92546faae",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:50+00:00",
+      "payload": {
+        "bytes": 644,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 68
+    },
+    {
+      "aggregateId": "sha256:5a4e406e0b1a43dc4b3f31727a69233566dbe1b7c571820ee4da365b48066e8f",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:52+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 69
+    },
+    {
+      "aggregateId": "sha256:9f8ba02c4470aa820881810c164f6ebe76dd843c97988ec32046a753aef11500",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:54+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 70
+    },
+    {
+      "aggregateId": "sha256:0d4f4fead2920d369a8ebee8cdf94f17a9336871fa7f8b329cbd3fe04a4217e6",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:56+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 71
+    },
+    {
+      "aggregateId": "sha256:086eefa00b832fbab768c8a9c7c2714152c73f1365202a306f38202852797ca0",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:01:58+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 72
+    },
+    {
+      "aggregateId": "sha256:47e30c91ff5269a4f06f40fb34ef33520a5c344c122354756cc42e08fa820141",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:00+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 73
+    },
+    {
+      "aggregateId": "sha256:b32f57fcb250c919b7ecb48214344cc282b20bd84a187683bc9435cef3f68227",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:02+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 74
+    },
+    {
+      "aggregateId": "sha256:9cb4365ff2661fc4c2fc3401dcfe0a50fc35f3ab872a7e10ad3e9207a6b8209d",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:04+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 75
+    },
+    {
+      "aggregateId": "sha256:e0c5a4f801be3e7016f9a7230cb5b2b47d2e5ee41f7bd1e63b0212c23a322678",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:06+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 76
+    },
+    {
+      "aggregateId": "sha256:f176ef9f1804893bbae484a7d0da00edb1f92d7fe2946e52f5e863736bef01e2",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:08+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 77
+    },
+    {
+      "aggregateId": "sha256:e87903ced0dd9e6f47cc70e46f53b7c8a5aaeb79afaa56f812ba9e523571ccee",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:10+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 78
+    },
+    {
+      "aggregateId": "sha256:9347b5a460ff8f91a8825134183ea7d8f518b7206db2118e6388c0e4c85df499",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:12+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 79
+    },
+    {
+      "aggregateId": "sha256:fd5c20c611d61a6f31d7533e64bdc9b17bb7237a764b937609883d5d31683476",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:14+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 80
+    },
+    {
+      "aggregateId": "sha256:e7612f88e58f748fc722df91f1ea994933f89c4c266408b9cf0ea826b16bfec6",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:16+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 81
+    },
+    {
+      "aggregateId": "sha256:0a73e1c1e9c3c4e250a0d244d44b4df30b0ff3b9a338b9ac310e402a2af7efc9",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:18+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 82
+    },
+    {
+      "aggregateId": "sha256:20da2d90034db05dd49c33e0f1777dd738cd4d9ceec989aab5ca8ddad4566996",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:20+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 83
+    },
+    {
+      "aggregateId": "sha256:b9f8d5108f87936dd32ecd14034cc671388a1c9043071e9034fbae96f8199593",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:22+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 84
+    },
+    {
+      "aggregateId": "sha256:1c2019438f7be233869ca30099345ea6f7dac6109976c363742ea2fefc3bca30",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:24+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 85
+    },
+    {
+      "aggregateId": "sha256:514eac9054226e9b9662e66a208c4b2194699271d27b0ee66703f87830525d63",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:26+00:00",
+      "payload": {
+        "bytes": 646,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 86
+    },
+    {
+      "aggregateId": "sha256:e8567128481bc627f8aea478bf2eacffd9c528c65246e9405781d2be652b3b63",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:28+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 87
+    },
+    {
+      "aggregateId": "sha256:948114792b9e800055b8e3f9b26bba1f7a19dbb906b0ea9c6e548984ce9854be",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:30+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 88
+    },
+    {
+      "aggregateId": "sha256:45179931719df0736c641c1a33cf14a872ab9377ff16a3469298f1b43180bf17",
+      "name": "DatasetAcquired",
+      "occurredAt": "2026-10-28T12:02:32+00:00",
+      "payload": {
+        "bytes": 645,
+        "release": "dasch:DR7",
+        "source": "fake-plates"
+      },
+      "sequence": 89
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "InvestigationStageCompleted",
+      "occurredAt": "2026-10-28T12:02:33+00:00",
+      "payload": {
+        "artifact_id": "sha256:c975f5cb9f90bf335c408b523112d804ba67130aad74cdd9a3a1d05453c2cd00",
+        "bundles": 60,
+        "observation_indices": 60,
+        "products": 0,
+        "stage": "retrieve"
+      },
+      "sequence": 90
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "CheckpointWritten",
+      "occurredAt": "2026-10-28T12:02:34+00:00",
+      "payload": {
+        "artifact_id": "sha256:b96ab4df8403ec857445170361c7419c85c36d1655fdb62b4f1876f62fec62ae",
+        "duration_s": 0.002652,
+        "task_id": "run:pm-excess@1.0.0"
+      },
+      "sequence": 91
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "CheckpointWritten",
+      "occurredAt": "2026-10-28T12:02:35+00:00",
+      "payload": {
+        "artifact_id": "sha256:d7e3a1ec40262499783749ffb6de59d3b908e5d118eed054b73a11702314108a",
+        "duration_s": 0.002456,
+        "task_id": "null:pm-excess@1.0.0"
+      },
+      "sequence": 92
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "InvestigationStageCompleted",
+      "occurredAt": "2026-10-28T12:02:36+00:00",
+      "payload": {
+        "artifact_id": "sha256:5e6ed186c7144ea7267e4f3ec581132829f0f202d8789948907c9ee986764351",
+        "results": 60,
+        "stage": "test",
+        "tests": 1
+      },
+      "sequence": 93
+    },
+    {
+      "aggregateId": "inv-000001",
+      "name": "InvestigationOpened",
+      "occurredAt": "2026-10-28T12:02:37+00:00",
+      "payload": {
+        "candidate": "gaia:DR3:0",
+        "score": 1.0,
+        "set_id": "invset-000001"
+      },
+      "sequence": 94
+    },
+    {
+      "aggregateId": "inv-000002",
+      "name": "InvestigationOpened",
+      "occurredAt": "2026-10-28T12:02:37+00:00",
+      "payload": {
+        "candidate": "gaia:DR3:1",
+        "score": 1.0,
+        "set_id": "invset-000001"
+      },
+      "sequence": 95
+    },
+    {
+      "aggregateId": "inv-000003",
+      "name": "InvestigationOpened",
+      "occurredAt": "2026-10-28T12:02:37+00:00",
+      "payload": {
+        "candidate": "gaia:DR3:2",
+        "score": 1.0,
+        "set_id": "invset-000001"
+      },
+      "sequence": 96
+    },
+    {
+      "aggregateId": "inv-000004",
+      "name": "InvestigationOpened",
+      "occurredAt": "2026-10-28T12:02:37+00:00",
+      "payload": {
+        "candidate": "gaia:DR3:3",
+        "score": 1.0,
+        "set_id": "invset-000001"
+      },
+      "sequence": 97
+    },
+    {
+      "aggregateId": "inv-000005",
+      "name": "InvestigationOpened",
+      "occurredAt": "2026-10-28T12:02:37+00:00",
+      "payload": {
+        "candidate": "gaia:DR3:4",
+        "score": 1.0,
+        "set_id": "invset-000001"
+      },
+      "sequence": 98
+    },
+    {
+      "aggregateId": "invset-000001",
+      "name": "InvestigationStageCompleted",
+      "occurredAt": "2026-10-28T12:02:38+00:00",
+      "payload": {
+        "artifact_id": "sha256:959218cd7e55c83dc8199ff3055e60a138f8e693daa0e7bbb733a987afe5e689",
+        "candidates": 5,
+        "ranked": 5,
+        "stage": "candidates"
+      },
+      "sequence": 99
+    },
+    {
+      "aggregateId": "inv-000002",
+      "name": "InvestigationParked",
+      "occurredAt": "2026-10-28T12:02:39+00:00",
+      "payload": {
+        "actor": "leigh",
+        "reason": "Revisit when Gaia DR4 lands."
+      },
+      "sequence": 100
+    },
+    {
+      "aggregateId": "inv-000005",
+      "name": "InvestigationClosed",
+      "occurredAt": "2026-10-28T12:02:40+00:00",
+      "payload": {
+        "actor": "leigh",
+        "reason": "Proper motion within the field spread."
+      },
+      "sequence": 101
+    },
+    {
+      "aggregateId": "inv-000001",
+      "name": "InvestigationAnnotated",
+      "occurredAt": "2026-10-28T12:02:41+00:00",
+      "payload": {
+        "author": "leigh"
+      },
+      "sequence": 102
+    },
+    {
+      "aggregateId": "inv-000001",
+      "name": "InvestigationPromotionRefused",
+      "occurredAt": "2026-10-28T12:02:43+00:00",
+      "payload": {
+        "actor": "leigh",
+        "predeclaration_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "reason": "sha256:0000000000000000000000000000000000000000000000000000000000000000 is not in the ledger; promotion refused (INV-009)"
+      },
+      "sequence": 103
     }
   ],
   "experiment": {
@@ -286,7 +1206,7 @@
           "limitations": [
             "Synthetic data with a planted slope; it says nothing about the sky."
           ],
-          "manifestId": "sha256:9aa990647c44016652e26110a4028caa01dcb20135d05fd0ba74f066c8a6f349",
+          "manifestId": "sha256:a24384c848a49b71680214a423ca5517183368daf0ba3a2ac21c97769012d575",
           "sections": {},
           "verdict": "VERIFIED"
         }
@@ -340,7 +1260,7 @@
           "lock_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
           "packages": {},
           "platform": "linux-x86_64",
-          "python_version": "3.12.13"
+          "python_version": "3.12.3"
         },
         "execution": {
           "failure": null,
@@ -353,7 +1273,7 @@
             {
               "checkpoint_artifact_id": "sha256:2dbf26fe1889eef010cc5453f3843759531145e2a6e62ba9f4b3bc6e3f6686be",
               "depends_on": [],
-              "duration_s": 0.0004987270003766753,
+              "duration_s": 0.0005046219998803281,
               "policy": {
                 "atol": 1e-12,
                 "determinism": "tolerance",
@@ -370,7 +1290,7 @@
               "depends_on": [
                 "fit"
               ],
-              "duration_s": 7.615300000907155e-05,
+              "duration_s": 7.245300002978183e-05,
               "policy": {
                 "atol": 1e-12,
                 "determinism": "tolerance",
@@ -650,7 +1570,7 @@
           "status": "VERIFIED"
         }
       },
-      "manifestId": "sha256:1d145adc9d1111957d8098851fcb29847b47ccc18aaa05b07f01bb084c4d4539",
+      "manifestId": "sha256:9b3a5ab81236002eaa540c1e1ccc6f943d560cc75ee42bd4b40eeb97939b4acb",
       "parameters": {},
       "predeclarationHash": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6",
       "protocol": "synthetic-linear",
@@ -663,7 +1583,7 @@
         {
           "checkpoint": "sha256:2dbf26fe1889eef010cc5453f3843759531145e2a6e62ba9f4b3bc6e3f6686be",
           "dependsOn": [],
-          "durationS": 0.0004987270003766753,
+          "durationS": 0.0005046219998803281,
           "status": "completed",
           "taskId": "fit",
           "taskKind": "synthetic.fit_line"
@@ -673,7 +1593,7 @@
           "dependsOn": [
             "fit"
           ],
-          "durationS": 7.615300000907155e-05,
+          "durationS": 7.245300002978183e-05,
           "status": "completed",
           "taskId": "residuals",
           "taskKind": "synthetic.residuals"
@@ -766,7 +1686,7 @@
           "lock_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
           "packages": {},
           "platform": "linux-x86_64",
-          "python_version": "3.12.13"
+          "python_version": "3.12.3"
         },
         "execution": {
           "failure": null,
@@ -779,7 +1699,7 @@
             {
               "checkpoint_artifact_id": "sha256:ba0f4c5844b1f373258e808c575bb215411f1389962932f9a34a6f05b7080025",
               "depends_on": [],
-              "duration_s": 0.00022705299943481805,
+              "duration_s": 0.00021631300023727817,
               "policy": {
                 "atol": 1e-12,
                 "determinism": "tolerance",
@@ -796,7 +1716,7 @@
               "depends_on": [
                 "fit"
               ],
-              "duration_s": 8.591499954491155e-05,
+              "duration_s": 9.946600039256737e-05,
               "policy": {
                 "atol": 1e-12,
                 "determinism": "tolerance",
@@ -1061,7 +1981,7 @@
           "status": "REJECTED"
         }
       },
-      "manifestId": "sha256:3ffbff50e66c076f1d3a9469b603d07f46290cf9adf766be43d335537fd818ea",
+      "manifestId": "sha256:fe157d4f387131e21f98211577143fae0fed0349b28380dcd305b15a1371f1ff",
       "parameters": {},
       "predeclarationHash": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6",
       "protocol": "synthetic-linear",
@@ -1074,7 +1994,7 @@
         {
           "checkpoint": "sha256:ba0f4c5844b1f373258e808c575bb215411f1389962932f9a34a6f05b7080025",
           "dependsOn": [],
-          "durationS": 0.00022705299943481805,
+          "durationS": 0.00021631300023727817,
           "status": "completed",
           "taskId": "fit",
           "taskKind": "synthetic.fit_line"
@@ -1084,7 +2004,7 @@
           "dependsOn": [
             "fit"
           ],
-          "durationS": 8.591499954491155e-05,
+          "durationS": 9.946600039256737e-05,
           "status": "completed",
           "taskId": "residuals",
           "taskKind": "synthetic.residuals"
@@ -1133,7 +2053,7 @@
           "lock_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
           "packages": {},
           "platform": "linux-x86_64",
-          "python_version": "3.12.13"
+          "python_version": "3.12.3"
         },
         "execution": {
           "failure": {
@@ -1151,7 +2071,7 @@
             {
               "checkpoint_artifact_id": "sha256:bfd03103f4c6893d16e9a28527df6eea0670df31ef4697b435313282aa93949f",
               "depends_on": [],
-              "duration_s": 0.00021838500015292084,
+              "duration_s": 0.00022188600041772588,
               "policy": {
                 "atol": 1e-12,
                 "determinism": "tolerance",
@@ -1361,7 +2281,7 @@
         "schema_version": "1.1.0",
         "verdict": null
       },
-      "manifestId": "sha256:5878eb9d27585e47da616d50aa99d92cfaf31d4b186ba53196368d9b506a8896",
+      "manifestId": "sha256:3ed8e08122aaa1efaf5da262ce4d96e73280e0759746f88469e3cf385f1a1abc",
       "parameters": {
         "inject_failure": "residuals"
       },
@@ -1376,7 +2296,7 @@
         {
           "checkpoint": "sha256:bfd03103f4c6893d16e9a28527df6eea0670df31ef4697b435313282aa93949f",
           "dependsOn": [],
-          "durationS": 0.00021838500015292084,
+          "durationS": 0.00022188600041772588,
           "status": "completed",
           "taskId": "fit",
           "taskKind": "synthetic.fit_line"
@@ -1419,7 +2339,7 @@
           "lock_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
           "packages": {},
           "platform": "linux-x86_64",
-          "python_version": "3.12.13"
+          "python_version": "3.12.3"
         },
         "execution": {
           "failure": null,
@@ -1600,7 +2520,7 @@
         "schema_version": "1.1.0",
         "verdict": null
       },
-      "manifestId": "sha256:f1e9139034cb2b186eb93c0fe3528798e0c5a5e2ae43a16b680bace6560df8b0",
+      "manifestId": "sha256:0e07ae9ccb94fb3325a8cabd806a5b3d266af40c5b5af5aac0dab27692a402a1",
       "parameters": {},
       "predeclarationHash": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6",
       "protocol": "synthetic-linear",
@@ -1671,6 +2591,1519 @@
       "verdict": null
     }
   ],
+  "investigation": {
+    "inv-000001": {
+      "candidate": {
+        "members": [],
+        "membership": [],
+        "object_key": "gaia:DR3:0",
+        "structure_id": null
+      },
+      "candidateKey": "gaia:DR3:0",
+      "dossier": {
+        "candidate": {
+          "members": [],
+          "membership": [],
+          "object_key": "gaia:DR3:0",
+          "structure_id": null
+        },
+        "evidence_used": {
+          "archives": [
+            "fake-plates",
+            "synthetic-2mass",
+            "synthetic-gaia"
+          ],
+          "epoch_max_jyear": 2016,
+          "epoch_min_jyear": 1883.5195071868584,
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          },
+          "releases": [
+            "dasch:DR7",
+            "gaia:DR3",
+            "simbad:fixture",
+            "twomass:psc"
+          ]
+        },
+        "field": {
+          "epoch_jyear": 2016,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "investigation_id": "inv-000001",
+        "kind": "investigation-dossier",
+        "label": "EXPLORATORY",
+        "multiplicity": {
+          "objects_examined": 60,
+          "tests_applied": 1
+        },
+        "objects": [
+          {
+            "bundle_id": "bundle-5e604fd877d6e86a6265538f",
+            "catalogue_artifacts": {
+              "synthetic-2mass": "sha256:9d81b04646999e9b523627639e4ca02fa85c75c664c55b0b281e48ae77c0d53e",
+              "synthetic-gaia": "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+            },
+            "catalogue_rows": {
+              "synthetic-2mass": [
+                {
+                  "dec_deg": -10.19392134194803,
+                  "j_mag": 10.102529234799448,
+                  "k_mag": 9.443804612868679,
+                  "ra_deg": 119.74638217649192,
+                  "source_key": "twomass:0"
+                }
+              ],
+              "synthetic-gaia": [
+                {
+                  "bp_rp": 1.3942470972829337,
+                  "dec_deg": -10.19392134194803,
+                  "epoch_jyear": 2016,
+                  "g_mag": 11.102529234799448,
+                  "parallax_mas": 3.9445473294149735,
+                  "parallax_mas_err": 0.05,
+                  "pm_dec_masyr": -18.126999697482333,
+                  "pm_ra_cosdec_masyr": 25.010860722342738,
+                  "ra_deg": 119.74632662093636,
+                  "source_key": "gaia:DR3:0"
+                }
+              ]
+            },
+            "object": {
+              "flags": [],
+              "gaia_source_key": "gaia:DR3:0",
+              "identification_method": "catalogue",
+              "image_artifact": null,
+              "match_distance_arcsec": null,
+              "match_radius_arcsec": null,
+              "object_key": "gaia:DR3:0",
+              "pixel_xy": null,
+              "resolver_record": null,
+              "sky_icrs": [
+                119.74632662093636,
+                -10.19392134194803
+              ],
+              "source_artifacts": [
+                "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+              ],
+              "wcs_artifact": null
+            },
+            "observation_index": [
+              {
+                "archive": "fake-plates",
+                "reach_back_jyear": 1883.5195071868584,
+                "reach_back_mjd": 9000,
+                "records": 3,
+                "release_label": "dasch:DR7"
+              }
+            ],
+            "products": []
+          }
+        ],
+        "profile": {
+          "hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+          "profile_id": "synthetic-comoving",
+          "version": "1.0.0"
+        },
+        "rank": {
+          "policy_id": "significance",
+          "policy_version": "1.0.0",
+          "score": 1
+        },
+        "set_false_positive_rates": {
+          "pm-excess@1.0.0": {
+            "alpha": 0.1,
+            "examined": 300,
+            "false_positive_rate": 0.16333333333333333,
+            "false_positives": 49,
+            "null_model": "proper motions shuffled among the field's objects",
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "trials": 5
+          }
+        },
+        "set_id": "invset-000001",
+        "test_results": [
+          {
+            "details": {
+              "n_field": 60
+            },
+            "effect_size": 20.77571065020064,
+            "label": "EXPLORATORY",
+            "null": {
+              "alpha": 0.1,
+              "examined": 300,
+              "false_positive_rate": 0.16333333333333333,
+              "false_positives": 49,
+              "null_model": "proper motions shuffled among the field's objects",
+              "test_name": "pm-excess",
+              "test_version": "1.0.0",
+              "trials": 5
+            },
+            "p_value": 0.05,
+            "posterior": null,
+            "seed": 11000033,
+            "statistic": 20.77571065020064,
+            "subject": {
+              "members": [],
+              "membership": [],
+              "object_key": "gaia:DR3:0",
+              "structure_id": null
+            },
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "uncertainty": null
+          }
+        ]
+      },
+      "evidenceBundleIds": [
+        "bundle-5e604fd877d6e86a6265538f"
+      ],
+      "evidenceUsed": {
+        "archives": [
+          "fake-plates",
+          "synthetic-2mass",
+          "synthetic-gaia"
+        ],
+        "epoch_max_jyear": 2016.0,
+        "epoch_min_jyear": 1883.5195071868584,
+        "region": {
+          "dec_deg": -10.0,
+          "ra_deg": 120.0,
+          "radius_deg": 0.5,
+          "shape": "cone"
+        },
+        "releases": [
+          "dasch:DR7",
+          "gaia:DR3",
+          "simbad:fixture",
+          "twomass:psc"
+        ]
+      },
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "inv-000001",
+      "label": "EXPLORATORY",
+      "links": {
+        "dossier_id": "sha256:4039f6419c0dfd8a6e90d374e35b9c3bf166a17b6873f01ec6e8a0f05dbe4413"
+      },
+      "notes": [
+        {
+          "at": "2026-10-28T12:02:41+00:00",
+          "author": "leigh",
+          "text": "Check the plate positions."
+        }
+      ],
+      "rankingPolicy": "significance@1.0.0",
+      "score": 1.0,
+      "setId": "invset-000001",
+      "state": "open",
+      "testResults": [
+        {
+          "details": {
+            "n_field": 60
+          },
+          "effect_size": 20.77571065020064,
+          "label": "EXPLORATORY",
+          "p_value": 0.05,
+          "posterior": null,
+          "seed": 11000033,
+          "statistic": 20.77571065020064,
+          "subject": {
+            "members": [],
+            "membership": [],
+            "object_key": "gaia:DR3:0",
+            "structure_id": null
+          },
+          "test_name": "pm-excess",
+          "test_version": "1.0.0",
+          "uncertainty": null
+        }
+      ],
+      "transitions": [
+        {
+          "actor": "kernel",
+          "at": "2026-10-28T12:02:37+00:00",
+          "fromState": null,
+          "reason": "opened by the run",
+          "toState": "open"
+        }
+      ]
+    },
+    "inv-000002": {
+      "candidate": {
+        "members": [],
+        "membership": [],
+        "object_key": "gaia:DR3:1",
+        "structure_id": null
+      },
+      "candidateKey": "gaia:DR3:1",
+      "dossier": {
+        "candidate": {
+          "members": [],
+          "membership": [],
+          "object_key": "gaia:DR3:1",
+          "structure_id": null
+        },
+        "evidence_used": {
+          "archives": [
+            "fake-plates",
+            "synthetic-2mass",
+            "synthetic-gaia"
+          ],
+          "epoch_max_jyear": 2016,
+          "epoch_min_jyear": 1883.5195071868584,
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          },
+          "releases": [
+            "dasch:DR7",
+            "gaia:DR3",
+            "simbad:fixture",
+            "twomass:psc"
+          ]
+        },
+        "field": {
+          "epoch_jyear": 2016,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "investigation_id": "inv-000002",
+        "kind": "investigation-dossier",
+        "label": "EXPLORATORY",
+        "multiplicity": {
+          "objects_examined": 60,
+          "tests_applied": 1
+        },
+        "objects": [
+          {
+            "bundle_id": "bundle-267482bfa51caaf78a5b821b",
+            "catalogue_artifacts": {
+              "synthetic-gaia": "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+            },
+            "catalogue_rows": {
+              "synthetic-gaia": [
+                {
+                  "bp_rp": 2.312902986025448,
+                  "dec_deg": -10.288873130990867,
+                  "epoch_jyear": 2016,
+                  "g_mag": 16.082986367921457,
+                  "parallax_mas": 3.996656922126505,
+                  "parallax_mas_err": 0.05,
+                  "pm_dec_masyr": -17.6794589977655,
+                  "pm_ra_cosdec_masyr": 25.302365902312754,
+                  "ra_deg": 119.75105159871525,
+                  "source_key": "gaia:DR3:1"
+                }
+              ]
+            },
+            "object": {
+              "flags": [],
+              "gaia_source_key": "gaia:DR3:1",
+              "identification_method": "catalogue",
+              "image_artifact": null,
+              "match_distance_arcsec": null,
+              "match_radius_arcsec": null,
+              "object_key": "gaia:DR3:1",
+              "pixel_xy": null,
+              "resolver_record": {
+                "bibcodes": [
+                  "2000A&A...000..000X"
+                ],
+                "dec_deg": -10.288873130990867,
+                "main_id": "HD 999999",
+                "object_type": "HighPM*",
+                "ra_deg": 119.75113493204859,
+                "separation_arcsec": 0.295176
+              },
+              "sky_icrs": [
+                119.75105159871525,
+                -10.288873130990867
+              ],
+              "source_artifacts": [
+                "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+              ],
+              "wcs_artifact": null
+            },
+            "observation_index": [
+              {
+                "archive": "fake-plates",
+                "reach_back_jyear": 1883.5195071868584,
+                "reach_back_mjd": 9000,
+                "records": 3,
+                "release_label": "dasch:DR7"
+              }
+            ],
+            "products": []
+          }
+        ],
+        "profile": {
+          "hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+          "profile_id": "synthetic-comoving",
+          "version": "1.0.0"
+        },
+        "rank": {
+          "policy_id": "significance",
+          "policy_version": "1.0.0",
+          "score": 1
+        },
+        "set_false_positive_rates": {
+          "pm-excess@1.0.0": {
+            "alpha": 0.1,
+            "examined": 300,
+            "false_positive_rate": 0.16333333333333333,
+            "false_positives": 49,
+            "null_model": "proper motions shuffled among the field's objects",
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "trials": 5
+          }
+        },
+        "set_id": "invset-000001",
+        "test_results": [
+          {
+            "details": {
+              "n_field": 60
+            },
+            "effect_size": 20.841471924360825,
+            "label": "EXPLORATORY",
+            "null": {
+              "alpha": 0.1,
+              "examined": 300,
+              "false_positive_rate": 0.16333333333333333,
+              "false_positives": 49,
+              "null_model": "proper motions shuffled among the field's objects",
+              "test_name": "pm-excess",
+              "test_version": "1.0.0",
+              "trials": 5
+            },
+            "p_value": 0.016666666666666666,
+            "posterior": null,
+            "seed": 11000033,
+            "statistic": 20.841471924360825,
+            "subject": {
+              "members": [],
+              "membership": [],
+              "object_key": "gaia:DR3:1",
+              "structure_id": null
+            },
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "uncertainty": null
+          }
+        ]
+      },
+      "evidenceBundleIds": [
+        "bundle-267482bfa51caaf78a5b821b"
+      ],
+      "evidenceUsed": {
+        "archives": [
+          "fake-plates",
+          "synthetic-2mass",
+          "synthetic-gaia"
+        ],
+        "epoch_max_jyear": 2016.0,
+        "epoch_min_jyear": 1883.5195071868584,
+        "region": {
+          "dec_deg": -10.0,
+          "ra_deg": 120.0,
+          "radius_deg": 0.5,
+          "shape": "cone"
+        },
+        "releases": [
+          "dasch:DR7",
+          "gaia:DR3",
+          "simbad:fixture",
+          "twomass:psc"
+        ]
+      },
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "inv-000002",
+      "label": "EXPLORATORY",
+      "links": {
+        "dossier_id": "sha256:a2d4b699a9cc146aa8e716868cc948e3754670de6257aea4142a692e201b159c",
+        "simbad_id": "HD 999999"
+      },
+      "notes": [],
+      "rankingPolicy": "significance@1.0.0",
+      "score": 1.0,
+      "setId": "invset-000001",
+      "state": "parked",
+      "testResults": [
+        {
+          "details": {
+            "n_field": 60
+          },
+          "effect_size": 20.841471924360825,
+          "label": "EXPLORATORY",
+          "p_value": 0.016666666666666666,
+          "posterior": null,
+          "seed": 11000033,
+          "statistic": 20.841471924360825,
+          "subject": {
+            "members": [],
+            "membership": [],
+            "object_key": "gaia:DR3:1",
+            "structure_id": null
+          },
+          "test_name": "pm-excess",
+          "test_version": "1.0.0",
+          "uncertainty": null
+        }
+      ],
+      "transitions": [
+        {
+          "actor": "kernel",
+          "at": "2026-10-28T12:02:37+00:00",
+          "fromState": null,
+          "reason": "opened by the run",
+          "toState": "open"
+        },
+        {
+          "actor": "leigh",
+          "at": "2026-10-28T12:02:39+00:00",
+          "fromState": "open",
+          "reason": "Revisit when Gaia DR4 lands.",
+          "toState": "parked"
+        }
+      ]
+    },
+    "inv-000003": {
+      "candidate": {
+        "members": [],
+        "membership": [],
+        "object_key": "gaia:DR3:2",
+        "structure_id": null
+      },
+      "candidateKey": "gaia:DR3:2",
+      "dossier": {
+        "candidate": {
+          "members": [],
+          "membership": [],
+          "object_key": "gaia:DR3:2",
+          "structure_id": null
+        },
+        "evidence_used": {
+          "archives": [
+            "fake-plates",
+            "synthetic-2mass",
+            "synthetic-gaia"
+          ],
+          "epoch_max_jyear": 2016,
+          "epoch_min_jyear": 1883.5195071868584,
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          },
+          "releases": [
+            "dasch:DR7",
+            "gaia:DR3",
+            "simbad:fixture",
+            "twomass:psc"
+          ]
+        },
+        "field": {
+          "epoch_jyear": 2016,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "investigation_id": "inv-000003",
+        "kind": "investigation-dossier",
+        "label": "EXPLORATORY",
+        "multiplicity": {
+          "objects_examined": 60,
+          "tests_applied": 1
+        },
+        "objects": [
+          {
+            "bundle_id": "bundle-8ed415f83c736a0d8ee113db",
+            "catalogue_artifacts": {
+              "synthetic-2mass": "sha256:9d81b04646999e9b523627639e4ca02fa85c75c664c55b0b281e48ae77c0d53e",
+              "synthetic-gaia": "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+            },
+            "catalogue_rows": {
+              "synthetic-2mass": [
+                {
+                  "dec_deg": -10.31533886349425,
+                  "j_mag": 16.94359086998885,
+                  "k_mag": 16.647133047072145,
+                  "ra_deg": 119.84056208805158,
+                  "source_key": "twomass:1"
+                }
+              ],
+              "synthetic-gaia": [
+                {
+                  "bp_rp": 0.3891634917685083,
+                  "dec_deg": -10.31533886349425,
+                  "epoch_jyear": 2016,
+                  "g_mag": 17.94359086998885,
+                  "parallax_mas": 4.04368290172351,
+                  "parallax_mas_err": 0.05,
+                  "pm_dec_masyr": -17.89866253915458,
+                  "pm_ra_cosdec_masyr": 25.111137580361614,
+                  "ra_deg": 119.84050653249602,
+                  "source_key": "gaia:DR3:2"
+                }
+              ]
+            },
+            "object": {
+              "flags": [],
+              "gaia_source_key": "gaia:DR3:2",
+              "identification_method": "catalogue",
+              "image_artifact": null,
+              "match_distance_arcsec": null,
+              "match_radius_arcsec": null,
+              "object_key": "gaia:DR3:2",
+              "pixel_xy": null,
+              "resolver_record": null,
+              "sky_icrs": [
+                119.84050653249602,
+                -10.31533886349425
+              ],
+              "source_artifacts": [
+                "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+              ],
+              "wcs_artifact": null
+            },
+            "observation_index": [
+              {
+                "archive": "fake-plates",
+                "reach_back_jyear": 1883.5195071868584,
+                "reach_back_mjd": 9000,
+                "records": 3,
+                "release_label": "dasch:DR7"
+              }
+            ],
+            "products": []
+          }
+        ],
+        "profile": {
+          "hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+          "profile_id": "synthetic-comoving",
+          "version": "1.0.0"
+        },
+        "rank": {
+          "policy_id": "significance",
+          "policy_version": "1.0.0",
+          "score": 1
+        },
+        "set_false_positive_rates": {
+          "pm-excess@1.0.0": {
+            "alpha": 0.1,
+            "examined": 300,
+            "false_positive_rate": 0.16333333333333333,
+            "false_positives": 49,
+            "null_model": "proper motions shuffled among the field's objects",
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "trials": 5
+          }
+        },
+        "set_id": "invset-000001",
+        "test_results": [
+          {
+            "details": {
+              "n_field": 60
+            },
+            "effect_size": 20.7799448098026,
+            "label": "EXPLORATORY",
+            "null": {
+              "alpha": 0.1,
+              "examined": 300,
+              "false_positive_rate": 0.16333333333333333,
+              "false_positives": 49,
+              "null_model": "proper motions shuffled among the field's objects",
+              "test_name": "pm-excess",
+              "test_version": "1.0.0",
+              "trials": 5
+            },
+            "p_value": 0.03333333333333333,
+            "posterior": null,
+            "seed": 11000033,
+            "statistic": 20.7799448098026,
+            "subject": {
+              "members": [],
+              "membership": [],
+              "object_key": "gaia:DR3:2",
+              "structure_id": null
+            },
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "uncertainty": null
+          }
+        ]
+      },
+      "evidenceBundleIds": [
+        "bundle-8ed415f83c736a0d8ee113db"
+      ],
+      "evidenceUsed": {
+        "archives": [
+          "fake-plates",
+          "synthetic-2mass",
+          "synthetic-gaia"
+        ],
+        "epoch_max_jyear": 2016.0,
+        "epoch_min_jyear": 1883.5195071868584,
+        "region": {
+          "dec_deg": -10.0,
+          "ra_deg": 120.0,
+          "radius_deg": 0.5,
+          "shape": "cone"
+        },
+        "releases": [
+          "dasch:DR7",
+          "gaia:DR3",
+          "simbad:fixture",
+          "twomass:psc"
+        ]
+      },
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "inv-000003",
+      "label": "EXPLORATORY",
+      "links": {
+        "dossier_id": "sha256:3d317dd6aa51a686b656a388d2c1bb91ed461d9edee4705f2af5a92a3ffd7e87"
+      },
+      "notes": [],
+      "rankingPolicy": "significance@1.0.0",
+      "score": 1.0,
+      "setId": "invset-000001",
+      "state": "open",
+      "testResults": [
+        {
+          "details": {
+            "n_field": 60
+          },
+          "effect_size": 20.7799448098026,
+          "label": "EXPLORATORY",
+          "p_value": 0.03333333333333333,
+          "posterior": null,
+          "seed": 11000033,
+          "statistic": 20.7799448098026,
+          "subject": {
+            "members": [],
+            "membership": [],
+            "object_key": "gaia:DR3:2",
+            "structure_id": null
+          },
+          "test_name": "pm-excess",
+          "test_version": "1.0.0",
+          "uncertainty": null
+        }
+      ],
+      "transitions": [
+        {
+          "actor": "kernel",
+          "at": "2026-10-28T12:02:37+00:00",
+          "fromState": null,
+          "reason": "opened by the run",
+          "toState": "open"
+        }
+      ]
+    },
+    "inv-000004": {
+      "candidate": {
+        "members": [],
+        "membership": [],
+        "object_key": "gaia:DR3:3",
+        "structure_id": null
+      },
+      "candidateKey": "gaia:DR3:3",
+      "dossier": {
+        "candidate": {
+          "members": [],
+          "membership": [],
+          "object_key": "gaia:DR3:3",
+          "structure_id": null
+        },
+        "evidence_used": {
+          "archives": [
+            "fake-plates",
+            "synthetic-2mass",
+            "synthetic-gaia"
+          ],
+          "epoch_max_jyear": 2016,
+          "epoch_min_jyear": 1883.5195071868584,
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          },
+          "releases": [
+            "dasch:DR7",
+            "gaia:DR3",
+            "simbad:fixture",
+            "twomass:psc"
+          ]
+        },
+        "field": {
+          "epoch_jyear": 2016,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "investigation_id": "inv-000004",
+        "kind": "investigation-dossier",
+        "label": "EXPLORATORY",
+        "multiplicity": {
+          "objects_examined": 60,
+          "tests_applied": 1
+        },
+        "objects": [
+          {
+            "bundle_id": "bundle-98ffbf7afe2a0802ab40cca3",
+            "catalogue_artifacts": {
+              "synthetic-gaia": "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+            },
+            "catalogue_rows": {
+              "synthetic-gaia": [
+                {
+                  "bp_rp": 0.9937717917556392,
+                  "dec_deg": -9.845878602244998,
+                  "epoch_jyear": 2016,
+                  "g_mag": 11.183905190096517,
+                  "parallax_mas": 3.9803731376581255,
+                  "parallax_mas_err": 0.05,
+                  "pm_dec_masyr": -17.986489888337868,
+                  "pm_ra_cosdec_masyr": 24.988307974848226,
+                  "ra_deg": 120.11252349628273,
+                  "source_key": "gaia:DR3:3"
+                }
+              ]
+            },
+            "object": {
+              "flags": [],
+              "gaia_source_key": "gaia:DR3:3",
+              "identification_method": "catalogue",
+              "image_artifact": null,
+              "match_distance_arcsec": null,
+              "match_radius_arcsec": null,
+              "object_key": "gaia:DR3:3",
+              "pixel_xy": null,
+              "resolver_record": null,
+              "sky_icrs": [
+                120.11252349628273,
+                -9.845878602244998
+              ],
+              "source_artifacts": [
+                "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+              ],
+              "wcs_artifact": null
+            },
+            "observation_index": [
+              {
+                "archive": "fake-plates",
+                "reach_back_jyear": 1883.5195071868584,
+                "reach_back_mjd": 9000,
+                "records": 3,
+                "release_label": "dasch:DR7"
+              }
+            ],
+            "products": []
+          }
+        ],
+        "profile": {
+          "hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+          "profile_id": "synthetic-comoving",
+          "version": "1.0.0"
+        },
+        "rank": {
+          "policy_id": "significance",
+          "policy_version": "1.0.0",
+          "score": 1
+        },
+        "set_false_positive_rates": {
+          "pm-excess@1.0.0": {
+            "alpha": 0.1,
+            "examined": 300,
+            "false_positive_rate": 0.16333333333333333,
+            "false_positives": 49,
+            "null_model": "proper motions shuffled among the field's objects",
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "trials": 5
+          }
+        },
+        "set_id": "invset-000001",
+        "test_results": [
+          {
+            "details": {
+              "n_field": 60
+            },
+            "effect_size": 20.72822928905191,
+            "label": "EXPLORATORY",
+            "null": {
+              "alpha": 0.1,
+              "examined": 300,
+              "false_positive_rate": 0.16333333333333333,
+              "false_positives": 49,
+              "null_model": "proper motions shuffled among the field's objects",
+              "test_name": "pm-excess",
+              "test_version": "1.0.0",
+              "trials": 5
+            },
+            "p_value": 0.06666666666666667,
+            "posterior": null,
+            "seed": 11000033,
+            "statistic": 20.72822928905191,
+            "subject": {
+              "members": [],
+              "membership": [],
+              "object_key": "gaia:DR3:3",
+              "structure_id": null
+            },
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "uncertainty": null
+          }
+        ]
+      },
+      "evidenceBundleIds": [
+        "bundle-98ffbf7afe2a0802ab40cca3"
+      ],
+      "evidenceUsed": {
+        "archives": [
+          "fake-plates",
+          "synthetic-2mass",
+          "synthetic-gaia"
+        ],
+        "epoch_max_jyear": 2016.0,
+        "epoch_min_jyear": 1883.5195071868584,
+        "region": {
+          "dec_deg": -10.0,
+          "ra_deg": 120.0,
+          "radius_deg": 0.5,
+          "shape": "cone"
+        },
+        "releases": [
+          "dasch:DR7",
+          "gaia:DR3",
+          "simbad:fixture",
+          "twomass:psc"
+        ]
+      },
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "inv-000004",
+      "label": "EXPLORATORY",
+      "links": {
+        "dossier_id": "sha256:da9f2bf48240c7b51ba4971160c8063709231f46f7a6baf52ffecfcc0a7ba6a0"
+      },
+      "notes": [],
+      "rankingPolicy": "significance@1.0.0",
+      "score": 1.0,
+      "setId": "invset-000001",
+      "state": "open",
+      "testResults": [
+        {
+          "details": {
+            "n_field": 60
+          },
+          "effect_size": 20.72822928905191,
+          "label": "EXPLORATORY",
+          "p_value": 0.06666666666666667,
+          "posterior": null,
+          "seed": 11000033,
+          "statistic": 20.72822928905191,
+          "subject": {
+            "members": [],
+            "membership": [],
+            "object_key": "gaia:DR3:3",
+            "structure_id": null
+          },
+          "test_name": "pm-excess",
+          "test_version": "1.0.0",
+          "uncertainty": null
+        }
+      ],
+      "transitions": [
+        {
+          "actor": "kernel",
+          "at": "2026-10-28T12:02:37+00:00",
+          "fromState": null,
+          "reason": "opened by the run",
+          "toState": "open"
+        }
+      ]
+    },
+    "inv-000005": {
+      "candidate": {
+        "members": [],
+        "membership": [],
+        "object_key": "gaia:DR3:4",
+        "structure_id": null
+      },
+      "candidateKey": "gaia:DR3:4",
+      "dossier": {
+        "candidate": {
+          "members": [],
+          "membership": [],
+          "object_key": "gaia:DR3:4",
+          "structure_id": null
+        },
+        "evidence_used": {
+          "archives": [
+            "fake-plates",
+            "synthetic-2mass",
+            "synthetic-gaia"
+          ],
+          "epoch_max_jyear": 2016,
+          "epoch_min_jyear": 1883.5195071868584,
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          },
+          "releases": [
+            "dasch:DR7",
+            "gaia:DR3",
+            "simbad:fixture",
+            "twomass:psc"
+          ]
+        },
+        "field": {
+          "epoch_jyear": 2016,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10,
+            "ra_deg": 120,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "investigation_id": "inv-000005",
+        "kind": "investigation-dossier",
+        "label": "EXPLORATORY",
+        "multiplicity": {
+          "objects_examined": 60,
+          "tests_applied": 1
+        },
+        "objects": [
+          {
+            "bundle_id": "bundle-87e1922e6e55e9b7a3d13fea",
+            "catalogue_artifacts": {
+              "synthetic-2mass": "sha256:9d81b04646999e9b523627639e4ca02fa85c75c664c55b0b281e48ae77c0d53e",
+              "synthetic-gaia": "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+            },
+            "catalogue_rows": {
+              "synthetic-2mass": [
+                {
+                  "dec_deg": -9.919727079299777,
+                  "j_mag": 14.70140540849172,
+                  "k_mag": 13.4166860414843,
+                  "ra_deg": 119.7929910122503,
+                  "source_key": "twomass:2"
+                }
+              ],
+              "synthetic-gaia": [
+                {
+                  "bp_rp": 1.6199443366246007,
+                  "dec_deg": -9.919727079299777,
+                  "epoch_jyear": 2016,
+                  "g_mag": 15.70140540849172,
+                  "parallax_mas": 3.988637870849972,
+                  "parallax_mas_err": 0.05,
+                  "pm_dec_masyr": -18.069236368430545,
+                  "pm_ra_cosdec_masyr": 24.88412158991132,
+                  "ra_deg": 119.79293545669474,
+                  "source_key": "gaia:DR3:4"
+                }
+              ]
+            },
+            "object": {
+              "flags": [],
+              "gaia_source_key": "gaia:DR3:4",
+              "identification_method": "catalogue",
+              "image_artifact": null,
+              "match_distance_arcsec": null,
+              "match_radius_arcsec": null,
+              "object_key": "gaia:DR3:4",
+              "pixel_xy": null,
+              "resolver_record": null,
+              "sky_icrs": [
+                119.79293545669474,
+                -9.919727079299777
+              ],
+              "source_artifacts": [
+                "sha256:20a4b1b7ed6f9960e288ededd002e51f98c0e0f0dd1f95cb9b77148320b5dd90"
+              ],
+              "wcs_artifact": null
+            },
+            "observation_index": [
+              {
+                "archive": "fake-plates",
+                "reach_back_jyear": 1883.5195071868584,
+                "reach_back_mjd": 9000,
+                "records": 3,
+                "release_label": "dasch:DR7"
+              }
+            ],
+            "products": []
+          }
+        ],
+        "profile": {
+          "hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+          "profile_id": "synthetic-comoving",
+          "version": "1.0.0"
+        },
+        "rank": {
+          "policy_id": "significance",
+          "policy_version": "1.0.0",
+          "score": 1
+        },
+        "set_false_positive_rates": {
+          "pm-excess@1.0.0": {
+            "alpha": 0.1,
+            "examined": 300,
+            "false_positive_rate": 0.16333333333333333,
+            "false_positives": 49,
+            "null_model": "proper motions shuffled among the field's objects",
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "trials": 5
+          }
+        },
+        "set_id": "invset-000001",
+        "test_results": [
+          {
+            "details": {
+              "n_field": 60
+            },
+            "effect_size": 20.68660795079122,
+            "label": "EXPLORATORY",
+            "null": {
+              "alpha": 0.1,
+              "examined": 300,
+              "false_positive_rate": 0.16333333333333333,
+              "false_positives": 49,
+              "null_model": "proper motions shuffled among the field's objects",
+              "test_name": "pm-excess",
+              "test_version": "1.0.0",
+              "trials": 5
+            },
+            "p_value": 0.08333333333333333,
+            "posterior": null,
+            "seed": 11000033,
+            "statistic": 20.68660795079122,
+            "subject": {
+              "members": [],
+              "membership": [],
+              "object_key": "gaia:DR3:4",
+              "structure_id": null
+            },
+            "test_name": "pm-excess",
+            "test_version": "1.0.0",
+            "uncertainty": null
+          }
+        ]
+      },
+      "evidenceBundleIds": [
+        "bundle-87e1922e6e55e9b7a3d13fea"
+      ],
+      "evidenceUsed": {
+        "archives": [
+          "fake-plates",
+          "synthetic-2mass",
+          "synthetic-gaia"
+        ],
+        "epoch_max_jyear": 2016.0,
+        "epoch_min_jyear": 1883.5195071868584,
+        "region": {
+          "dec_deg": -10.0,
+          "ra_deg": 120.0,
+          "radius_deg": 0.5,
+          "shape": "cone"
+        },
+        "releases": [
+          "dasch:DR7",
+          "gaia:DR3",
+          "simbad:fixture",
+          "twomass:psc"
+        ]
+      },
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "inv-000005",
+      "label": "EXPLORATORY",
+      "links": {
+        "dossier_id": "sha256:12ff2e53ce894cae5de98d3d0775ff9a578eb97de8338404835b4101b381229f"
+      },
+      "notes": [],
+      "rankingPolicy": "significance@1.0.0",
+      "score": 1.0,
+      "setId": "invset-000001",
+      "state": "closed",
+      "testResults": [
+        {
+          "details": {
+            "n_field": 60
+          },
+          "effect_size": 20.68660795079122,
+          "label": "EXPLORATORY",
+          "p_value": 0.08333333333333333,
+          "posterior": null,
+          "seed": 11000033,
+          "statistic": 20.68660795079122,
+          "subject": {
+            "members": [],
+            "membership": [],
+            "object_key": "gaia:DR3:4",
+            "structure_id": null
+          },
+          "test_name": "pm-excess",
+          "test_version": "1.0.0",
+          "uncertainty": null
+        }
+      ],
+      "transitions": [
+        {
+          "actor": "kernel",
+          "at": "2026-10-28T12:02:37+00:00",
+          "fromState": null,
+          "reason": "opened by the run",
+          "toState": "open"
+        },
+        {
+          "actor": "leigh",
+          "at": "2026-10-28T12:02:40+00:00",
+          "fromState": "open",
+          "reason": "Proper motion within the field spread.",
+          "toState": "closed"
+        }
+      ]
+    }
+  },
+  "investigationSet": {
+    "invset-000001": {
+      "archiveReleases": [
+        "dasch:DR7",
+        "gaia:DR3",
+        "simbad:fixture",
+        "twomass:psc"
+      ],
+      "complete": true,
+      "field": {
+        "epoch_jyear": 2016.0,
+        "images": [],
+        "label": "synthetic field",
+        "region": {
+          "dec_deg": -10.0,
+          "ra_deg": 120.0,
+          "radius_deg": 0.5,
+          "shape": "cone"
+        }
+      },
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "invset-000001",
+      "investigationIds": [
+        "inv-000001",
+        "inv-000002",
+        "inv-000003",
+        "inv-000004",
+        "inv-000005"
+      ],
+      "investigations": [
+        {
+          "candidateKey": "gaia:DR3:0",
+          "id": "inv-000001",
+          "label": "EXPLORATORY",
+          "rankingPolicy": "significance@1.0.0",
+          "score": 1.0,
+          "state": "open"
+        },
+        {
+          "candidateKey": "gaia:DR3:1",
+          "id": "inv-000002",
+          "label": "EXPLORATORY",
+          "rankingPolicy": "significance@1.0.0",
+          "score": 1.0,
+          "state": "parked"
+        },
+        {
+          "candidateKey": "gaia:DR3:2",
+          "id": "inv-000003",
+          "label": "EXPLORATORY",
+          "rankingPolicy": "significance@1.0.0",
+          "score": 1.0,
+          "state": "open"
+        },
+        {
+          "candidateKey": "gaia:DR3:3",
+          "id": "inv-000004",
+          "label": "EXPLORATORY",
+          "rankingPolicy": "significance@1.0.0",
+          "score": 1.0,
+          "state": "open"
+        },
+        {
+          "candidateKey": "gaia:DR3:4",
+          "id": "inv-000005",
+          "label": "EXPLORATORY",
+          "rankingPolicy": "significance@1.0.0",
+          "score": 1.0,
+          "state": "closed"
+        }
+      ],
+      "label": "EXPLORATORY",
+      "manifestId": "sha256:42295ca5c07d640969261a291d7a0751bf6df8a2815856a7c54d0e69cdb32a14",
+      "nullResults": [
+        {
+          "alpha": 0.1,
+          "examined": 300,
+          "false_positive_rate": 0.16333333333333333,
+          "false_positives": 49,
+          "null_model": "proper motions shuffled among the field's objects",
+          "test_name": "pm-excess",
+          "test_version": "1.0.0",
+          "trials": 5
+        }
+      ],
+      "objectsExamined": 60,
+      "profile": {
+        "archives": [
+          {
+            "columns": [
+              "source_key",
+              "ra_deg",
+              "dec_deg",
+              "j_mag",
+              "k_mag"
+            ],
+            "match_radius_arcsec": 1.0,
+            "missions": [],
+            "product_types": [],
+            "release_label": "twomass:psc",
+            "role": "catalogue",
+            "source_id": "synthetic-2mass"
+          },
+          {
+            "columns": [],
+            "match_radius_arcsec": 2.0,
+            "missions": [],
+            "product_types": [],
+            "release_label": "dasch:DR7",
+            "role": "observations",
+            "source_id": "fake-plates"
+          }
+        ],
+        "description": "T4 profile over the synthetic field",
+        "identify": {
+          "columns": [
+            "source_key",
+            "ra_deg",
+            "dec_deg",
+            "epoch_jyear",
+            "parallax_mas",
+            "parallax_mas_err",
+            "pm_ra_cosdec_masyr",
+            "pm_dec_masyr",
+            "g_mag",
+            "bp_rp"
+          ],
+          "match_radius_arcsec": 1.0,
+          "quality_cuts": [],
+          "release_label": "gaia:DR3",
+          "resolve": true,
+          "resolver_radius_arcsec": 2.0,
+          "route": "catalogue",
+          "row_cap": 100000,
+          "source_id": "synthetic-gaia"
+        },
+        "null_fields": {
+          "trials": 5
+        },
+        "profile_id": "synthetic-comoving",
+        "ranking": {
+          "alpha": 0.1,
+          "policy_id": "significance",
+          "threshold": 1.0,
+          "version": "1.0.0"
+        },
+        "schema_version": "1.0.0",
+        "tests": [
+          {
+            "name": "pm-excess",
+            "needs_products": [],
+            "thresholds": {
+              "score": 5.0
+            },
+            "version": "1.0.0"
+          }
+        ],
+        "version": "1.0.0"
+      },
+      "profileHash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+      "profileId": "synthetic-comoving",
+      "profileVersion": "1.0.0",
+      "seed": 11,
+      "stages": [
+        {
+          "artifactId": "sha256:ed2f74cdb17ac9e0d2b726c02704ae545723a98ac400d23fd1f650f6ae680a8a",
+          "error": null,
+          "finishedAt": "2026-10-28T12:00:28+00:00",
+          "stage": "identify",
+          "state": "completed",
+          "summary": {
+            "objects": 60,
+            "resolved": 1,
+            "route": "catalogue",
+            "unmatched": 0
+          }
+        },
+        {
+          "artifactId": "sha256:c975f5cb9f90bf335c408b523112d804ba67130aad74cdd9a3a1d05453c2cd00",
+          "error": null,
+          "finishedAt": "2026-10-28T12:02:33+00:00",
+          "stage": "retrieve",
+          "state": "completed",
+          "summary": {
+            "bundles": 60,
+            "observation_indices": 60,
+            "products": 0
+          }
+        },
+        {
+          "artifactId": "sha256:5e6ed186c7144ea7267e4f3ec581132829f0f202d8789948907c9ee986764351",
+          "error": null,
+          "finishedAt": "2026-10-28T12:02:36+00:00",
+          "stage": "test",
+          "state": "completed",
+          "summary": {
+            "results": 60,
+            "tests": 1
+          }
+        },
+        {
+          "artifactId": "sha256:959218cd7e55c83dc8199ff3055e60a138f8e693daa0e7bbb733a987afe5e689",
+          "error": null,
+          "finishedAt": "2026-10-28T12:02:38+00:00",
+          "stage": "candidates",
+          "state": "completed",
+          "summary": {
+            "candidates": 5,
+            "ranked": 5
+          }
+        }
+      ],
+      "startedAt": "2026-10-28T12:00:22+00:00",
+      "testsApplied": [
+        {
+          "name": "pm-excess",
+          "policy": {
+            "atol": 0.0,
+            "determinism": "tolerance",
+            "dtype": "float64",
+            "rtol": 1e-12,
+            "seed_handling": "explicit"
+          },
+          "thresholds": {
+            "score": 5.0
+          },
+          "version": "1.0.0"
+        }
+      ]
+    }
+  },
+  "investigationSets": [
+    {
+      "complete": true,
+      "fieldId": "field-5b0e0dd709cd2e8c",
+      "id": "invset-000001",
+      "investigationIds": [
+        "inv-000001",
+        "inv-000002",
+        "inv-000003",
+        "inv-000004",
+        "inv-000005"
+      ],
+      "label": "EXPLORATORY",
+      "objectsExamined": 60,
+      "profileHash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+      "profileId": "synthetic-comoving",
+      "profileVersion": "1.0.0",
+      "seed": 11,
+      "stages": [
+        {
+          "artifactId": "sha256:ed2f74cdb17ac9e0d2b726c02704ae545723a98ac400d23fd1f650f6ae680a8a",
+          "error": null,
+          "finishedAt": "2026-10-28T12:00:28+00:00",
+          "stage": "identify",
+          "state": "completed",
+          "summary": {
+            "objects": 60,
+            "resolved": 1,
+            "route": "catalogue",
+            "unmatched": 0
+          }
+        },
+        {
+          "artifactId": "sha256:c975f5cb9f90bf335c408b523112d804ba67130aad74cdd9a3a1d05453c2cd00",
+          "error": null,
+          "finishedAt": "2026-10-28T12:02:33+00:00",
+          "stage": "retrieve",
+          "state": "completed",
+          "summary": {
+            "bundles": 60,
+            "observation_indices": 60,
+            "products": 0
+          }
+        },
+        {
+          "artifactId": "sha256:5e6ed186c7144ea7267e4f3ec581132829f0f202d8789948907c9ee986764351",
+          "error": null,
+          "finishedAt": "2026-10-28T12:02:36+00:00",
+          "stage": "test",
+          "state": "completed",
+          "summary": {
+            "results": 60,
+            "tests": 1
+          }
+        },
+        {
+          "artifactId": "sha256:959218cd7e55c83dc8199ff3055e60a138f8e693daa0e7bbb733a987afe5e689",
+          "error": null,
+          "finishedAt": "2026-10-28T12:02:38+00:00",
+          "stage": "candidates",
+          "state": "completed",
+          "summary": {
+            "candidates": 5,
+            "ranked": 5
+          }
+        }
+      ],
+      "startedAt": "2026-10-28T12:00:22+00:00"
+    }
+  ],
   "ledger": [
     {
       "id": "led-000001",
@@ -1700,7 +4133,7 @@
       "sequence": 1,
       "signatureMethod": "test-hmac",
       "signer": "reviewer",
-      "subjectHash": "sha256:9aa990647c44016652e26110a4028caa01dcb20135d05fd0ba74f066c8a6f349",
+      "subjectHash": "sha256:a24384c848a49b71680214a423ca5517183368daf0ba3a2ac21c97769012d575",
       "subjectId": "exp-000001"
     }
   ],
@@ -1721,9 +4154,9 @@
       "sdp:sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6",
       "sdp:sha256:ccfadd74a2b7991ff75fc89d35a564551d81e4f13df8e6c15f32791d3729114b"
     ],
-    "sha256:1d145adc9d1111957d8098851fcb29847b47ccc18aaa05b07f01bb084c4d4539": [],
-    "sha256:3ffbff50e66c076f1d3a9469b603d07f46290cf9adf766be43d335537fd818ea": [],
-    "sha256:5878eb9d27585e47da616d50aa99d92cfaf31d4b186ba53196368d9b506a8896": [],
-    "sha256:f1e9139034cb2b186eb93c0fe3528798e0c5a5e2ae43a16b680bace6560df8b0": []
+    "sha256:0e07ae9ccb94fb3325a8cabd806a5b3d266af40c5b5af5aac0dab27692a402a1": [],
+    "sha256:3ed8e08122aaa1efaf5da262ce4d96e73280e0759746f88469e3cf385f1a1abc": [],
+    "sha256:9b3a5ab81236002eaa540c1e1ccc6f943d560cc75ee42bd4b40eeb97939b4acb": [],
+    "sha256:fe157d4f387131e21f98211577143fae0fed0349b28380dcd305b15a1371f1ff": []
   }
 }

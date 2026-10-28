@@ -5,6 +5,7 @@
   let { children }: { children: Snippet } = $props();
   const links = [
     { href: "/", label: "Experiments" },
+    { href: "/investigations", label: "Investigations" },
     { href: "/ledger", label: "Ledger" },
     { href: "/events", label: "Events" },
   ];
