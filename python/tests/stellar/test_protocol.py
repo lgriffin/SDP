@@ -34,8 +34,12 @@ GATES = [f"STL-G-0{i}" for i in range(1, 10)]
 @pytest.mark.gate("STL-G-03")
 @pytest.mark.gate("STL-G-04")
 @pytest.mark.gate("STL-G-05")
+@pytest.mark.req("NFR-002")
 def test_a_clean_synthetic_run_passes_every_gate(clean_run: Run) -> None:
     assert clean_run.report is not None and clean_run.report.verdict.status is VerdictStatus.VERIFIED
+    # Every gate passes on the CPU reference alone (NFR-002): no GPU backend or GPU clusterer took part.
+    assert clean_run.manifest["environment"]["backend"] == "cpu"
+    assert clean_run.finding("gpu_results_without_agreement") == 0
     assert {g: clean_run.outcome(g) for g in GATES} == dict.fromkeys(GATES, "pass")
     assert clean_run.finding("recovery_reported_benchmarks") == 2
     assert clean_run.finding("null_false_positive_rate") == 0.0

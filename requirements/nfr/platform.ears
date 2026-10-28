@@ -16,8 +16,10 @@ requirements:
     rationale: "GPU results are never required for a gate (ADR-007)."
     verification: test
     tiers: [T8]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_protocol::test_a_clean_synthetic_run_is_inconclusive_only_for_want_of_verified_oracles"
+      - "python/tests.stellar.test_protocol::test_a_clean_synthetic_run_passes_every_gate"
   - id: NFR-003
     pattern: ubiquitous
     text: "The platform shall verify artifact SHA-256 on every read from the artifact store."
@@ -73,9 +75,12 @@ requirements:
     text: "Nondeterminism that prevents bitwise reproduction shall be documented per TaskKind."
     rationale: "Nondeterminism is documented, not hidden."
     verification: inspection
-    tiers: []
-    status: draft
-    traces: []
+    tiers: [T0]
+    status: approved
+    traces:
+      - "python/tests.architecture.test_determinism_doc::test_every_registered_task_kind_has_a_note_and_is_in_the_determinism_doc"
+      - "python/tests.stellar.test_protocol.TestStellarClusterProtocol::test_nondeterminism_is_documented_for_every_non_bitwise_task_kind"
+      - "python/tests.relativity.test_protocol.TestEinstein1919Protocol::test_nondeterminism_is_documented_for_every_non_bitwise_task_kind"
   - id: NFR-009
     pattern: ubiquitous
     text: "Credentials shall live outside Git, containers shall not run as root, and downloads shall be validated before parsing."
