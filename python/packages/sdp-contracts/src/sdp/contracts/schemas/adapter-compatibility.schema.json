@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/adapter-compatibility.schema.json",
-  "x-version": "1.0.0",
+  "x-version": "1.0.1",
   "title": "AdapterCompatibilityRecord",
   "description": "Four-kind conformance for one adapter and one product type, carried in the manifest's environment group and checked by the harness before any verdict (v0.4.0 \u00a76, ADR-021).",
   "type": "object",
@@ -73,7 +73,65 @@
             "minLength": 1
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "contract"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "operational"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "semantic"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "scientific"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ]
     },
     "passed": {
       "type": "boolean"
@@ -95,5 +153,91 @@
         "$ref": "common.schema.json#/$defs/Sha256Id"
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "passed": {
+            "const": true
+          }
+        },
+        "required": [
+          "passed"
+        ]
+      },
+      "then": {
+        "properties": {
+          "results": {
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "contract"
+                    },
+                    "passed": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "passed"
+                  ]
+                }
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "operational"
+                    },
+                    "passed": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "passed"
+                  ]
+                }
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "semantic"
+                    },
+                    "passed": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "passed"
+                  ]
+                }
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "scientific"
+                    },
+                    "passed": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "passed"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

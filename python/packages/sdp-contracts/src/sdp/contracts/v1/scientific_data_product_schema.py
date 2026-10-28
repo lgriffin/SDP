@@ -162,6 +162,12 @@ class SemanticValidationReport(BaseModel):
     product_id: Annotated[str, Field(min_length=1)]
     validator_id: Annotated[str, Field(min_length=1)]
     validator_version: common_schema.SchemaVersion
+    envelope_digest: Annotated[
+        common_schema.Sha256Id | None,
+        Field(
+            description="The digest of the envelope the checks ran on (1.1.0); a report never validates a changed envelope."
+        ),
+    ] = None
     passed: bool
     checks: list[Check]
 

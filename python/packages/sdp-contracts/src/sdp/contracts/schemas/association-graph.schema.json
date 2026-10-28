@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/association-graph.schema.json",
-  "x-version": "1.0.0",
+  "x-version": "1.0.1",
   "title": "AssociationGraph",
   "description": "Detections, catalogue sources, object hypotheses and every retained association with its posterior (v0.4.0 \u00a74, ADR-019).",
   "type": "object",
@@ -148,8 +148,8 @@
         },
         "rho": {
           "type": "number",
-          "minimum": -1,
-          "maximum": 1
+          "exclusiveMinimum": -1,
+          "exclusiveMaximum": 1
         }
       }
     },
@@ -245,10 +245,14 @@
           "minLength": 1
         },
         "ra_deg": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
         },
         "dec_deg": {
-          "type": "number"
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
         },
         "covariance": {
           "$ref": "#/$defs/Covariance"
@@ -310,10 +314,14 @@
           "minLength": 1
         },
         "ra_deg": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
         },
         "dec_deg": {
-          "type": "number"
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
         },
         "covariance": {
           "$ref": "#/$defs/Covariance"
@@ -447,6 +455,26 @@
           "then": {
             "properties": {
               "ledger_entry_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "rejected"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason": {
                 "type": "string",
                 "minLength": 1
               }

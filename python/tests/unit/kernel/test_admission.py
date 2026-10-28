@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import pytest
 
 from sdp.contracts import validate
-from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, ProductUse
+from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, DialectRef, ProductUse
 from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.integration import (
     AdapterCompatibilityRecord,
@@ -27,7 +27,7 @@ from sdp.testing.wiring import InMemoryKernel, build_in_memory_kernel
 
 pytestmark = pytest.mark.tier("T1")
 
-USE = ProductUse("mast-observations", "image")
+USE = ProductUse("mast-observations", "1.0.0", "image")
 KEY = "sha256:" + "0" * 64
 MAST = SourceRef(SourceKind.ARCHIVE, "mast", "public", "MAST", release_label="mast:jwst")
 
@@ -54,7 +54,7 @@ def _run(k: InMemoryKernel, product: ProductUse | None = USE) -> str:
 def test_no_verdict_without_a_compatibility_record() -> None:
     k = build_in_memory_kernel()
     experiment_id = _run(k)
-    with pytest.raises(IntegrationRefused, match=r"mast-observations for image.*INT-016"):
+    with pytest.raises(IntegrationRefused, match=r"mast-observations 1\.0\.0 for image.*INT-016"):
         k.kernel.validate_experiment.execute(experiment_id)
     manifest = k.kernel.query_evidence.manifest(experiment_id)
     assert manifest is not None and manifest["verdict"] is None
@@ -67,8 +67,9 @@ def test_no_verdict_without_a_compatibility_record() -> None:
         [compatibility(failing=(ConformanceKind.SEMANTIC,))],
         [compatibility(product_type=ProductType.SPECTRUM)],
         [compatibility("gaia-tap")],
+        [compatibility(version="0.9.0")],
     ],
-    ids=["failing-semantic", "other-product-type", "other-adapter"],
+    ids=["failing-semantic", "other-product-type", "other-adapter", "other-version"],
 )
 def test_no_verdict_with_a_failing_or_unrelated_record(records: list[AdapterCompatibilityRecord]) -> None:
     k = build_in_memory_kernel(compatibility=StaticCompatibilityRecords(records))
@@ -87,9 +88,13 @@ def test_an_admitted_adapter_gets_a_verdict_and_its_record_in_the_manifest() -> 
     manifest = k.kernel.query_evidence.manifest(experiment_id)
     assert manifest is not None
     assert validate("evidence-manifest", manifest) == []
-    assert manifest["schema_version"] == "1.3.0"
+    assert manifest["schema_version"] == "1.4.0"
     (series,) = manifest["inputs"]
-    assert (series["adapter"], series["product_type"]) == ("mast-observations", "image")
+    assert (series["adapter"], series["adapter_version"], series["product_type"]) == (
+        "mast-observations",
+        "1.0.0",
+        "image",
+    )
     records = manifest["environment"]["adapter_compatibility"]
     assert [(r["adapter"], r["product_type"], r["passed"]) for r in records] == [("mast-observations", "image", True)]
 
@@ -115,11 +120,33 @@ def test_a_dataset_keeps_its_product_use_and_older_documents_are_unchanged() -> 
     plain = raw.to_document()
     assert plain["schema_version"] == "1.0.0" and "product" not in plain
     with_use = replace(raw, product=USE).to_document()
-    assert with_use["schema_version"] == "1.1.0" and with_use["product"] == {
+    assert with_use["schema_version"] == "1.2.0" and with_use["product"] == {
         "adapter": "mast-observations",
+        "adapter_version": "1.0.0",
         "product_type": "image",
     }
     assert validate("dataset-artifact", with_use) == []
     assert DatasetArtifact.from_document(with_use).product == USE
     with pytest.raises(InvariantViolation, match="not a product type"):
-        ProductUse("mast-observations", "preview")
+        ProductUse("mast-observations", "1.0.0", "preview")
+
+
+@pytest.mark.req("INT-016")
+def test_a_curated_artifact_keeps_the_product_use_of_its_raw_parent() -> None:
+    data = make_series(noise=0.1)
+    store = InMemoryArtifactStore()
+    artifact = store.put(data, "application/json")
+    acquired = AcquisitionRecord("q", KEY, "mast:jwst", datetime(2026, 10, 28, tzinfo=UTC), artifact, len(data))
+    raw = replace(
+        DatasetArtifact.acquired_raw(
+            actual=artifact, media_type="application/json", byte_count=len(data), source_ref=MAST, acquisition=acquired
+        ),
+        product=USE,
+    )
+    curated = raw.curate(
+        curated_id=store.put(b"curated", "text/csv"),
+        byte_count=7,
+        dialect=DialectRef("mast-jwst", "1.0.0"),
+        media_type="text/csv",
+    )
+    assert curated.product == USE

@@ -65,6 +65,7 @@ class ProductUse(BaseModel):
         extra="forbid",
     )
     adapter: Annotated[str, Field(min_length=1)]
+    adapter_version: common_schema.SchemaVersion
     product_type: ProductType
 
 

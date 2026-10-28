@@ -85,6 +85,7 @@
     "product_id": "synthetic:JWST/product/jw00000-o001_t001_nircam_clear-f200w_i2d.fits",
     "validator_id": "fixture-validator",
     "validator_version": "1.0.0",
+    "envelope_digest": "sha256:94d1869ce0b16383ec6f327b6c92229c0f647cea95b1ff018426417745cd2f34",
     "passed": true,
     "checks": [
       {

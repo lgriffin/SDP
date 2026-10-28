@@ -3,6 +3,7 @@ and adapter compatibility, each invariant of v0.4.0 §9 with a test named after 
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from datetime import date
 
@@ -18,6 +19,7 @@ from sdp.kernel.domain.integration import (
     MatchStatus,
     Operation,
     PlanItem,
+    ProductMetadata,
     ProductType,
     ScientificDataProduct,
     SemanticCheck,
@@ -37,6 +39,7 @@ from sdp.testing.integration import (
     gaia_descriptor,
     image_metadata,
     image_requirement,
+    ledger_approval,
     mast_descriptor,
     registry_descriptors,
     sample_plan,
@@ -47,9 +50,10 @@ pytestmark = pytest.mark.tier("T1")
 REGION = SYNTHETIC_FIELD.query_region()
 
 
-def report(passed: bool = True) -> SemanticValidationReport:
+def report(passed: bool = True, metadata: ProductMetadata | None = None) -> SemanticValidationReport:
+    meta = metadata or image_metadata()
     return SemanticValidationReport(
-        image_metadata().product_id, "fixture-validator", "1.0.0", (SemanticCheck("frame", passed, "ICRS"),)
+        meta.product_id, "fixture-validator", "1.0.0", (SemanticCheck("frame", passed, "ICRS"),), meta.digest()
     )
 
 
@@ -106,6 +110,38 @@ def test_matches_order_satisfied_first_then_by_source() -> None:
     assert [m.source_id for m in ms] == ["synthetic-mast", "synthetic-dasch", "synthetic-gaia"]
 
 
+@pytest.mark.req("INT-003")
+@pytest.mark.parametrize(("em_min_m", "em_max_m"), [(1e-3, None), (None, 1e-9)], ids=["lower-only", "upper-only"])
+def test_a_one_sided_band_is_still_matched(em_min_m: float | None, em_max_m: float | None) -> None:
+    infrared = replace(mast_descriptor(), coverage=replace(mast_descriptor().coverage, em_min_m=6e-7, em_max_m=2.8e-5))
+    need = replace(image_requirement(), em_min_m=em_min_m, em_max_m=em_max_m)
+    m = match_requirement(infrared, REGION, need)
+    assert m.status is MatchStatus.UNSATISFIED
+    assert any(r.field == "coverage.spectral" and r.outcome is MatchStatus.UNSATISFIED for r in m.reasons)
+
+
+@pytest.mark.req("INT-003")
+def test_a_calibration_level_the_source_does_not_publish_is_partial() -> None:
+    unpublished = replace(mast_descriptor(), calibration_levels=frozenset())
+    m = match_requirement(unpublished, REGION, image_requirement())
+    assert m.status is MatchStatus.PARTIAL
+    raw_only = replace(mast_descriptor(), calibration_levels=frozenset({1}))
+    assert match_requirement(raw_only, REGION, image_requirement()).status is MatchStatus.UNSATISFIED
+
+
+@pytest.mark.req("INT-004")
+def test_a_cutout_needs_cutout_support_for_the_product_type() -> None:
+    need = replace(image_requirement(), operations=frozenset({Operation.CUTOUT}))
+    cutting = replace(mast_descriptor(), operations=mast_descriptor().operations | {Operation.CUTOUT})
+    assert match_requirement(cutting, REGION, need).status is MatchStatus.SATISFIED
+    none = replace(cutting, cutout_support={"image": "none"})
+    m = match_requirement(none, REGION, need)
+    assert m.status is MatchStatus.UNSATISFIED
+    assert any(r.field == "cutout_support" and r.outcome is MatchStatus.UNSATISFIED for r in m.reasons)
+    unknown = replace(cutting, cutout_support={})
+    assert match_requirement(unknown, REGION, need).status is MatchStatus.PARTIAL
+
+
 @pytest.mark.req("INT-004")
 def test_cutout_support_is_recorded_per_product_type_never_globally() -> None:
     d = mast_descriptor()
@@ -158,9 +194,19 @@ def test_a_curated_product_needs_its_raw_parent_and_a_passing_semantic_report() 
 @pytest.mark.req("INT-008")
 def test_a_preview_is_never_curated_as_science() -> None:
     preview = ScientificDataProduct(SHA, image_metadata(product_type=ProductType.PREVIEW))
-    rep = replace(report(True), product_id=preview.metadata.product_id)
     with pytest.raises(CurationBlocked, match="never curated as science"):
-        preview.validated(rep).curate("sha256:" + "ef" * 32)
+        preview.validated(report(True, preview.metadata)).curate("sha256:" + "ef" * 32)
+
+
+@pytest.mark.req("INT-007")
+def test_a_report_validates_only_the_product_and_envelope_it_checked() -> None:
+    p = ScientificDataProduct(SHA, image_metadata())
+    other = replace(image_metadata(), product_id="synthetic:JWST/product/other_i2d.fits")
+    with pytest.raises(InvariantViolation, match="product it names"):
+        ScientificDataProduct(SHA, image_metadata(), report(True, other), "sha256:" + "ef" * 32)
+    curated = p.validated(report(True)).curate("sha256:" + "ef" * 32)
+    with pytest.raises(InvariantViolation, match="changed one"):
+        replace(curated, metadata=replace(image_metadata(), has_wcs=False))
 
 
 # --- plans ------------------------------------------------------------------------------------
@@ -199,8 +245,34 @@ def test_a_plan_above_the_threshold_needs_a_signed_ledger_approval() -> None:
     assert big.requires_signed_approval
     with pytest.raises(IntegrationRefused, match="signed ledger approval"):
         big.decide(actor="leigh")
-    approved = big.decide(actor="leigh", ledger_entry_id="ledger-42")
+    approved = big.decide(actor="leigh", ledger_entry=ledger_approval(big))
     assert approved.approval is not None and approved.approval.decision is ApprovalDecision.APPROVED
+    assert approved.approval.ledger_entry_id == "ledger-42"
+
+
+@pytest.mark.req("INT-014")
+def test_a_ledger_entry_approves_only_the_plan_it_names_signed_by_the_actor() -> None:
+    big = sample_plan(image_bytes=50_000_000)
+    other = sample_plan(image_bytes=60_000_000)
+    with pytest.raises(IntegrationRefused, match="does not approve"):
+        big.decide(actor="leigh", ledger_entry=ledger_approval(other))
+    with pytest.raises(IntegrationRefused, match="does not approve"):
+        big.decide(actor="leigh", ledger_entry=ledger_approval(big, kind="predeclaration"))
+    with pytest.raises(IntegrationRefused, match="another actor"):
+        big.decide(actor="leigh", ledger_entry=ledger_approval(big, signer="mallory"))
+
+
+@pytest.mark.req("INT-014")
+def test_an_automatic_approval_cannot_be_attached_to_a_plan_above_the_threshold() -> None:
+    small = sample_plan(image_bytes=1_000).decide(actor="kernel")
+    big = sample_plan(image_bytes=50_000_000)
+    assert small.approval is not None
+    auto = replace(small.approval, plan_id=big.plan_id)
+    with pytest.raises(IntegrationRefused, match="signed ledger entry"):
+        replace(big, approval=auto)
+    lowered = replace(auto, threshold_bytes=100_000_000)
+    with pytest.raises(IntegrationRefused, match="approval threshold"):
+        replace(big, approval=lowered)
 
 
 @pytest.mark.req("INT-015")
@@ -223,6 +295,47 @@ def test_a_plan_cannot_exceed_its_byte_budget() -> None:
         sample_plan(image_bytes=2_000_000_000, threshold=1_000)
 
 
+@pytest.mark.parametrize(
+    ("cost", "match"),
+    [
+        ({"requests_per_source": {"synthetic-mast": 10_000}}, "requests per source"),
+        ({"estimated_wall_seconds": 1e9}, "wall-time"),
+        ({"estimated_wall_seconds": math.inf}, "wall-time"),
+        ({"nas_headroom_after_bytes": 10}, "NAS headroom"),
+    ],
+    ids=["requests", "wall-time", "infinite-wall-time", "headroom"],
+)
+def test_a_plan_cannot_exceed_any_budget_limit(cost: dict[str, object], match: str) -> None:
+    plan = sample_plan()
+    strict = replace(plan.budget, min_nas_headroom_bytes=1_000)
+    with pytest.raises(IntegrationRefused, match=match):
+        replace(plan, budget=strict, cost=replace(plan.cost, **cost))  # type: ignore[arg-type]
+
+
+def test_unknown_nas_headroom_is_left_to_the_acquisition_check() -> None:
+    plan = sample_plan()
+    assert replace(plan, cost=replace(plan.cost, nas_headroom_after_bytes=None)).cost.nas_headroom_after_bytes is None
+
+
+def test_a_plan_item_meets_its_requirement_calibration_level() -> None:
+    plan = sample_plan()
+    low = replace(plan.items[0], calibration_level=1)
+    with pytest.raises(IntegrationRefused, match="calibration level 1"):
+        replace(plan, items=(low, *plan.items[1:]))
+
+
+@pytest.mark.req("INT-015")
+def test_changing_what_a_plan_hashes_after_approval_cannot_keep_the_approval() -> None:
+    field = dict(sample_plan().field)
+    approved = replace(sample_plan(), field=field).decide(actor="kernel")
+    plan_id = approved.plan_id
+    field["changed"] = True
+    assert approved.plan_id == plan_id, "the plan keeps its own copy of what it hashes"
+    item = approved.items[0]
+    with pytest.raises(InvariantViolation, match="names"):
+        replace(approved, constraints={"extra": 1}).authorise(item.source_id, item.operation, item.target)
+
+
 # --- compatibility ----------------------------------------------------------------------------
 
 
@@ -230,13 +343,15 @@ def test_a_plan_cannot_exceed_its_byte_budget() -> None:
 def test_a_verdict_needs_a_passing_compatibility_record_for_every_adapter_and_product_type_used() -> None:
     good = compatibility()
     assert good.passed
-    require_admitted([good], [("mast-observations", ProductType.IMAGE)])
-    with pytest.raises(IntegrationRefused, match="mast-observations for spectrum"):
-        require_admitted([good], [("mast-observations", ProductType.SPECTRUM)])
+    require_admitted([good], [("mast-observations", "1.0.0", ProductType.IMAGE)])
+    with pytest.raises(IntegrationRefused, match=r"mast-observations 1\.0\.0 for spectrum"):
+        require_admitted([good], [("mast-observations", "1.0.0", ProductType.SPECTRUM)])
+    with pytest.raises(IntegrationRefused, match=r"mast-observations 1\.1\.0 for image"):
+        require_admitted([good], [("mast-observations", "1.1.0", ProductType.IMAGE)])
     bad = compatibility(failing=(ConformanceKind.SEMANTIC,))
     assert bad.missing() == (ConformanceKind.SEMANTIC,)
     with pytest.raises(IntegrationRefused, match="INT-016"):
-        require_admitted([bad], [("mast-observations", ProductType.IMAGE)])
+        require_admitted([bad], [("mast-observations", "1.0.0", ProductType.IMAGE)])
 
 
 def test_plan_items_are_value_objects() -> None:

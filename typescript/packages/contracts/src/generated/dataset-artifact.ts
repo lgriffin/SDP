@@ -1,10 +1,10 @@
 // Generated from contracts/schemas/dataset-artifact.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
-import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 import * as common from "./common.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/dataset-artifact.schema.json";
-export const SCHEMA_VERSION = "1.1.0";
+export const SCHEMA_VERSION = "1.2.0";
 
 export const AcquisitionPart = z.object({
     "part": z.number().int().gte(0),
@@ -33,6 +33,7 @@ export type DialectRef = z.infer<typeof DialectRef>;
 
 export const ProductUse = z.object({
     "adapter": z.string().min(1),
+    "adapter_version": common.SchemaVersion,
     "product_type": z.enum(["image","spectrum","cube","timeseries","measurements","catalogue"]),
   }).strict();
 export type ProductUse = z.infer<typeof ProductUse>;
@@ -54,4 +55,4 @@ export const DatasetArtifact = z.object({
   }).strict();
 export type DatasetArtifact = z.infer<typeof DatasetArtifact>;
 // silence unused-import checks in files without refinements
-void also; void ifObject; void requireKeys; void uniqueItems; void when;
+void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;

@@ -1,10 +1,10 @@
 // Generated from contracts/schemas/scientific-data-product.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
-import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 import * as common from "./common.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/scientific-data-product.schema.json";
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.1.0";
 
 export const ProductMetadata = z.object({
     "product_id": z.string().min(1),
@@ -69,6 +69,7 @@ export const SemanticValidationReport = z.object({
     "product_id": z.string().min(1),
     "validator_id": z.string().min(1),
     "validator_version": common.SchemaVersion,
+    "envelope_digest": common.Sha256Id.optional(),
     "passed": z.boolean(),
     "checks": z.array(z.object({
       "field": z.string().min(1),
@@ -85,7 +86,17 @@ export const ScientificDataProduct = z.object({
     "curated_artifact_id": common.Sha256Id.nullable(),
     "metadata": ProductMetadata,
     "validation": SemanticValidationReport.nullable(),
-  }).strict();
+  }).strict()
+  .superRefine(when(z.unknown().superRefine(ifObject(z.object({
+      "curated_artifact_id": z.string(),
+    }).passthrough())), z.unknown().superRefine(ifObject(z.object({
+      "metadata": z.unknown().superRefine(ifObject(z.object({
+        "product_type": z.enum(["image","spectrum","cube","timeseries","measurements","catalogue"]).optional(),
+      }).passthrough())).optional(),
+      "validation": z.object({
+        "passed": z.literal(true),
+      }).passthrough().superRefine(requireKeys(["envelope_digest"])).optional(),
+    }).passthrough()))));
 export type ScientificDataProduct = z.infer<typeof ScientificDataProduct>;
 // silence unused-import checks in files without refinements
-void also; void ifObject; void requireKeys; void uniqueItems; void when;
+void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;

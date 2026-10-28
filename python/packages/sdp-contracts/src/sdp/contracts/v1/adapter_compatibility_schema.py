@@ -33,6 +33,10 @@ class Result(BaseModel):
     ci_run_id: Annotated[str, Field(min_length=1)]
 
 
+class Results(BaseModel):
+    pass
+
+
 class LiveSmokeOn(RootModel[str]):
     root: Annotated[str, Field(pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}$")]
 
@@ -50,7 +54,7 @@ class AdapterCompatibilityRecord(BaseModel):
     adapter_version: common_schema.SchemaVersion
     product_type: ProductType
     upstream_versions: dict[str, str]
-    results: list[Result]
+    results: list[Result] | Results
     passed: bool
     live_smoke_on: LiveSmokeOn | None
     fixture_digests: list[common_schema.Sha256Id]

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/capability-descriptor.schema.json",
-  "x-version": "1.0.0",
+  "x-version": "1.1.0",
   "title": "SourceCapabilityDescriptor",
   "description": "What a source can do, read from RegTAP, VOSI and ObsCore where published, or hand-written for a native service (v0.4.0 \u00a72, ADR-017).",
   "type": "object",
@@ -125,6 +125,16 @@
         "minLength": 1
       }
     },
+    "calibration_levels": {
+      "description": "ObsCore calib_level values the source serves (1.1.0); empty when it does not publish them, which makes a calibration requirement partial.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 4
+      },
+      "uniqueItems": true
+    },
     "coverage": {
       "type": "object",
       "additionalProperties": false,
@@ -170,7 +180,8 @@
               },
               "radius_deg": {
                 "type": "number",
-                "exclusiveMaximum": 10
+                "exclusiveMinimum": 0,
+                "maximum": 10
               }
             }
           }

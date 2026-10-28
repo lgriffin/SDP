@@ -30,7 +30,8 @@ from sdp.kernel.ports.integration import ProductRows
 MAST_API = "https://mast.stsci.edu/api/v0/invoke"
 MAX_RESPONSE_BYTES = 64 * 1024**2
 
-#: The ObsCore columns the envelope reads (ObsCore 1.1 names, as MAST's CAOM view serves them).
+#: The ObsCore columns the envelope reads (ObsCore 1.1 names, as MAST's CAOM view serves them; it has no
+#: ``data_rights``, so rights come from the inventory's ``dataRights``).
 OBSCORE_COLUMNS = (
     "obs_id",
     "obs_collection",
@@ -47,7 +48,6 @@ OBSCORE_COLUMNS = (
     "t_max",
     "em_min",
     "em_max",
-    "data_rights",
     "access_url",
     "access_format",
     "access_estsize",
@@ -94,6 +94,7 @@ class MastProductInventory:
     service_url: str = MAST_OBSCORE
     api_url: str = MAST_API
     page_size: int = 2000
+    max_pages: int = 50
 
     def obscore_request(self, product: ProductRef) -> HttpRequest:
         adql = (
@@ -114,14 +115,14 @@ class MastProductInventory:
             },
         )
 
-    def products_request(self, obsid: str) -> HttpRequest:
+    def products_request(self, obsid: str, page: int = 1) -> HttpRequest:
         return _invoke(
             self.api_url,
             {
                 "service": "Mast.Caom.Products",
                 "format": "json",
                 "pagesize": self.page_size,
-                "page": 1,
+                "page": page,
                 "params": {"obsid": obsid},
             },
         )
@@ -135,18 +136,23 @@ class MastProductInventory:
         wanted = file_name(product.uri)
         rendered = [self.obscore_request(product), self.observation_request(product.product_id)]
         for obsid in obsids:
-            request = self.products_request(obsid)
-            rendered.append(request)
-            for row in _rows(self.transport, request, "MAST product inventory"):
-                if str(row.get("productFilename") or "") == wanted or (
-                    row.get("dataURI") and file_name(str(row["dataURI"])) == wanted
-                ):
-                    return ProductRows(
-                        inventory_row=row,
-                        obscore_row=obscore[0] if obscore else {},
-                        links=(),
-                        rendered_query=render(rendered),
-                    )
+            # Page until the file is found or a short page says the inventory has run out.
+            for page in range(1, self.max_pages + 1):
+                request = self.products_request(obsid, page)
+                rendered.append(request)
+                page_rows = _rows(self.transport, request, "MAST product inventory")
+                for row in page_rows:
+                    if str(row.get("productFilename") or "") == wanted or (
+                        row.get("dataURI") and file_name(str(row["dataURI"])) == wanted
+                    ):
+                        return ProductRows(
+                            inventory_row=row,
+                            obscore_row=obscore[0] if obscore else {},
+                            links=(),
+                            rendered_query=render(rendered),
+                        )
+                if len(page_rows) < self.page_size:
+                    break
         raise InventoryMissing(f"MAST lists no product named {wanted} in observation {product.product_id}")
 
 

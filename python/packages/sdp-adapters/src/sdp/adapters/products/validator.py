@@ -194,4 +194,6 @@ class EnvelopeValidator:
             check("uncertainty", True, "present" if metadata.has_uncertainty else "absent, recorded as absent")
 
     def _report(self, metadata: ProductMetadata, checks: list[SemanticCheck]) -> SemanticValidationReport:
-        return SemanticValidationReport(metadata.product_id, self.validator_id, self.validator_version, tuple(checks))
+        return SemanticValidationReport(
+            metadata.product_id, self.validator_id, self.validator_version, tuple(checks), metadata.digest()
+        )

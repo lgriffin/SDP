@@ -46,6 +46,10 @@ class Instrument(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
 
+class CalibrationLevel(RootModel[int]):
+    root: Annotated[int, Field(ge=0, le=4)]
+
+
 class Region(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -53,7 +57,7 @@ class Region(BaseModel):
     shape: Literal["cone"]
     ra_deg: Annotated[float, Field(ge=0.0, lt=360.0)]
     dec_deg: Annotated[float, Field(ge=-90.0, le=90.0)]
-    radius_deg: Annotated[float, Field(lt=10.0)]
+    radius_deg: Annotated[float, Field(gt=0.0, le=10.0)]
 
 
 class Coverage(BaseModel):
@@ -146,6 +150,12 @@ class SourceCapabilityDescriptor(BaseModel):
     product_types: list[ProductType]
     missions: list[Mission]
     instruments: list[Instrument]
+    calibration_levels: Annotated[
+        list[CalibrationLevel] | None,
+        Field(
+            description="ObsCore calib_level values the source serves (1.1.0); empty when it does not publish them, which makes a calibration requirement partial."
+        ),
+    ] = None
     coverage: Coverage
     operations: list[Operation]
     cutout_support: dict[str, CutoutSupport]

@@ -8,7 +8,7 @@ real envelopes come from recorded products (never hand-written archive responses
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.association import (
@@ -43,6 +43,7 @@ from sdp.kernel.domain.integration import (
     match_requirement,
 )
 from sdp.kernel.domain.investigation import Field
+from sdp.kernel.ports.ledger import LedgerEntry
 
 VERIFIED = date(2026, 10, 28)
 SYNTHETIC_FIELD = Field(Cone(53.16, -27.78, 0.05), epoch_jyear=2023.0, label="synthetic-deep-field")
@@ -67,6 +68,7 @@ def mast_descriptor(*, admitted: bool = True) -> SourceCapabilityDescriptor:
         product_types=frozenset(types),
         missions=("JWST", "HST", "TESS"),
         instruments=("NIRCAM", "NIRSPEC", "MIRI", "WFC3"),
+        calibration_levels=frozenset({1, 2, 3}),
         coverage=Coverage(all_sky=True),
         operations=frozenset({Operation.CONE, Operation.CRITERIA, Operation.PRODUCT_LISTING, Operation.DOWNLOAD}),
         cutout_support={"image": "per-product"},
@@ -233,15 +235,32 @@ def sample_plan(*, image_bytes: int = 5_000_000, threshold: int = 10_000_000) ->
     )
 
 
+def ledger_approval(plan: AcquisitionPlan, signer: str = "leigh", kind: str = "approval") -> LedgerEntry:
+    """A plan approval as the ledger returns it once verified: its subject is the plan id."""
+    return LedgerEntry(
+        entry_id="ledger-42",
+        sequence=7,
+        kind=kind,  # type: ignore[arg-type]
+        subject_id="plan",
+        subject_hash=plan.plan_id,
+        recorded_at=datetime(2026, 10, 28, tzinfo=UTC),
+        signer=signer,
+        signature_method="ssh",
+        signature="fixture",
+        previous_entry_hash=None,
+    )
+
+
 def compatibility(
     adapter: str = "mast-observations",
     *,
     product_type: ProductType = ProductType.IMAGE,
     failing: tuple[ConformanceKind, ...] = (),
+    version: str = "1.0.0",
 ) -> AdapterCompatibilityRecord:
     return AdapterCompatibilityRecord(
         adapter=adapter,
-        adapter_version="1.0.0",
+        adapter_version=version,
         product_type=product_type,
         results=tuple(ConformanceResult(k, k not in failing, "ci-run-0") for k in ConformanceKind),
         upstream_versions={"astropy": "7.0.0"},

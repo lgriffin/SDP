@@ -2,7 +2,7 @@
 //
 // Covers the JSON Schema subset the contracts use: type (incl. type arrays), properties, required,
 // additionalProperties, enum, const, pattern, minLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum,
-// items, minItems, maxItems, uniqueItems, oneOf, anyOf, allOf, if/then and $ref (local, to
+// items, minItems, maxItems, uniqueItems, contains, minContains, maxContains, oneOf, anyOf, allOf, if/then and $ref (local, to
 // another schema file, or to another file's $defs). Anything else fails generation loudly.
 
 import fs from "node:fs";
@@ -16,7 +16,8 @@ const outDir = process.env.SDP_ZOD_OUT ? path.resolve(process.env.SDP_ZOD_OUT) :
 const KNOWN = new Set([
   "$schema", "$id", "$ref", "x-version", "x-unit", "title", "description", "$defs", "type", "properties", "required",
   "additionalProperties", "enum", "const", "pattern", "minLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
-  "items", "minItems", "maxItems", "uniqueItems", "oneOf", "anyOf", "allOf", "if", "then", "format",
+  "items", "minItems", "maxItems", "uniqueItems", "contains", "minContains", "maxContains", "oneOf", "anyOf", "allOf", "if", "then",
+  "format",
 ]);
 
 const pascal = (s) => s.replace(/(^|[-_ ])(\w)/g, (_, __, c) => c.toUpperCase());
@@ -85,6 +86,9 @@ class FileGen {
     if (s.type && (s.oneOf || s.anyOf)) base += `.and(${this.union(s.oneOf ?? s.anyOf, owner, depth)})`;
     if (s.required && !s.properties) {
       base += `.superRefine(requireKeys(${JSON.stringify(s.required)}))`;
+    }
+    if (s.contains) {
+      base += `.superRefine(contains(${this.expr(s.contains, owner, depth)}, ${s.minContains ?? 1}, ${s.maxContains ?? "Infinity"}))`;
     }
     return base + this.trailers(s, owner, depth);
   }
@@ -192,7 +196,7 @@ class FileGen {
     const out = [
       `// Generated from contracts/schemas/${this.file} by scripts/generate-zod.mjs. Do not edit.`,
       `import { z } from "zod";`,
-      `import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";`,
+      `import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";`,
     ];
     for (const dep of [...this.imports].sort()) out.push(`import * as ${ident(dep)} from "./${moduleName(dep)}.ts";`);
     out.push("");
@@ -212,7 +216,7 @@ class FileGen {
       out.push(`export type ${name} = z.infer<typeof ${name}>;`);
     }
     out.push("// silence unused-import checks in files without refinements");
-    out.push("void also; void ifObject; void requireKeys; void uniqueItems; void when;");
+    out.push("void also; void contains; void ifObject; void requireKeys; void uniqueItems; void when;");
     return out.join("\n") + "\n";
   }
 }

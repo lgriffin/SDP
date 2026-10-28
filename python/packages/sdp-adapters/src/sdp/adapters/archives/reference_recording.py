@@ -77,6 +77,12 @@ def ivoid_request(access_url: str, regtap_url: str = REGTAP) -> HttpRequest:
     return sync_request(regtap_url, adql, 10)
 
 
+def mast_source(ivoid: str) -> VoSource:
+    """MAST as a VO source. Its ObsCore view has no ``data_rights`` column, and a scan of every
+    collection times out (HTTP 504, checked live 2026-10-28), so only JWST is scanned."""
+    return VoSource("mast", ivoid, MAST_OBSCORE, Rights(LICENCE, CITATION), collections=("JWST",), rights_column=None)
+
+
 def describe_mast(transport: Transport, out: Path, today: Callable[[], date] | None = None) -> dict[str, Any]:
     """Find MAST's ObsCore service in the registry by its URL, read its descriptor, and save it."""
     ivoids = sorted(
@@ -84,7 +90,7 @@ def describe_mast(transport: Transport, out: Path, today: Callable[[], date] | N
     )
     if not ivoids:
         raise LookupError(f"the registry lists no service at {MAST_OBSCORE}")
-    source = VoSource("mast", ivoids[0], MAST_OBSCORE, Rights(LICENCE, CITATION))
+    source = mast_source(ivoids[0])
     discovery = VoCapabilityDiscovery(transport, _Unregistered(), {"mast": source})
     if today is not None:
         discovery.today = today
@@ -107,12 +113,35 @@ def access_url_for(transport: Transport, obs_id: str, filename: str) -> str:
     )
 
 
-def record_product(transport: Transport, obs_id: str, filename: str, out: Path) -> Recorded:
-    """Fetch the product and its rows exactly as Retrieve would, and lay them out for review."""
+#: The recording is committed with its cassette, so each copy must stay well under GitHub's 100 MB file limit.
+MAX_PRODUCT_BYTES = 35 * 1024**2
+
+
+class ProductTooLarge(ValueError):
+    """The product is too large to commit as a reference product."""
+
+
+def _check_size(filename: str, size: int, limit: int) -> None:
+    if size > limit:
+        raise ProductTooLarge(
+            f"{filename} is {size} bytes, over the {limit}-byte limit for a committed reference product; "
+            "choose a smaller product (a MIRI image, or a level 2 file)"
+        )
+
+
+def record_product(
+    transport: Transport, obs_id: str, filename: str, out: Path, max_bytes: int = MAX_PRODUCT_BYTES
+) -> Recorded:
+    """Fetch the product and its rows exactly as Retrieve would, and lay them out for review. A product
+    whose inventory size or fetched bytes exceed ``max_bytes`` is refused before anything is written."""
     url = access_url_for(transport, obs_id, filename)
     ref = ProductRef("mast", obs_id, url)
-    fetched = MastObservationGateway(transport).fetch(ref)
     rows = MastProductInventory(transport).rows(ref)
+    listed = rows.inventory_row.get("size")
+    if isinstance(listed, int | float) and not isinstance(listed, bool):
+        _check_size(filename, int(listed), max_bytes)
+    fetched = MastObservationGateway(transport).fetch(ref)
+    _check_size(filename, len(fetched.data), max_bytes)
     out.mkdir(parents=True, exist_ok=True)
     (out / filename).write_bytes(fetched.data)
     inventory = {**rows.inventory_row, "productFilename": filename, "rendered_query": rows.rendered_query}

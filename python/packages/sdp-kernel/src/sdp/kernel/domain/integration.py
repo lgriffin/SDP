@@ -16,13 +16,15 @@ The association invariant (no ``accepted`` without a ledger entry, INT-011) live
 
 from __future__ import annotations
 
+import copy
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from datetime import date
 from enum import StrEnum
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Protocol
 
 from sdp.kernel.domain.archive import Box, Cone
 from sdp.kernel.domain.canonical import hash_document
@@ -263,6 +265,8 @@ class SourceCapabilityDescriptor:
     product_types: frozenset[ProductType] = frozenset()
     missions: tuple[str, ...] = ()
     instruments: tuple[str, ...] = ()
+    calibration_levels: frozenset[int] = frozenset()
+    """ObsCore ``calib_level`` values the source serves; empty when it does not publish them."""
     coverage: Coverage = dataclass_field(default_factory=Coverage)
     operations: frozenset[Operation] = frozenset()
     cutout_support: Mapping[str, str] = dataclass_field(default_factory=dict)
@@ -281,6 +285,8 @@ class SourceCapabilityDescriptor:
             raise InvariantViolation("a descriptor read from the registry carries its ivoid")
         for key in self.cutout_support:
             ProductType(key)
+        if any(not 0 <= level <= 4 for level in self.calibration_levels):
+            raise InvariantViolation("calibration level is ObsCore 0 to 4")
 
     def claims(self, product_type: ProductType) -> bool:
         return product_type in self.product_types
@@ -313,6 +319,7 @@ class SourceCapabilityDescriptor:
             "product_types": sorted(t.value for t in self.product_types),
             "missions": list(self.missions),
             "instruments": list(self.instruments),
+            "calibration_levels": sorted(self.calibration_levels),
             "coverage": self.coverage.to_document(),
             "operations": sorted(o.value for o in self.operations),
             "cutout_support": dict(sorted(self.cutout_support.items())),
@@ -340,6 +347,7 @@ class SourceCapabilityDescriptor:
             product_types=frozenset(ProductType(t) for t in doc.get("product_types", ())),
             missions=tuple(doc.get("missions", ())),
             instruments=tuple(doc.get("instruments", ())),
+            calibration_levels=frozenset(int(level) for level in doc.get("calibration_levels", ())),
             coverage=Coverage(
                 all_sky=cov.get("all_sky"),
                 regions=tuple(Cone(r["ra_deg"], r["dec_deg"], r["radius_deg"]) for r in cov.get("regions", ())),
@@ -529,14 +537,26 @@ def match_requirement(
             "epoch range outside published time coverage",
             "time coverage unknown",
         )
-    if need.em_min_m is not None and need.em_max_m is not None:
+    if need.em_min_m is not None or need.em_max_m is not None:
+        lo = need.em_min_m if need.em_min_m is not None else -math.inf
+        hi = need.em_max_m if need.em_max_m is not None else math.inf
         cov = (descriptor.coverage.em_min_m, descriptor.coverage.em_max_m)
         add(
             "coverage.spectral",
-            _overlaps((need.em_min_m, need.em_max_m), cov),
+            _overlaps((lo, hi), cov),
             "band overlaps",
             "band outside published spectral coverage",
             "spectral coverage unknown",
+        )
+
+    if need.min_calibration_level is not None:
+        levels = sorted(descriptor.calibration_levels)
+        add(
+            "calibration_level",
+            levels[-1] >= need.min_calibration_level if levels else None,
+            f"serves calibration level {levels[-1] if levels else ''}",
+            f"needs calibration level {need.min_calibration_level}; serves at most {levels[-1] if levels else ''}",
+            "calibration levels not published",
         )
 
     ops = set(need.operations)
@@ -544,6 +564,16 @@ def match_requirement(
         ops.add(Operation.DOWNLOAD)
     missing = sorted(o.value for o in ops - set(descriptor.operations))
     add("operations", not missing, "supports every operation needed", f"lacks {', '.join(missing)}")
+    if Operation.CUTOUT in ops and common:
+        support = {t: descriptor.cutout_support.get(t) for t in common}
+        cutting = sorted(t for t, how in support.items() if how not in (None, "none"))
+        add(
+            "cutout_support",
+            True if cutting else None if None in support.values() else False,
+            f"cutouts for {', '.join(cutting)}",
+            f"no cutouts for {', '.join(common)}",
+            f"cutout support not published for {', '.join(t for t, how in support.items() if how is None)}",
+        )
 
     if need.public_only:
         add(
@@ -676,6 +706,10 @@ class ProductMetadata:
     def progenitors(self) -> tuple[str, ...]:
         return tuple(r.product_id for r in self.relationships if r.semantics is RelationshipSemantics.PROGENITOR)
 
+    def digest(self) -> str:
+        """The hash of the canonical envelope; a semantic report records it (v0.4.0 §3)."""
+        return hash_document(self.to_document())
+
     def to_document(self) -> dict[str, Any]:
         return {
             "product_id": self.product_id,
@@ -731,9 +765,13 @@ class SemanticValidationReport:
     validator_id: str
     validator_version: str
     checks: tuple[SemanticCheck, ...]
+    envelope_digest: str
+    """The digest of the envelope these checks ran on, so a report never validates a changed one."""
 
     def __post_init__(self) -> None:
         check_semver(self.validator_version)
+        if not self.envelope_digest:
+            raise InvariantViolation("a semantic report names the envelope it checked")
 
     @property
     def passed(self) -> bool:
@@ -747,6 +785,7 @@ class SemanticValidationReport:
             "product_id": self.product_id,
             "validator_id": self.validator_id,
             "validator_version": self.validator_version,
+            "envelope_digest": self.envelope_digest,
             "passed": self.passed,
             "checks": [c.to_document() for c in self.checks],
         }
@@ -770,6 +809,8 @@ class ScientificDataProduct:
             raise InvariantViolation("a product keeps its raw artifact (INT-005)")
         if self.metadata.checksum != self.raw_artifact_id:
             raise InvariantViolation("the envelope checksum is the SHA-256 of the raw bytes actually read")
+        if self.report is not None:
+            _require_report_for(self.metadata, self.report)
         if self.curated_artifact_id is not None:
             _require_curatable(self.metadata, self.report)
 
@@ -778,8 +819,6 @@ class ScientificDataProduct:
         return self.metadata.product_type
 
     def validated(self, report: SemanticValidationReport) -> ScientificDataProduct:
-        if report.product_id != self.metadata.product_id:
-            raise InvariantViolation("a semantic report validates the product it names")
         return replace(self, report=report)
 
     def curate(self, curated_artifact_id: str) -> ScientificDataProduct:
@@ -793,6 +832,13 @@ class ScientificDataProduct:
             "metadata": self.metadata.to_document(),
             "validation": self.report.to_document() if self.report else None,
         }
+
+
+def _require_report_for(metadata: ProductMetadata, report: SemanticValidationReport) -> None:
+    if report.product_id != metadata.product_id:
+        raise InvariantViolation("a semantic report validates the product it names")
+    if report.envelope_digest != metadata.digest():
+        raise InvariantViolation("a semantic report validates the envelope it checked, not a changed one")
 
 
 def _require_curatable(metadata: ProductMetadata, report: SemanticValidationReport | None) -> None:
@@ -1017,6 +1063,11 @@ class PlanCost:
     requests_per_source: Mapping[str, int]
     estimated_wall_seconds: float
     nas_headroom_after_bytes: int | None
+    """None when the store cannot report headroom; DSI-010 still refuses at acquisition time."""
+
+    def __post_init__(self) -> None:
+        # The plan id hashes this mapping, so it is copied and frozen rather than kept by reference.
+        object.__setattr__(self, "requests_per_source", MappingProxyType(dict(self.requests_per_source)))
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -1031,6 +1082,24 @@ class ApprovalDecision(StrEnum):
     AUTO_APPROVED = "auto_approved"
     APPROVED = "approved"
     REFUSED = "refused"
+
+
+class SignedApproval(Protocol):
+    """What :meth:`AcquisitionPlan.decide` reads from the ledger entry that approves a plan; the
+    ledger's ``LedgerEntry`` has this shape. The caller fetches it from the ledger, which verifies
+    the signature and the chain; the plan checks it is an approval of this plan by this actor."""
+
+    @property
+    def entry_id(self) -> str: ...
+
+    @property
+    def kind(self) -> str: ...
+
+    @property
+    def subject_hash(self) -> str: ...
+
+    @property
+    def signer(self) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -1089,19 +1158,54 @@ class AcquisitionPlan:
 
     def __post_init__(self) -> None:
         check_semver(self.planner_version)
+        # The plan id hashes these, so they are copied rather than kept by reference.
+        object.__setattr__(self, "field", MappingProxyType(copy.deepcopy(dict(self.field))))
+        object.__setattr__(self, "constraints", MappingProxyType(copy.deepcopy(dict(self.constraints))))
         ids = [i.item_id for i in self.items]
         if len(ids) != len(set(ids)):
             raise InvariantViolation("plan item ids are unique")
-        known = {r.requirement_id for r in self.requirements}
+        known = {r.requirement_id: r for r in self.requirements}
         for item in self.items:
-            if item.requirement_id not in known:
+            need = known.get(item.requirement_id)
+            if need is None:
                 raise InvariantViolation(f"plan item {item.item_id} serves no requirement the plan derived")
+            floor = need.min_calibration_level
+            if floor is not None and (item.calibration_level is None or item.calibration_level < floor):
+                raise IntegrationRefused(
+                    f"plan item {item.item_id} is calibration level {item.calibration_level}; "
+                    f"{need.requirement_id} needs {floor} or above"
+                )
         if self.cost.total_bytes != sum(i.expected_bytes for i in self.items):
             raise InvariantViolation("plan cost totals its items")
-        if self.cost.total_bytes > self.budget.max_bytes:
+        self._check_budget()
+        if self.approval is not None:
+            self._check_approval(self.approval)
+
+    def _check_budget(self) -> None:
+        budget, cost = self.budget, self.cost
+        if cost.total_bytes > budget.max_bytes:
             raise IntegrationRefused("a plan cannot exceed its profile's byte budget")
-        if self.approval is not None and self.approval.plan_id != self.plan_id:
+        over = sorted(s for s, n in cost.requests_per_source.items() if n > budget.max_requests_per_source)
+        if over:
+            raise IntegrationRefused(
+                f"a plan cannot exceed {budget.max_requests_per_source} requests per source: {', '.join(over)}"
+            )
+        if not (math.isfinite(cost.estimated_wall_seconds) and cost.estimated_wall_seconds <= budget.max_wall_seconds):
+            raise IntegrationRefused("a plan cannot exceed its profile's wall-time budget")
+        if cost.nas_headroom_after_bytes is not None and cost.nas_headroom_after_bytes < budget.min_nas_headroom_bytes:
+            raise IntegrationRefused("a plan cannot leave less NAS headroom than its profile requires (DSI-010)")
+
+    def _check_approval(self, approval: PlanApproval) -> None:
+        if approval.plan_id != self.plan_id:
             raise InvariantViolation("an approval covers the plan it names")
+        if approval.decision is ApprovalDecision.REFUSED:
+            return
+        if approval.threshold_bytes != self.budget.approval_threshold_bytes:
+            raise IntegrationRefused("an approval was given against this plan's own approval threshold")
+        if self.requires_signed_approval and approval.decision is not ApprovalDecision.APPROVED:
+            raise IntegrationRefused(
+                "a plan above its approval threshold is approved only by a signed ledger entry (INT-014)"
+            )
 
     def intent_document(self) -> dict[str, Any]:
         return {
@@ -1129,9 +1233,17 @@ class AcquisitionPlan:
         return self.cost.total_bytes > self.budget.approval_threshold_bytes
 
     def decide(
-        self, *, actor: str, ledger_entry_id: str | None = None, refuse_reason: str | None = None
+        self, *, actor: str, ledger_entry: SignedApproval | None = None, refuse_reason: str | None = None
     ) -> AcquisitionPlan:
-        """Approve or refuse: automatic below the threshold; above it, a ledger entry is required."""
+        """Approve or refuse: automatic below the threshold; above it, the ledger entry that approves
+        this plan is required. The entry must be an ``approval`` whose subject is this plan's id,
+        signed by ``actor``; an entry id alone, or an entry for another plan, approves nothing."""
+        if ledger_entry is not None:
+            if ledger_entry.kind != "approval" or ledger_entry.subject_hash != self.plan_id:
+                raise IntegrationRefused(f"ledger entry {ledger_entry.entry_id} does not approve plan {self.plan_id}")
+            if ledger_entry.signer != actor:
+                raise IntegrationRefused(f"ledger entry {ledger_entry.entry_id} was signed by another actor")
+        ledger_entry_id = ledger_entry.entry_id if ledger_entry is not None else None
         if refuse_reason:
             approval = PlanApproval(
                 self.plan_id,
@@ -1164,6 +1276,7 @@ class AcquisitionPlan:
         """The item that authorises this acquisition, or a refusal (INT-014, INT-015)."""
         if self.approval is None or not self.approval.approves:
             raise IntegrationRefused(f"plan {self.plan_id} is not approved; nothing may be acquired under it")
+        self._check_approval(self.approval)
         for item in self.items:
             if (item.source_id, item.operation, item.target) == (source_id, operation, target):
                 return item
@@ -1248,10 +1361,13 @@ class AdapterCompatibilityRecord:
         )
 
 
-def require_admitted(records: Sequence[AdapterCompatibilityRecord], used: Iterable[tuple[str, ProductType]]) -> None:
-    """Refuse a verdict when any (adapter, product type) used lacks a passing record (INT-016)."""
-    passing = {(r.adapter, r.product_type) for r in records if r.passed}
-    missing = sorted({(a, t.value) for a, t in used if (a, t) not in passing})
+def require_admitted(
+    records: Sequence[AdapterCompatibilityRecord], used: Iterable[tuple[str, str, ProductType]]
+) -> None:
+    """Refuse a verdict when any (adapter, version, product type) used lacks a passing record
+    (INT-016). A record for another version of the same adapter admits nothing."""
+    passing = {(r.adapter, r.adapter_version, r.product_type) for r in records if r.passed}
+    missing = sorted({(a, v, t.value) for a, v, t in used if (a, v, t) not in passing})
     if missing:
-        named = ", ".join(f"{a} for {t}" for a, t in missing)
+        named = ", ".join(f"{a} {v} for {t}" for a, v, t in missing)
         raise IntegrationRefused(f"no passing adapter compatibility record: {named}; no verdict (INT-016)")

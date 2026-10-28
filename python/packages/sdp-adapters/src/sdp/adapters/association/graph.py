@@ -81,6 +81,7 @@ def build_graph(
     by_record: dict[str, list[str]] = {}
     for rid, hid, _, _ in rows:
         by_record.setdefault(rid, []).append(hid)
+    epochs = {r.record_id: r.epoch_jyear for r in records}
     associations = tuple(
         Association(
             record_id=rid,
@@ -92,7 +93,7 @@ def build_graph(
             posterior=min(1.0, max(0.0, s.posterior)),
             bayes_factor=s.bayes_factor,
             competing=tuple(sorted(h for h in by_record[rid] if h != hid)),
-            evidence={**ev, "density_per_arcsec2": density, "common_epoch_jyear": _epoch(records, rid)},
+            evidence={**ev, "density_per_arcsec2": density, "comparison_epoch_jyear": epochs[rid]},
         )
         for rid, hid, s, ev in rows
     )
@@ -105,7 +106,3 @@ def build_graph(
         associations=tuple(sorted(associations, key=lambda a: (a.record_id, -a.posterior, a.hypothesis_id))),
         source_density_per_arcsec2=density,
     )
-
-
-def _epoch(records: Sequence[AssociationRecord], record_id: str) -> float:
-    return next(r.epoch_jyear for r in records if r.record_id == record_id)

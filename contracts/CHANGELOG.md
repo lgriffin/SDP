@@ -2,6 +2,16 @@
 
 Schemas are versioned with semver. The `$id` carries the major version (`.../schemas/v1/<name>.schema.json`) and `x-version` carries the full version; every manifest carries `schema_version`. The harness reads the current major and the previous one (CTR-004). A breaking change needs an ADR and a migration note here.
 
+## 1.4.0 (2026-10-28) — review fixes to the integration contracts
+
+- `evidence-manifest` 1.4.0: inputs may name the `adapter_version` that acquired them, and `adapter` and `product_type` now come together. Admission is per adapter version: the kernel writes the version and the harness treats an input naming an adapter without one as unadmitted (INT-016).
+- `dataset-artifact` 1.2.0: `product` carries `adapter_version`. Only artifacts with a product use changed shape, and none were stored before this release.
+- `scientific-data-product` 1.1.0: the semantic report carries `envelope_digest`, the hash of the envelope it checked, and a curated product needs a science product type and a passing report with that digest (INT-007, INT-008).
+- `capability-descriptor` 1.1.0: optional `calibration_levels` (the ObsCore `calib_level` values served), and a cone's radius is now greater than 0 and at most 10 degrees, as the domain requires.
+- `adapter-compatibility` 1.0.1: at most one result per conformance kind, and `passed: true` needs a passing result for each of the four.
+- `association-graph` 1.0.1: correlation lies strictly between -1 and 1, record positions are in range, and a rejected association states its reason. The two methods' per-association evidence calls the record's epoch `comparison_epoch_jyear`.
+- The Zod generator now supports `contains`, `minContains` and `maxContains`.
+
 ## 1.3.0 (2026-10-28) — adapter admission
 
 - `evidence-manifest` 1.3.0: each input may name the `adapter` that acquired it and the `product_type` it was used as, so the harness can check admission from the manifest alone (INT-016). Additive; inputs without them need no admission. The kernel now writes 1.3.0 manifests, and `environment.adapter_compatibility` only when an input came through an adapter.

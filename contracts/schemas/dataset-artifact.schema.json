@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/dataset-artifact.schema.json",
-  "x-version": "1.1.0",
+  "x-version": "1.2.0",
   "title": "DatasetArtifact",
   "description": "Metadata for one content-addressed dataset: raw artifacts are immutable, curated artifacts cite their raw parents and the dialect that produced them.",
   "type": "object",
@@ -188,12 +188,16 @@
       "additionalProperties": false,
       "required": [
         "adapter",
+        "adapter_version",
         "product_type"
       ],
       "properties": {
         "adapter": {
           "type": "string",
           "minLength": 1
+        },
+        "adapter_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
         },
         "product_type": {
           "type": "string",

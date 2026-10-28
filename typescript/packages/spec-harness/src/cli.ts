@@ -98,7 +98,7 @@ async function admitCommand(argv: string[]): Promise<number> {
     const verdict = r.verdict !== null;
     if (verdict) blocked++;
     for (const u of r.unadmitted) {
-      const line = `${r.experimentId}: ${u.adapter} not admitted for ${u.productType} (${u.reason})`;
+      const line = `${r.experimentId}: ${u.adapter} ${u.adapterVersion ?? "(no version)"} not admitted for ${u.productType} (${u.reason})`;
       if (verdict) console.error(`FAIL ${line}; the kernel issued ${r.verdict}`);
       else console.warn(`warn ${line}; no verdict may be issued`);
     }

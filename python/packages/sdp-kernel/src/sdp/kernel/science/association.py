@@ -81,10 +81,23 @@ def _move(ra_deg: float, dec_deg: float, east_mas: float, north_mas: float) -> t
     return _wrap_ra(math.degrees(math.atan2(y, x))), math.degrees(math.asin(max(-1.0, min(1.0, z))))
 
 
+def separation_arcsec(ra1: float, dec1: float, ra2: float, dec2: float) -> float:
+    """Great-circle separation in arcsec (haversine), valid at every separation up to 180 degrees."""
+    r1, d1, r2, d2 = map(math.radians, (ra1, dec1, ra2, dec2))
+    h = math.sin((d2 - d1) / 2) ** 2 + math.cos(d1) * math.cos(d2) * math.sin((r2 - r1) / 2) ** 2
+    return math.degrees(2 * math.asin(min(1.0, math.sqrt(h)))) * 3600.0
+
+
 def offset_arcsec(ra0: float, dec0: float, ra: float, dec: float) -> tuple[float, float]:
-    """Gnomonic offset of (ra, dec) from (ra0, dec0), in arcsec east and north."""
+    """Gnomonic offset of (ra, dec) from (ra0, dec0), in arcsec east and north.
+
+    A point 90 degrees or more away has no gnomonic projection; it is infinitely far, so it never
+    falls inside a search radius (near the antipode the formula would otherwise shrink towards 0).
+    """
     r, d, r0, d0 = map(math.radians, (ra, dec, ra0, dec0))
     cos_c = math.sin(d0) * math.sin(d) + math.cos(d0) * math.cos(d) * math.cos(r - r0)
+    if cos_c <= 0:
+        return math.inf, math.inf
     x = math.cos(d) * math.sin(r - r0) / cos_c
     y = (math.cos(d0) * math.sin(d) - math.sin(d0) * math.cos(d) * math.cos(r - r0)) / cos_c
     return math.degrees(x) * 3600.0, math.degrees(y) * 3600.0
@@ -171,8 +184,7 @@ def candidate_options(records: Sequence[AssociationRecord], policy: AssociationP
             p = propagate(a, rec.epoch_jyear)
             if p is None:
                 continue
-            dx, dy = offset_arcsec(rec.ra_deg, rec.dec_deg, p.ra_deg, p.dec_deg)
-            if math.hypot(dx, dy) <= policy.search_radius_arcsec:
+            if separation_arcsec(rec.ra_deg, rec.dec_deg, p.ra_deg, p.dec_deg) <= policy.search_radius_arcsec:
                 near.append((a.record_id, p))
         options = []
         for group in _group_blends(near, rec.resolution_arcsec):
@@ -202,7 +214,7 @@ def field_density_per_arcsec2(records: Sequence[AssociationRecord], policy: Asso
         % 360.0
     )
     dec0 = sum(r.dec_deg for r in records) / len(records)
-    radius = max(math.hypot(*offset_arcsec(ra0, dec0, r.ra_deg, r.dec_deg)) for r in records)
+    radius = max(separation_arcsec(ra0, dec0, r.ra_deg, r.dec_deg) for r in records)
     radius = max(radius, 60.0)
     anchors = max(1, sum(1 for r in records if is_anchor(r, policy)))
     return anchors / (math.pi * radius**2)

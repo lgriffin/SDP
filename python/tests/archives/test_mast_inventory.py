@@ -91,6 +91,28 @@ def test_a_product_matches_by_data_uri_when_the_file_name_column_is_absent() -> 
     assert inventory.rows(PRODUCT).inventory_row["dataURI"].endswith(NAME)
 
 
+def test_the_inventory_pages_until_the_file_is_found() -> None:
+    fake = PrimedService()
+    inventory = MastProductInventory(fake, page_size=2)
+    primed(fake, inventory, products=[{"productFilename": "a.fits"}, {"productFilename": "b.fits"}])
+    fake.raw(
+        inventory.products_request("87654321", 2),
+        complete([{"productFilename": NAME, "productType": "SCIENCE"}]),
+        content_type="application/json",
+    )
+    rows = inventory.rows(PRODUCT)
+    assert rows.inventory_row["productFilename"] == NAME
+    assert rows.rendered_query.count("Mast.Caom.Products") == 2
+
+
+def test_a_short_page_ends_the_search() -> None:
+    fake = PrimedService()
+    inventory = MastProductInventory(fake, page_size=2)
+    primed(fake, inventory, products=[{"productFilename": "a.fits"}])
+    with pytest.raises(InventoryMissing, match=NAME):
+        inventory.rows(PRODUCT)
+
+
 def test_a_product_mast_does_not_list_is_an_error_not_a_guess() -> None:
     fake = PrimedService()
     inventory = MastProductInventory(fake)
