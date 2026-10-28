@@ -12,6 +12,7 @@ import urllib.parse
 import pyarrow as pa
 
 from sdp.adapters.archives import votable
+from sdp.adapters.archives.untrusted import validate_votable
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 
 
@@ -27,6 +28,7 @@ def run_sync(transport: Transport, request: HttpRequest, what: str) -> pa.Table:
     response = transport.send(request)
     if response.status != 200:
         raise TransportError(f"{what}: HTTP {response.status}", response.status)
+    validate_votable(response.body)
     return votable.parse(response.body)
 
 
