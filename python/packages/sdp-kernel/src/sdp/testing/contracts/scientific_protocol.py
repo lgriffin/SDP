@@ -16,7 +16,12 @@ from sdp.testing.fakes.compute import SynchronousExecutor
 
 
 class ScientificProtocolContract:
-    """Run with ``protocol_case``: (protocol, resolved inputs, params, seed)."""
+    """Run with ``protocol_case``: (protocol, resolved inputs, params, seed). A protocol whose tasks need
+    services beyond its inputs (clustering adapters, say) overrides ``protocol_services``."""
+
+    @pytest.fixture
+    def protocol_services(self) -> dict[str, Any]:
+        return {}
 
     def test_implements_the_port(
         self, protocol_case: tuple[ScientificProtocol, ResolvedInputs, dict[str, Any], int]
@@ -47,12 +52,18 @@ class ScientificProtocolContract:
 
     @pytest.mark.req("KRN-008")
     def test_validate_evaluates_every_predeclared_gate(
-        self, protocol_case: tuple[ScientificProtocol, ResolvedInputs, dict[str, Any], int]
+        self,
+        protocol_case: tuple[ScientificProtocol, ResolvedInputs, dict[str, Any], int],
+        protocol_services: dict[str, Any],
     ) -> None:
         protocol, inputs, params, seed = protocol_case
         plan = protocol.plan(inputs, params, seed)
         values = SynchronousExecutor().execute(
-            plan, protocol.task_kinds(), seed=seed, sink=RecordingSink(), services={"inputs": inputs}
+            plan,
+            protocol.task_kinds(),
+            seed=seed,
+            sink=RecordingSink(),
+            services={"inputs": inputs, **protocol_services},
         )
         wanted = plan.outputs or tuple(t.task_id for t in plan.tasks)
         findings = protocol.interpret(ComputeResults({k: values[k] for k in wanted}))

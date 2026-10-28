@@ -12,6 +12,7 @@ import json
 from importlib import resources
 from typing import Any
 
+from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.findings import Finding, Findings
 from sdp.kernel.domain.gates import evaluate_gates
 from sdp.kernel.domain.ids import ProtocolId
@@ -72,7 +73,7 @@ class Einstein1919Protocol:
         declared = dict(pre.parameters)
         unknown = set(params) - set(OVERRIDABLE)
         if unknown:
-            raise ValueError(f"parameters {sorted(unknown)} are predeclared and cannot be overridden")
+            raise PlanInvalid(f"parameters {sorted(unknown)} are predeclared and cannot be overridden")
         axes = {k: list(v) for k, v in axes_from(declared).items()}
         common: dict[str, Any] = {
             "axes": axes,
