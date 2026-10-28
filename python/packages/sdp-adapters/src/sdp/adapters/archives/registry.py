@@ -19,7 +19,9 @@ from sdp.kernel.domain.archive import Box, Cone
 from sdp.kernel.domain.investigation import Field
 from sdp.kernel.ports.investigate import ServiceRecord
 
-REGTAP = "https://reg.g-vo.org/tap"
+#: GAVO's RegTAP service under its own host name. The ``reg.g-vo.org`` alias serves a certificate that
+#: does not name it (TLS verification fails, checked from CI and the sandbox on 2026-10-28).
+REGTAP = "https://dc.g-vo.org/tap"
 
 #: The standard identifiers behind the names callers use, as pyvo maps them.
 STANDARDS = {

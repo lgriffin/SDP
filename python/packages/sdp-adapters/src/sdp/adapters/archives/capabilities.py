@@ -198,15 +198,17 @@ class VoCapabilityDiscovery:
     # -- the requests, separate so cassettes and fakes key on exactly what is sent
 
     def identity_request(self, source: VoSource) -> HttpRequest:
+        # ADQL has no scalar subqueries in a select list (GAVO's parser refuses them): join and group.
         adql = (
             "SELECT r.ivoid, r.res_title, r.rights, p.role_name AS publisher, "
-            "(SELECT MIN(t.time_start) FROM rr.stc_temporal AS t WHERE t.ivoid = r.ivoid) AS t_min, "
-            "(SELECT MAX(t.time_end) FROM rr.stc_temporal AS t WHERE t.ivoid = r.ivoid) AS t_max, "
-            "(SELECT MIN(s.spectral_start) FROM rr.stc_spectral AS s WHERE s.ivoid = r.ivoid) AS e_min, "
-            "(SELECT MAX(s.spectral_end) FROM rr.stc_spectral AS s WHERE s.ivoid = r.ivoid) AS e_max "
+            "MIN(t.time_start) AS t_min, MAX(t.time_end) AS t_max, "
+            "MIN(s.spectral_start) AS e_min, MAX(s.spectral_end) AS e_max "
             "FROM rr.resource AS r "
             "LEFT OUTER JOIN rr.res_role AS p ON p.ivoid = r.ivoid AND p.base_role = 'publisher' "
-            f"WHERE r.ivoid = {literal(source.ivoid.lower())}"
+            "LEFT OUTER JOIN rr.stc_temporal AS t ON t.ivoid = r.ivoid "
+            "LEFT OUTER JOIN rr.stc_spectral AS s ON s.ivoid = r.ivoid "
+            f"WHERE r.ivoid = {literal(source.ivoid.lower())} "
+            "GROUP BY r.ivoid, r.res_title, r.rights, p.role_name"
         )
         return sync_request(self.regtap_url, adql, 10)
 
