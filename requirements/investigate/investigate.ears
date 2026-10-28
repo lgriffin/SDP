@@ -86,7 +86,7 @@ requirements:
   - id: INV-011
     pattern: unwanted
     text: "If a bound ecosystem package is imported outside sdp.adapters or the domain-library allow-list, then the architecture test shall fail the build."
-    rationale: "Each ecosystem package is bound once, behind one port, with a fake and a contract suite."
+    rationale: "Each ecosystem package is bound once, behind one port, with a fake and a contract suite: photutils behind SourceDetector, tweakwcs behind WcsRefiner."
     verification: test
     tiers: [T0]
     status: approved

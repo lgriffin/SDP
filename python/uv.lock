@@ -60,6 +60,91 @@ wheels = [
 ]
 
 [[package]]
+name = "asdf"
+version = "6.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asdf-standard" },
+    { name = "attrs" },
+    { name = "jmespath" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "semantic-version" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/17/73/5f03dadd18e7046492c193508971d9a630f9ddd88b58d6b700ed5d0eef06/asdf-6.0.0.tar.gz", hash = "sha256:c78c59dc7e5ec93b23479ee0b45193d1ea5a9661b8a1512a4f5a4daeeceeb7c1", size = 923294, upload-time = "2026-10-19T16:50:45.66Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/f7/c0ce6f1152897b23263d8b87742b2fc1532d53bd4647a1c03a667962db56/asdf-6.0.0-py3-none-any.whl", hash = "sha256:152d49f9b2a2cd3ac0321b3ae6d2c30e2cb83d944ec00b8205aebf827fa38a7f", size = 984634, upload-time = "2026-10-19T16:50:44.059Z" },
+]
+
+[[package]]
+name = "asdf-astropy"
+version = "0.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asdf" },
+    { name = "asdf-coordinates-schemas" },
+    { name = "asdf-standard" },
+    { name = "asdf-transform-schemas" },
+    { name = "astropy" },
+    { name = "numpy" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/29/70/970e0e2937c5177dcc3a791feb12855bad6172f109633eb037c11339807d/asdf_astropy-0.11.0.tar.gz", hash = "sha256:6944700e3394a324a23772bdf97abb9803cd66a86b095101a548e9dfc650e2c0", size = 82817, upload-time = "2026-03-27T16:54:28.446Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/e9/31705e6761d51918fd87ecb70c78d94af150729ebfa5a4c64b002b03708a/asdf_astropy-0.11.0-py3-none-any.whl", hash = "sha256:10ff554382bb10b1bc931159d2c91e4399487c27afc0051c90a062112e9f0b7f", size = 110852, upload-time = "2026-03-27T16:54:27.28Z" },
+]
+
+[[package]]
+name = "asdf-coordinates-schemas"
+version = "0.5.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asdf" },
+    { name = "asdf-standard" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9f/d2/bdf6afedde5b47031bad0f56eac70e5086e65ff09a661611e7fd252cd865/asdf_coordinates_schemas-0.5.1.tar.gz", hash = "sha256:d9cf72fc312f27cb8f2b9e6ce10c38ebf826e2e6b80ba1f591f75bb0eaf734e2", size = 160112, upload-time = "2026-02-05T16:46:09.645Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/44/c78e1ac5932078cb7680eebc4e626780e3ada6e8efd43e2c1481887e04ca/asdf_coordinates_schemas-0.5.1-py3-none-any.whl", hash = "sha256:6c80cf928fd2de7cbc7c1dd003809fca2678c90c8843586f5670f0cf99bb48a7", size = 49313, upload-time = "2026-02-05T16:46:08.575Z" },
+]
+
+[[package]]
+name = "asdf-standard"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/2f/e0eac7d5fc26a24d91f904c261b8a8b7e0582c81ab0d012944870d4cfc72/asdf_standard-1.5.0.tar.gz", hash = "sha256:5942caf7d143f39f72f634484373c7f40ce48571d1db3c271e13858e33fe5966", size = 286692, upload-time = "2026-02-05T18:48:59.011Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/1e/b20400e946d2c31b72e649da8afde26bc4327907be6926f55d1b3f4673a9/asdf_standard-1.5.0-py3-none-any.whl", hash = "sha256:487d192c5eb1335a62c07a88d82503e1fe57911c0876ee183cf572d385f97213", size = 105769, upload-time = "2026-02-05T18:48:57.453Z" },
+]
+
+[[package]]
+name = "asdf-transform-schemas"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asdf-standard" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/94/20197461927e9f626e9bf0632064267ec5acdf85505ee8cb91c3bb9f3707/asdf_transform_schemas-0.6.0.tar.gz", hash = "sha256:0f50f8e096fffd2d14b9c82995901266ef25b23d0dffc30ad41bba46851a9732", size = 223330, upload-time = "2025-05-27T23:00:53.476Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/1b/b6696f03e2320509ad9526190061ec7acf62330bddeb639d37a0a77e20a8/asdf_transform_schemas-0.6.0-py3-none-any.whl", hash = "sha256:f63a5cc90c421209fd8e3b064c9cca8372220aa1c932676cad558942dc6153b0", size = 350338, upload-time = "2025-05-27T23:00:51.925Z" },
+]
+
+[[package]]
+name = "asdf-wcs-schemas"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asdf-coordinates-schemas" },
+    { name = "asdf-standard" },
+    { name = "asdf-transform-schemas" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/8e/19b1c8347782ab9fe60c4af20b9eac0df2048f823b4d13d8e7efb8367025/asdf_wcs_schemas-0.5.0.tar.gz", hash = "sha256:af7bdda46c20195b97272d8d3fdc7d9286beb143dbd69503f59c5ee1fe1559b5", size = 164223, upload-time = "2025-06-11T22:15:12.584Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8e/5f/cd19b53e571853dfd12033f0fb3674e64b8397ff73857e1e09f17943409c/asdf_wcs_schemas-0.5.0-py3-none-any.whl", hash = "sha256:7050c7dfd252f2aa9c32e4fe3711c1823336d923f631816f8f3e9f27c95491f7", size = 59336, upload-time = "2025-06-11T22:15:11.69Z" },
+]
+
+[[package]]
 name = "ast-serialize"
 version = "0.13.1"
 source = { registry = "https://pypi.org/simple" }
@@ -521,6 +606,23 @@ wheels = [
 ]
 
 [[package]]
+name = "gwcs"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asdf" },
+    { name = "asdf-astropy" },
+    { name = "asdf-wcs-schemas" },
+    { name = "astropy" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8b/bb/76541e00ade1996c9eb1cb9b9ca75e4962df2d0b9281e2551d6e7a62eac0/gwcs-1.0.3.tar.gz", hash = "sha256:c7cc83b0a2faf4433d94a047065e1686ba0e94b736c6453083a82d5111fc114a", size = 353952, upload-time = "2026-02-12T19:42:06.117Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/03/c4/816d3a19dd705b64d8e25f0b5f5c93408bdfdfb9cd8261852fe2b73d6226/gwcs-1.0.3-py3-none-any.whl", hash = "sha256:c7bf303695a68e42719e661c91aaf802c46bf62c20a5148522ff3f969778b598", size = 364631, upload-time = "2026-02-12T19:42:04.394Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -716,6 +818,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
+]
+
+[[package]]
+name = "jmespath"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/59/322338183ecda247fb5d1763a6cbe46eff7222eaeebafd9fa65d4bf5cb11/jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d", size = 27377, upload-time = "2026-01-22T16:35:26.279Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/2f/967ba146e6d58cf6a652da73885f52fc68001525b4197effc174321d70b4/jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64", size = 20419, upload-time = "2026-01-22T16:35:24.919Z" },
 ]
 
 [[package]]
@@ -1141,6 +1252,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+]
+
+[[package]]
+name = "photutils"
+version = "3.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "astropy" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/a3/df453dd5ce6e1601fa0cb4f5de0b4cee85530b02e5f43bd04c009837887b/photutils-3.1.1.tar.gz", hash = "sha256:32ea59ea38ed910374f7d75a5498b90ef1c5e839c2804f44f25fa024587f0506", size = 1798634, upload-time = "2026-10-16T23:51:29.355Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/22/053d9fd4e38beb5483e9f6e97145d11cd1ec33b0ac74895d8afd2b45891f/photutils-3.1.1-cp312-abi3-macosx_10_13_x86_64.whl", hash = "sha256:298d7a06022e5cbb97c3ec3a5bf6413dc24994afb21df6e46926af13390992a3", size = 2927844, upload-time = "2026-10-16T23:51:14.645Z" },
+    { url = "https://files.pythonhosted.org/packages/29/e2/6b8516df3b1c0e31b3369939ca6196eff0b5364eae6005425fda23e7dedf/photutils-3.1.1-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:444efeab43cc673487689634381726cf0896bb2007144bf821771c1d5595cb6c", size = 2847973, upload-time = "2026-10-16T23:51:17.038Z" },
+    { url = "https://files.pythonhosted.org/packages/46/f8/6fac1552c075a84c35d8730e142fe63de7823d66d028dafdec09a6daf2a3/photutils-3.1.1-cp312-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ea158c54e2d514e0ff0d075d4615817e63ca891a6afc1290be5f253f682444b9", size = 9949677, upload-time = "2026-10-16T23:51:19.711Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/81/e5b1f72a993df7adb538df86ed993337fe052f7652b7d21f6859a52eb375/photutils-3.1.1-cp312-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f772814d8680fe240a9dd66e6c7d02e5c83256308d461d2cd9386b57eeb49115", size = 10074674, upload-time = "2026-10-16T23:51:22.626Z" },
+    { url = "https://files.pythonhosted.org/packages/83/60/81f01bd7789eaba46a9c506f73b8c7bdb4a26190222c3cdee7f331983289/photutils-3.1.1-cp312-abi3-win_amd64.whl", hash = "sha256:79018ab170bfee272c3061524495b85893921299d00de53c3c06216dd96ed62e", size = 2744267, upload-time = "2026-10-16T23:51:25.453Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/ea/b09aa3f45d56c4451c85e22b6ac255c0292dbb2a54166120408eea4bac48/photutils-3.1.1-cp312-abi3-win_arm64.whl", hash = "sha256:8f5ac5bdc62875f0674de861b9bd08911d5e4d1c489f1019f2594277a44fd7bf", size = 2584757, upload-time = "2026-10-16T23:51:27.447Z" },
 ]
 
 [[package]]
@@ -1791,18 +1921,22 @@ source = { editable = "packages/sdp-adapters" }
 dependencies = [
     { name = "cryptography" },
     { name = "duckdb" },
+    { name = "photutils" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyyaml" },
     { name = "sdp-kernel" },
+    { name = "tweakwcs" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=43" },
     { name = "duckdb", specifier = ">=2.0" },
+    { name = "photutils", specifier = ">=2.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "sdp-kernel", editable = "packages/sdp-kernel" },
+    { name = "tweakwcs", specifier = ">=0.8" },
 ]
 
 [[package]]
@@ -1988,6 +2122,15 @@ dev = [
 ]
 
 [[package]]
+name = "semantic-version"
+version = "2.10.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/31/f2289ce78b9b473d582568c234e104d2a342fd658cc288a7553d83bb8595/semantic_version-2.10.0.tar.gz", hash = "sha256:bdabb6d336998cbb378d4b9db3a4b56a1e3235701dc05ea2690d9a997ed5041c", size = 52289, upload-time = "2022-05-26T13:35:23.454Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/23/8146aad7d88f4fcb3a6218f41a60f6c2d4e3a72de72da1825dc7c8f7877c/semantic_version-2.10.0-py2.py3-none-any.whl", hash = "sha256:de78a3b8e0feda74cabc54aab2da702113e33ac9d9eb9d2389bcf1f58b7d9177", size = 15552, upload-time = "2022-05-26T13:35:21.206Z" },
+]
+
+[[package]]
 name = "shellingham"
 version = "1.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -2012,6 +2155,41 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e8/c4/ba2f8066cceb6f23394729afe52f3bf7adec04bf9ed2c820b39e19299111/sortedcontainers-2.4.0.tar.gz", hash = "sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88", size = 30594, upload-time = "2021-05-16T22:03:42.897Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl", hash = "sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0", size = 29575, upload-time = "2021-05-16T22:03:41.177Z" },
+]
+
+[[package]]
+name = "spherical-geometry"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e0/77/50c6fa57223685c77ee7adae6216bf56705f21402246ca9238084c6fc4e7/spherical_geometry-1.4.0.tar.gz", hash = "sha256:6929492efe7aca1f79ee8facb3412468b9e65b0905f24361687e20a7a98db664", size = 8721573, upload-time = "2026-03-11T16:58:50.005Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/b6/12546ae59e83fd7e10d9fbbbed0e2310086875e1b94aa1d8346f49d052cb/spherical_geometry-1.4.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:1de82507ef5fc9dbac88678ed50e1c5516018df13381afb81b97527fcbef2e55", size = 7748551, upload-time = "2026-03-11T16:58:07.558Z" },
+    { url = "https://files.pythonhosted.org/packages/08/b1/1c5e57232997fdb0d52d118769f61ce9be2abc9932af8add5a407fdecd56/spherical_geometry-1.4.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:09d2326db8abe964782cf8407e1721235b2ed2525ee4ec375f8f4659d449a519", size = 7734395, upload-time = "2026-03-11T16:58:09.031Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/bf/d042108c23053cd2395c769ba533cd453eaa02be066f2f3a755e1325491b/spherical_geometry-1.4.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ed890457e239cba43acc2d5965e7fe73f2417bfa5ced9bf50c8dd8b1742f4afd", size = 8623239, upload-time = "2026-03-11T16:58:10.853Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/a7/e9bae57613edc36210bec2595c37b64b9cb795705d92a5f435f108370386/spherical_geometry-1.4.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:229caa398562fe88df6b9ee55cfea263ee8db86958e23d827fd9a096817598ad", size = 9610361, upload-time = "2026-03-11T16:58:12.706Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/8f/c044508941546d25f823ebe9a7a7ae3912a186e41a81a8a06e75cc1e2ceb/spherical_geometry-1.4.0-cp312-cp312-win32.whl", hash = "sha256:72ff1fe7c3690b078ab3c60e4de4086f7fa45381930620341c5a99a2071313aa", size = 7701493, upload-time = "2026-03-11T16:58:15.02Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/03/b3836d3c1f5d44e57684b3e9e68b9a765426523c3f724440223fe1447c83/spherical_geometry-1.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:82f24bf6c2ca92776957a410771e2d90b663b4c3c026e78ea5da051234d2d424", size = 7703212, upload-time = "2026-03-11T16:58:16.733Z" },
+    { url = "https://files.pythonhosted.org/packages/66/54/3c6257a4e5851ec415a5bf9ec3aec82b2b4e424474f1d4c575d68e537cd8/spherical_geometry-1.4.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:5ca443b999a7164bf531fdd4012725e52441af9c8f36a545221b7dcc7e59a2f5", size = 7748547, upload-time = "2026-03-11T16:58:18.49Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/df/8b7ab49db2d84aedaf665eaa8310b49fb1b918f05c4340a8f836561c8453/spherical_geometry-1.4.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:e6fc1b0d0584acde1b4fd8b3e6c856643682a42af5b518b8b3c750f636d75493", size = 7734398, upload-time = "2026-03-11T16:58:19.973Z" },
+    { url = "https://files.pythonhosted.org/packages/55/50/dc0232b95522358b93d4cc54504a86984bfd6f9936c4e4307a26288d0064/spherical_geometry-1.4.0-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a0032d5f1dc2a54ebe8783a68ab71d0ba205372964440b198576e617d40c3400", size = 8623297, upload-time = "2026-03-11T16:58:21.756Z" },
+    { url = "https://files.pythonhosted.org/packages/80/5a/a9b16431fec8eabd559a2898f49e8b844313bf0434d87cda03ffcab4f964/spherical_geometry-1.4.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e25f4b09a4bd2358c79cb09fa5743f584dac08a5523f5991fa2d2216b498c95d", size = 9610407, upload-time = "2026-03-11T16:58:24.201Z" },
+    { url = "https://files.pythonhosted.org/packages/97/3f/9088296d8c828d6e36eff32abd895314366b99893f7dd41f9687c5244bff/spherical_geometry-1.4.0-cp313-cp313-win32.whl", hash = "sha256:79ea32e89f5b5e0b3d464807b9fc4b775c79e8d8e8a5baf20f401fcd5a847872", size = 7701496, upload-time = "2026-03-11T16:58:26.129Z" },
+    { url = "https://files.pythonhosted.org/packages/86/2c/9ca1b1349d5cac5739bc4d730ff85ee1365b018e353047aab48c90ba4f7a/spherical_geometry-1.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:11e607751a7c124fbbd44882f5b6aa53ff4f15ad74a87651deba2bbba4aa56a2", size = 7703217, upload-time = "2026-03-11T16:58:27.857Z" },
+    { url = "https://files.pythonhosted.org/packages/38/7f/c644438b0e9a6684479d9092b9fe11329dcb5602c69c57185ba23be6e350/spherical_geometry-1.4.0-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:d7e06bcd6faebb05abfa7bc8bc246c46fd4337f47e953bb75e749f024ded0bec", size = 7748546, upload-time = "2026-03-11T16:58:29.345Z" },
+    { url = "https://files.pythonhosted.org/packages/77/61/6ad300fcb03c3f2ac6d0347d6cb8ef780e59088f789c9f4228420388d5fb/spherical_geometry-1.4.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:3dd91bd303aab702c50a0bcc2155101b3cecf90d34fa18d43d3c84190ecf4377", size = 7734401, upload-time = "2026-03-11T16:58:31.045Z" },
+    { url = "https://files.pythonhosted.org/packages/45/ca/996787f35502fabc381c814c596dd1552a6af4067099f8d5d871b42ee022/spherical_geometry-1.4.0-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7af857701d614db8d9ca28f7252d3221c875aab2d3f6db77822fe779cf864893", size = 8623446, upload-time = "2026-03-11T16:58:32.558Z" },
+    { url = "https://files.pythonhosted.org/packages/17/36/d7209eb7f204476dff7ed7dfb74c615ef6e2896138598adee59d53ffb066/spherical_geometry-1.4.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:44cc0540cae13a06214901ee6f2a678263105dc31b967796955af61eb23c355b", size = 9610491, upload-time = "2026-03-11T16:58:34.175Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/86/8d808971bfd0b9ed0b76a9f8f907d1d39cd7557db391be083b9d6fadad90/spherical_geometry-1.4.0-cp314-cp314-win32.whl", hash = "sha256:53f2eddc3309ea5e7da485224e7bd2a452ad2e296d96e4fabbaeb10393c0b435", size = 7685649, upload-time = "2026-03-11T16:58:36.252Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/d7/072adb72ea2e3cfe0977072662b6b55f2c532976c6e76dd430c243dbca95/spherical_geometry-1.4.0-cp314-cp314-win_amd64.whl", hash = "sha256:d087efbf6a50d99ac8da1ec939aaed55e057a999054830191bfc2776fc0ffbc0", size = 7687802, upload-time = "2026-03-11T16:58:37.542Z" },
+    { url = "https://files.pythonhosted.org/packages/dc/28/13e2162744f6b065a93748d73f3aa3ac10588e76ff5cdabed854265b0e77/spherical_geometry-1.4.0-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:3e98acb9edce7d889d0bb685aca919b99a012219d0763977e8ca3b5f4bf10c40", size = 7748751, upload-time = "2026-03-11T16:58:39.569Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/4b/1beb78e49da19a8ff6f45e277c7f31630e9a1b39b4d47966e80b519fcec9/spherical_geometry-1.4.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:547ce66b5ea382243a0f1ff55f0146815b9693d103182719d98d06f3c615c55d", size = 7734575, upload-time = "2026-03-11T16:58:40.942Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/50/964b86c1c9d780591414ba4c7d40e97446efa1bbd2f2be0fc11be6a7b658/spherical_geometry-1.4.0-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:98743ffd6b388ffd1892f486dae1feb8a51a564bd1014b66ce976a142ff27a2b", size = 8626859, upload-time = "2026-03-11T16:58:42.962Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/5e/58603a64935e20b455d1cba1c5181a87c8dd3c378ff8ff00df1ef48cdeab/spherical_geometry-1.4.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:5aaca528ae08b91a203edfef376f94fbe272b98e7e29aa14200acfdf85058fcd", size = 9612819, upload-time = "2026-03-11T16:58:45.045Z" },
+    { url = "https://files.pythonhosted.org/packages/30/71/aed81b290f7efef9cfe233f8b76e8a3f910c9434dfdba4da77bfe5333861/spherical_geometry-1.4.0-cp314-cp314t-win32.whl", hash = "sha256:22e8c2cda1395ce7e078cf093d3710b7768d1b78c8527df1079522b4aa119b72", size = 7686011, upload-time = "2026-03-11T16:58:46.949Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/e5/4c5bc0012820d42c05285a41d7acccb74897998018afc96f5e876443a7ca/spherical_geometry-1.4.0-cp314-cp314t-win_amd64.whl", hash = "sha256:8b0ecf30745d9064bfa7017a10a8c468c9a44be02dae02c7a1785f9818fd4eee", size = 7688143, upload-time = "2026-03-11T16:58:48.316Z" },
 ]
 
 [[package]]
@@ -2041,6 +2219,41 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/95/a57f85804424128fb26dc56c7960c949dc6264493575b4637865c90ca190/strawberry_graphql-0.338.0.tar.gz", hash = "sha256:74396fa0d968286c839dcf24a54c6a799d83d72fe8ea8f653765d1407707e6a8", size = 292241, upload-time = "2026-10-26T12:30:43.151Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8c/4e/16b7c2a3018cb31092a3fd90da6cda84503e10fe3cf63870c3b0e1c17ca3/strawberry_graphql-0.338.0-py3-none-any.whl", hash = "sha256:2be983dcaed17daa0501799cf524dafd53aab44ac178530aa3b6eb6d99b6943f", size = 387661, upload-time = "2026-10-26T12:30:40.97Z" },
+]
+
+[[package]]
+name = "stsci-stimage"
+version = "0.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/85/21/96b979f3daec019caa4dd8abf1124175e7dd3d7afaa1aec26eb3d00dc9fe/stsci_stimage-0.3.2.tar.gz", hash = "sha256:fdc66b8cbc7a69f8f1cbd32568422fc84b2d051e0269c045ae498ea3f32e21d7", size = 73889, upload-time = "2026-09-03T17:17:33.971Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b0/db/5faaaf44bcf71eb096d2ec64cce69c18e8b530cfe14f851212d992175587/stsci_stimage-0.3.2-cp311-abi3-macosx_10_9_x86_64.whl", hash = "sha256:7f6dac75dc030f0040899c602f2da340ec3a89064cce1afda9a81b3ca11878f0", size = 49807, upload-time = "2026-09-09T16:39:47.361Z" },
+    { url = "https://files.pythonhosted.org/packages/11/9f/dc5d6d47427f91b897e0b3558b364bbd1df8813f169cd3e0b978a8bbbb46/stsci_stimage-0.3.2-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:01b9590a79b41cf9ba4e1893936af5ceaf4d52523e7cb53e4b30e6ebb9060b62", size = 45917, upload-time = "2026-09-08T14:14:06.642Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/2d/13a9a548f119b50afb3954abcd2d33a90b2a9c0c2d4e4c5bf74553121209/stsci_stimage-0.3.2-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b601a79d254c97a77d72102fcaa35b027512fa9bab92df7fa48e6ed4cab54aa4", size = 146982, upload-time = "2026-09-08T14:14:07.511Z" },
+    { url = "https://files.pythonhosted.org/packages/96/f9/d0342d5e0657fb1904d13fa217e7f90f37b5538f02ab2121cac1958698c5/stsci_stimage-0.3.2-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:a29f5c5cd8c874cc442effaa0a6f2c01047fd8865e7f71f4df41f28484c2ecf3", size = 145827, upload-time = "2026-09-08T14:14:08.487Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/d5/f9f727667ab03138cc4bd34ea87ebec83328f1f314f41fd6328b403ba55a/stsci_stimage-0.3.2-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:800fa78dbb3a60398f841932f75fa8fca24566c62f2f9109426cfb35d1697842", size = 45676, upload-time = "2026-09-03T17:17:31.153Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/84/fd5c0e12ed6eb97e35e4e0c83b49dfd56b2a8be649bf71896a78de63d059/stsci_stimage-0.3.2-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:eac47da2980b202630d31fe20b2511dc2b009441b381b3ed3b1c5bc8ce5173df", size = 159235, upload-time = "2026-09-03T17:17:32.096Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/a8/48d878ddf1dd65303da3445876efaba3e7d3001a45a2a9d4b04e30a1fe0d/stsci_stimage-0.3.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:cb519d5b701072a352142b699abf795b774034554610c5b3854fde5b1f1e647a", size = 157771, upload-time = "2026-09-03T17:17:33.048Z" },
+]
+
+[[package]]
+name = "tweakwcs"
+version = "0.9.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "astropy" },
+    { name = "gwcs" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "spherical-geometry" },
+    { name = "stsci-stimage" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/75/52a7bc98cc7bb9a5d50de63dba01f4d09a0445e8d08c8f5068381cf2b748/tweakwcs-0.9.3.tar.gz", hash = "sha256:b57c0cf5c3e42a63fcd8fd3bed74cbd5bc05adc35be3686fc5967f2fad50a85c", size = 228873, upload-time = "2026-10-22T20:43:50.995Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/f2/0db40014621453687d595162ad4d194cf56d37468ab011d6eca36cef5262/tweakwcs-0.9.3-py3-none-any.whl", hash = "sha256:a4956239af733825f07a688e9c353065e1f2921a61cdeaa77836d24fe3eba159", size = 223807, upload-time = "2026-10-22T20:43:49.823Z" },
 ]
 
 [[package]]
