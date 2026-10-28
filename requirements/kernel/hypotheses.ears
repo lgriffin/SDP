@@ -8,5 +8,9 @@ requirements:
     rationale: "Hypotheses evolve; a verdict must point at the exact version it tested."
     verification: test
     tiers: [T1]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_a_version_cannot_be_overwritten"
+      - "python/tests.contract.test_kernel_fakes.TestUnitOfWork::test_hypothesis_versions_are_retained"
+      - "python/tests.unit.kernel.test_domain_values::test_editing_a_hypothesis_creates_a_new_version"
+      - "python/tests.usecase.test_predeclaration::test_editing_a_hypothesis_creates_a_new_version"

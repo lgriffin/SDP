@@ -8,13 +8,19 @@ requirements:
     rationale: "Preregistration integrity is what gives VERIFIED its meaning."
     verification: test
     tiers: [T4]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestLedger::test_append_returns_a_signed_chained_entry"
+      - "python/tests.usecase.test_predeclaration::test_freeze_appends_signed_ledger_entry"
+      - "python/tests.usecase.test_predeclaration::test_freezing_twice_records_one_entry"
   - id: KRN-003
     pattern: unwanted
     text: "If an experiment references a predeclaration hash absent from the ledger, then the kernel shall refuse to start it and record the refusal."
     rationale: "An experiment without frozen intent cannot produce a meaningful verdict."
     verification: test
     tiers: [T1, T4]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestLedger::test_find_by_subject_hash_and_kind"
+      - "python/tests.unit.kernel.test_experiment::test_experiment_refuses_unfrozen_predeclaration"
+      - "python/tests.usecase.test_run_experiment::test_refuses_unfrozen_predeclaration"

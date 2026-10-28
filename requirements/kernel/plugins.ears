@@ -8,5 +8,6 @@ requirements:
     rationale: "The kernel never imports science modules (ADR-001)."
     verification: test
     tiers: [T0]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.architecture.test_architecture::test_kernel_never_imports_science_modules"

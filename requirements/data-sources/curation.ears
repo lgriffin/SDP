@@ -8,21 +8,27 @@ requirements:
     rationale: "Curated data must cite the raw bytes and mapping they came from."
     verification: test
     tiers: [T3]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.contract.test_kernel_fakes.TestDatasetRepository::test_curated_children_cite_their_raw_parent"
+      - "python/tests.unit.kernel.test_domain_values::test_curated_artifacts_cite_dialect_and_parent"
+      - "python/tests.usecase.test_acquire_dataset::test_acquisition_records_query_release_licence_citation_checksum_size_and_time"
   - id: DSI-006
     pattern: unwanted
     text: "If a source descriptor declares no licence, then the system shall block curation of that source."
     rationale: "Data without a licence cannot be redistributed in a bundle."
     verification: test
     tiers: [T4]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.unit.kernel.test_domain_values::test_source_without_licence_cannot_be_curated"
+      - "python/tests.usecase.test_acquire_dataset::test_missing_licence_blocks_curation"
   - id: DSI-010
     pattern: state
     text: "While NAS free space is below the configured threshold, the system shall refuse new acquisitions."
     rationale: "NAS exhaustion fails workflows; refuse early instead."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.usecase.test_acquire_dataset::test_low_free_space_refuses_new_acquisitions"
