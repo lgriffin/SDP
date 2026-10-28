@@ -51,6 +51,23 @@ class AcquisitionRecord(BaseModel):
     parts: list[AcquisitionPart]
 
 
+class ProductType(StrEnum):
+    IMAGE = "image"
+    SPECTRUM = "spectrum"
+    CUBE = "cube"
+    TIMESERIES = "timeseries"
+    MEASUREMENTS = "measurements"
+    CATALOGUE = "catalogue"
+
+
+class ProductUse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    adapter: Annotated[str, Field(min_length=1)]
+    product_type: ProductType
+
+
 class DatasetArtifact(BaseModel):
     """
     Metadata for one content-addressed dataset: raw artifacts are immutable, curated artifacts cite their raw parents and the dialect that produced them.
@@ -70,3 +87,9 @@ class DatasetArtifact(BaseModel):
     parents: list[common_schema.Sha256Id]
     acquisition: AcquisitionRecord | None
     rejection_reason: str | None = None
+    product: Annotated[
+        ProductUse | None,
+        Field(
+            description="Which adapter acquired the artifact and as which product type (1.1.0); the kernel copies it to the manifest's inputs so admission can be checked (INT-016)."
+        ),
+    ] = None

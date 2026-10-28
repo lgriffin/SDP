@@ -17,6 +17,7 @@ from sdp.kernel.domain.association import AssociationGraph, AssociationPolicy, A
 from sdp.kernel.domain.integration import (
     AcquisitionBudget,
     AcquisitionPlan,
+    AdapterCompatibilityRecord,
     CapabilityMatch,
     EvidenceRequirement,
     ProductMetadata,
@@ -69,6 +70,16 @@ class AssociationService(Protocol):
     def method_version(self) -> str: ...
 
     def associate(self, records: Sequence[AssociationRecord], policy: AssociationPolicy) -> AssociationGraph: ...
+
+
+class AdapterCompatibilitySource(Protocol):
+    """The compatibility records of the current release, one per adapter and product type (ADR-021).
+
+    The kernel copies the records for the pairs an experiment used into its manifest and refuses a
+    verdict when one is missing or failing (INT-016). Fake: StaticCompatibilityRecords.
+    """
+
+    def records(self) -> Sequence[AdapterCompatibilityRecord]: ...
 
 
 @dataclass(frozen=True)

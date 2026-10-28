@@ -18,7 +18,7 @@ requirements:
     rationale: "A source cannot advertise a capability its adapter has not proven (ADR-021)."
     verification: test
     tiers: [harness]
-    status: draft
+    status: approved
     traces: []
   - id: INT-003
     pattern: event
@@ -130,5 +130,5 @@ requirements:
     rationale: "Admission to a gate is checked, not asserted (ADR-021)."
     verification: test
     tiers: [T1, harness]
-    status: draft
+    status: approved
     traces: []

@@ -5,6 +5,7 @@ import path from "node:path";
 import type { EarsFile } from "../ears.ts";
 import { parseJUnit, type TestResult } from "../junit.ts";
 import type {
+  DocumentSource,
   LedgerEntryDocument,
   LedgerSource,
   Located,
@@ -65,6 +66,18 @@ export class ManifestFiles implements ManifestSource {
         ),
       )
     ).flat();
+    return Promise.all(files.map(readJson));
+  }
+}
+
+/** Every `*.json` file under the targets; a missing target holds none. */
+export class JsonFiles implements DocumentSource {
+  readonly targets: readonly string[];
+  constructor(targets: readonly string[]) {
+    this.targets = targets;
+  }
+  async documents(): Promise<Located[]> {
+    const files = (await Promise.all(this.targets.map((t) => walk(t, (f) => f.endsWith(".json"))))).flat();
     return Promise.all(files.map(readJson));
   }
 }

@@ -13,6 +13,7 @@ from sdp.kernel.application import codec
 from sdp.kernel.application.manifest import build_manifest
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.canonical import canonical_json
+from sdp.kernel.domain.dataset import ProductUse
 from sdp.kernel.domain.errors import (
     InvariantViolation,
     PlanInvalid,
@@ -28,6 +29,7 @@ from sdp.kernel.domain.experiment import (
 )
 from sdp.kernel.domain.gates import evaluate_gates
 from sdp.kernel.domain.ids import ArtifactId, ProtocolId
+from sdp.kernel.domain.integration import AdapterCompatibilityRecord, ProductType, require_admitted
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.domain.sources import SourceKind, SourceRef
 from sdp.kernel.domain.verdict import ValidationReport
@@ -35,6 +37,7 @@ from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe, TaskFail
 from sdp.kernel.ports.determinism import Clock, IdGenerator
 from sdp.kernel.ports.driving import DefineExperimentCommand
 from sdp.kernel.ports.evidence import ExperimentTracker
+from sdp.kernel.ports.integration import AdapterCompatibilitySource
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.repositories import UnitOfWork
@@ -56,6 +59,34 @@ class ManifestWriter:
     """Writes the manifest atomically to the artifact store and mirrors it in the repository."""
 
     store: ArtifactStore
+    compatibility: AdapterCompatibilitySource | None = None
+    """The release's adapter compatibility records; without a source, no adapter is admitted."""
+
+    def products(self, uow: UnitOfWork, experiment: Experiment) -> dict[str, ProductUse]:
+        """Input role -> the adapter and product type it was acquired as, for adapter-acquired inputs."""
+        out: dict[str, ProductUse] = {}
+        for binding in experiment.definition.inputs:
+            artifact = uow.datasets.get(binding.artifact_id)
+            if artifact is not None and artifact.product is not None:
+                out[binding.role] = artifact.product
+        return out
+
+    def records_for(self, products: Mapping[str, ProductUse]) -> tuple[AdapterCompatibilityRecord, ...]:
+        used = {(p.adapter, p.product_type) for p in products.values()}
+        available = self.compatibility.records() if self.compatibility else ()
+        return tuple(
+            sorted(
+                (r for r in available if (r.adapter, r.product_type.value) in used),
+                key=lambda r: (r.adapter, r.product_type.value),
+            )
+        )
+
+    def require_admitted(self, uow: UnitOfWork, experiment: Experiment) -> None:
+        """No verdict while an input's adapter lacks a passing record for its product type (INT-016)."""
+        products = self.products(uow, experiment)
+        require_admitted(
+            self.records_for(products), [(p.adapter, ProductType(p.product_type)) for p in products.values()]
+        )
 
     def write(self, uow: UnitOfWork, experiment: Experiment) -> dict[str, Any]:
         frozen = uow.predeclarations.get_frozen(experiment.definition.predeclaration_hash)
@@ -69,7 +100,8 @@ class ManifestWriter:
             )
         provenance = uow.evidence.subgraph(f"experiment/{experiment.experiment_id}")
         media = {name: (codec.MEDIA_TYPE if name != "bundle" else "application/zip") for name in experiment.outputs}
-        manifest = build_manifest(experiment, frozen, sources, provenance, media)
+        products = self.products(uow, experiment)
+        manifest = build_manifest(experiment, frozen, sources, provenance, media, products, self.records_for(products))
         manifest_id = self.store.put(canonical_json(manifest).encode("utf-8"), JSON)
         self.store.link(manifest_path(experiment), manifest_id)
         experiment.manifest_id = manifest_id
@@ -338,6 +370,7 @@ class ValidateExperimentUseCase:
                 raise VerdictInconsistent(
                     f"{protocol.protocol_id} reported checks that differ from the kernel's evaluation of the frozen gates"
                 )
+            self.manifests.require_admitted(uow, experiment)
             experiment.validate(report, self.clock.now())
             graph = ProvGraph()
             report_entity = graph.entity(

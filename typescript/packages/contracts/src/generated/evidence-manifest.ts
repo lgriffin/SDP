@@ -6,7 +6,7 @@ import * as common from "./common.ts";
 import * as predeclaration from "./predeclaration.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json";
-export const SCHEMA_VERSION = "1.2.0";
+export const SCHEMA_VERSION = "1.3.0";
 
 export const Approval = z.object({
     "ledger_entry_id": z.string(),
@@ -78,6 +78,8 @@ export const Input = z.object({
     "source_ref": common.SourceRef,
     "dialect_id": z.string().nullable().optional(),
     "acquisition_key": common.Sha256Id.nullable().optional(),
+    "adapter": z.string().nullable().optional(),
+    "product_type": z.enum(["image","spectrum","cube","timeseries","measurements","catalogue"]).nullable().optional(),
   }).strict();
 export type Input = z.infer<typeof Input>;
 

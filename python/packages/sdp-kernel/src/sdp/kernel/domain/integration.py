@@ -289,10 +289,11 @@ class SourceCapabilityDescriptor:
         """Remove every product-type claim without a passing conformance suite (INT-002).
 
         Returns the stripped descriptor and the claims removed; the harness fails the release
-        report when the second element is non-empty.
+        report when the second element is non-empty. Previews, thumbnails and auxiliary files are
+        never evidence (INT-008), so they need no admission and are never stripped.
         """
         proven = dict(self.adapter.conformance) if self.adapter else {}
-        removed = tuple(sorted(t for t in self.product_types if not proven.get(t.value, False)))
+        removed = tuple(sorted(t for t in self.product_types if t.is_science and not proven.get(t.value, False)))
         if not removed:
             return self, ()
         kept = frozenset(t for t in self.product_types if t not in removed)

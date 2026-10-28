@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from sdp.kernel.domain.dataset import ProductUse
 from sdp.kernel.domain.experiment import Experiment
+from sdp.kernel.domain.integration import AdapterCompatibilityRecord
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.domain.sources import SourceRef
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.3.0"
 
 
 def iso(at: datetime | None) -> str | None:
@@ -24,11 +26,22 @@ def build_manifest(
     input_sources: Mapping[str, SourceRef],
     provenance: ProvGraph,
     output_media_types: Mapping[str, str] | None = None,
+    input_products: Mapping[str, ProductUse] | None = None,
+    compatibility: Sequence[AdapterCompatibilityRecord] = (),
 ) -> dict[str, Any]:
     """Every field group of §7: identity, intent, inputs, environment, execution, outputs,
-    findings and checks, verdict, provenance."""
+    findings and checks, verdict, provenance.
+
+    An input acquired through an integration adapter names the adapter and product type, and the
+    environment carries the compatibility records for those pairs (Integration v0.4.0 §6). Both are
+    left out when no input came through one, so earlier manifests keep their shape.
+    """
     d = experiment.definition
     media = dict(output_media_types or {})
+    products = dict(input_products or {})
+    environment = d.environment.to_document()
+    if compatibility:
+        environment["adapter_compatibility"] = [r.to_document() for r in compatibility]
     predeclaration_doc = (
         frozen.predeclaration.to_document()
         if frozen
@@ -73,10 +86,15 @@ def build_manifest(
                 "source_ref": input_sources[b.role].to_document(),
                 "dialect_id": None,
                 "acquisition_key": None,
+                **(
+                    {"adapter": products[b.role].adapter, "product_type": products[b.role].product_type}
+                    if b.role in products
+                    else {}
+                ),
             }
             for b in d.inputs
         ],
-        "environment": d.environment.to_document(),
+        "environment": environment,
         "execution": {
             "seed": d.seed,
             "state": experiment.state.value,

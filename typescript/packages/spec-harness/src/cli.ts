@@ -1,14 +1,14 @@
-// spec-harness <command>: ears, trace, conform, rederive, guard, ratchet, report.
+// spec-harness <command>: ears, trace, conform, rederive, admit, claims, guard, ratchet, report.
 // Paths are relative to the current directory; CI runs it from the repository root.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { EarsDirectory, JUnitFiles, LedgerFiles, ManifestFiles, PredeclarationFiles } from "./adapters/fs.ts";
+import { EarsDirectory, JsonFiles, JUnitFiles, LedgerFiles, ManifestFiles, PredeclarationFiles } from "./adapters/fs.ts";
 import { renderRequirementsMarkdown } from "./ears.ts";
 import { parseNameStatus, type GateSnapshot } from "./guard.ts";
-import { approvals, compileRequirements, conformAll, guardChanges, rederiveAll, runTrace } from "./harness.ts";
+import { admitAll, approvals, claimsAll, compileRequirements, conformAll, guardChanges, rederiveAll, runTrace } from "./harness.ts";
 import { ratchet } from "./ratchet.ts";
 import { buildReleaseReport, renderReleaseReport, type Level, type TierStatus } from "./report.ts";
 import { renderTraceabilityMarkdown } from "./trace.ts";
@@ -89,6 +89,41 @@ async function rederiveCommand(argv: string[]): Promise<number> {
   return results.some((r) => r.state === "disagree") ? 1 : 0;
 }
 
+async function admitCommand(argv: string[]): Promise<number> {
+  const { positionals } = parseArgs({ args: argv, allowPositionals: true });
+  const results = await admitAll(new ManifestFiles(positionals.length ? positionals : ["experiments"]));
+  let blocked = 0;
+  for (const r of results) {
+    if (!r.unadmitted.length) continue;
+    const verdict = r.verdict !== null;
+    if (verdict) blocked++;
+    for (const u of r.unadmitted) {
+      const line = `${r.experimentId}: ${u.adapter} not admitted for ${u.productType} (${u.reason})`;
+      if (verdict) console.error(`FAIL ${line}; the kernel issued ${r.verdict}`);
+      else console.warn(`warn ${line}; no verdict may be issued`);
+    }
+  }
+  console.log(`${results.length} manifests, ${blocked} with a verdict on an unadmitted adapter (INT-016)`);
+  return blocked ? 1 : 0;
+}
+
+async function claimsCommand(argv: string[]): Promise<number> {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      descriptors: { type: "string", multiple: true, default: ["capabilities/descriptors"] },
+      records: { type: "string", multiple: true, default: ["capabilities/compatibility"] },
+      out: { type: "string" },
+    },
+  });
+  const checks = await claimsAll(new JsonFiles(values.descriptors), new JsonFiles(values.records));
+  for (const c of checks) for (const r of c.removed) console.error(`FAIL ${c.sourceId}: claim ${r.productType} removed (${r.reason})`);
+  if (values.out) for (const c of checks) write(path.join(values.out, `${c.sourceId}.json`), json(c.stripped));
+  const removed = checks.reduce((n, c) => n + c.removed.length, 0);
+  console.log(`${checks.length} descriptors, ${removed} claims without admission (INT-002)`);
+  return removed ? 1 : 0;
+}
+
 function gitShow(ref: string, file: string): string | null {
   try {
     return execFileSync("git", ["show", `${ref}:${file}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -153,6 +188,8 @@ async function reportCommand(argv: string[]): Promise<number> {
       mutation: { type: "string" },
       "high-water": { type: "string", default: "mutation/high-water.json" },
       evidence: { type: "string", multiple: true, default: [] },
+      descriptors: { type: "string", multiple: true, default: ["capabilities/descriptors"] },
+      records: { type: "string", multiple: true, default: ["capabilities/compatibility"] },
       out: { type: "string", default: "reports/release" },
     },
   });
@@ -181,6 +218,7 @@ async function reportCommand(argv: string[]): Promise<number> {
     ...(mutation ? { mutation } : {}),
     approvals: await approvals(ledger),
     independentEvidence: values.evidence,
+    claims: await claimsAll(new JsonFiles(values.descriptors), new JsonFiles(values.records)),
   });
   write(path.join(values.out, "release-report.json"), json(report));
   write(path.join(values.out, "release-report.md"), renderReleaseReport(report));
@@ -194,6 +232,8 @@ const COMMANDS: Record<string, (argv: string[]) => Promise<number>> = {
   trace: traceCommand,
   conform: conformCommand,
   rederive: rederiveCommand,
+  admit: admitCommand,
+  claims: claimsCommand,
   guard: guardCommand,
   ratchet: ratchetCommand,
   report: reportCommand,

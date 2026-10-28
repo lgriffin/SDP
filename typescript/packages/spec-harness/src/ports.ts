@@ -35,6 +35,11 @@ export interface PredeclarationSource {
   predeclarations(): Promise<Located[]>;
 }
 
+/** Any JSON documents of one contract, e.g. capability descriptors or compatibility records. */
+export interface DocumentSource {
+  documents(): Promise<Located[]>;
+}
+
 export interface LedgerSource {
   entries(): Promise<LedgerEntryDocument[]>;
 }
