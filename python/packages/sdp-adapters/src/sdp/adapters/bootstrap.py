@@ -12,11 +12,13 @@ from typing import Any
 from sdp.adapters.archives.dialect import YamlDialectCurator
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
+from sdp.adapters.archives.untrusted import IsolatedVotableParser
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
+from sdp.adapters.publication.zenodo import ZenodoPublisher, creators_from
 from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import SystemClock, SystemEnvironmentProbe, UlidGenerator
@@ -100,12 +102,24 @@ def archive_gateways(settings: Settings) -> dict[str, ArchiveGateway]:
     gateways: dict[str, ArchiveGateway] = {}
     for source_id, source in load_sources().items():
         transport = archive_transport(settings, source_id, source.descriptor.min_seconds_between_calls)
-        gateways[source_id] = TapArchiveAdapter({source_id: source}, transport)
+        gateways[source_id] = TapArchiveAdapter({source_id: source}, transport, parser=IsolatedVotableParser())
     return gateways
 
 
 def cross_match(settings: Settings) -> CdsXMatchAdapter:
     return CdsXMatchAdapter(archive_transport(settings, "cds-xmatch", 1.0))
+
+
+def publisher(settings: Settings) -> BundlePublisher:
+    """Zenodo when a token is configured; otherwise a publisher that refuses."""
+    if not settings.zenodo_token:
+        return UnconfiguredPublisher()
+    return ZenodoPublisher(
+        settings.zenodo_token,
+        creators_from(settings.zenodo_creators),
+        base_url=settings.zenodo_url,
+        community=settings.zenodo_community,
+    )
 
 
 def build_application(settings: Settings, overrides: Overrides | None = None, *, logging: bool = True) -> Application:
@@ -128,7 +142,7 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         ids=UlidGenerator(),
         environment=SystemEnvironmentProbe(repo=settings.repo_root),
         tracker=tracker,
-        publisher=overrides.publisher or UnconfiguredPublisher(),
+        publisher=overrides.publisher or publisher(settings),
         curator=overrides.curator or YamlDialectCurator.packaged(),
         gateways={**archive_gateways(settings), **overrides.gateways},
         services=dict(overrides.services),
