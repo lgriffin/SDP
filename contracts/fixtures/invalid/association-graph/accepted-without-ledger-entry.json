@@ -1,0 +1,332 @@
+{
+  "schema_version": "1.0.0",
+  "method": "planted",
+  "method_version": "1.0.0",
+  "policy": {
+    "policy_id": "fixture-association",
+    "version": "1.0.0",
+    "common_epoch_jyear": 2023.0,
+    "search_radius_arcsec": 3.0,
+    "min_posterior": 0.001,
+    "photometric_terms": false
+  },
+  "source_density_per_arcsec2": 0.0,
+  "records": [
+    {
+      "kind": "catalogue_source",
+      "record_id": "gaia-a",
+      "catalogue": "gaia",
+      "release_label": "DR3",
+      "source_key": "1",
+      "ra_deg": 53.16,
+      "dec_deg": -27.78,
+      "covariance": {
+        "sigma_ra_arcsec": 0.02,
+        "sigma_dec_arcsec": 0.02,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2016.0,
+      "motion": {
+        "pmra_mas_yr": 0.0,
+        "pmdec_mas_yr": 0.0,
+        "parallax_mas": null,
+        "sigma_pmra_mas_yr": 0.0,
+        "sigma_pmdec_mas_yr": 0.0,
+        "sigma_parallax_mas": null
+      },
+      "resolution_arcsec": 0.0,
+      "photometry": []
+    },
+    {
+      "kind": "catalogue_source",
+      "record_id": "gaia-b1",
+      "catalogue": "gaia",
+      "release_label": "DR3",
+      "source_key": "2",
+      "ra_deg": 53.16555555555555,
+      "dec_deg": -27.78,
+      "covariance": {
+        "sigma_ra_arcsec": 0.02,
+        "sigma_dec_arcsec": 0.02,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2016.0,
+      "motion": {
+        "pmra_mas_yr": 0.0,
+        "pmdec_mas_yr": 0.0,
+        "parallax_mas": null,
+        "sigma_pmra_mas_yr": 0.0,
+        "sigma_pmdec_mas_yr": 0.0,
+        "sigma_parallax_mas": null
+      },
+      "resolution_arcsec": 0.0,
+      "photometry": []
+    },
+    {
+      "kind": "catalogue_source",
+      "record_id": "gaia-b2",
+      "catalogue": "gaia",
+      "release_label": "DR3",
+      "source_key": "3",
+      "ra_deg": 53.16555555555555,
+      "dec_deg": -27.779722222222222,
+      "covariance": {
+        "sigma_ra_arcsec": 0.02,
+        "sigma_dec_arcsec": 0.02,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2016.0,
+      "motion": {
+        "pmra_mas_yr": 0.0,
+        "pmdec_mas_yr": 0.0,
+        "parallax_mas": null,
+        "sigma_pmra_mas_yr": 0.0,
+        "sigma_pmdec_mas_yr": 0.0,
+        "sigma_parallax_mas": null
+      },
+      "resolution_arcsec": 0.0,
+      "photometry": []
+    },
+    {
+      "kind": "catalogue_source",
+      "record_id": "gaia-c",
+      "catalogue": "gaia",
+      "release_label": "DR3",
+      "source_key": "4",
+      "ra_deg": 53.16,
+      "dec_deg": -27.76888888888889,
+      "covariance": {
+        "sigma_ra_arcsec": 0.02,
+        "sigma_dec_arcsec": 0.02,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2016.0,
+      "motion": {
+        "pmra_mas_yr": 500.0,
+        "pmdec_mas_yr": 0.0,
+        "parallax_mas": null,
+        "sigma_pmra_mas_yr": 0.0,
+        "sigma_pmdec_mas_yr": 0.0,
+        "sigma_parallax_mas": null
+      },
+      "resolution_arcsec": 0.0,
+      "photometry": []
+    },
+    {
+      "kind": "detection",
+      "record_id": "jwst-a",
+      "product_id": "synthetic:JWST/i2d",
+      "extension": "SCI",
+      "ra_deg": 53.160013888888884,
+      "dec_deg": -27.78,
+      "covariance": {
+        "sigma_ra_arcsec": 0.03,
+        "sigma_dec_arcsec": 0.03,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2019.5,
+      "resolution_arcsec": 0.07,
+      "instrument": "NIRCAM",
+      "photometry": []
+    },
+    {
+      "kind": "detection",
+      "record_id": "jwst-c",
+      "product_id": "synthetic:JWST/i2d",
+      "extension": "SCI",
+      "ra_deg": 53.16054938108434,
+      "dec_deg": -27.76888888888889,
+      "covariance": {
+        "sigma_ra_arcsec": 0.03,
+        "sigma_dec_arcsec": 0.03,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2019.5,
+      "resolution_arcsec": 0.07,
+      "instrument": "NIRCAM",
+      "photometry": []
+    },
+    {
+      "kind": "detection",
+      "record_id": "wise-b",
+      "product_id": "synthetic:WISE/w1",
+      "extension": "SCI",
+      "ra_deg": 53.16555555555555,
+      "dec_deg": -27.779861111111114,
+      "covariance": {
+        "sigma_ra_arcsec": 0.5,
+        "sigma_dec_arcsec": 0.5,
+        "rho": 0.0
+      },
+      "epoch_jyear": 2019.5,
+      "resolution_arcsec": 6.0,
+      "instrument": "WISE",
+      "photometry": []
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothesis_id": "obj-a",
+      "members": [
+        "gaia-a",
+        "jwst-a"
+      ]
+    },
+    {
+      "hypothesis_id": "obj-b1",
+      "members": [
+        "gaia-b1",
+        "wise-b"
+      ]
+    },
+    {
+      "hypothesis_id": "obj-b2",
+      "members": [
+        "gaia-b2",
+        "wise-b"
+      ]
+    },
+    {
+      "hypothesis_id": "obj-c",
+      "members": [
+        "gaia-c",
+        "jwst-c"
+      ]
+    }
+  ],
+  "associations": [
+    {
+      "record_id": "gaia-a",
+      "hypothesis_id": "obj-a",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "accepted",
+      "ledger_entry_id": "",
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "gaia-b1",
+      "hypothesis_id": "obj-b1",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "gaia-b2",
+      "hypothesis_id": "obj-b2",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "gaia-c",
+      "hypothesis_id": "obj-c",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 1.0,
+      "posterior": 1.0,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "jwst-a",
+      "hypothesis_id": "obj-a",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 0.99,
+      "posterior": 0.99,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "jwst-c",
+      "hypothesis_id": "obj-c",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 0.98,
+      "posterior": 0.98,
+      "bayes_factor": null,
+      "competing": [],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "wise-b",
+      "hypothesis_id": "obj-b1",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 0.55,
+      "posterior": 0.55,
+      "bayes_factor": null,
+      "competing": [
+        "obj-b2"
+      ],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    },
+    {
+      "record_id": "wise-b",
+      "hypothesis_id": "obj-b2",
+      "method": "planted",
+      "method_version": "1.0.0",
+      "prior": 0.5,
+      "likelihood": 0.45,
+      "posterior": 0.45,
+      "bayes_factor": null,
+      "competing": [
+        "obj-b1"
+      ],
+      "evidence": {},
+      "state": "proposed",
+      "ledger_entry_id": null,
+      "reviewer": null,
+      "reason": ""
+    }
+  ],
+  "graph_id": "sha256:f8824a370900b1eed3d8094eeea2eb63c09a129c31720bbc93b5c68efc8d4ed2"
+}

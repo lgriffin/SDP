@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "raw_artifact_id": "sha256:abababababababababababababababababababababababababababababababab",
+  "curated_artifact_id": "sha256:efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+  "metadata": {
+    "product_id": "synthetic:JWST/product/jw00000-o001_t001_nircam_clear-f200w_i2d.fits",
+    "product_type": "image",
+    "mission": "JWST",
+    "instrument": "NIRCAM",
+    "detector": "NRCA1",
+    "filter_or_grating": "F200W",
+    "observation_id": "jw00000-o001_t001_nircam_clear-f200w",
+    "programme_id": "0",
+    "target_position": {
+      "ra_deg": 53.16,
+      "dec_deg": -27.78,
+      "frame": "ICRS"
+    },
+    "s_region": null,
+    "time": {
+      "start_mjd": 60000.0,
+      "end_mjd": 60000.1,
+      "scale": "UTC"
+    },
+    "spectral_range_m": [
+      1.75e-06,
+      2.25e-06
+    ],
+    "spatial_resolution_arcsec": 0.07,
+    "field_of_view_deg": 0.04,
+    "calibration_level": 3,
+    "pipeline_version": "1.0.0",
+    "format": "application/fits",
+    "dimensions": [
+      2048,
+      2048
+    ],
+    "units": "MJy/sr",
+    "extensions": [
+      {
+        "name": "SCI",
+        "role": "data",
+        "unit": "MJy/sr"
+      },
+      {
+        "name": "ERR",
+        "role": "error",
+        "unit": "MJy/sr"
+      },
+      {
+        "name": "DQ",
+        "role": "quality",
+        "unit": null
+      }
+    ],
+    "has_wcs": true,
+    "uncertainty_present": true,
+    "quality_present": true,
+    "access_status": "public",
+    "exclusive_access_ends": null,
+    "rights": {
+      "licence": "public domain",
+      "citation": "MAST",
+      "acknowledgement": ""
+    },
+    "source_id": "synthetic-mast",
+    "query": "synthetic",
+    "checksum": "sha256:abababababababababababababababababababababababababababababababab",
+    "size_bytes": 1024,
+    "relationships": [
+      {
+        "semantics": "#progenitor",
+        "product_id": "synthetic:JWST/product/a_cal.fits",
+        "description": ""
+      },
+      {
+        "semantics": "#progenitor",
+        "product_id": "synthetic:JWST/product/b_cal.fits",
+        "description": ""
+      }
+    ]
+  },
+  "validation": {
+    "product_id": "synthetic:JWST/product/jw00000-o001_t001_nircam_clear-f200w_i2d.fits",
+    "validator_id": "fixture-validator",
+    "validator_version": "1.0.0",
+    "passed": true,
+    "checks": [
+      {
+        "field": "frame",
+        "passed": true,
+        "detail": "ICRS"
+      },
+      {
+        "field": "units",
+        "passed": true,
+        "detail": "MJy/sr"
+      }
+    ]
+  }
+}

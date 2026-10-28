@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 from pydantic import BaseModel, ConfigDict, Field
-from . import common_schema, predeclaration_schema
+from . import adapter_compatibility_schema, common_schema, predeclaration_schema
 from enum import StrEnum
 
 
@@ -32,23 +32,6 @@ class Input(BaseModel):
 class Backend(StrEnum):
     CPU = "cpu"
     CUDA = "cuda"
-
-
-class Environment(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    code_revision: Annotated[str, Field(min_length=1)]
-    lock_digest: Annotated[str, Field(min_length=1)]
-    image_digest: str | None = None
-    backend: Backend
-    driver_version: str | None = None
-    cuda_version: str | None = None
-    agreement_test_id: str | None = None
-    python_version: str
-    platform: str
-    constants_version: str | None = None
-    packages: dict[str, str] | None = None
 
 
 class Status(StrEnum):
@@ -170,6 +153,24 @@ class OracleRecord(BaseModel):
     note: str | None = None
 
 
+class Environment(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    code_revision: Annotated[str, Field(min_length=1)]
+    lock_digest: Annotated[str, Field(min_length=1)]
+    image_digest: str | None = None
+    backend: Backend
+    driver_version: str | None = None
+    cuda_version: str | None = None
+    agreement_test_id: str | None = None
+    python_version: str
+    platform: str
+    constants_version: str | None = None
+    packages: dict[str, str] | None = None
+    adapter_compatibility: list[adapter_compatibility_schema.AdapterCompatibilityRecord] | None = None
+
+
 class Intent(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -177,6 +178,7 @@ class Intent(BaseModel):
     predeclaration_hash: common_schema.Sha256Id
     ledger_entry_id: Annotated[str, Field(min_length=1)]
     predeclaration: predeclaration_schema.Predeclaration
+    plan_artifact_id: common_schema.Sha256Id | None = None
 
 
 class EvidenceManifest(BaseModel):

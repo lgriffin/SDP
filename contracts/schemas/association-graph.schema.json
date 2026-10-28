@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/association-graph.schema.json",
+  "x-version": "1.0.0",
+  "title": "AssociationGraph",
+  "description": "Detections, catalogue sources, object hypotheses and every retained association with its posterior (v0.4.0 \u00a74, ADR-019).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "graph_id",
+    "method",
+    "method_version",
+    "policy",
+    "source_density_per_arcsec2",
+    "records",
+    "hypotheses",
+    "associations"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "graph_id": {
+      "$ref": "common.schema.json#/$defs/Sha256Id"
+    },
+    "method": {
+      "type": "string",
+      "minLength": 1
+    },
+    "method_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "version",
+        "common_epoch_jyear",
+        "search_radius_arcsec",
+        "min_posterior",
+        "photometric_terms"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        },
+        "common_epoch_jyear": {
+          "type": "number"
+        },
+        "search_radius_arcsec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "min_posterior": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 0.5
+        },
+        "photometric_terms": {
+          "type": "boolean"
+        }
+      }
+    },
+    "source_density_per_arcsec2": {
+      "type": "number",
+      "minimum": 0
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/Detection"
+          },
+          {
+            "$ref": "#/$defs/CatalogueSource"
+          }
+        ]
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hypothesis_id",
+          "members"
+        ],
+        "properties": {
+          "hypothesis_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "associations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Association"
+      }
+    }
+  },
+  "$defs": {
+    "Covariance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sigma_ra_arcsec",
+        "sigma_dec_arcsec",
+        "rho"
+      ],
+      "properties": {
+        "sigma_ra_arcsec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sigma_dec_arcsec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "rho": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        }
+      }
+    },
+    "Photometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "band",
+        "magnitude",
+        "sigma"
+      ],
+      "properties": {
+        "band": {
+          "type": "string",
+          "minLength": 1
+        },
+        "magnitude": {
+          "type": "number"
+        },
+        "sigma": {
+          "type": "number"
+        }
+      }
+    },
+    "Motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pmra_mas_yr",
+        "pmdec_mas_yr",
+        "parallax_mas",
+        "sigma_pmra_mas_yr",
+        "sigma_pmdec_mas_yr",
+        "sigma_parallax_mas"
+      ],
+      "properties": {
+        "pmra_mas_yr": {
+          "type": "number"
+        },
+        "pmdec_mas_yr": {
+          "type": "number"
+        },
+        "parallax_mas": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sigma_pmra_mas_yr": {
+          "type": "number"
+        },
+        "sigma_pmdec_mas_yr": {
+          "type": "number"
+        },
+        "sigma_parallax_mas": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "Detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "record_id",
+        "product_id",
+        "extension",
+        "ra_deg",
+        "dec_deg",
+        "covariance",
+        "epoch_jyear",
+        "resolution_arcsec",
+        "instrument",
+        "photometry"
+      ],
+      "properties": {
+        "kind": {
+          "const": "detection"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "extension": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ra_deg": {
+          "type": "number"
+        },
+        "dec_deg": {
+          "type": "number"
+        },
+        "covariance": {
+          "$ref": "#/$defs/Covariance"
+        },
+        "epoch_jyear": {
+          "type": "number"
+        },
+        "resolution_arcsec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "instrument": {
+          "type": "string",
+          "minLength": 1
+        },
+        "photometry": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Photometry"
+          }
+        }
+      }
+    },
+    "CatalogueSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "record_id",
+        "catalogue",
+        "release_label",
+        "source_key",
+        "ra_deg",
+        "dec_deg",
+        "covariance",
+        "epoch_jyear",
+        "motion",
+        "resolution_arcsec",
+        "photometry"
+      ],
+      "properties": {
+        "kind": {
+          "const": "catalogue_source"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "catalogue": {
+          "type": "string",
+          "minLength": 1
+        },
+        "release_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ra_deg": {
+          "type": "number"
+        },
+        "dec_deg": {
+          "type": "number"
+        },
+        "covariance": {
+          "$ref": "#/$defs/Covariance"
+        },
+        "epoch_jyear": {
+          "type": "number"
+        },
+        "motion": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Motion"
+            }
+          ]
+        },
+        "resolution_arcsec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "photometry": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Photometry"
+          }
+        }
+      }
+    },
+    "Association": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_id",
+        "hypothesis_id",
+        "method",
+        "method_version",
+        "prior",
+        "likelihood",
+        "posterior",
+        "bayes_factor",
+        "competing",
+        "evidence",
+        "state",
+        "ledger_entry_id",
+        "reviewer",
+        "reason"
+      ],
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hypothesis_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        },
+        "prior": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "likelihood": {
+          "type": "number"
+        },
+        "posterior": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "bayes_factor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "competing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence": {
+          "type": "object"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted",
+            "rejected",
+            "superseded"
+          ]
+        },
+        "ledger_entry_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "accepted"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "ledger_entry_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -13,11 +13,16 @@ export { leafIssues } from "./refinements.ts";
 export const SCHEMA_MAJOR = 1;
 
 export const SCHEMAS = {
+  "acquisition-plan": generated.acquisitionPlan.AcquisitionPlan,
+  "adapter-compatibility": generated.adapterCompatibility.AdapterCompatibilityRecord,
+  "association-graph": generated.associationGraph.AssociationGraph,
   "canonical-astrometry": generated.canonicalAstrometry.CanonicalAstrometryRow,
+  "capability-descriptor": generated.capabilityDescriptor.SourceCapabilityDescriptor,
   "dataset-artifact": generated.datasetArtifact.DatasetArtifact,
   "evidence-manifest": generated.evidenceManifest.EvidenceManifest,
   "ledger-entry": generated.ledgerEntry.LedgerEntry,
   predeclaration: generated.predeclaration.Predeclaration,
+  "scientific-data-product": generated.scientificDataProduct.ScientificDataProduct,
   "validation-report": generated.validationReport.ValidationReport,
 } as const;
 
