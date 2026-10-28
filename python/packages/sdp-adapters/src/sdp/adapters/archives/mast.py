@@ -3,7 +3,7 @@ ObsCore TAP service (CAOM), products by their access URL, and cutouts from HAPCu
 
 One gateway serves every MAST mission: ``criteria.missions`` selects ObsCore ``obs_collection``
 values (HST, JWST, TESS, …). Everything travels through a Transport, so CI replays cassettes and
-never calls MAST (ADR-015). ObsCore lists no cloud copy, so ``cloud_uri`` stays None (D16).
+never calls MAST (ADR-015). ObsCore lists no cloud copy, so ``cloud_uri`` stays None (D22).
 """
 
 from __future__ import annotations

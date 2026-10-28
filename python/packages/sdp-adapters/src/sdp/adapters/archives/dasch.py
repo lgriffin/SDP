@@ -3,7 +3,7 @@ curves into the canonical ``lightcurve`` and ``astrometry`` products (Investigat
 
 The gateway calls the DASCH data API endpoints daschlab calls (``querycat``, ``lightcurve``,
 ``queryexps``, ``cutout``) through a Transport, so CI replays cassettes and never calls DASCH
-(ADR-015, D14). Their answers are JSON lists of CSV lines with a header row.
+(ADR-015, D20). Their answers are JSON lists of CSV lines with a header row.
 """
 
 from __future__ import annotations
