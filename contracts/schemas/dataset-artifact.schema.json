@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/dataset-artifact.schema.json",
+  "x-version": "1.0.0",
+  "title": "DatasetArtifact",
+  "description": "Metadata for one content-addressed dataset: raw artifacts are immutable, curated artifacts cite their raw parents and the dialect that produced them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "kind",
+    "status",
+    "media_type",
+    "byte_count",
+    "source_ref",
+    "dialect",
+    "parents",
+    "acquisition"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "artifact_id": {
+      "$ref": "common.schema.json#/$defs/Sha256Id"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "raw",
+        "curated",
+        "derived"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "acquired",
+        "rejected",
+        "curated"
+      ]
+    },
+    "media_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "byte_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source_ref": {
+      "$ref": "common.schema.json#/$defs/SourceRef"
+    },
+    "dialect": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/DialectRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parents": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Sha256Id"
+      }
+    },
+    "acquisition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AcquisitionRecord"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rejection_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "DialectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dialect_id",
+        "dialect_version"
+      ],
+      "properties": {
+        "dialect_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dialect_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        }
+      }
+    },
+    "AcquisitionPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "part",
+        "artifact_id",
+        "byte_count",
+        "row_count"
+      ],
+      "properties": {
+        "part": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact_id": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "row_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "AcquisitionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rendered_query",
+        "idempotency_key",
+        "source_release",
+        "acquired_at",
+        "checksum",
+        "byte_count",
+        "parts"
+      ],
+      "properties": {
+        "rendered_query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency_key": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "source_release": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acquired_at": {
+          "$ref": "common.schema.json#/$defs/Timestamp"
+        },
+        "checksum": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AcquisitionPart"
+          }
+        }
+      }
+    }
+  }
+}

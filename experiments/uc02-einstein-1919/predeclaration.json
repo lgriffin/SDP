@@ -1,0 +1,301 @@
+{
+  "schema_version": "1.0.0",
+  "predeclaration_id": "uc02-einstein-1919-v1",
+  "protocol_id": "uc02-einstein-1919",
+  "protocol_version": "1.0.0",
+  "title": "Re-examination of the 1919 eclipse light-deflection measurements",
+  "hypotheses": [
+    {
+      "hypothesis_id": "UC02-H0",
+      "version": 1,
+      "statement": "Starlight is not deflected by the Sun (alpha = 0).",
+      "predictions": [
+        {
+          "model_id": "deflection.zero",
+          "model_version": "1.0.0",
+          "parameters": {
+            "alpha_limb_arcsec": 0.0
+          },
+          "predicted": {
+            "value": 0.0,
+            "unit": "arcsec"
+          },
+          "geometry_assumptions": [
+            "light ray grazing a spherical Sun of mass M_sun",
+            "deflection scales as 1/b with impact parameter b",
+            "radial displacement away from the Sun's centre"
+          ]
+        }
+      ],
+      "evaluation_criteria": [
+        "likelihood and information criteria relative to the free-amplitude model, per instrument"
+      ]
+    },
+    {
+      "hypothesis_id": "UC02-H1",
+      "version": 1,
+      "statement": "Starlight is deflected by the 'Newtonian' half value, alpha(b) = 2GM/(c^2 b).",
+      "predictions": [
+        {
+          "model_id": "deflection.half",
+          "model_version": "1.0.0",
+          "parameters": {
+            "factor": 2
+          },
+          "predicted": null,
+          "geometry_assumptions": [
+            "light ray grazing a spherical Sun of mass M_sun",
+            "deflection scales as 1/b with impact parameter b",
+            "radial displacement away from the Sun's centre"
+          ]
+        }
+      ],
+      "evaluation_criteria": [
+        "likelihood and information criteria relative to the free-amplitude model, per instrument"
+      ]
+    },
+    {
+      "hypothesis_id": "UC02-H2",
+      "version": 1,
+      "statement": "Starlight is deflected by the general-relativistic value, alpha(b) = 4GM/(c^2 b).",
+      "predictions": [
+        {
+          "model_id": "deflection.gr",
+          "model_version": "1.0.0",
+          "parameters": {
+            "factor": 4
+          },
+          "predicted": null,
+          "geometry_assumptions": [
+            "light ray grazing a spherical Sun of mass M_sun",
+            "deflection scales as 1/b with impact parameter b",
+            "radial displacement away from the Sun's centre"
+          ]
+        }
+      ],
+      "evaluation_criteria": [
+        "likelihood and information criteria relative to the free-amplitude model, per instrument"
+      ]
+    },
+    {
+      "hypothesis_id": "UC02-H3",
+      "version": 1,
+      "statement": "The limb deflection is a free amplitude alpha estimated from the plates.",
+      "predictions": [
+        {
+          "model_id": "deflection.free",
+          "model_version": "1.0.0",
+          "parameters": {
+            "alpha_limb_arcsec": "free"
+          },
+          "predicted": null,
+          "geometry_assumptions": [
+            "light ray grazing a spherical Sun of mass M_sun",
+            "deflection scales as 1/b with impact parameter b",
+            "radial displacement away from the Sun's centre"
+          ]
+        }
+      ],
+      "evaluation_criteria": [
+        "posterior interval on alpha per instrument and scenario"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "REL-G-01",
+      "description": "Every transcribed measurement links to a source page or table",
+      "finding": "unlinked_measurement_count",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "REL-G-02",
+      "description": "Every measurement used in a fit has a second-pass verification record",
+      "finding": "unverified_measurement_count",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "REL-G-03",
+      "description": "GRDeflection and HalfDeflection reproduce the analytic limb values within NumericalPolicy tolerance",
+      "finding": "limb_model_max_rel_error",
+      "comparator": "le",
+      "threshold": 1e-09,
+      "severity": "blocking",
+      "oracle_ids": [
+        "gr-limb",
+        "half-limb"
+      ]
+    },
+    {
+      "gate_id": "REL-G-04",
+      "description": "Historical published estimates reproduced within tolerances recorded in this predeclaration",
+      "finding": "historical_reproduction_max_z",
+      "comparator": "le",
+      "threshold": 1.0,
+      "severity": "blocking",
+      "oracle_ids": [
+        "sobral-4in-1920",
+        "principe-1920",
+        "sobral-astro-1920"
+      ]
+    },
+    {
+      "gate_id": "REL-G-05",
+      "description": "All four hypotheses evaluated on every instrument set separately",
+      "finding": "hypotheses_missing_count",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "REL-G-06",
+      "description": "Sensitivity sweep complete; the report states which conclusions survive all scenarios",
+      "finding": "sensitivity_scenarios_missing",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "REL-G-07",
+      "description": "Comparison with the 2020 reanalysis present, with agreements and disagreements listed",
+      "finding": "reanalysis_comparison_present",
+      "comparator": "eq",
+      "threshold": true,
+      "severity": "blocking",
+      "oracle_ids": [
+        "gtp-2020"
+      ]
+    },
+    {
+      "gate_id": "REL-G-08",
+      "description": "Independent implementation of the fitter agrees on alpha within tolerance",
+      "finding": "independent_fitter_max_abs_diff_arcsec",
+      "comparator": "le",
+      "threshold": 1e-06,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "REL-G-09",
+      "description": "The dossier never describes a table-based reanalysis as a plate remeasurement",
+      "finding": "dossier_claim_violations",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    }
+  ],
+  "oracle_tolerances": [
+    {
+      "oracle_id": "gr-limb",
+      "rtol": 1e-09,
+      "atol": 0.0,
+      "unit": "arcsec"
+    },
+    {
+      "oracle_id": "half-limb",
+      "rtol": 1e-09,
+      "atol": 0.0,
+      "unit": "arcsec"
+    },
+    {
+      "oracle_id": "sobral-4in-1920",
+      "rtol": 0.0,
+      "atol": 0.05,
+      "unit": "arcsec"
+    },
+    {
+      "oracle_id": "principe-1920",
+      "rtol": 0.0,
+      "atol": 0.1,
+      "unit": "arcsec"
+    },
+    {
+      "oracle_id": "sobral-astro-1920",
+      "rtol": 0.0,
+      "atol": 0.1,
+      "unit": "arcsec"
+    },
+    {
+      "oracle_id": "gtp-2020",
+      "rtol": 0.0,
+      "atol": 0.1,
+      "unit": "arcsec"
+    }
+  ],
+  "targets": [
+    {
+      "target_id": "sobral-4in",
+      "kind": "source",
+      "reason": "Sobral 4-inch lens plates: the instrument the 1920 paper relied on most",
+      "spec": {
+        "instrument": "sobral-4in",
+        "document": "10.1098/rsta.1920.0009"
+      }
+    },
+    {
+      "target_id": "sobral-astro",
+      "kind": "source",
+      "reason": "Sobral astrographic plates: set aside in 1920 for focus problems; their treatment is a scenario axis",
+      "spec": {
+        "instrument": "sobral-astro",
+        "document": "10.1098/rsta.1920.0009"
+      }
+    },
+    {
+      "target_id": "principe-astro",
+      "kind": "source",
+      "reason": "Principe astrographic plates: independent site, cloud-limited, few stars",
+      "spec": {
+        "instrument": "principe-astro",
+        "document": "10.1098/rsta.1920.0009"
+      }
+    }
+  ],
+  "parameters": {
+    "scenario_axes": {
+      "error_convention": [
+        "probable_as_standard",
+        "converted"
+      ],
+      "plate_scale": [
+        "solved",
+        "fixed_from_check_plates"
+      ],
+      "astrographic": [
+        "included",
+        "excluded",
+        "downweighted"
+      ],
+      "error_correlation": [
+        "independent",
+        "per_plate"
+      ],
+      "likelihood": [
+        "gaussian",
+        "student_t"
+      ],
+      "prior_width_arcsec": [
+        0.5,
+        1.0,
+        2.0
+      ]
+    },
+    "student_t_nu": 4,
+    "bootstrap_resamples": 2000,
+    "alpha_grid_arcsec": {
+      "start": -1.0,
+      "stop": 4.0,
+      "step": 0.005
+    }
+  },
+  "notes": "DRAFT for Phase 0 review. REL-G-04 tolerances are provisional until the 1920 tables are inspected and transcribed; they must be finalised before freeze()."
+}

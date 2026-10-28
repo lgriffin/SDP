@@ -1,0 +1,20 @@
+# requirements/kernel/predeclaration.ears
+capability: Predeclaration freezing
+owner: kernel
+requirements:
+  - id: KRN-002
+    pattern: event
+    text: "When a predeclaration is frozen, the kernel shall compute its hash over canonical JSON and append a signed ledger entry before returning."
+    rationale: "Preregistration integrity is what gives VERIFIED its meaning."
+    verification: test
+    tiers: [T4]
+    status: draft
+    traces: []
+  - id: KRN-003
+    pattern: unwanted
+    text: "If an experiment references a predeclaration hash absent from the ledger, then the kernel shall refuse to start it and record the refusal."
+    rationale: "An experiment without frozen intent cannot produce a meaningful verdict."
+    verification: test
+    tiers: [T1, T4]
+    status: draft
+    traces: []

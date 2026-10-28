@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/validation-report.schema.json",
+  "x-version": "1.0.0",
+  "title": "ValidationReport",
+  "description": "Every predeclared gate evaluated against the findings, and the verdict that follows from them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "protocol_id",
+    "protocol_version",
+    "predeclaration_hash",
+    "checks",
+    "verdict"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "experiment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "predeclaration_hash": {
+      "$ref": "common.schema.json#/$defs/Sha256Id"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Check"
+      }
+    },
+    "verdict": {
+      "$ref": "common.schema.json#/$defs/Verdict"
+    }
+  }
+}

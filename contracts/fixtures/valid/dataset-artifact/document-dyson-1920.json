@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_id": "sha256:d65c54b5e850ae468ca73ce7bfbb24a4ee7df92a2a33af6976cad8f23848a62a",
+  "kind": "raw",
+  "status": "acquired",
+  "media_type": "application/pdf",
+  "byte_count": 4100000,
+  "source_ref": {
+    "kind": "document",
+    "identity": "Dyson, Eddington and Davidson 1920",
+    "release_label": null,
+    "query_text": null,
+    "doi": "10.1098/rsta.1920.0009",
+    "bibcode": null,
+    "licence": "Public domain (published 1920)",
+    "citation": "Dyson F. W., Eddington A. S., Davidson C. 1920, Phil. Trans. R. Soc. A 220, 291"
+  },
+  "dialect": null,
+  "parents": [],
+  "acquisition": null,
+  "rejection_reason": null
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "entry_id": "led-000001",
+  "sequence": 0,
+  "kind": "predeclaration",
+  "subject_id": "synthetic-linear-v1",
+  "subject_hash": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6",
+  "recorded_at": "2026-10-28T12:00:00Z",
+  "signer": "leigh",
+  "signature": {
+    "method": "test-hmac",
+    "value": "3c1f"
+  },
+  "previous_entry_hash": null,
+  "payload": {
+    "protocol_id": "synthetic-linear",
+    "protocol_version": "1.0.0"
+  }
+}

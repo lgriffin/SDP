@@ -1,0 +1,52 @@
+# requirements/data-sources/archives.ears
+capability: Archive access and acquisition
+owner: data-sources
+requirements:
+  - id: DSI-001
+    pattern: ubiquitous
+    text: "The system shall access every archive only through ArchiveGateway with a declared dialect per source release."
+    rationale: "One port, one canonical schema, one declared dialect per source (§8)."
+    verification: test
+    tiers: [T0, T3]
+    status: draft
+    traces: []
+  - id: DSI-002
+    pattern: event
+    text: "When a dataset is acquired, the system shall record the rendered query text, source release, licence, citation, checksum, byte count and timestamp."
+    rationale: "Every acquisition is auditable and replayable."
+    verification: test
+    tiers: [T3]
+    status: draft
+    traces: []
+  - id: DSI-003
+    pattern: unwanted
+    text: "If a downloaded chunk fails checksum verification, then the system shall discard it, emit DatasetRejected and retry within the bounded policy."
+    rationale: "A corrupted chunk must never become evidence."
+    verification: test
+    tiers: [T5]
+    status: draft
+    traces: []
+  - id: DSI-004
+    pattern: event
+    text: "When an acquisition repeats an existing idempotency key, the system shall return the existing artifact without a remote call."
+    rationale: "Repeat acquisitions are free and identical."
+    verification: test
+    tiers: [T3]
+    status: draft
+    traces: []
+  - id: DSI-007
+    pattern: ubiquitous
+    text: "Archive adapter contract tests shall run from recorded cassettes, and CI shall make no live archive call."
+    rationale: "Live archives are rate-limited and change (ADR-015)."
+    verification: test
+    tiers: [T5]
+    status: draft
+    traces: []
+  - id: DSI-008
+    pattern: event
+    text: "When the weekly live smoke detects a column added, renamed or retyped, the system shall fail the job and name the column."
+    rationale: "Schema drift is caught within a week."
+    verification: test
+    tiers: [T11]
+    status: draft
+    traces: []

@@ -1,0 +1,73 @@
+# requirements/relativity/einstein-1919.ears
+capability: Einstein 1919 examination
+owner: relativity
+requirements:
+  - id: REL-001
+    pattern: ubiquitous
+    text: "Every transcribed measurement shall carry an uncertainty convention and a page or table locator."
+    rationale: "Transcription errors and convention confusion are the main integrity risks of UC-02."
+    verification: test
+    tiers: [T1]
+    gates: [REL-G-01]
+    status: draft
+    traces: []
+  - id: REL-002
+    pattern: unwanted
+    text: "If a probable error enters a least-squares weight without explicit conversion, then the domain shall raise."
+    rationale: "Probable errors quoted in 1920 overstate significance if used as standard errors."
+    verification: test
+    tiers: [T1]
+    status: draft
+    traces: []
+  - id: REL-003
+    pattern: ubiquitous
+    text: "Deflection models shall take physical constants from a recorded CODATA version."
+    rationale: "The module never hard-codes 1.75 arcsec."
+    verification: test
+    tiers: [T1]
+    status: draft
+    traces: []
+  - id: REL-004
+    pattern: ubiquitous
+    text: "The module shall fit each instrument set separately, and pooling shall require a PoolingJustification."
+    rationale: "The instruments disagree; pooling hides that."
+    verification: test
+    tiers: [T1]
+    gates: [REL-G-05]
+    status: draft
+    traces: []
+  - id: REL-005
+    pattern: ubiquitous
+    text: "The module shall evaluate all four hypotheses per instrument and per scenario."
+    rationale: "Competing hypotheses are compared on equal footing."
+    verification: test
+    tiers: [T8]
+    status: draft
+    traces: []
+  - id: REL-006
+    pattern: ubiquitous
+    text: "The sensitivity sweep shall cover the six predeclared scenario axes."
+    rationale: "Conclusions must survive every predeclared reduction choice."
+    verification: test
+    tiers: [T8]
+    gates: [REL-G-06]
+    status: draft
+    traces: []
+  - id: REL-007
+    pattern: ubiquitous
+    text: "The fitter shall exist in two independent implementations that agree within tolerance."
+    rationale: "Anything that issues a verdict is implemented twice."
+    verification: test
+    tiers: [T8]
+    gates: [REL-G-08]
+    status: draft
+    traces: []
+  - id: REL-008
+    pattern: ubiquitous
+    text: "The dossier shall list unrecoverable inputs and shall not describe a table-based reanalysis as a plate remeasurement."
+    rationale: "A table-based reanalysis is not a plate remeasurement."
+    verification: test
+    tiers: []
+    gates: [REL-G-09]
+    status: draft
+    traces: []

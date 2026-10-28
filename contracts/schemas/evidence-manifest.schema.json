@@ -1,0 +1,577 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json",
+  "x-version": "1.0.0",
+  "title": "EvidenceManifest",
+  "description": "The durable contract between the kernel and the harness: one document per experiment, written atomically to the NAS and mirrored in PostgreSQL (§7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "identity",
+    "intent",
+    "inputs",
+    "environment",
+    "execution",
+    "outputs",
+    "findings",
+    "checks",
+    "verdict",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experiment_id",
+        "protocol_id",
+        "protocol_version"
+      ],
+      "properties": {
+        "experiment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        }
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "predeclaration_hash",
+        "ledger_entry_id",
+        "predeclaration"
+      ],
+      "properties": {
+        "predeclaration_hash": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predeclaration": {
+          "$ref": "predeclaration.schema.json"
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Input"
+      }
+    },
+    "environment": {
+      "$ref": "#/$defs/Environment"
+    },
+    "execution": {
+      "$ref": "#/$defs/Execution"
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Output"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Check"
+      }
+    },
+    "verdict": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ManifestVerdict"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provenance": {
+      "$ref": "#/$defs/ProvDocument"
+    }
+  },
+  "$defs": {
+    "Input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "artifact_id",
+        "media_type",
+        "source_ref"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_id": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "source_ref": {
+          "$ref": "common.schema.json#/$defs/SourceRef"
+        },
+        "dialect_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "acquisition_key": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/Sha256Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code_revision",
+        "lock_digest",
+        "backend",
+        "python_version",
+        "platform"
+      ],
+      "properties": {
+        "code_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lock_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": "string",
+          "enum": [
+            "cpu",
+            "cuda"
+          ]
+        },
+        "driver_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cuda_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "agreement_test_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "python_version": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "constants_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "packages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "backend": {
+                "const": "cuda"
+              }
+            },
+            "required": [
+              "backend"
+            ]
+          },
+          "then": {
+            "required": [
+              "driver_version",
+              "cuda_version",
+              "agreement_test_id"
+            ],
+            "properties": {
+              "driver_version": {
+                "type": "string"
+              },
+              "cuda_version": {
+                "type": "string"
+              },
+              "agreement_test_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_kind",
+        "depends_on",
+        "policy",
+        "status"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "policy": {
+          "$ref": "common.schema.json#/$defs/NumericalPolicy"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "completed",
+            "failed",
+            "skipped"
+          ]
+        },
+        "checkpoint_artifact_id": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/Sha256Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "Execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "state",
+        "tasks"
+      ],
+      "properties": {
+        "seed": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "defined",
+            "refused",
+            "running",
+            "failed",
+            "completed",
+            "validated",
+            "approved",
+            "published"
+          ]
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Task"
+          }
+        },
+        "started_at": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finished_at": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failure": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "task_id",
+                "reason"
+              ],
+              "properties": {
+                "task_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "artifact_id",
+        "media_type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_id": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "media_type": {
+          "type": "string"
+        }
+      }
+    },
+    "Finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": [
+            "number",
+            "boolean",
+            "string",
+            "array",
+            "object",
+            "null"
+          ]
+        },
+        "uncertainty": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger_entry_id",
+        "reviewer",
+        "recorded_at"
+      ],
+      "properties": {
+        "ledger_entry_id": {
+          "type": "string"
+        },
+        "reviewer": {
+          "type": "string"
+        },
+        "recorded_at": {
+          "$ref": "common.schema.json#/$defs/Timestamp"
+        }
+      }
+    },
+    "ManifestVerdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "protocol_version",
+        "reasons",
+        "limitations",
+        "approvals"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "common.schema.json#/$defs/VerdictStatus"
+        },
+        "protocol_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approvals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Approval"
+          }
+        }
+      }
+    },
+    "ProvDocument": {
+      "type": "object",
+      "description": "A W3C PROV-JSON document (subset: prefix, entity, activity, agent and the five relations SDP uses).",
+      "additionalProperties": false,
+      "required": [
+        "prefix",
+        "entity",
+        "activity",
+        "agent"
+      ],
+      "properties": {
+        "prefix": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "entity": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "activity": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "agent": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "used": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "wasGeneratedBy": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "wasAssociatedWith": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "wasDerivedFrom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "wasAttributedTo": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

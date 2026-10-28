@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "exp-0001",
+  "protocol_id": "synthetic-linear",
+  "protocol_version": "1.0.0",
+  "predeclaration_hash": "sha256:d84affdb85aada59a29426f50b98f2f509f6a608243c50dad02ad56d4e6443c6",
+  "checks": [
+    {
+      "gate_id": "SYN-G-01",
+      "finding": "slope_abs_error",
+      "value": 0.004,
+      "unit": null,
+      "comparator": "lt",
+      "threshold": 0.05,
+      "severity": "blocking",
+      "oracle_ids": [
+        "planted-slope"
+      ],
+      "oracles_verified": true,
+      "outcome": "pass"
+    },
+    {
+      "gate_id": "SYN-G-02",
+      "finding": "residual_rms",
+      "value": 0.098,
+      "unit": null,
+      "comparator": "le",
+      "threshold": 0.5,
+      "severity": "warning",
+      "oracle_ids": [],
+      "oracles_verified": true,
+      "outcome": "pass"
+    }
+  ],
+  "verdict": {
+    "status": "VERIFIED",
+    "protocol_version": "1.0.0",
+    "reasons": [
+      "all gates passed"
+    ]
+  }
+}

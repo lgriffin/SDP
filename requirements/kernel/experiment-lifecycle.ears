@@ -1,0 +1,68 @@
+# requirements/kernel/experiment-lifecycle.ears
+capability: Experiment lifecycle and runner
+owner: kernel
+requirements:
+  - id: KRN-004
+    pattern: event
+    text: "When an experiment starts, the kernel shall record input artifact ids with checksums, code revision, environment digests, backend, numerical policies and seed in the manifest."
+    rationale: "A verdict must be re-derivable from recorded inputs and environment."
+    verification: test
+    tiers: [T4]
+    status: draft
+    traces: []
+  - id: KRN-005
+    pattern: event
+    text: "When a compute task completes, the kernel shall write a checkpoint and emit CheckpointWritten."
+    rationale: "Multi-hour runs must survive interruption without recomputation."
+    verification: test
+    tiers: [T4]
+    status: draft
+    traces: []
+  - id: KRN-006
+    pattern: event
+    text: "When an interrupted experiment is resumed, the kernel shall continue from the last checkpoint without re-executing completed tasks."
+    rationale: "Resume semantics are tested in the kernel, not delegated (ADR-012)."
+    verification: test
+    tiers: [T5]
+    status: draft
+    traces: []
+  - id: KRN-007
+    pattern: unwanted
+    text: "If a compute task fails, then the kernel shall preserve the manifest, diagnostics and partial outputs and mark the experiment Failed."
+    rationale: "Failures are evidence too; nothing is discarded."
+    verification: test
+    tiers: [T4]
+    status: draft
+    traces: []
+  - id: KRN-008
+    pattern: event
+    text: "When validate() returns, the kernel shall persist the validation report and issue a verdict that carries every gate outcome."
+    rationale: "Every verdict carries the outcomes it was derived from."
+    verification: test
+    tiers: [T4]
+    status: draft
+    traces: []
+  - id: KRN-009
+    pattern: unwanted
+    text: "If any blocking gate fails or any oracle used by a gate lacks a verification record, then the kernel shall not issue VERIFIED."
+    rationale: "VERIFIED must never rest on a failed gate or an unverified oracle."
+    verification: test
+    tiers: [T1]
+    status: draft
+    traces: []
+  - id: KRN-012
+    pattern: unwanted
+    text: "If a ComputePlan names a TaskKind without a CPU reference implementation, then the kernel shall reject the plan."
+    rationale: "Every TaskKind has a CPU reference implementation (ADR-007)."
+    verification: test
+    tiers: [T1]
+    status: draft
+    traces: []
+  - id: KRN-013
+    pattern: optional
+    text: "Where the CUDA backend is selected, the kernel shall record driver and CUDA versions and the agreement-test result id in the manifest."
+    rationale: "GPU results are admissible only with their environment and agreement evidence."
+    verification: test
+    tiers: [T5-dgx]
+    status: draft
+    traces: []

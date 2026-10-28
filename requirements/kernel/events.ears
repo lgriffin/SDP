@@ -1,0 +1,12 @@
+# requirements/kernel/events.ears
+capability: Domain events
+owner: kernel
+requirements:
+  - id: KRN-010
+    pattern: ubiquitous
+    text: "The kernel shall append every domain event to the event log in the same transaction as the state change it describes."
+    rationale: "The harness and UI consume events; a state change without its event is invisible."
+    verification: test
+    tiers: [T5]
+    status: draft
+    traces: []

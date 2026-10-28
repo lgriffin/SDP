@@ -1,0 +1,240 @@
+{
+  "schema_version": "1.0.0",
+  "predeclaration_id": "uc01-stellar-clusters-v1",
+  "protocol_id": "uc01-stellar-clusters",
+  "protocol_version": "1.0.0",
+  "title": "Open-cluster recovery and candidate search in Gaia DR3",
+  "hypotheses": [
+    {
+      "hypothesis_id": "UC01-H1",
+      "version": 1,
+      "statement": "Density-based clustering in a declared feature space recovers known open clusters in the predeclared regions at a rate comparable to published catalogues.",
+      "predictions": [],
+      "evaluation_criteria": [
+        "recovery rate against hr23 and cga20 with bootstrap intervals"
+      ]
+    },
+    {
+      "hypothesis_id": "UC01-H2",
+      "version": 1,
+      "statement": "Candidates surviving null-field, injection, stability and CMD checks and absent from both benchmarks are potentially new clusters.",
+      "predictions": [],
+      "evaluation_criteria": [
+        "false-positive rate under null fields below tolerance",
+        "cross-match against two benchmarks"
+      ]
+    },
+    {
+      "hypothesis_id": "UC01-H3",
+      "version": 1,
+      "statement": "The SDP pipeline matches or exceeds the published Hunt and Reffert HDBSCAN configuration on recovery at equal contamination.",
+      "predictions": [],
+      "evaluation_criteria": [
+        "paired comparison against the registered hr23 baseline"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "STL-G-01",
+      "description": "Predeclared target regions and quality cuts recorded and frozen before the first Gaia query",
+      "finding": "regions_without_reason",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-02",
+      "description": "Benchmark catalogues registered with release labels, licences and citations",
+      "finding": "benchmarks_incomplete",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-03",
+      "description": "Known-cluster recovery reported with intervals against both benchmarks",
+      "finding": "recovery_reported_benchmarks",
+      "comparator": "ge",
+      "threshold": 2,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-04",
+      "description": "Null-field false-positive rate below the predeclared tolerance",
+      "finding": "null_false_positive_rate",
+      "comparator": "le",
+      "threshold": 0.05,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-05",
+      "description": "Injection recovery curve reported across richness and distance",
+      "finding": "injection_curve_cells_missing",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-06",
+      "description": "Every candidate labelled potentially new has a cross-match record against both benchmarks",
+      "finding": "novel_without_two_crossmatches",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-07",
+      "description": "Rejected and inconclusive candidates retained with failure reasons",
+      "finding": "dropped_candidates",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-08",
+      "description": "GPU adapter agreement with the CPU reference, or GPU results excluded from the gates",
+      "finding": "gpu_results_without_agreement",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    },
+    {
+      "gate_id": "STL-G-09",
+      "description": "Report distinguishes candidate from confirmed discovery in a fixed sentence pattern",
+      "finding": "report_claim_violations",
+      "comparator": "eq",
+      "threshold": 0,
+      "severity": "blocking",
+      "oracle_ids": []
+    }
+  ],
+  "oracle_tolerances": [
+    {
+      "oracle_id": "benchmark-match-radius",
+      "rtol": 0.0,
+      "atol": 0.1,
+      "unit": "deg"
+    }
+  ],
+  "targets": [
+    {
+      "target_id": "pleiades",
+      "kind": "region",
+      "reason": "Rich, nearby benchmark cluster: a recovery sanity check that every method must pass",
+      "spec": {
+        "shape": "cone",
+        "ra_deg": 56.75,
+        "dec_deg": 24.12,
+        "radius_deg": 2.0,
+        "source_release": "gaia:DR3"
+      }
+    },
+    {
+      "target_id": "praesepe",
+      "kind": "region",
+      "reason": "Second nearby benchmark with a different proper-motion signature",
+      "spec": {
+        "shape": "cone",
+        "ra_deg": 130.1,
+        "dec_deg": 19.67,
+        "radius_deg": 2.0,
+        "source_release": "gaia:DR3"
+      }
+    },
+    {
+      "target_id": "h-chi-persei",
+      "kind": "region",
+      "reason": "Crowded Galactic-plane field with distant double cluster: tests contamination and distance completeness",
+      "spec": {
+        "shape": "cone",
+        "ra_deg": 34.75,
+        "dec_deg": 57.13,
+        "radius_deg": 1.5,
+        "source_release": "gaia:DR3"
+      }
+    },
+    {
+      "target_id": "ngp-control",
+      "kind": "region",
+      "reason": "High-latitude control field near the North Galactic Pole where few clusters are expected: an empirical null",
+      "spec": {
+        "shape": "cone",
+        "ra_deg": 192.86,
+        "dec_deg": 27.13,
+        "radius_deg": 2.0,
+        "source_release": "gaia:DR3"
+      }
+    }
+  ],
+  "parameters": {
+    "quality_cuts": {
+      "ruwe_max": 1.4,
+      "parallax_over_error_min": 5.0,
+      "g_mag_max": 18.0,
+      "astrometric_params_solved": [
+        31,
+        95
+      ]
+    },
+    "feature_space_policy": "fsp-v1",
+    "algorithms": [
+      "sklearn-hdbscan",
+      "sklearn-dbscan"
+    ],
+    "hyperparameter_grid": {
+      "sklearn-hdbscan": {
+        "min_cluster_size": [
+          10,
+          20,
+          40
+        ],
+        "min_samples": [
+          5,
+          10
+        ]
+      },
+      "sklearn-dbscan": {
+        "eps": [
+          0.3,
+          0.5
+        ],
+        "min_samples": [
+          10,
+          20
+        ]
+      }
+    },
+    "benchmarks": [
+      "hr23:v1.0",
+      "cga20:v1"
+    ],
+    "crossmatch_radius_deg": 0.1,
+    "pm_window_masyr": 1.0,
+    "null_fields_per_region": 20,
+    "injection": {
+      "richness": [
+        20,
+        50,
+        100
+      ],
+      "distance_pc": [
+        300,
+        1000,
+        2000
+      ],
+      "pm_dispersion_masyr": 0.3
+    },
+    "source_release": "gaia:DR3",
+    "bootstrap_resamples": 1000
+  },
+  "notes": "DRAFT for Phase 0 review. Regions, cuts and the null-field tolerance are proposals; Leigh confirms them before freeze(). DR4 runs as a separate experiment under this same predeclaration after 2 December 2026 (decision 6)."
+}

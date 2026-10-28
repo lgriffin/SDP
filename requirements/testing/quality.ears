@@ -1,0 +1,60 @@
+# requirements/testing/quality.ears
+capability: Testing and quality gates
+owner: harness
+requirements:
+  - id: TST-001
+    pattern: ubiquitous
+    text: "Every approved requirement with verification test shall have at least one passing test marker, and CI shall fail otherwise."
+    rationale: "Requirements become a checkable artifact (ADR-005)."
+    verification: test
+    tiers: [harness]
+    status: draft
+    traces: []
+  - id: TST-002
+    pattern: unwanted
+    text: "If a change adds a use case, port, adapter or gate without an .ears change, then CI shall fail."
+    rationale: "Behaviour without a requirement is unreviewable."
+    verification: test
+    tiers: [harness]
+    status: draft
+    traces: []
+  - id: TST-003
+    pattern: ubiquitous
+    text: "Each driven port shall have one contract suite run against its fake and each available real adapter."
+    rationale: "Fakes must never pass what real adapters fail (ADR-006)."
+    verification: test
+    tiers: [T3]
+    status: draft
+    traces: []
+  - id: TST-004
+    pattern: ubiquitous
+    text: "A package's mutation score shall not drop below its high-water mark minus 2 points."
+    rationale: "Test strength may not silently erode."
+    verification: test
+    tiers: [T10]
+    status: draft
+    traces: []
+  - id: TST-005
+    pattern: ubiquitous
+    text: "Mocks shall not be used under domain, application or science modules."
+    rationale: "Mock-heavy tests pass while adapters fail (ADR-006)."
+    verification: analysis
+    tiers: [lint]
+    status: draft
+    traces: []
+  - id: TST-006
+    pattern: ubiquitous
+    text: "The release report shall claim only reproducibility levels whose tiers passed in that run."
+    rationale: "A reproducibility claim must be backed by the tier that proves it."
+    verification: test
+    tiers: [harness]
+    status: draft
+    traces: []
+  - id: TST-007
+    pattern: unwanted
+    text: "If the harness's re-derived verdict differs from the kernel's, then publication shall be blocked."
+    rationale: "The verdict is computed twice, independently."
+    verification: test
+    tiers: [T7, harness]
+    status: draft
+    traces: []

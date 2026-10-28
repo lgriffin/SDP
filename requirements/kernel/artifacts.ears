@@ -1,0 +1,12 @@
+# requirements/kernel/artifacts.ears
+capability: Artifact immutability
+owner: kernel
+requirements:
+  - id: KRN-014
+    pattern: ubiquitous
+    text: "The kernel shall prevent modification of raw artifacts through application workflows."
+    rationale: "Raw data are never modified in place (ADR-008)."
+    verification: test
+    tiers: [T3]
+    status: draft
+    traces: []

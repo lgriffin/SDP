@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0.0",
+  "predeclaration_id": "synthetic-linear-v1",
+  "protocol_id": "synthetic-linear",
+  "protocol_version": "1.0.0",
+  "title": "Synthetic linear recovery (walking skeleton)",
+  "hypotheses": [
+    {
+      "hypothesis_id": "SYN-H1",
+      "version": 1,
+      "statement": "The fitted slope of the synthetic series equals the planted slope.",
+      "predictions": [
+        {
+          "model_id": "linear",
+          "model_version": "1.0.0",
+          "parameters": {
+            "slope": 2.0
+          },
+          "predicted": {
+            "value": 2.0,
+            "unit": ""
+          },
+          "geometry_assumptions": []
+        }
+      ],
+      "evaluation_criteria": [
+        "|slope - 2.0| < 0.05"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "gate one",
+      "description": "Fitted slope agrees with the planted slope",
+      "finding": "slope_abs_error",
+      "comparator": "lt",
+      "threshold": 0.05,
+      "severity": "blocking",
+      "oracle_ids": [
+        "planted-slope"
+      ]
+    },
+    {
+      "gate_id": "SYN-G-02",
+      "description": "Residual RMS below the noise ceiling",
+      "finding": "residual_rms",
+      "comparator": "le",
+      "threshold": 0.5,
+      "severity": "warning",
+      "oracle_ids": []
+    }
+  ],
+  "oracle_tolerances": [
+    {
+      "oracle_id": "planted-slope",
+      "rtol": 0.0,
+      "atol": 0.05,
+      "unit": null
+    }
+  ],
+  "targets": [
+    {
+      "target_id": "series-a",
+      "kind": "source",
+      "reason": "Synthetic series generated from a fixed seed",
+      "spec": {
+        "n": 200
+      }
+    }
+  ],
+  "parameters": {
+    "noise_sigma": 0.1,
+    "n": 200
+  },
+  "notes": null
+}
