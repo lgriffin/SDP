@@ -39,6 +39,17 @@ OVERRIDABLE = {
     "bootstrap_resamples": "fewer resamples for quick checks; the count is recorded in the manifest",
 }
 
+#: What stops each TaskKind from reproducing bitwise (NFR-008; docs/determinism.md).
+NONDETERMINISM = {
+    "stellar.prepare": "quality cuts and feature scaling in float64; NumPy reductions can change summation order across NumPy versions and CPU SIMD paths",
+    "stellar.search": "HDBSCAN/DBSCAN from scikit-learn on float64 features: distance kernels go through BLAS and ties in the mutual-reachability tree are broken by row order, so labels can differ across scikit-learn versions and BLAS builds; a GPU implementation is used only after its agreement record passed (STL-004)",
+    "stellar.candidates": "membership, stability and CMD coherence from upstream labels in float64; inherits stellar.search and adds only reduction-order effects",
+    "stellar.null": "proper motions and parallaxes are permuted with numpy.random.default_rng seeded from the derived task seed (bitwise for a given NumPy version), then clustered as in stellar.search",
+    "stellar.injection": "synthetic members are drawn with numpy.random.default_rng seeded from the derived task seed, then clustered as in stellar.search",
+    "stellar.recovery": "bootstrap intervals draw from numpy.random.default_rng with the derived task seed; bitwise for a given NumPy version",
+    "stellar.synthesis": "aggregates upstream results; inherits their nondeterminism and adds none",
+}
+
 
 def load_predeclaration() -> dict[str, Any]:
     document: dict[str, Any] = json.loads(
@@ -88,13 +99,17 @@ class StellarClusterProtocol:
 
     def task_kinds(self) -> TaskKindRegistry:
         registry = TaskKindRegistry()
-        registry.register("stellar.prepare", analysis.prepare)
-        registry.register("stellar.search", analysis.search)
-        registry.register("stellar.candidates", analysis.candidates)
-        registry.register("stellar.null", analysis.null_test)
-        registry.register("stellar.injection", analysis.injection)
-        registry.register("stellar.recovery", analysis.recovery_rates)
-        registry.register("stellar.synthesis", analysis.synthesis)
+        registry.register("stellar.prepare", analysis.prepare, nondeterminism=NONDETERMINISM["stellar.prepare"])
+        registry.register("stellar.search", analysis.search, nondeterminism=NONDETERMINISM["stellar.search"])
+        registry.register(
+            "stellar.candidates", analysis.candidates, nondeterminism=NONDETERMINISM["stellar.candidates"]
+        )
+        registry.register("stellar.null", analysis.null_test, nondeterminism=NONDETERMINISM["stellar.null"])
+        registry.register("stellar.injection", analysis.injection, nondeterminism=NONDETERMINISM["stellar.injection"])
+        registry.register(
+            "stellar.recovery", analysis.recovery_rates, nondeterminism=NONDETERMINISM["stellar.recovery"]
+        )
+        registry.register("stellar.synthesis", analysis.synthesis, nondeterminism=NONDETERMINISM["stellar.synthesis"])
         return registry
 
     def plan(self, inputs: ResolvedInputs, params: Params, seed: int) -> ComputePlan:

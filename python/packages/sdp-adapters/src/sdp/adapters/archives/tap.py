@@ -10,7 +10,7 @@ Adding a source or a release is a new file, not code.
 from __future__ import annotations
 
 import urllib.parse
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -21,6 +21,7 @@ import yaml
 
 from sdp.adapters.archives import adql, votable
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
+from sdp.adapters.archives.untrusted import validate_votable
 from sdp.kernel.application.acquisition import CHECKSUM_METADATA_KEY, batch_checksum
 from sdp.kernel.domain.archive import (
     AcquisitionHandle,
@@ -88,6 +89,8 @@ class TapArchiveAdapter:
 
     sources: Mapping[str, TapSource]
     transport: Transport
+    #: in process by default; the composition root passes IsolatedVotableParser (NFR-009)
+    parser: Callable[[bytes], pa.Table] = votable.parse
 
     def _source(self, source_id: str) -> TapSource:
         if source_id not in self.sources:
@@ -151,7 +154,8 @@ class TapArchiveAdapter:
             response = self.transport.send(self.chunk_request(handle, part))
             if response.status != 200:
                 raise TransportError(f"{q.source_id} part {part}: HTTP {response.status}", response.status)
-            table = _declared_names(votable.parse(response.body), q.columns)
+            validate_votable(response.body)
+            table = _declared_names(self.parser(response.body), q.columns)
             missing = set(q.columns) - set(table.column_names)
             if missing:
                 raise TransportError(

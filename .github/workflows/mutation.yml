@@ -1,0 +1,112 @@
+# T10 mutation testing (§11.5, TST-004): weekly scores per package and the high-water ratchet.
+name: Mutation
+
+on:
+  schedule:
+    - cron: "41 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      update:
+        description: Push raised high-water marks to a review branch
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: mutmut · ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [sdp-kernel-domain, sdp-kernel-science, sdp-kernel-application, sdp-relativity, sdp-stellar]
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - run: uv run python tools/mutation.py --out ../reports/mutation/python-${{ matrix.target }}.json ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutation-python-${{ matrix.target }}
+          path: reports/mutation/
+
+  typescript:
+    name: Stryker · ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [spec-harness, relativity-fit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx stryker run
+        working-directory: typescript/packages/${{ matrix.package }}
+      - run: node typescript/tools/stryker-scores.mjs --out reports/mutation/typescript-${{ matrix.package }}.json ${{ matrix.package }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutation-typescript-${{ matrix.package }}
+          path: reports/mutation/
+
+  ratchet:
+    name: ratchet · high-water marks
+    needs: [python, typescript]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mutation-*
+          path: reports/mutation
+          merge-multiple: true
+      - name: Merge the per-package scores
+        run: |
+          node -e '
+            const fs = require("fs");
+            const dir = "reports/mutation";
+            const all = {};
+            for (const f of fs.readdirSync(dir).filter((f) => /^(python|typescript)-.*\.json$/.test(f) && !f.endsWith(".details.json")))
+              Object.assign(all, JSON.parse(fs.readFileSync(`${dir}/${f}`, "utf8")));
+            fs.writeFileSync(`${dir}/scores.json`, JSON.stringify(all, null, 2) + "\n");
+            console.log(all);
+          '
+      - name: spec-harness ratchet
+        run: pnpm harness ratchet --scores reports/mutation/scores.json --high-water mutation/high-water.json ${{ inputs.update && '--update' || '' }}
+      - name: Push raised marks for review (manual runs with update)
+        if: inputs.update
+        run: |
+          set -euo pipefail
+          if git diff --quiet mutation/high-water.json; then echo "no change"; exit 0; fi
+          branch="mutation/high-water-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add mutation/high-water.json
+          git commit -m "Mutation high-water marks from run ${GITHUB_RUN_ID}"
+          git push origin "$branch"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-scores
+          path: reports/mutation/scores.json

@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from sdp.kernel.domain.findings import Findings
+from sdp.kernel.domain.policy import DeterminismClass
 from sdp.kernel.domain.verdict import VerdictStatus
 from sdp.kernel.science.io import ComputeResults, ResolvedInputs
 from sdp.kernel.science.plan import validate_plan
@@ -43,6 +44,22 @@ class ScientificProtocolContract:
     ) -> None:
         protocol, inputs, params, seed = protocol_case
         validate_plan(protocol.plan(inputs, params, seed), protocol.task_kinds())
+
+    @pytest.mark.req("NFR-008")
+    def test_nondeterminism_is_documented_for_every_non_bitwise_task_kind(
+        self, protocol_case: tuple[ScientificProtocol, ResolvedInputs, dict[str, Any], int]
+    ) -> None:
+        protocol, inputs, params, seed = protocol_case
+        registry = protocol.task_kinds()
+        plan = protocol.plan(inputs, params, seed)
+        undocumented = sorted(
+            {
+                t.kind
+                for t in plan.tasks
+                if t.policy.determinism is not DeterminismClass.BITWISE and not registry.nondeterminism(t.kind)
+            }
+        )
+        assert not undocumented, f"TaskKinds without a nondeterminism note: {undocumented}"
 
     def test_plan_is_deterministic(
         self, protocol_case: tuple[ScientificProtocol, ResolvedInputs, dict[str, Any], int]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -34,6 +34,11 @@ class Settings:
     #: live (the archives, politely), replay (committed cassettes only) or record (live, writing cassettes)
     archive_mode: str = "live"
     cassette_dir: Path | None = None
+    #: Zenodo: the token never appears in a repr, a log or a manifest; the sandbox is the default service
+    zenodo_token: str | None = field(default=None, repr=False)
+    zenodo_url: str = "https://sandbox.zenodo.org"
+    zenodo_creators: str = ""
+    zenodo_community: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -62,7 +67,20 @@ class Settings:
             log_level=env.get("SDP_LOG_LEVEL", "INFO"),
             archive_mode=archive_mode(env.get("SDP_ARCHIVE_MODE", "live")),
             cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
+            zenodo_token=secret(env, "SDP_ZENODO_TOKEN"),
+            zenodo_url=env.get("SDP_ZENODO_URL", "https://sandbox.zenodo.org"),
+            zenodo_creators=env.get("SDP_ZENODO_CREATORS", ""),
+            zenodo_community=env.get("SDP_ZENODO_COMMUNITY") or None,
         )
+
+
+def secret(env: Mapping[str, str], key: str) -> str | None:
+    """A credential from ``KEY`` or from the file named by ``KEY_FILE`` (a Podman secret mount)."""
+    if env.get(key):
+        return env[key].strip()
+    if env.get(f"{key}_FILE"):
+        return Path(env[f"{key}_FILE"]).read_text("utf-8").strip() or None
+    return None
 
 
 ARCHIVE_MODES = ("live", "replay", "record")

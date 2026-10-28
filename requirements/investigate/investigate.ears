@@ -54,7 +54,7 @@ requirements:
   - id: INV-007
     pattern: event
     text: "When tests complete, the system shall open one Investigation per candidate above the ranking threshold and record the number of objects and tests examined for the set."
-    rationale: "The multiplicity is recorded so false-discovery control can be applied at set level."
+    rationale: "The multiplicity is recorded so false-discovery control can be applied at set level. The ranking policy names its ranker: significance is the kernel's own, stellar is the stellar module's CandidateRanker, and a policy with no ranker is refused before anything runs, never silently swapped."
     verification: test
     tiers: [T4]
     status: approved

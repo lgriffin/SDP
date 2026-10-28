@@ -57,6 +57,9 @@ def test_investigate_is_wired_to_the_ecosystem_adapters_on_cassettes(tmp_path: P
     assert isinstance(ports.detector, PhotutilsDetector) and isinstance(ports.refiner, TweakwcsRefiner)
     assert isinstance(ports.product_dialects["dasch"], DaschDialect)
     assert "clusterer" in ports.services
+    assert "stellar" in ports.rankers  # the stellar module's CandidateRanker, by entry point
+    default = investigate_ports(settings, {})
+    assert default.services["clusterer"].algorithm_id == "sklearn-hdbscan"  # UC-01's CPU reference
     names = {k.split("@")[0] for k in ports.tests.keys()}  # noqa: SIM118 - a registry, not a dict
     assert names >= {"parallax-consistency", "long-baseline-motion"}
     for name, adapter in (*ports.observation_gateways.items(), ("simbad", ports.resolver)):

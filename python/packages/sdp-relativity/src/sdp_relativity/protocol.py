@@ -37,6 +37,16 @@ EXACT_POLICY = NumericalPolicy(rtol=1e-12, atol=0.0)
 #: Experiment parameters that may override the predeclared ones, and why.
 OVERRIDABLE = {"bootstrap_resamples": "fewer resamples for quick checks; the count is recorded in the manifest"}
 
+#: What stops each TaskKind from reproducing bitwise (NFR-008; docs/determinism.md).
+NONDETERMINISM = {
+    "relativity.limb_models": "closed-form limb models in float64; libm transcendental functions may differ in the last ulp across platforms",
+    "relativity.transcription_audit": "exact comparisons of transcribed values; float parsing is correctly rounded, so no known source beyond library versions",
+    "relativity.instrument_sweep": "the plate bootstrap draws from numpy.random.default_rng with the derived task seed (bitwise for a given NumPy version); the fits are float64 SciPy optimisation, whose iterates can differ in the last bits across BLAS builds and thread counts",
+    "relativity.pooled": "float64 SciPy optimisation and quadrature; iterates and summation order depend on the BLAS build and thread count",
+    "relativity.independent_agreement": "compares two float64 fits (Python and TypeScript) within the policy tolerance; the TypeScript fitter uses its own summation order by design",
+    "relativity.synthesis": "aggregates upstream float64 results; inherits their nondeterminism and adds none",
+}
+
 
 def _slug(instrument: str) -> str:
     return instrument.replace("-", "_")
@@ -57,12 +67,28 @@ class Einstein1919Protocol:
 
     def task_kinds(self) -> TaskKindRegistry:
         registry = TaskKindRegistry()
-        registry.register("relativity.limb_models", analysis.limb_models)
-        registry.register("relativity.transcription_audit", analysis.transcription_audit)
-        registry.register("relativity.instrument_sweep", analysis.instrument_sweep)
-        registry.register("relativity.pooled", analysis.pooled)
-        registry.register("relativity.independent_agreement", analysis.independent_agreement)
-        registry.register("relativity.synthesis", analysis.synthesis)
+        registry.register(
+            "relativity.limb_models", analysis.limb_models, nondeterminism=NONDETERMINISM["relativity.limb_models"]
+        )
+        registry.register(
+            "relativity.transcription_audit",
+            analysis.transcription_audit,
+            nondeterminism=NONDETERMINISM["relativity.transcription_audit"],
+        )
+        registry.register(
+            "relativity.instrument_sweep",
+            analysis.instrument_sweep,
+            nondeterminism=NONDETERMINISM["relativity.instrument_sweep"],
+        )
+        registry.register("relativity.pooled", analysis.pooled, nondeterminism=NONDETERMINISM["relativity.pooled"])
+        registry.register(
+            "relativity.independent_agreement",
+            analysis.independent_agreement,
+            nondeterminism=NONDETERMINISM["relativity.independent_agreement"],
+        )
+        registry.register(
+            "relativity.synthesis", analysis.synthesis, nondeterminism=NONDETERMINISM["relativity.synthesis"]
+        )
         return registry
 
     def instruments(self) -> list[str]:
