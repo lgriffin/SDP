@@ -30,7 +30,7 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: "node_modules" },
-    exclude: { path: "(node_modules|/generated/)" },
+    exclude: { path: "(node_modules|/generated/|/\.svelte-kit/|/build/|/test-results/|/playwright-report/)" },
     tsPreCompilationDeps: true,
     combinedDependencies: true,
     preserveSymlinks: false,

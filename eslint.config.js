@@ -3,7 +3,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/src/generated/**", "**/dist/**", "**/.svelte-kit/**"] },
+  { ignores: ["**/node_modules/**", "**/src/generated/**", "**/dist/**", "**/build/**", "**/.svelte-kit/**", "**/test-results/**", "**/playwright-report/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

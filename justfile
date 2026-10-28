@@ -59,5 +59,13 @@ codegen-check:
 ts:
     pnpm lint && pnpm -r typecheck && CI=true pnpm -r test
 
+# Evidence UI against a running sdp-api (SDP_API_URL), or the fixture data with SDP_UI_FIXTURES=1
+ui:
+    pnpm --filter @sdp/evidence-ui dev
+
+# Playwright tests of the evidence UI (builds and serves it with fixture data)
+e2e:
+    pnpm --filter @sdp/e2e e2e
+
 # Stages 1-2 of §11.7
-test: contracts ears codegen-check lint pytest integration ts cross-language trace
+test: contracts ears codegen-check lint pytest integration ts e2e cross-language trace

@@ -1,0 +1,31 @@
+{
+  "name": "@sdp/evidence-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evidence UI: experiments, dossiers with every gate, provenance lineage and the signed ledger, read through GraphQL",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node build/index.js",
+    "sync": "svelte-kit sync",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sdp/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "5.2.11",
+    "@sveltejs/kit": "2.15.1",
+    "@sveltejs/vite-plugin-svelte": "5.0.3",
+    "@types/node": "22.10.2",
+    "graphql": "16.9.0",
+    "svelte": "5.16.0",
+    "svelte-check": "4.1.1",
+    "typescript": "5.8.3",
+    "vite": "6.0.7",
+    "vitest": "2.1.8"
+  }
+}

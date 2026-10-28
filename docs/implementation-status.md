@@ -16,6 +16,7 @@ How the repository maps to the architecture specification v0.3.0, section by sec
 | §7 Contracts (schemas, fixtures, canonical JSON) | Schemas v1.0.0 with golden fixtures; Pydantic and Zod generated with a drift check; fixture suites in both languages; canonical JSON identical in both | `contracts/`, `python/packages/sdp-contracts/`, `typescript/packages/contracts/` |
 | §11.7, §13 Specification harness | `spec-harness` ears, trace, conform, rederive, guard, ratchet, report; CI jobs `trace`, `guard`, `cross-language` | `typescript/packages/spec-harness/` |
 | §12 EARS requirements | All 62 requirements as `.ears` data; 39 approved with traces (kernel, acquisition, CTR-001 to 006, NFR-003/005/006/007/010, TST-001 to 007), the rest `draft` until their behaviour lands | `requirements/` |
+| Evidence UI (ADR-002, ADR-016) | SvelteKit: experiment list, dossier page with every predeclared gate and the gates that decided the verdict, failure tracebacks, tasks, provenance and lineage, manifest download, ledger chain and events; reads GraphQL through one port with a fixture fake; Playwright on desktop and phone in CI | `typescript/packages/evidence-ui/`, `typescript/packages/e2e/` |
 | §14 ADRs | 16 MADR records, accepted | `docs/adr/` |
 | §16 Repository layout, justfile | Skeleton | `justfile` |
 | §17 Phase 0 | Draft predeclarations for UC-01 and UC-02; DGX spike procedure | `experiments/`, `docs/spike/` |
