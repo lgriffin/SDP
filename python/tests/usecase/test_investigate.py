@@ -235,6 +235,22 @@ def test_products_are_fetched_only_when_a_test_declares_it_needs_them(world: Wor
     assert {b.object_key for b in with_products} == set(PLANTED)
 
 
+@pytest.mark.req("INV-004")
+def test_a_product_offered_as_two_types_is_fetched_once() -> None:
+    world = make_world(ProperMotionExcessTest(needs_products=("lightcurve", "astrometry")))
+    # Every light curve is also offered as a position history, as DASCH offers its light curves.
+    world.plates.records += tuple(
+        replace(p, record=replace(p.record, product_type="astrometry"))
+        for p in world.plates.records
+        if p.record.product_type == "lightcurve"
+    )
+    run = world.run(profile=synthetic_profile(needs_products=("lightcurve", "astrometry")))
+    light_curves = [f for f in world.plates.fetches if f.startswith("lc-")]
+    assert sorted(light_curves) == sorted(f"lc-{i}" for i in range(5))
+    as_positions = {p.product.product_id for b in run.bundles for p in b.products if p.product_type == "astrometry"}
+    assert {f"lc-{i}" for i in range(5)} <= as_positions
+
+
 @pytest.mark.req("INV-013")
 def test_cloud_uris_and_checksums_of_bytes_actually_read_are_recorded() -> None:
     world = make_world(ProperMotionExcessTest(needs_products=("lightcurve",)))
@@ -264,7 +280,10 @@ def test_a_product_dialect_registers_a_curated_child_and_tests_read_it() -> None
     assert curated.dialect is not None and curated.dialect.dialect_id == "fixture-thinning"
     assert world.k.store.get(product.raw_artifact_id) == world.plates.products["lc-1"]
     raw_rows = world.plates.products["lc-1"].decode().splitlines()
-    assert world.k.store.get(product.artifact_id).decode().splitlines() == [raw_rows[0], *raw_rows[1::2]]
+    stamp, *rows = world.k.store.get(product.artifact_id).decode().splitlines()
+    assert rows == [raw_rows[0], *raw_rows[1::2]]
+    # Equal rows curated from another raw product would be another artifact, with its own lineage.
+    assert stamp == f"# sdp.dialect=fixture-thinning@1.0.0 sdp.raw_parent={raw.artifact_id.value}"
     resumed = world.run(profile=synthetic_profile(needs_products=("lightcurve",)), set_id=run.investigation_set.set_id)
     assert resumed.bundles == run.bundles
 

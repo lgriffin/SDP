@@ -2,12 +2,14 @@
 
 - ``lightcurve``: ``mjd,mag,mag_err`` (one row per epoch, magnitudes in one band)
 - ``astrometry``: ``epoch_jyear,ra_deg,dec_deg,pos_err_mas`` (one row per epoch, ICRS)
+
+Lines starting with ``#`` are comments; the Retrieve stage stamps one naming the dialect and raw
+parent, so identical rows curated from different raw products stay distinct artifacts.
 """
 
 from __future__ import annotations
 
 import csv
-import io
 import math
 from dataclasses import dataclass
 
@@ -33,7 +35,8 @@ class PositionHistory:
 
 
 def _rows(data: bytes, columns: tuple[str, ...]) -> list[dict[str, float]]:
-    reader = csv.DictReader(io.StringIO(data.decode("utf-8")))
+    lines = [line for line in data.decode("utf-8").splitlines() if not line.startswith("#")]
+    reader = csv.DictReader(lines)
     missing = [c for c in columns if c not in (reader.fieldnames or [])]
     if missing:
         raise ValueError(f"product lacks columns {missing}")
