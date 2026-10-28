@@ -146,10 +146,16 @@ class Dialect:
             needed.add(self.quality_class["column"])
         return needed
 
+    def _native_epoch(self, row: Mapping[str, Any]) -> float | None:
+        """The native epoch value, or None where the archive left it blank or wrote a declared
+        ``missing`` sentinel (PS1 writes -999 for objects without a mean epoch)."""
+        value = _number(row.get(self.epoch["column"]))
+        return None if value is None or value in self.epoch.get("missing", ()) else value
+
     def _epoch(self, row: Mapping[str, Any]) -> float:
         if "constant" in self.epoch:
             return float(self.epoch["constant"])
-        value = _number(row.get(self.epoch["column"]))
+        value = self._native_epoch(row)
         if value is None:
             raise DialectError(f"{self.ref.dialect_id}: row without an epoch")
         kind = self.epoch.get("kind", "jyear")
@@ -205,8 +211,18 @@ class Dialect:
         missing = self.native_columns() - set(native.column_names)
         if missing:
             raise DialectError(f"{self.ref.dialect_id}: native table lacks {sorted(missing)}")
-        rows = [self.row(r) for r in native.to_pylist()]
-        return pa.Table.from_pylist(rows, schema=SCHEMA)
+        rows = native.to_pylist()
+        kept = rows
+        if self.epoch.get("exclude_rows_without_epoch") and "column" in self.epoch:
+            kept = [r for r in rows if self._native_epoch(r) is not None]
+        table = pa.Table.from_pylist([self.row(r) for r in kept], schema=SCHEMA)
+        excluded = len(rows) - len(kept)
+        if not excluded:
+            return table
+        # The canonical row needs an epoch; rows without one are left out and counted where the
+        # curated Parquet carries it, never dropped silently.
+        note = {"count": excluded, "reason": f"no {self.epoch['column']} (blank or a declared missing value)"}
+        return table.replace_schema_metadata({b"sdp.excluded_rows": canonical_json(note).encode()})
 
 
 def _root(directory: Path | None) -> Path:

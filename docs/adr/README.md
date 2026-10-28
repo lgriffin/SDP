@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Sixteen records in [MADR](https://adr.github.io/madr/) form, all accepted on 28 October 2026 (architecture spec §14, §19). These files may not change without review (branch protection on `docs/adr/`).
+Twenty-two records in [MADR](https://adr.github.io/madr/) form. ADR-001 to ADR-016 were accepted on 28 October 2026 (architecture spec §14, §19); ADR-017 to ADR-022 come from the Integration Architecture v0.4.0 and were accepted by Leigh the same day. These files may not change without review (branch protection on `docs/adr/`).
 
 | ADR | Title | Status |
 |---|---|---|
@@ -20,3 +20,9 @@ Sixteen records in [MADR](https://adr.github.io/madr/) form, all accepted on 28 
 | [ADR-014](0014-einstein-first-vertical-slice.md) | Einstein examination as the first vertical slice | Accepted |
 | [ADR-015](0015-archive-access-through-cassettes.md) | Archive access through recorded cassettes in CI | Accepted |
 | [ADR-016](0016-graphql-queries-cli-commands.md) | GraphQL for the query side, CLI and minimal REST for commands | Accepted |
+| [ADR-017](0017-capability-descriptors-from-the-vo.md) | Capability descriptors read from the Virtual Observatory | Accepted |
+| [ADR-018](0018-obscore-product-envelope-raw-preservation.md) | ObsCore-shaped product envelope with raw preservation | Accepted |
+| [ADR-019](0019-two-method-probabilistic-association.md) | Two-method probabilistic association above the cross-match | Accepted |
+| [ADR-020](0020-plan-approve-execute-budgeted.md) | Plan, approve, execute as separate ports with budgeted approval | Accepted |
+| [ADR-021](0021-four-kind-conformance-per-product-type.md) | Four-kind conformance with per-product-type admission | Accepted |
+| [ADR-022](0022-mission-aware-mast-jwst-first.md) | Mission-aware MAST adapter with JWST as the first proven mission | Accepted |

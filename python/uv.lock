@@ -2324,6 +2324,7 @@ dependencies = [
     { name = "numpy" },
     { name = "scipy" },
     { name = "sdp-kernel" },
+    { name = "sdp-stellar" },
 ]
 
 [package.metadata]
@@ -2332,6 +2333,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0" },
     { name = "scipy", specifier = ">=1.13" },
     { name = "sdp-kernel", editable = "packages/sdp-kernel" },
+    { name = "sdp-stellar", editable = "packages/sdp-stellar" },
 ]
 
 [[package]]

@@ -29,7 +29,7 @@ from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import SystemClock, SystemEnvironmentProbe, UlidGenerator
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker
-from sdp.kernel.application.investigate import InvestigatePorts, load_investigation_tests
+from sdp.kernel.application.investigate import InvestigatePorts, load_candidate_rankers, load_investigation_tests
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.application.plugins import EntryPointProtocolRegistry
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
@@ -147,7 +147,9 @@ def observation_gateways(settings: Settings) -> dict[str, ObservationArchiveGate
 def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> InvestigatePorts:
     """Investigate wired to the ecosystem adapters (Investigate §7): the tests installed under the
     ``sdp.investigation_tests`` entry point, SIMBAD, MAST and DASCH with the DASCH product dialect,
-    photutils and tweakwcs. Kernel services a test needs (``clusterer``) come from ``services``."""
+    photutils and tweakwcs, and the installed candidate rankers (the stellar module's under the
+    ``stellar`` policy). The ``clusterer`` a structure test uses is UC-01's CPU reference HDBSCAN
+    unless ``services`` names another."""
     return InvestigatePorts(
         tests=load_investigation_tests(),
         cross_match=cross_match(settings),
@@ -155,8 +157,9 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
         detector=PhotutilsDetector(),
         refiner=TweakwcsRefiner(),
         resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
-        services=dict(services),
+        services={"clusterer": SklearnHdbscan(), **services},
         product_dialects={"dasch": DaschDialect()},
+        rankers=load_candidate_rankers(),
     )
 
 

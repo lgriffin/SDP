@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/acquisition-plan.schema.json",
+  "x-version": "1.0.0",
+  "title": "AcquisitionPlan",
+  "description": "The content-addressed plan between PlanInvestigation and ApprovePlan: intent, discovery, items, cost, constraints, gaps and approval (v0.4.0 \u00a75, ADR-020).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_id",
+    "intent",
+    "discovery",
+    "items",
+    "cost",
+    "constraints",
+    "gaps",
+    "approval"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "plan_id": {
+      "$ref": "common.schema.json#/$defs/Sha256Id"
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "profile_hash",
+        "planner_id",
+        "planner_version",
+        "requirements"
+      ],
+      "properties": {
+        "field": {
+          "type": "object"
+        },
+        "profile_hash": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "planner_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "planner_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRequirement"
+          }
+        }
+      }
+    },
+    "discovery": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CapabilityMatch"
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PlanItem"
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_bytes",
+        "requests_per_source",
+        "estimated_wall_seconds",
+        "nas_headroom_after_bytes"
+      ],
+      "properties": {
+        "total_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requests_per_source": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "estimated_wall_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "nas_headroom_after_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "required": [
+        "budget"
+      ],
+      "properties": {
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_bytes",
+            "max_requests_per_source",
+            "max_wall_seconds",
+            "min_nas_headroom_bytes",
+            "approval_threshold_bytes"
+          ],
+          "properties": {
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_requests_per_source": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_wall_seconds": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "min_nas_headroom_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "approval_threshold_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement_id",
+          "reason"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "approval": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/PlanApproval"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "EvidenceRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "test_kind",
+        "product_types",
+        "min_calibration_level",
+        "missions",
+        "instruments",
+        "epoch_min_mjd",
+        "epoch_max_mjd",
+        "em_min_m",
+        "em_max_m",
+        "operations",
+        "needs_bytes",
+        "public_only"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "test_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "image",
+              "spectrum",
+              "cube",
+              "timeseries",
+              "measurements",
+              "catalogue"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "min_calibration_level": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "missions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "instruments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "epoch_min_mjd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "epoch_max_mjd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "em_min_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "em_max_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cone",
+              "region",
+              "criteria",
+              "product_listing",
+              "download",
+              "cutout"
+            ]
+          }
+        },
+        "needs_bytes": {
+          "type": "boolean"
+        },
+        "public_only": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CapabilityMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "requirement_id",
+        "status",
+        "reasons",
+        "descriptor_verified_on"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requirement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "satisfied",
+            "partial",
+            "unsatisfied"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "outcome",
+              "reason"
+            ],
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "satisfied",
+                  "partial",
+                  "unsatisfied"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "descriptor_verified_on": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "PlanItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id",
+        "source_id",
+        "operation",
+        "target",
+        "expected_bytes",
+        "expected_rows",
+        "calibration_level",
+        "access_status",
+        "licence",
+        "requirement_id",
+        "test_kind"
+      ],
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "cone",
+            "region",
+            "criteria",
+            "product_listing",
+            "download",
+            "cutout"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_rows": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "calibration_level": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "access_status": {
+          "const": "public"
+        },
+        "licence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requirement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "test_kind": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "PlanApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_id",
+        "decision",
+        "actor",
+        "threshold_bytes",
+        "ledger_entry_id",
+        "reason"
+      ],
+      "properties": {
+        "plan_id": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "auto_approved",
+            "approved",
+            "refused"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threshold_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ledger_entry_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "approved"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "ledger_entry_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
