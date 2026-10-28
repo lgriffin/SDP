@@ -1,13 +1,15 @@
 [project]
 name = "sdp-adapters"
 version = "0.1.0"
-description = "Driven adapters for the SDP kernel: NAS artifact store, PostgreSQL metadata, Git-signed ledger, CPU executor, system probes, telemetry"
+description = "Driven adapters for the SDP kernel: NAS artifact store, PostgreSQL metadata, Git-signed ledger, CPU executor, archives and dialects, DuckDB analytics, system probes, telemetry"
 requires-python = ">=3.12"
 license = { text = "See repository LICENSE" }
 dependencies = [
   "sdp-kernel",
   "psycopg[binary]>=3.2",
   "cryptography>=43",
+  "duckdb>=2.0",
+  "pyyaml>=6",
 ]
 
 [build-system]

@@ -1,0 +1,43 @@
+# Gaia DR3 through the ESA Gaia Archive TAP service.
+source_id: gaia
+release_label: gaia:DR3
+service_url: https://gea.esac.esa.int/tap-server/tap
+table: gaiadr3.gaia_source
+ra_column: ra
+dec_column: dec
+key_column: source_id
+paging: offset
+max_rows_per_call: 50000
+min_seconds_between_calls: 1.0
+dialect_id: gaia-dr3
+licence: CC BY-SA 3.0 IGO
+citation: Gaia Collaboration, Vallenari et al. 2023, A&A 674, A1
+doi: 10.1051/0004-6361/202243940
+columns:
+  - {name: source_id, datatype: long}
+  - {name: ref_epoch, datatype: double, unit: yr}
+  - {name: ra, datatype: double, unit: deg}
+  - {name: ra_error, datatype: float, unit: mas}
+  - {name: dec, datatype: double, unit: deg}
+  - {name: dec_error, datatype: float, unit: mas}
+  - {name: parallax, datatype: double, unit: mas}
+  - {name: parallax_error, datatype: float, unit: mas}
+  - {name: pmra, datatype: double, unit: mas / yr, description: "proper motion in ra * cos(dec)"}
+  - {name: pmra_error, datatype: float, unit: mas / yr}
+  - {name: pmdec, datatype: double, unit: mas / yr}
+  - {name: pmdec_error, datatype: float, unit: mas / yr}
+  - {name: ra_dec_corr, datatype: float}
+  - {name: ra_parallax_corr, datatype: float}
+  - {name: ra_pmra_corr, datatype: float}
+  - {name: ra_pmdec_corr, datatype: float}
+  - {name: dec_parallax_corr, datatype: float}
+  - {name: dec_pmra_corr, datatype: float}
+  - {name: dec_pmdec_corr, datatype: float}
+  - {name: parallax_pmra_corr, datatype: float}
+  - {name: parallax_pmdec_corr, datatype: float}
+  - {name: pmra_pmdec_corr, datatype: float}
+  - {name: phot_g_mean_mag, datatype: float, unit: mag}
+  - {name: bp_rp, datatype: float, unit: mag}
+  - {name: ruwe, datatype: float}
+  - {name: astrometric_params_solved, datatype: short}
+  - {name: duplicated_source, datatype: boolean}

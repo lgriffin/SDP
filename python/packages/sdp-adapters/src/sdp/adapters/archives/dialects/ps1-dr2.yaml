@@ -1,0 +1,14 @@
+# Pan-STARRS1 DR2 mean objects to canonical astrometry: mean positions at the mean detection epoch.
+dialect_id: ps1-dr2
+dialect_version: 1.0.0
+source_id: ps1
+source_release: ps1:DR2
+source_key: "ps1:DR2:{objID}"
+epoch: {column: epochMean, kind: mjd}
+columns:
+  ra_deg: {column: raMean, unit: deg}
+  dec_deg: {column: decMean, unit: deg}
+astrometric_corr: null
+quality_flags: [nDetections, gMeanPSFMag, rMeanPSFMag, iMeanPSFMag]
+quality_class: {column: nDetections, below: [[3, poor], [10, marginal]], otherwise: good}
+zero_point_corrected: false

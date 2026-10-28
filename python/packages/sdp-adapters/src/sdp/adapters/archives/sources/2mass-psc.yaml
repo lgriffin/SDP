@@ -1,0 +1,24 @@
+# 2MASS All-Sky Point Source Catalog through the IRSA TAP service.
+source_id: 2mass
+release_label: 2mass:psc
+service_url: https://irsa.ipac.caltech.edu/TAP
+table: fp_psc
+ra_column: ra
+dec_column: dec
+key_column: designation
+paging: single
+max_rows_per_call: 100000
+min_seconds_between_calls: 1.0
+dialect_id: 2mass-psc
+licence: "2MASS data are public; acknowledge per https://irsa.ipac.caltech.edu/data/2MASS/docs/releases/allsky/doc/sec1_1.html"
+citation: Skrutskie et al. 2006, AJ 131, 1163
+doi: 10.1086/498708
+columns:
+  - {name: designation, datatype: char}
+  - {name: ra, datatype: double, unit: deg}
+  - {name: dec, datatype: double, unit: deg}
+  - {name: jdate, datatype: double, unit: d}
+  - {name: j_m, datatype: double, unit: mag}
+  - {name: h_m, datatype: double, unit: mag}
+  - {name: k_m, datatype: double, unit: mag}
+  - {name: ph_qual, datatype: char}

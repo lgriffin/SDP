@@ -11,6 +11,10 @@ Driven adapters for the kernel's ports (§6). Each one passes the same contract 
 | `ComputeExecutor` | `compute.cpu.CpuExecutor` | The kernel's reference loop with BLAS/OpenMP threads pinned |
 | `Clock`, `IdGenerator`, `Hasher`, `EnvironmentProbe` | `system` | ULIDs; Git revision, `uv.lock` digest, image digest and CUDA versions |
 | `HistoricalSourceGateway` | `historical.filesystem.FilesystemHistoricalSources` | `<doc>/document.json`, page scans, append-only `transcriptions.jsonl` and `verifications.jsonl`; a correction is a non-matching verification, never an edit (REL-001) |
+| `ArchiveGateway` | `archives.tap.TapArchiveAdapter` | One per source from `archives/sources/*.yaml`; ADQL from the `CatalogueQuery`; talks HTTP only through a `Transport`: `PoliteTransport` live, `CassetteTransport` in replay or record (ADR-015) |
+| `DialectCurator` | `archives.dialect.YamlDialectCurator` | `archives/dialects/*.yaml` plus golden rows; refuses a release with no dialect |
+| `CrossMatchService` | `archives.xmatch.CdsXMatchAdapter` | CDS X-Match after local epoch propagation; nearest pair per left row, as the CPU reference |
+| analytics | `analytics.duckdb.CuratedCatalogue` | DuckDB views over curated Parquet read through the verified store |
 | `ExperimentTracker` | `telemetry.prometheus.PrometheusTextfileTracker` | node_exporter textfiles for Grafana, plus `sdp_gpu.prom` from `nvidia-smi` (NFR-010) |
 
 `logs.configure_logging` emits one JSON object per line with every `extra` the kernel attaches (NFR-005). `bootstrap.build_application(Settings.from_env())` is the composition root the CLI and API share; it is the only module that imports more than one adapter (import-linter enforces it).
@@ -27,6 +31,7 @@ Driven adapters for the kernel's ports (§6). Each one passes the same contract 
 | `SDP_LEDGER_COMMIT` | `1` to commit every ledger append |
 | `SDP_ALLOW_UNSIGNED` | `1` only for local experiments; signatures are required by default |
 | `SDP_METRICS_DIR` | node_exporter textfile directory |
+| `SDP_ARCHIVE_MODE`, `SDP_CASSETTE_DIR` | `live` (default), `replay` or `record`; cassettes default to `python/tests/cassettes` |
 | `SDP_THREADS`, `SDP_MIN_FREE_BYTES`, `SDP_LOG_LEVEL` | Executor threads, NAS headroom, log level |
 
 Credentials come only from the environment, never from Git (NFR-009).
