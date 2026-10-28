@@ -41,3 +41,36 @@ The historical values in `sdp_relativity/oracles.yaml` are placeholders "as comm
 ## Recoverability statement (REL-008)
 
 The original plates are not available to this project. Every analysis is a reanalysis of published tables (1920) and of a published remeasurement (Harvey 1979); the dossier must say so and must never describe a table-based reanalysis as a plate remeasurement (REL-G-09).
+
+## Implementation
+
+| Piece | Where |
+|---|---|
+| Constants (CODATA 2022, IAU 2015), recorded in every run | `sdp_relativity.constants` |
+| Uncertainty conventions; a probable error cannot become a weight unconverted (REL-002) | `sdp_relativity.measurement` |
+| The four models, limb value from the constants (REL-003) | `sdp_relativity.models` |
+| Observation bundle (`sdp-relativity/observations@1`), per-instrument sets, `PoolingJustification` (REL-004) | `sdp_relativity.observations` |
+| Transcribed records to a bundle, keeping every locator; second-reader corrections (REL-001) | `sdp_relativity.transcription` |
+| Scenario axes and the 144-point sweep (REL-006) | `sdp_relativity.reduction` |
+| GLS and Student-t (IRLS, nu = 4) fits, bootstrap, evidence and posterior | `sdp_relativity.fitter` |
+| Hypothesis comparison per instrument and scenario (REL-005) | `sdp_relativity.comparison` |
+| Oracle registry; only analytic oracles are verified today | `sdp_relativity/oracles.yaml` |
+| Dossier limitations and the remeasurement-claim lint (REL-008) | `sdp_relativity.dossier` |
+| Plan, interpretation and gates | `sdp_relativity.protocol`, `.analysis` |
+| Independent fitter (REL-007) | `typescript/packages/relativity-fit` |
+| Synthetic bundles with a planted deflection | `python -m sdp_relativity.synthetic out.json --alpha 1.75 --seed 1919` |
+
+### The fit
+
+Per plate and axis, `dx = a_x + s x + r y + alpha g_x` and `dy = a_y + s y - r x + alpha g_y`, with `g` the response of a 1/b deflection normalised to the limb. Plate scale and rotation are solved from the eclipse plate, or fixed from the check plates; when fixed, the per-plate correlated-error scenario adds the check-plate scale variance as a rank-one block per plate. The astrographic axis acts on the pooled fit: included, excluded, or down-weighted by its own reduced chi-square. Bayes factors use a Gaussian prior on alpha centred midway between the half and GR values, so the prior favours neither.
+
+### Running it
+
+```
+python -m sdp_relativity.synthetic reports/uc02/bundle.json
+node typescript/packages/relativity-fit/src/cli.ts reports/uc02/bundle.json --out reports/uc02/independent-fit.json
+cd python && uv run python -m sdp.testing.emit ../reports/uc02 --protocol uc02-einstein-1919 \
+    --input observations=../reports/uc02/bundle.json --input independent_fit=../reports/uc02/independent-fit.json
+```
+
+`just cross-language` runs this and passes the manifest through `spec-harness conform` and `rederive`. With synthetic data the verdict is INCONCLUSIVE, with REL-G-04 and REL-G-07 reporting `oracle_unverified` and every other gate passing; the tests in `python/tests/relativity/test_protocol.py` plant each fault a gate guards against and check that gate fails.

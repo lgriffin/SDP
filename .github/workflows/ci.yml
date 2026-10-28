@@ -47,11 +47,11 @@ jobs:
       - run: uv sync --python 3.12 --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src tests
+      - run: uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src packages/sdp-relativity/src tests
       - run: uv run lint-imports
 
   python-fast:
-    name: fast · unit, property, contract, use-case (T0-T4)
+    name: fast · unit, property, contract, use-case, synthetic science (T0-T4, T8)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -173,6 +173,16 @@ jobs:
         run: pnpm harness conform reports/emitted/experiments contracts/fixtures/valid/evidence-manifest/synthetic-verified-1.1.json
       - name: The harness re-derives every verdict (TST-007)
         run: pnpm harness rederive reports/emitted/experiments --out reports/rederive.json
+      - name: UC-02 with the independent TypeScript fitter feeding the kernel (REL-007)
+        run: |
+          mkdir -p reports/uc02
+          (cd python && uv run python -m sdp_relativity.synthetic ../reports/uc02/bundle.json)
+          node typescript/packages/relativity-fit/src/cli.ts reports/uc02/bundle.json --out reports/uc02/independent-fit.json
+          (cd python && uv run python -m sdp.testing.emit ../reports/uc02 --protocol uc02-einstein-1919 --input observations=../reports/uc02/bundle.json --input independent_fit=../reports/uc02/independent-fit.json --param bootstrap_resamples=200)
+          # Synthetic data cannot verify the published oracles: INCONCLUSIVE, with the two fitters agreeing.
+          jq -e '.verdict.status == "INCONCLUSIVE" and (.checks[] | select(.gate_id == "REL-G-08") | .outcome == "pass")' reports/uc02/experiments/*/*/manifest.json
+          pnpm harness conform reports/uc02/experiments
+          pnpm harness rederive reports/uc02/experiments
 
   guard:
     name: static · behaviour changes carry an .ears change (TST-002)
@@ -208,7 +218,7 @@ jobs:
           path: reports/junit
           merge-multiple: true
       - name: spec-harness trace
-        run: pnpm harness trace --junit reports/junit --tiers T0,T1,T2,T3,T4,T5,T6,harness,lint --out reports/traceability
+        run: pnpm harness trace --junit reports/junit --tiers T0,T1,T2,T3,T4,T5,T6,T8,harness,lint --out reports/traceability
       - uses: actions/upload-artifact@v4
         if: always()
         with:

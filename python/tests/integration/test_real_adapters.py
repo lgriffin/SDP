@@ -14,6 +14,7 @@ import psycopg
 import pytest
 
 from sdp.adapters.compute.cpu import CpuExecutor
+from sdp.adapters.historical.filesystem import FilesystemHistoricalSources
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.postgres import PostgresDatabase, PostgresDatasetRepository
 from sdp.adapters.storage.nas import NasArtifactStore
@@ -22,6 +23,7 @@ from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker
 from sdp.testing.contracts.artifact_store import ArtifactStoreContract
 from sdp.testing.contracts.compute import ComputeExecutorContract
 from sdp.testing.contracts.dataset_repository import DatasetRepositoryContract
+from sdp.testing.contracts.historical_sources import HistoricalSourcesContract
 from sdp.testing.contracts.ledger import LedgerContract
 from sdp.testing.contracts.metadata import UnitOfWorkContract
 from sdp.testing.contracts.misc import DeterminismContract, TrackerContract
@@ -91,3 +93,9 @@ class TestPrometheusTracker(TrackerContract):
     @pytest.fixture
     def tracker(self, tmp_path: Path) -> PrometheusTextfileTracker:
         return PrometheusTextfileTracker(tmp_path / "textfile")
+
+
+class TestFilesystemHistoricalSources(HistoricalSourcesContract):
+    @pytest.fixture
+    def historical_sources(self, tmp_path: Path) -> FilesystemHistoricalSources:
+        return FilesystemHistoricalSources(tmp_path / "historical")

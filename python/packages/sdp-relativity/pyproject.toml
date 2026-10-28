@@ -1,0 +1,17 @@
+[project]
+name = "sdp-relativity"
+version = "0.1.0"
+description = "UC-02: re-examination of the 1919 eclipse light-deflection measurements (architecture spec §9)"
+requires-python = ">=3.12"
+license = { text = "See repository LICENSE" }
+dependencies = ["sdp-kernel", "numpy>=2.0", "scipy>=1.13", "astropy>=6.1", "pyyaml>=6.0"]
+
+[project.entry-points."sdp.protocols"]
+uc02-einstein-1919 = "sdp_relativity.protocol:Einstein1919Protocol"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdp_relativity"]

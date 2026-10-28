@@ -22,6 +22,12 @@ cross-language:
     rm -rf reports/emitted && cd python && uv run python -m sdp.testing.emit ../reports/emitted
     pnpm --silent harness conform reports/emitted/experiments
     pnpm --silent harness rederive reports/emitted/experiments
+    rm -rf reports/uc02 && mkdir -p reports/uc02
+    cd python && uv run python -m sdp_relativity.synthetic ../reports/uc02/bundle.json
+    node typescript/packages/relativity-fit/src/cli.ts reports/uc02/bundle.json --out reports/uc02/independent-fit.json
+    cd python && uv run python -m sdp.testing.emit ../reports/uc02 --protocol uc02-einstein-1919 --input observations=../reports/uc02/bundle.json --input independent_fit=../reports/uc02/independent-fit.json --param bootstrap_resamples=200
+    pnpm --silent harness conform reports/uc02/experiments
+    pnpm --silent harness rederive reports/uc02/experiments
 
 # Behaviour changes carry an .ears change (TST-002)
 guard base="origin/main":
@@ -29,7 +35,7 @@ guard base="origin/main":
 
 # Python static checks: ruff, mypy strict, import-linter
 lint:
-    cd python && uv run ruff check . && uv run ruff format --check . && uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src tests && uv run lint-imports
+    cd python && uv run ruff check . && uv run ruff format --check . && uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src packages/sdp-relativity/src tests && uv run lint-imports
 
 # Python tiers T0-T4 (no live archives, no GPU)
 pytest *args:

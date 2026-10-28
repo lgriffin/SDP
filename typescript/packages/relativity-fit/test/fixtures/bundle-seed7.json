@@ -1,0 +1,2671 @@
+{
+ "instrument_sets": [
+  {
+   "instrument": "sobral-4in",
+   "plates": [
+    {
+     "check_rotation": -0.004576,
+     "check_scale": -0.017245,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-1",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.4707,
+       "dy_arcsec": 0.5842,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 1",
+       "record_id": "syn-sobral-4in-1-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.5249,
+       "dy_arcsec": -0.5273,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 2",
+       "record_id": "syn-sobral-4in-1-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.1698,
+       "dy_arcsec": 0.5379,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 3",
+       "record_id": "syn-sobral-4in-1-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.3754,
+       "dy_arcsec": -0.711,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 4",
+       "record_id": "syn-sobral-4in-1-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.5414,
+       "dy_arcsec": -0.1705,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 5",
+       "record_id": "syn-sobral-4in-1-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.1984,
+       "dy_arcsec": 0.0126,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 6",
+       "record_id": "syn-sobral-4in-1-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.228,
+       "dy_arcsec": 0.0109,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-1, star 7",
+       "record_id": "syn-sobral-4in-1-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.000325,
+     "check_scale": -0.006307,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-2",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.6163,
+       "dy_arcsec": 0.62,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 1",
+       "record_id": "syn-sobral-4in-2-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.4551,
+       "dy_arcsec": 0.2596,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 2",
+       "record_id": "syn-sobral-4in-2-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.4526,
+       "dy_arcsec": 0.3925,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 3",
+       "record_id": "syn-sobral-4in-2-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.2219,
+       "dy_arcsec": -0.5267,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 4",
+       "record_id": "syn-sobral-4in-2-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0451,
+       "dy_arcsec": 0.4643,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 5",
+       "record_id": "syn-sobral-4in-2-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.5729,
+       "dy_arcsec": 1.1029,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 6",
+       "record_id": "syn-sobral-4in-2-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.5523,
+       "dy_arcsec": 0.4042,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-2, star 7",
+       "record_id": "syn-sobral-4in-2-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    },
+    {
+     "check_rotation": 0.006829,
+     "check_scale": -0.002021,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-3",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0916,
+       "dy_arcsec": 0.0058,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 1",
+       "record_id": "syn-sobral-4in-3-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.4817,
+       "dy_arcsec": 0.438,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 2",
+       "record_id": "syn-sobral-4in-3-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0891,
+       "dy_arcsec": -0.275,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 3",
+       "record_id": "syn-sobral-4in-3-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.114,
+       "dy_arcsec": -0.8188,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 4",
+       "record_id": "syn-sobral-4in-3-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.0742,
+       "dy_arcsec": 1.0256,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 5",
+       "record_id": "syn-sobral-4in-3-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.4616,
+       "dy_arcsec": 0.6101,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 6",
+       "record_id": "syn-sobral-4in-3-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.5338,
+       "dy_arcsec": 0.8695,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-3, star 7",
+       "record_id": "syn-sobral-4in-3-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    },
+    {
+     "check_rotation": 0.01257,
+     "check_scale": 0.000406,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-4",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.3059,
+       "dy_arcsec": -1.1882,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 1",
+       "record_id": "syn-sobral-4in-4-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.0162,
+       "dy_arcsec": 0.154,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 2",
+       "record_id": "syn-sobral-4in-4-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.0973,
+       "dy_arcsec": -1.087,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 3",
+       "record_id": "syn-sobral-4in-4-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.768,
+       "dy_arcsec": -1.3419,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 4",
+       "record_id": "syn-sobral-4in-4-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.0875,
+       "dy_arcsec": 0.6156,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 5",
+       "record_id": "syn-sobral-4in-4-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.5237,
+       "dy_arcsec": 0.3356,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 6",
+       "record_id": "syn-sobral-4in-4-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.1719,
+       "dy_arcsec": 0.596,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-4, star 7",
+       "record_id": "syn-sobral-4in-4-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    },
+    {
+     "check_rotation": 0.010521,
+     "check_scale": -0.003409,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-5",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.2081,
+       "dy_arcsec": -0.574,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 1",
+       "record_id": "syn-sobral-4in-5-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.8843,
+       "dy_arcsec": -0.016,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 2",
+       "record_id": "syn-sobral-4in-5-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.4101,
+       "dy_arcsec": -0.3755,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 3",
+       "record_id": "syn-sobral-4in-5-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0138,
+       "dy_arcsec": -0.6467,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 4",
+       "record_id": "syn-sobral-4in-5-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.4896,
+       "dy_arcsec": 1.0307,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 5",
+       "record_id": "syn-sobral-4in-5-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.2781,
+       "dy_arcsec": 0.8895,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 6",
+       "record_id": "syn-sobral-4in-5-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.2393,
+       "dy_arcsec": 0.8962,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-5, star 7",
+       "record_id": "syn-sobral-4in-5-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.010337,
+     "check_scale": 0.005041,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-6",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.9367,
+       "dy_arcsec": 0.2734,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 1",
+       "record_id": "syn-sobral-4in-6-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.7466,
+       "dy_arcsec": 1.0766,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 2",
+       "record_id": "syn-sobral-4in-6-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.9976,
+       "dy_arcsec": 0.1208,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 3",
+       "record_id": "syn-sobral-4in-6-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.6758,
+       "dy_arcsec": -0.7314,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 4",
+       "record_id": "syn-sobral-4in-6-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.037,
+       "dy_arcsec": -0.668,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 5",
+       "record_id": "syn-sobral-4in-6-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.9239,
+       "dy_arcsec": 1.1547,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 6",
+       "record_id": "syn-sobral-4in-6-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.4471,
+       "dy_arcsec": 0.3772,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-6, star 7",
+       "record_id": "syn-sobral-4in-6-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    },
+    {
+     "check_rotation": 0.00779,
+     "check_scale": -0.008193,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-4in-7",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.6106,
+       "dy_arcsec": 0.2808,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 1",
+       "record_id": "syn-sobral-4in-7-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 54.8238,
+       "y_arcmin": -41.3173
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.0574,
+       "dy_arcsec": -0.0448,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 2",
+       "record_id": "syn-sobral-4in-7-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 12.2731,
+       "y_arcmin": 78.1475
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.0312,
+       "dy_arcsec": -0.0511,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 3",
+       "record_id": "syn-sobral-4in-7-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 32.2924,
+       "y_arcmin": -32.8848
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.8536,
+       "dy_arcsec": -0.2892,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 4",
+       "record_id": "syn-sobral-4in-7-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 11.0843,
+       "y_arcmin": -23.091
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.5121,
+       "dy_arcsec": 0.9166,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 5",
+       "record_id": "syn-sobral-4in-7-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -78.9601,
+       "y_arcmin": 16.1269
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.6958,
+       "dy_arcsec": 0.533,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 6",
+       "record_id": "syn-sobral-4in-7-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -8.2233,
+       "y_arcmin": 45.5518
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.2507,
+       "dy_arcsec": 1.0115,
+       "error_arcsec": 0.12,
+       "locator": "synthetic generator, plate sobral-4in-7, star 7",
+       "record_id": "syn-sobral-4in-7-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -40.4123,
+       "y_arcmin": 14.5274
+      }
+     ]
+    }
+   ],
+   "solar_radius_arcmin": 15.78
+  },
+  {
+   "instrument": "sobral-astro",
+   "plates": [
+    {
+     "check_rotation": -0.000234,
+     "check_scale": 0.003492,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-1",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.268,
+       "dy_arcsec": -0.9716,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 1",
+       "record_id": "syn-sobral-astro-1-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.1752,
+       "dy_arcsec": -1.8318,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 2",
+       "record_id": "syn-sobral-astro-1-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.8977,
+       "dy_arcsec": -2.2284,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 3",
+       "record_id": "syn-sobral-astro-1-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.0747,
+       "dy_arcsec": -1.2138,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 4",
+       "record_id": "syn-sobral-astro-1-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.9583,
+       "dy_arcsec": -0.3495,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 5",
+       "record_id": "syn-sobral-astro-1-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.4588,
+       "dy_arcsec": -0.7496,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 6",
+       "record_id": "syn-sobral-astro-1-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.7707,
+       "dy_arcsec": -1.4828,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 7",
+       "record_id": "syn-sobral-astro-1-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.3338,
+       "dy_arcsec": -0.2443,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 8",
+       "record_id": "syn-sobral-astro-1-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.7791,
+       "dy_arcsec": -0.526,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 9",
+       "record_id": "syn-sobral-astro-1-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.649,
+       "dy_arcsec": -1.8589,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-1, star 10",
+       "record_id": "syn-sobral-astro-1-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.001407,
+     "check_scale": 0.006748,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-2",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.6186,
+       "dy_arcsec": 0.5486,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 1",
+       "record_id": "syn-sobral-astro-2-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0723,
+       "dy_arcsec": -0.6679,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 2",
+       "record_id": "syn-sobral-astro-2-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.2518,
+       "dy_arcsec": -1.0655,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 3",
+       "record_id": "syn-sobral-astro-2-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.6956,
+       "dy_arcsec": 0.5637,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 4",
+       "record_id": "syn-sobral-astro-2-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.2412,
+       "dy_arcsec": 1.7361,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 5",
+       "record_id": "syn-sobral-astro-2-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.8696,
+       "dy_arcsec": 0.4418,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 6",
+       "record_id": "syn-sobral-astro-2-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.36,
+       "dy_arcsec": 0.2807,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 7",
+       "record_id": "syn-sobral-astro-2-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.2776,
+       "dy_arcsec": 1.2983,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 8",
+       "record_id": "syn-sobral-astro-2-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.4433,
+       "dy_arcsec": -0.09,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 9",
+       "record_id": "syn-sobral-astro-2-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.9652,
+       "dy_arcsec": -0.3704,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-2, star 10",
+       "record_id": "syn-sobral-astro-2-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.008605,
+     "check_scale": -0.006642,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-3",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.5722,
+       "dy_arcsec": -0.1241,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 1",
+       "record_id": "syn-sobral-astro-3-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.0134,
+       "dy_arcsec": -0.4317,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 2",
+       "record_id": "syn-sobral-astro-3-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.5234,
+       "dy_arcsec": -0.5013,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 3",
+       "record_id": "syn-sobral-astro-3-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.1812,
+       "dy_arcsec": 0.1413,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 4",
+       "record_id": "syn-sobral-astro-3-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.0697,
+       "dy_arcsec": -0.4336,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 5",
+       "record_id": "syn-sobral-astro-3-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.6697,
+       "dy_arcsec": 0.133,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 6",
+       "record_id": "syn-sobral-astro-3-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.9368,
+       "dy_arcsec": -0.0572,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 7",
+       "record_id": "syn-sobral-astro-3-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.5819,
+       "dy_arcsec": 0.1434,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 8",
+       "record_id": "syn-sobral-astro-3-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.1573,
+       "dy_arcsec": -0.6722,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 9",
+       "record_id": "syn-sobral-astro-3-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.2612,
+       "dy_arcsec": -1.3403,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-3, star 10",
+       "record_id": "syn-sobral-astro-3-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": 0.000811,
+     "check_scale": -0.005406,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-4",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.5637,
+       "dy_arcsec": 0.195,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 1",
+       "record_id": "syn-sobral-astro-4-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.8671,
+       "dy_arcsec": -0.4712,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 2",
+       "record_id": "syn-sobral-astro-4-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.0834,
+       "dy_arcsec": -1.1375,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 3",
+       "record_id": "syn-sobral-astro-4-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.0984,
+       "dy_arcsec": 0.7498,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 4",
+       "record_id": "syn-sobral-astro-4-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.6157,
+       "dy_arcsec": 0.2854,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 5",
+       "record_id": "syn-sobral-astro-4-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0671,
+       "dy_arcsec": 0.9701,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 6",
+       "record_id": "syn-sobral-astro-4-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.3782,
+       "dy_arcsec": 0.0287,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 7",
+       "record_id": "syn-sobral-astro-4-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.007,
+       "dy_arcsec": 0.504,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 8",
+       "record_id": "syn-sobral-astro-4-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.2772,
+       "dy_arcsec": 0.6768,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 9",
+       "record_id": "syn-sobral-astro-4-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.3899,
+       "dy_arcsec": -0.289,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-4, star 10",
+       "record_id": "syn-sobral-astro-4-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.012711,
+     "check_scale": 0.006663,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-5",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.5575,
+       "dy_arcsec": -0.4306,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 1",
+       "record_id": "syn-sobral-astro-5-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.7871,
+       "dy_arcsec": -0.6593,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 2",
+       "record_id": "syn-sobral-astro-5-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.7414,
+       "dy_arcsec": -1.3919,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 3",
+       "record_id": "syn-sobral-astro-5-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.6881,
+       "dy_arcsec": -0.6535,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 4",
+       "record_id": "syn-sobral-astro-5-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.9011,
+       "dy_arcsec": -0.2019,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 5",
+       "record_id": "syn-sobral-astro-5-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.2051,
+       "dy_arcsec": 0.0882,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 6",
+       "record_id": "syn-sobral-astro-5-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.3858,
+       "dy_arcsec": -0.5407,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 7",
+       "record_id": "syn-sobral-astro-5-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.9534,
+       "dy_arcsec": 1.3979,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 8",
+       "record_id": "syn-sobral-astro-5-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.9939,
+       "dy_arcsec": -0.4725,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 9",
+       "record_id": "syn-sobral-astro-5-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.145,
+       "dy_arcsec": -1.905,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-5, star 10",
+       "record_id": "syn-sobral-astro-5-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": 0.009168,
+     "check_scale": 0.006981,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-6",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.0456,
+       "dy_arcsec": 0.0127,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 1",
+       "record_id": "syn-sobral-astro-6-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.004,
+       "dy_arcsec": -0.4195,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 2",
+       "record_id": "syn-sobral-astro-6-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.7578,
+       "dy_arcsec": 0.4251,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 3",
+       "record_id": "syn-sobral-astro-6-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.2337,
+       "dy_arcsec": -0.0487,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 4",
+       "record_id": "syn-sobral-astro-6-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.6913,
+       "dy_arcsec": 1.5238,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 5",
+       "record_id": "syn-sobral-astro-6-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.8256,
+       "dy_arcsec": 0.9686,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 6",
+       "record_id": "syn-sobral-astro-6-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.1416,
+       "dy_arcsec": -0.2052,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 7",
+       "record_id": "syn-sobral-astro-6-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.0425,
+       "dy_arcsec": 0.9143,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 8",
+       "record_id": "syn-sobral-astro-6-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.5541,
+       "dy_arcsec": 1.3877,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 9",
+       "record_id": "syn-sobral-astro-6-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -2.0764,
+       "dy_arcsec": 0.1423,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-6, star 10",
+       "record_id": "syn-sobral-astro-6-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.008544,
+     "check_scale": -0.004585,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-7",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.2197,
+       "dy_arcsec": -0.1763,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 1",
+       "record_id": "syn-sobral-astro-7-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.1506,
+       "dy_arcsec": -1.3001,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 2",
+       "record_id": "syn-sobral-astro-7-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.3921,
+       "dy_arcsec": -1.0601,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 3",
+       "record_id": "syn-sobral-astro-7-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.3931,
+       "dy_arcsec": -0.6273,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 4",
+       "record_id": "syn-sobral-astro-7-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.3879,
+       "dy_arcsec": -0.1082,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 5",
+       "record_id": "syn-sobral-astro-7-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.4326,
+       "dy_arcsec": -0.3616,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 6",
+       "record_id": "syn-sobral-astro-7-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.3543,
+       "dy_arcsec": -0.685,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 7",
+       "record_id": "syn-sobral-astro-7-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.7692,
+       "dy_arcsec": -0.5768,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 8",
+       "record_id": "syn-sobral-astro-7-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.2035,
+       "dy_arcsec": -1.6681,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 9",
+       "record_id": "syn-sobral-astro-7-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.7948,
+       "dy_arcsec": -0.7558,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-7, star 10",
+       "record_id": "syn-sobral-astro-7-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.001967,
+     "check_scale": 0.014336,
+     "check_scale_sigma": 0.002,
+     "plate_id": "sobral-astro-8",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.2345,
+       "dy_arcsec": -0.0927,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 1",
+       "record_id": "syn-sobral-astro-8-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 58.4285,
+       "y_arcmin": -18.6045
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.2672,
+       "dy_arcsec": -0.7281,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 2",
+       "record_id": "syn-sobral-astro-8-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 14.7176,
+       "y_arcmin": -40.0572
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.4485,
+       "dy_arcsec": -1.8236,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 3",
+       "record_id": "syn-sobral-astro-8-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -14.8286,
+       "y_arcmin": -70.6779
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.6859,
+       "dy_arcsec": 0.2081,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 4",
+       "record_id": "syn-sobral-astro-8-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 67.8658,
+       "y_arcmin": -12.2576
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -1.2191,
+       "dy_arcsec": 1.1836,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 5",
+       "record_id": "syn-sobral-astro-8-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -38.8031,
+       "y_arcmin": 28.8396
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.6114,
+       "dy_arcsec": 0.6999,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 6",
+       "record_id": "syn-sobral-astro-8-6",
+       "star_id": "6",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 37.3572,
+       "y_arcmin": 12.321
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.4233,
+       "dy_arcsec": -0.3241,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 7",
+       "record_id": "syn-sobral-astro-8-7",
+       "star_id": "7",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 34.5154,
+       "y_arcmin": -20.2766
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.4846,
+       "dy_arcsec": 1.8618,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 8",
+       "record_id": "syn-sobral-astro-8-8",
+       "star_id": "8",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 63.5888,
+       "y_arcmin": 54.2449
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.9019,
+       "dy_arcsec": 0.5896,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 9",
+       "record_id": "syn-sobral-astro-8-9",
+       "star_id": "9",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -66.5966,
+       "y_arcmin": 8.7549
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.6644,
+       "dy_arcsec": -1.8619,
+       "error_arcsec": 0.25,
+       "locator": "synthetic generator, plate sobral-astro-8, star 10",
+       "record_id": "syn-sobral-astro-8-10",
+       "star_id": "10",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -35.9085,
+       "y_arcmin": -56.017
+      }
+     ]
+    }
+   ],
+   "solar_radius_arcmin": 15.78
+  },
+  {
+   "instrument": "principe-astro",
+   "plates": [
+    {
+     "check_rotation": -0.011706,
+     "check_scale": -0.007905,
+     "check_scale_sigma": 0.002,
+     "plate_id": "principe-astro-1",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.0399,
+       "dy_arcsec": 0.7698,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-1, star 1",
+       "record_id": "syn-principe-astro-1-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 87.053,
+       "y_arcmin": -33.4638
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.6129,
+       "dy_arcsec": 0.0056,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-1, star 2",
+       "record_id": "syn-principe-astro-1-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 40.5283,
+       "y_arcmin": -7.7556
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.2559,
+       "dy_arcsec": 0.1013,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-1, star 3",
+       "record_id": "syn-principe-astro-1-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -39.6444,
+       "y_arcmin": -1.614
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 1.9643,
+       "dy_arcsec": 0.5019,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-1, star 4",
+       "record_id": "syn-principe-astro-1-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 51.4488,
+       "y_arcmin": -30.446
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.751,
+       "dy_arcsec": 0.6204,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-1, star 5",
+       "record_id": "syn-principe-astro-1-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -11.2015,
+       "y_arcmin": 25.7294
+      }
+     ]
+    },
+    {
+     "check_rotation": -0.014439,
+     "check_scale": -0.011409,
+     "check_scale_sigma": 0.002,
+     "plate_id": "principe-astro-2",
+     "stars": [
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.6514,
+       "dy_arcsec": 1.5123,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-2, star 1",
+       "record_id": "syn-principe-astro-2-1",
+       "star_id": "1",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 87.053,
+       "y_arcmin": -33.4638
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.4937,
+       "dy_arcsec": -0.3802,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-2, star 2",
+       "record_id": "syn-principe-astro-2-2",
+       "star_id": "2",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 40.5283,
+       "y_arcmin": -7.7556
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.7,
+       "dy_arcsec": -0.6713,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-2, star 3",
+       "record_id": "syn-principe-astro-2-3",
+       "star_id": "3",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -39.6444,
+       "y_arcmin": -1.614
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": 0.1484,
+       "dy_arcsec": 0.566,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-2, star 4",
+       "record_id": "syn-principe-astro-2-4",
+       "star_id": "4",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": 51.4488,
+       "y_arcmin": -30.446
+      },
+      {
+       "convention": "probable_error",
+       "dx_arcsec": -0.3554,
+       "dy_arcsec": 0.3301,
+       "error_arcsec": 0.3,
+       "locator": "synthetic generator, plate principe-astro-2, star 5",
+       "record_id": "syn-principe-astro-2-5",
+       "star_id": "5",
+       "transcriber": "synthetic-generator",
+       "x_arcmin": -11.2015,
+       "y_arcmin": 25.7294
+      }
+     ]
+    }
+   ],
+   "solar_radius_arcmin": 15.78
+  }
+ ],
+ "provenance": {
+  "kind": "synthetic",
+  "note": "Synthetic recovery fixture; not 1919 data.",
+  "planted_alpha_arcsec": 1.75,
+  "seed": 7
+ },
+ "records": {
+  "syn-principe-astro-1-1": "synthetic generator, plate principe-astro-1, star 1",
+  "syn-principe-astro-1-2": "synthetic generator, plate principe-astro-1, star 2",
+  "syn-principe-astro-1-3": "synthetic generator, plate principe-astro-1, star 3",
+  "syn-principe-astro-1-4": "synthetic generator, plate principe-astro-1, star 4",
+  "syn-principe-astro-1-5": "synthetic generator, plate principe-astro-1, star 5",
+  "syn-principe-astro-2-1": "synthetic generator, plate principe-astro-2, star 1",
+  "syn-principe-astro-2-2": "synthetic generator, plate principe-astro-2, star 2",
+  "syn-principe-astro-2-3": "synthetic generator, plate principe-astro-2, star 3",
+  "syn-principe-astro-2-4": "synthetic generator, plate principe-astro-2, star 4",
+  "syn-principe-astro-2-5": "synthetic generator, plate principe-astro-2, star 5",
+  "syn-sobral-4in-1-1": "synthetic generator, plate sobral-4in-1, star 1",
+  "syn-sobral-4in-1-2": "synthetic generator, plate sobral-4in-1, star 2",
+  "syn-sobral-4in-1-3": "synthetic generator, plate sobral-4in-1, star 3",
+  "syn-sobral-4in-1-4": "synthetic generator, plate sobral-4in-1, star 4",
+  "syn-sobral-4in-1-5": "synthetic generator, plate sobral-4in-1, star 5",
+  "syn-sobral-4in-1-6": "synthetic generator, plate sobral-4in-1, star 6",
+  "syn-sobral-4in-1-7": "synthetic generator, plate sobral-4in-1, star 7",
+  "syn-sobral-4in-2-1": "synthetic generator, plate sobral-4in-2, star 1",
+  "syn-sobral-4in-2-2": "synthetic generator, plate sobral-4in-2, star 2",
+  "syn-sobral-4in-2-3": "synthetic generator, plate sobral-4in-2, star 3",
+  "syn-sobral-4in-2-4": "synthetic generator, plate sobral-4in-2, star 4",
+  "syn-sobral-4in-2-5": "synthetic generator, plate sobral-4in-2, star 5",
+  "syn-sobral-4in-2-6": "synthetic generator, plate sobral-4in-2, star 6",
+  "syn-sobral-4in-2-7": "synthetic generator, plate sobral-4in-2, star 7",
+  "syn-sobral-4in-3-1": "synthetic generator, plate sobral-4in-3, star 1",
+  "syn-sobral-4in-3-2": "synthetic generator, plate sobral-4in-3, star 2",
+  "syn-sobral-4in-3-3": "synthetic generator, plate sobral-4in-3, star 3",
+  "syn-sobral-4in-3-4": "synthetic generator, plate sobral-4in-3, star 4",
+  "syn-sobral-4in-3-5": "synthetic generator, plate sobral-4in-3, star 5",
+  "syn-sobral-4in-3-6": "synthetic generator, plate sobral-4in-3, star 6",
+  "syn-sobral-4in-3-7": "synthetic generator, plate sobral-4in-3, star 7",
+  "syn-sobral-4in-4-1": "synthetic generator, plate sobral-4in-4, star 1",
+  "syn-sobral-4in-4-2": "synthetic generator, plate sobral-4in-4, star 2",
+  "syn-sobral-4in-4-3": "synthetic generator, plate sobral-4in-4, star 3",
+  "syn-sobral-4in-4-4": "synthetic generator, plate sobral-4in-4, star 4",
+  "syn-sobral-4in-4-5": "synthetic generator, plate sobral-4in-4, star 5",
+  "syn-sobral-4in-4-6": "synthetic generator, plate sobral-4in-4, star 6",
+  "syn-sobral-4in-4-7": "synthetic generator, plate sobral-4in-4, star 7",
+  "syn-sobral-4in-5-1": "synthetic generator, plate sobral-4in-5, star 1",
+  "syn-sobral-4in-5-2": "synthetic generator, plate sobral-4in-5, star 2",
+  "syn-sobral-4in-5-3": "synthetic generator, plate sobral-4in-5, star 3",
+  "syn-sobral-4in-5-4": "synthetic generator, plate sobral-4in-5, star 4",
+  "syn-sobral-4in-5-5": "synthetic generator, plate sobral-4in-5, star 5",
+  "syn-sobral-4in-5-6": "synthetic generator, plate sobral-4in-5, star 6",
+  "syn-sobral-4in-5-7": "synthetic generator, plate sobral-4in-5, star 7",
+  "syn-sobral-4in-6-1": "synthetic generator, plate sobral-4in-6, star 1",
+  "syn-sobral-4in-6-2": "synthetic generator, plate sobral-4in-6, star 2",
+  "syn-sobral-4in-6-3": "synthetic generator, plate sobral-4in-6, star 3",
+  "syn-sobral-4in-6-4": "synthetic generator, plate sobral-4in-6, star 4",
+  "syn-sobral-4in-6-5": "synthetic generator, plate sobral-4in-6, star 5",
+  "syn-sobral-4in-6-6": "synthetic generator, plate sobral-4in-6, star 6",
+  "syn-sobral-4in-6-7": "synthetic generator, plate sobral-4in-6, star 7",
+  "syn-sobral-4in-7-1": "synthetic generator, plate sobral-4in-7, star 1",
+  "syn-sobral-4in-7-2": "synthetic generator, plate sobral-4in-7, star 2",
+  "syn-sobral-4in-7-3": "synthetic generator, plate sobral-4in-7, star 3",
+  "syn-sobral-4in-7-4": "synthetic generator, plate sobral-4in-7, star 4",
+  "syn-sobral-4in-7-5": "synthetic generator, plate sobral-4in-7, star 5",
+  "syn-sobral-4in-7-6": "synthetic generator, plate sobral-4in-7, star 6",
+  "syn-sobral-4in-7-7": "synthetic generator, plate sobral-4in-7, star 7",
+  "syn-sobral-astro-1-1": "synthetic generator, plate sobral-astro-1, star 1",
+  "syn-sobral-astro-1-10": "synthetic generator, plate sobral-astro-1, star 10",
+  "syn-sobral-astro-1-2": "synthetic generator, plate sobral-astro-1, star 2",
+  "syn-sobral-astro-1-3": "synthetic generator, plate sobral-astro-1, star 3",
+  "syn-sobral-astro-1-4": "synthetic generator, plate sobral-astro-1, star 4",
+  "syn-sobral-astro-1-5": "synthetic generator, plate sobral-astro-1, star 5",
+  "syn-sobral-astro-1-6": "synthetic generator, plate sobral-astro-1, star 6",
+  "syn-sobral-astro-1-7": "synthetic generator, plate sobral-astro-1, star 7",
+  "syn-sobral-astro-1-8": "synthetic generator, plate sobral-astro-1, star 8",
+  "syn-sobral-astro-1-9": "synthetic generator, plate sobral-astro-1, star 9",
+  "syn-sobral-astro-2-1": "synthetic generator, plate sobral-astro-2, star 1",
+  "syn-sobral-astro-2-10": "synthetic generator, plate sobral-astro-2, star 10",
+  "syn-sobral-astro-2-2": "synthetic generator, plate sobral-astro-2, star 2",
+  "syn-sobral-astro-2-3": "synthetic generator, plate sobral-astro-2, star 3",
+  "syn-sobral-astro-2-4": "synthetic generator, plate sobral-astro-2, star 4",
+  "syn-sobral-astro-2-5": "synthetic generator, plate sobral-astro-2, star 5",
+  "syn-sobral-astro-2-6": "synthetic generator, plate sobral-astro-2, star 6",
+  "syn-sobral-astro-2-7": "synthetic generator, plate sobral-astro-2, star 7",
+  "syn-sobral-astro-2-8": "synthetic generator, plate sobral-astro-2, star 8",
+  "syn-sobral-astro-2-9": "synthetic generator, plate sobral-astro-2, star 9",
+  "syn-sobral-astro-3-1": "synthetic generator, plate sobral-astro-3, star 1",
+  "syn-sobral-astro-3-10": "synthetic generator, plate sobral-astro-3, star 10",
+  "syn-sobral-astro-3-2": "synthetic generator, plate sobral-astro-3, star 2",
+  "syn-sobral-astro-3-3": "synthetic generator, plate sobral-astro-3, star 3",
+  "syn-sobral-astro-3-4": "synthetic generator, plate sobral-astro-3, star 4",
+  "syn-sobral-astro-3-5": "synthetic generator, plate sobral-astro-3, star 5",
+  "syn-sobral-astro-3-6": "synthetic generator, plate sobral-astro-3, star 6",
+  "syn-sobral-astro-3-7": "synthetic generator, plate sobral-astro-3, star 7",
+  "syn-sobral-astro-3-8": "synthetic generator, plate sobral-astro-3, star 8",
+  "syn-sobral-astro-3-9": "synthetic generator, plate sobral-astro-3, star 9",
+  "syn-sobral-astro-4-1": "synthetic generator, plate sobral-astro-4, star 1",
+  "syn-sobral-astro-4-10": "synthetic generator, plate sobral-astro-4, star 10",
+  "syn-sobral-astro-4-2": "synthetic generator, plate sobral-astro-4, star 2",
+  "syn-sobral-astro-4-3": "synthetic generator, plate sobral-astro-4, star 3",
+  "syn-sobral-astro-4-4": "synthetic generator, plate sobral-astro-4, star 4",
+  "syn-sobral-astro-4-5": "synthetic generator, plate sobral-astro-4, star 5",
+  "syn-sobral-astro-4-6": "synthetic generator, plate sobral-astro-4, star 6",
+  "syn-sobral-astro-4-7": "synthetic generator, plate sobral-astro-4, star 7",
+  "syn-sobral-astro-4-8": "synthetic generator, plate sobral-astro-4, star 8",
+  "syn-sobral-astro-4-9": "synthetic generator, plate sobral-astro-4, star 9",
+  "syn-sobral-astro-5-1": "synthetic generator, plate sobral-astro-5, star 1",
+  "syn-sobral-astro-5-10": "synthetic generator, plate sobral-astro-5, star 10",
+  "syn-sobral-astro-5-2": "synthetic generator, plate sobral-astro-5, star 2",
+  "syn-sobral-astro-5-3": "synthetic generator, plate sobral-astro-5, star 3",
+  "syn-sobral-astro-5-4": "synthetic generator, plate sobral-astro-5, star 4",
+  "syn-sobral-astro-5-5": "synthetic generator, plate sobral-astro-5, star 5",
+  "syn-sobral-astro-5-6": "synthetic generator, plate sobral-astro-5, star 6",
+  "syn-sobral-astro-5-7": "synthetic generator, plate sobral-astro-5, star 7",
+  "syn-sobral-astro-5-8": "synthetic generator, plate sobral-astro-5, star 8",
+  "syn-sobral-astro-5-9": "synthetic generator, plate sobral-astro-5, star 9",
+  "syn-sobral-astro-6-1": "synthetic generator, plate sobral-astro-6, star 1",
+  "syn-sobral-astro-6-10": "synthetic generator, plate sobral-astro-6, star 10",
+  "syn-sobral-astro-6-2": "synthetic generator, plate sobral-astro-6, star 2",
+  "syn-sobral-astro-6-3": "synthetic generator, plate sobral-astro-6, star 3",
+  "syn-sobral-astro-6-4": "synthetic generator, plate sobral-astro-6, star 4",
+  "syn-sobral-astro-6-5": "synthetic generator, plate sobral-astro-6, star 5",
+  "syn-sobral-astro-6-6": "synthetic generator, plate sobral-astro-6, star 6",
+  "syn-sobral-astro-6-7": "synthetic generator, plate sobral-astro-6, star 7",
+  "syn-sobral-astro-6-8": "synthetic generator, plate sobral-astro-6, star 8",
+  "syn-sobral-astro-6-9": "synthetic generator, plate sobral-astro-6, star 9",
+  "syn-sobral-astro-7-1": "synthetic generator, plate sobral-astro-7, star 1",
+  "syn-sobral-astro-7-10": "synthetic generator, plate sobral-astro-7, star 10",
+  "syn-sobral-astro-7-2": "synthetic generator, plate sobral-astro-7, star 2",
+  "syn-sobral-astro-7-3": "synthetic generator, plate sobral-astro-7, star 3",
+  "syn-sobral-astro-7-4": "synthetic generator, plate sobral-astro-7, star 4",
+  "syn-sobral-astro-7-5": "synthetic generator, plate sobral-astro-7, star 5",
+  "syn-sobral-astro-7-6": "synthetic generator, plate sobral-astro-7, star 6",
+  "syn-sobral-astro-7-7": "synthetic generator, plate sobral-astro-7, star 7",
+  "syn-sobral-astro-7-8": "synthetic generator, plate sobral-astro-7, star 8",
+  "syn-sobral-astro-7-9": "synthetic generator, plate sobral-astro-7, star 9",
+  "syn-sobral-astro-8-1": "synthetic generator, plate sobral-astro-8, star 1",
+  "syn-sobral-astro-8-10": "synthetic generator, plate sobral-astro-8, star 10",
+  "syn-sobral-astro-8-2": "synthetic generator, plate sobral-astro-8, star 2",
+  "syn-sobral-astro-8-3": "synthetic generator, plate sobral-astro-8, star 3",
+  "syn-sobral-astro-8-4": "synthetic generator, plate sobral-astro-8, star 4",
+  "syn-sobral-astro-8-5": "synthetic generator, plate sobral-astro-8, star 5",
+  "syn-sobral-astro-8-6": "synthetic generator, plate sobral-astro-8, star 6",
+  "syn-sobral-astro-8-7": "synthetic generator, plate sobral-astro-8, star 7",
+  "syn-sobral-astro-8-8": "synthetic generator, plate sobral-astro-8, star 8",
+  "syn-sobral-astro-8-9": "synthetic generator, plate sobral-astro-8, star 9"
+ },
+ "schema": "sdp-relativity/observations@1",
+ "verifications": [
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-1-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-2-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-3-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-4-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-5-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-6-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-4in-7-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-1-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-2-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-3-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-4-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-5-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-6-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-7-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-6",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-7",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-8",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-9",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-sobral-astro-8-10",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-1-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-1-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-1-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-1-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-1-5",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-2-1",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-2-2",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-2-3",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-2-4",
+   "verifier": "second-reader"
+  },
+  {
+   "matches": true,
+   "record_id": "syn-principe-astro-2-5",
+   "verifier": "second-reader"
+  }
+ ]
+}

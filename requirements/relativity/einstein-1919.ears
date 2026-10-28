@@ -9,24 +9,31 @@ requirements:
     verification: test
     tiers: [T1]
     gates: [REL-G-01]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_transcription::test_a_star_row_without_a_convention_is_refused"
+      - "python/tests.relativity.test_transcription::test_every_star_row_carries_its_locator_and_convention"
+      - "python/tests.relativity.test_protocol::test_a_star_row_without_a_locator_fails_the_link_gate"
   - id: REL-002
     pattern: unwanted
     text: "If a probable error enters a least-squares weight without explicit conversion, then the domain shall raise."
     rationale: "Probable errors quoted in 1920 overstate significance if used as standard errors."
     verification: test
     tiers: [T1]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_measurement::test_a_probable_error_cannot_become_a_weight_without_conversion"
+      - "python/tests.relativity.test_measurement::test_the_conversion_is_explicit_and_named"
   - id: REL-003
     pattern: ubiquitous
     text: "Deflection models shall take physical constants from a recorded CODATA version."
     rationale: "The module never hard-codes 1.75 arcsec."
     verification: test
     tiers: [T1]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_models::test_changing_the_constants_changes_the_prediction"
+      - "python/tests.relativity.test_models::test_limb_values_come_from_recorded_constants"
   - id: REL-004
     pattern: ubiquitous
     text: "The module shall fit each instrument set separately, and pooling shall require a PoolingJustification."
@@ -34,16 +41,21 @@ requirements:
     verification: test
     tiers: [T1]
     gates: [REL-G-05]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_comparison::test_pooling_needs_a_stated_justification"
+      - "python/tests.relativity.test_comparison::test_pooling_shares_alpha_and_keeps_plate_constants_per_instrument"
+      - "python/tests.relativity.test_protocol::test_a_missing_instrument_counts_as_missing_hypotheses"
   - id: REL-005
     pattern: ubiquitous
     text: "The module shall evaluate all four hypotheses per instrument and per scenario."
     rationale: "Competing hypotheses are compared on equal footing."
     verification: test
     tiers: [T8]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_comparison::test_every_hypothesis_is_evaluated_in_every_fit_scenario"
+      - "python/tests.relativity.test_protocol::test_a_clean_synthetic_run_is_inconclusive_only_for_want_of_verified_oracles"
   - id: REL-006
     pattern: ubiquitous
     text: "The sensitivity sweep shall cover the six predeclared scenario axes."
@@ -51,8 +63,11 @@ requirements:
     verification: test
     tiers: [T8]
     gates: [REL-G-06]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_reduction::test_an_axis_value_the_module_does_not_implement_is_refused"
+      - "python/tests.relativity.test_reduction::test_the_axes_are_the_six_predeclared_axes"
+      - "python/tests.relativity.test_reduction::test_the_sweep_is_the_full_cross_product"
   - id: REL-007
     pattern: ubiquitous
     text: "The fitter shall exist in two independent implementations that agree within tolerance."
@@ -60,8 +75,11 @@ requirements:
     verification: test
     tiers: [T8]
     gates: [REL-G-08]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_independent::test_the_reference_fits_match_a_fresh_run"
+      - "python/tests.relativity.test_protocol::test_an_independent_fitter_that_disagrees_fails_the_agreement_gate"
+      - "typescript/packages/relativity-fit/test/fit.test.ts::[REL-007] agrees with the Python reference fitter on every instrument and scenario"
   - id: REL-008
     pattern: ubiquitous
     text: "The dossier shall list unrecoverable inputs and shall not describe a table-based reanalysis as a plate remeasurement."
@@ -69,5 +87,7 @@ requirements:
     verification: test
     tiers: []
     gates: [REL-G-09]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.relativity.test_dossier::test_the_limitations_list_every_unrecoverable_input"
+      - "python/tests.relativity.test_protocol::test_the_manifest_carries_the_limitations"
