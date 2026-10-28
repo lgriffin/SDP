@@ -130,6 +130,27 @@ jobs:
           name: junit-ts
           path: reports/junit-ts-*.xml
 
+  e2e:
+    name: e2e · evidence UI in Chromium (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sdp/e2e exec playwright install --with-deps chromium
+      - run: pnpm --filter @sdp/e2e e2e
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: typescript/packages/e2e/playwright-report
+
   cross-language:
     name: fast · kernel manifests through the harness (T6, TST-007)
     runs-on: ubuntu-latest
@@ -194,7 +215,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, cross-language, guard, trace]
+    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

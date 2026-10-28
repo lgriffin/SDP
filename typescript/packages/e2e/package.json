@@ -1,0 +1,16 @@
+{
+  "name": "@sdp/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright tests of the evidence UI in a real browser",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.10.2",
+    "typescript": "5.8.3"
+  }
+}
