@@ -125,7 +125,18 @@ def test_quality_cuts_report_what_each_cut_removed() -> None:
         "astrometric_params_solved",
     }
     assert report["failed_by_cut"]["ruwe"] > 0
+    assert sum(report["removed_in_order"].values()) == report["input_rows"] - report["kept_rows"]
+    assert all(report["removed_in_order"][k] <= report["failed_by_cut"][k] for k in report["failed_by_cut"])
     assert np.all(column(kept, "ruwe") <= CUTS.ruwe_max)
+
+
+@pytest.mark.req("STL-003")
+@pytest.mark.parametrize("error", [0.0, -0.1, float("nan"), float("inf")])
+def test_a_parallax_without_a_usable_uncertainty_fails_the_cut(error: float) -> None:
+    table = field("pleiades").slice(0, 5)
+    i = table.schema.get_field_index("parallax_mas_err")
+    broken = table.set_column(i, "parallax_mas_err", pa.array([error] * 5))
+    assert not CUTS.masks(broken)["parallax_over_error"].any()
 
 
 def test_the_grid_is_expanded_in_predeclared_order() -> None:
@@ -205,6 +216,9 @@ def test_the_claim_lint_accepts_the_fixed_sentence_and_flags_discovery_language(
     )
     assert flagged == ["We discovered a new open cluster in Praesepe."]
     assert dossier.claim_violations(["praesepe-c001 is potentially new and not a confirmed discovery."]) == []
+    assert dossier.claim_violations(["We discovered a new cluster candidate."]) == [
+        "We discovered a new cluster candidate."
+    ]
 
 
 def test_labelling_documents_record_the_backend() -> None:

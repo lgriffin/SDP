@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.sources import SourceKind, SourceRef
 from sdp.kernel.domain.verdict import VerdictStatus
@@ -105,7 +106,7 @@ def test_the_manifest_carries_the_limitations(run_uc02: RunFactory) -> None:
 
 def test_only_the_bootstrap_count_may_be_overridden() -> None:
     protocol = Einstein1919Protocol()
-    with pytest.raises(ValueError, match="predeclared and cannot be overridden"):
+    with pytest.raises(PlanInvalid, match="predeclared and cannot be overridden"):
         protocol.plan(_inputs(make_bundle()), {"student_t_nu": 30}, 1)
 
 

@@ -40,7 +40,9 @@ Benchmarks are optional at definition so that a run without them still happens a
 
 Per region: `prepare` (quality cuts, with the rows each cut removed, then the feature policy), one `search` per grid point (10: HDBSCAN `min_cluster_size` × `min_samples`, DBSCAN `eps` × `min_samples`), `candidates`, `null_fields_per_region` null fields and one injection per richness × distance cell. Then `recovery` across regions and `synthesis`. Null and injection tasks take derived seeds, recorded with their results (STL-006). Only `null_fields_per_region` and `bootstrap_resamples` may be overridden by an experiment.
 
-Services: `clusterers` (the CPU references, from the composition root) and optionally `accelerators` with `gpu_agreement`. A GPU implementation runs only when its agreement record for this release passed; otherwise the CPU reference runs and the exclusion is recorded (STL-004, STL-G-08).
+Services: `clusterers` (the CPU references, from the composition root) and optionally `accelerators` (keyed by the CPU reference each replaces), `gpu_agreement` and `release`. A GPU implementation runs only when its agreement record passed and names that implementation, that CPU reference and this release; otherwise the CPU reference runs and the exclusion is recorded with its reason (STL-004, STL-G-08). Labelling documents record both the configured algorithm and the implementation that ran.
+
+Quality-cut reports give each cut's failures among all input rows (`failed_by_cut`) and the rows each removed in order (`removed_in_order`, summing to the rows dropped). A parallax without a finite, positive uncertainty fails the parallax-over-error cut.
 
 ## Candidates
 
@@ -49,9 +51,11 @@ The reference labelling is the first grid point. Each of its clusters is matched
 - **rejected** when stability < 0.5, it has fewer than 10 members, or its colour–magnitude sequence is not at least 3× tighter than random field draws of the same size;
 - **inconclusive** when it has too few members with a colour, or it was cross-matched against fewer than two benchmarks (STL-005);
 - **known** when a benchmark cluster lies within 0.1 deg and 1 mas/yr;
-- **potentially new** when it passed every check and matches nothing in both benchmarks.
+- **potentially new** when it passed every check, matches nothing in both benchmarks, and none of its region's null fields produced a surviving candidate (otherwise it is inconclusive, with that count as the reason).
 
-Every candidate, rejected ones included, is retained with its reasons (STL-007) and ranked by a fixed weighting of membership, CMD coherence, stability and novelty. Each dossier opens with "<id> is a candidate open cluster, not a confirmed discovery." and the report text is linted for discovery language (STL-G-09). The thresholds are module constants for now (deviation D15).
+Every dossier carries its region's evidence: null fields run and with survivors, injections run and recovered.
+
+Every candidate, rejected ones included, is retained with its reasons (STL-007) and ranked by a fixed weighting of membership, CMD coherence, stability and novelty. Each dossier opens with "<id> is a candidate open cluster, not a confirmed discovery." and the statements and reasons are linted for discovery language; only the fixed hedge "not a confirmed discovery" exempts a sentence (STL-G-09). The thresholds are module constants for now (deviation D15).
 
 ## Null fields and injection
 

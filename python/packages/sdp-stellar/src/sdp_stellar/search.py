@@ -41,10 +41,19 @@ def configurations(algorithms: Sequence[str], grid: Mapping[str, Mapping[str, Se
     return out
 
 
-def run(clusterer: ClusterSearchAlgorithm, features: FeatureMatrix, config: Configuration, seed: int) -> ClusterLabels:
+def run(
+    clusterer: ClusterSearchAlgorithm,
+    features: FeatureMatrix,
+    config: Configuration,
+    seed: int,
+    *,
+    replaces: str | None = None,
+) -> ClusterLabels:
+    """Run one grid point. ``replaces`` names the configured algorithm an admitted accelerator stands
+    in for (cuml-hdbscan for sklearn-hdbscan); otherwise the implementation must be the configured one."""
     if not isinstance(features, FeatureMatrix):
         raise PolicyError("clustering takes a FeatureMatrix from a registered policy, never raw columns (STL-002)")
-    if clusterer.algorithm_id != config.algorithm_id:
+    if config.algorithm_id not in (clusterer.algorithm_id, replaces):
         raise ValueError(f"service {clusterer.algorithm_id} cannot run {config.algorithm_id}")
     return clusterer.search(features.values, config.params, seed)
 
@@ -53,6 +62,7 @@ def labelling_document(result: ClusterLabels, config: Configuration, backend: st
     return {
         "config": config.key,
         "algorithm_id": config.algorithm_id,
+        "implementation_id": result.algorithm_id,
         "params": dict(config.params),
         "backend": backend,
         "labels": np.asarray(result.labels, dtype=np.int64),

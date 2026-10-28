@@ -44,13 +44,14 @@ class QualityCuts:
         plx, plx_err = column(table, "parallax_mas"), column(table, "parallax_mas_err")
         g = column(table, "g_mag")
         solved = np.asarray([_solved(f) for f in table.column("quality_flags").to_pylist()])
+        usable_err = np.isfinite(plx_err) & (plx_err > 0)
         with np.errstate(divide="ignore", invalid="ignore"):
-            poe = plx / plx_err
+            poe = np.where(usable_err, plx / np.where(usable_err, plx_err, 1.0), np.nan)
         astrometry = np.isfinite(column(table, "pm_ra_cosdec_masyr")) & np.isfinite(column(table, "pm_dec_masyr"))
         return {
             "five_parameter_astrometry": astrometry & np.isfinite(plx),
             "ruwe": np.nan_to_num(ruwe, nan=np.inf) <= self.ruwe_max,
-            "parallax_over_error": np.nan_to_num(poe, nan=-np.inf) >= self.parallax_over_error_min,
+            "parallax_over_error": np.isfinite(poe) & (np.nan_to_num(poe, nan=-np.inf) >= self.parallax_over_error_min),
             "g_mag": np.nan_to_num(g, nan=np.inf) <= self.g_mag_max,
             "astrometric_params_solved": np.isin(solved, self.astrometric_params_solved),
         }
@@ -62,9 +63,21 @@ class QualityCuts:
             "cuts": self.to_document(),
             "input_rows": table.num_rows,
             "kept_rows": int(keep.sum()),
+            # each cut's failures among all input rows; one star can fail several
             "failed_by_cut": {name: int((~m).sum()) for name, m in masks.items()},
+            # rows each cut removed when applied in this order, so they sum to input_rows - kept_rows
+            "removed_in_order": _removed_in_order(masks, table.num_rows),
         }
         return table.filter(pa.array(keep)), report
+
+
+def _removed_in_order(masks: Mapping[str, np.ndarray], n: int) -> dict[str, int]:
+    remaining = np.ones(n, dtype=bool)
+    out: dict[str, int] = {}
+    for name, m in masks.items():
+        out[name] = int((remaining & ~m).sum())
+        remaining &= m
+    return out
 
 
 def _solved(flags: str | None) -> int:

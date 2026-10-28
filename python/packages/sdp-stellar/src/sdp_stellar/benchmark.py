@@ -22,6 +22,7 @@ from astropy.coordinates import SkyCoord
 from sdp_stellar.quality import column
 
 META = ("release", "licence", "citation")
+REQUIRED_COLUMNS = ("name", "ra_deg", "dec_deg", "pm_ra_cosdec_masyr", "pm_dec_masyr")
 
 
 @dataclass(frozen=True)
@@ -38,10 +39,13 @@ class Benchmark:
             out.append(
                 f"{self.benchmark_id}: release {self.release or '(none)'} is not the predeclared {expected_release}"
             )
-        missing = {"name", "ra_deg", "dec_deg", "pm_ra_cosdec_masyr", "pm_dec_masyr"} - set(self.table.column_names)
+        missing = self.missing_columns()
         if missing:
-            out.append(f"{self.benchmark_id}: table lacks {sorted(missing)}")
+            out.append(f"{self.benchmark_id}: table lacks {missing}")
         return out
+
+    def missing_columns(self) -> list[str]:
+        return sorted(set(REQUIRED_COLUMNS) - set(self.table.column_names))
 
 
 def benchmark_from(benchmark_id: str, table: pa.Table) -> Benchmark:

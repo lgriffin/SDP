@@ -43,17 +43,34 @@ def _features_doc(fm: FeatureMatrix) -> dict[str, Any]:
     return {"values": fm.values, "policy_id": fm.policy_id, "axes": list(fm.axes), "scales": list(fm.scales)}
 
 
+def gpu_exclusion(
+    record: Mapping[str, Any] | None, implementation_id: str, reference_id: str, release: Any
+) -> str | None:
+    """Why a GPU implementation may not stand in for ``reference_id`` in this run, or None when its
+    agreement record binds it: passed, for this implementation, against this CPU reference, in this
+    release (STL-004)."""
+    if not record:
+        return "no agreement record"
+    if not record.get("passed"):
+        return "its agreement test did not pass"
+    if record.get("algorithm_id") != implementation_id or record.get("reference_id") != reference_id:
+        return f"the agreement record is for {record.get('algorithm_id')} against {record.get('reference_id')}"
+    if release is None or record.get("release") != release:
+        return f"the agreement record is from release {record.get('release')!r}, not this release {release!r}"
+    return None
+
+
 def _clusterer(ctx: TaskContext, algorithm_id: str) -> tuple[Any, str, str | None]:
-    """(implementation, backend, exclusion note)."""
+    """(implementation, backend, exclusion note). Accelerators are keyed by the CPU reference they replace."""
     accelerators = ctx.services.get("accelerators", {})
+    note = None
     if algorithm_id in accelerators:
+        gpu = accelerators[algorithm_id]
         record = ctx.services.get("gpu_agreement", {}).get(algorithm_id)
-        if record and record.get("passed"):
-            gpu = accelerators[algorithm_id]
+        why = gpu_exclusion(record, str(gpu.algorithm_id), algorithm_id, ctx.services.get("release"))
+        if why is None:
             return gpu, str(getattr(gpu, "backend", "cuda")), None
-        note = f"{algorithm_id}: GPU result excluded, no passing agreement with the CPU reference in this release"
-    else:
-        note = None
+        note = f"{algorithm_id}: GPU result ({gpu.algorithm_id}) excluded: {why}"
     cpu = ctx.service("clusterers")[algorithm_id]
     return cpu, str(getattr(cpu, "backend", "cpu")), note
 
@@ -71,7 +88,7 @@ def search(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskCont
     prepared = upstream[params["prepare"]]
     config = _configs(params)[int(params["config_index"])]
     impl, backend, note = _clusterer(ctx, config.algorithm_id)
-    result = run(impl, _features(prepared["features"]), Configuration(config.algorithm_id, config.params), ctx.seed)
+    result = run(impl, _features(prepared["features"]), config, ctx.seed, replaces=config.algorithm_id)
     doc = labelling_document(result, config, backend)
     doc["excluded_gpu"] = note
     return doc
@@ -151,8 +168,10 @@ def _classify(
 
 
 def _benchmarks(ctx: TaskContext, roles: Sequence[str]) -> list[bm.Benchmark]:
+    """Supplied benchmarks whose tables can be cross-matched; the others fail STL-G-02 in synthesis."""
     inputs = ctx.service("inputs")
-    return [bm.benchmark_from(role.split(":", 1)[1], inputs[role]) for role in roles if role in inputs]
+    supplied = [bm.benchmark_from(role.split(":", 1)[1], inputs[role]) for role in roles if role in inputs]
+    return [b for b in supplied if not b.missing_columns()]
 
 
 def candidates(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskContext) -> dict[str, Any]:
@@ -184,7 +203,9 @@ def null_test(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
     labellings = []
     for config in _configs(params):
         impl, backend, _ = _clusterer(ctx, config.algorithm_id)
-        labellings.append(labelling_document(run(impl, fm, config, ctx.seed), config, backend))
+        labellings.append(
+            labelling_document(run(impl, fm, config, ctx.seed, replaces=config.algorithm_id), config, backend)
+        )
     found = _assess(
         params["target_id"] + "-null",
         table,
@@ -212,7 +233,7 @@ def injection(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
     fm = apply_policy(params["feature_space_policy"], table, region["ra_deg"], region["dec_deg"])
     config = _configs(params)[0]
     impl, _, _ = _clusterer(ctx, config.algorithm_id)
-    labels = run(impl, fm, config, ctx.seed).labels
+    labels = run(impl, fm, config, ctx.seed, replaces=config.algorithm_id).labels
     return {
         "target_id": params["target_id"],
         "richness": int(params["richness"]),
@@ -283,15 +304,21 @@ def synthesis(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
         all_candidates += value["candidates"]
         reference_total += value["reference_clusters"]
         labellings += value["labellings"]
+    nulls = [upstream[t] for t in params["null_tasks"]]
+    injections = [upstream[t] for t in params["injection_tasks"]]
+    all_candidates = [_with_region_evidence(c, nulls, injections) for c in all_candidates]
     ranked = ranking.rank(all_candidates)
     dossiers = [dossier.build(c) for c in ranked]
-    texts = [d["statement"] for d in dossiers] + [*params.get("report_text", [])]
+    # the lint reads everything a reader of the report sees about a candidate
+    texts = [d["statement"] for d in dossiers] + [r for d in dossiers for r in d["reasons"]]
 
     agreements = ctx.services.get("gpu_agreement", {})
+    release = ctx.services.get("release")
     gpu_unagreed = [
         lab["config"]
         for lab in labellings
-        if lab["backend"] != "cpu" and not (agreements.get(lab["algorithm_id"]) or {}).get("passed")
+        if lab["backend"] != "cpu"
+        and gpu_exclusion(agreements.get(lab["algorithm_id"]), lab["implementation_id"], lab["algorithm_id"], release)
     ]
     novel_without = [
         c["candidate_id"]
@@ -299,9 +326,7 @@ def synthesis(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
         if c["status"] == "potentially_new" and len({x["benchmark"] for x in c["crossmatch"]}) < 2
     ]
 
-    nulls = [upstream[t] for t in params["null_tasks"]]
     fp_fields = sum(1 for n in nulls if n["survivors"])
-    injections = [upstream[t] for t in params["injection_tasks"]]
     cells = {(i["target_id"], i["richness"], i["distance_pc"]) for i in injections}
     expected_cells = {
         (t["target_id"], int(r), float(d))
@@ -329,3 +354,31 @@ def synthesis(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
         "claim_violations": dossier.claim_violations(texts),
         "cuts": {upstream[t]["target_id"]: upstream[t]["cuts"] for t in params["candidate_tasks"]},
     }
+
+
+def _with_region_evidence(
+    c: Mapping[str, Any], nulls: Sequence[Mapping[str, Any]], injections: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """A candidate's final label carries its region's null and injection evidence. A potentially new
+    candidate from a region whose null fields produced survivors is only inconclusive: the pipeline
+    finds clusters there that are not real."""
+    region = str(c["candidate_id"]).rsplit("-c", 1)[0]
+    region_nulls = [n for n in nulls if n["target_id"] == region]
+    region_injections = [i for i in injections if i["target_id"] == region]
+    evidence = {
+        "null_fields": len(region_nulls),
+        "null_fields_with_survivors": sum(1 for n in region_nulls if n["survivors"]),
+        "injections": len(region_injections),
+        "injections_recovered": sum(1 for i in region_injections if i["recovered"]),
+    }
+    out = {**c, "evidence": evidence, "reasons": list(c["reasons"])}
+    if c["status"] == "potentially_new":
+        if not region_nulls:
+            out["status"] = "inconclusive"
+            out["reasons"].append("no null field was run for this region")
+        elif evidence["null_fields_with_survivors"]:
+            out["status"] = "inconclusive"
+            out["reasons"].append(
+                f"{evidence['null_fields_with_survivors']} of {len(region_nulls)} null fields of this region produced surviving candidates"
+            )
+    return out

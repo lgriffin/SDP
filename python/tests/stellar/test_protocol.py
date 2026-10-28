@@ -14,6 +14,8 @@ import pytest
 
 from sdp.adapters.bootstrap import clusterers
 from sdp.adapters.compute.clustering import SklearnHdbscan
+from sdp.kernel.domain.errors import PlanInvalid
+from sdp.kernel.domain.experiment import ExperimentState
 from sdp.kernel.domain.verdict import VerdictStatus
 from sdp.kernel.ports.compute import ClusterLabels
 from sdp.kernel.science.plan import Backend
@@ -33,7 +35,7 @@ GATES = [f"STL-G-0{i}" for i in range(1, 10)]
 @pytest.mark.gate("STL-G-04")
 @pytest.mark.gate("STL-G-05")
 def test_a_clean_synthetic_run_passes_every_gate(clean_run: Run) -> None:
-    assert clean_run.report.verdict.status is VerdictStatus.VERIFIED
+    assert clean_run.report is not None and clean_run.report.verdict.status is VerdictStatus.VERIFIED
     assert {g: clean_run.outcome(g) for g in GATES} == dict.fromkeys(GATES, "pass")
     assert clean_run.finding("recovery_reported_benchmarks") == 2
     assert clean_run.finding("null_false_positive_rate") == 0.0
@@ -120,44 +122,95 @@ def test_without_a_second_benchmark_nothing_is_called_potentially_new() -> None:
 
 
 @pytest.mark.gate("STL-G-04")
+@pytest.mark.gate("STL-G-02")
+def test_a_benchmark_missing_a_column_is_named_not_crashed_on() -> None:
+    data = tables()
+    data["benchmark:hr23"] = benchmark("hr23").drop_columns(["pm_dec_masyr"])
+    run = run_uc01(data)
+    assert run.experiment.state is ExperimentState.COMPLETED
+    assert run.outcome("STL-G-02") == "fail"
+    assert "hr23: table lacks ['pm_dec_masyr']" in run.narrative["benchmark_problems"]
+
+
 def test_a_null_field_count_of_zero_leaves_the_false_positive_gate_missing() -> None:
     run = run_uc01(params={"null_fields_per_region": 0, "bootstrap_resamples": 50})
     assert run.outcome("STL-G-04") == "missing"
-    assert run.report.verdict.status is not VerdictStatus.VERIFIED
+    assert run.report is not None and run.report.verdict.status is not VerdictStatus.VERIFIED
 
 
 class _Gpu:
-    """A stand-in CUDA HDBSCAN that returns the CPU reference's answer."""
+    """A stand-in CUDA HDBSCAN under its own id, returning the CPU reference's answer."""
 
-    algorithm_id = "sklearn-hdbscan"
+    algorithm_id = "cuml-hdbscan"
     backend = Backend.CUDA
 
+    def __init__(self) -> None:
+        self.calls = 0
+
     def search(self, features: np.ndarray, params: Any, seed: int) -> ClusterLabels:
-        return SklearnHdbscan().search(features, params, seed)
+        self.calls += 1
+        result = SklearnHdbscan().search(features, params, seed)
+        return ClusterLabels(result.labels, result.probabilities, self.algorithm_id, dict(params))
+
+
+AGREED = {"algorithm_id": "cuml-hdbscan", "reference_id": "sklearn-hdbscan", "release": "0.1.0", "passed": True}
 
 
 @pytest.mark.req("STL-004")
 @pytest.mark.gate("STL-G-08")
-def test_gpu_results_reach_the_gates_only_after_agreement() -> None:
-    excluded = run_uc01(services={"accelerators": {"sklearn-hdbscan": _Gpu()}})
-    assert excluded.outcome("STL-G-08") == "pass"
-    assert excluded.narrative["gpu_exclusions"] == [
-        "sklearn-hdbscan: GPU result excluded, no passing agreement with the CPU reference in this release"
-    ]
+@pytest.mark.parametrize(
+    ("record", "release", "why"),
+    [
+        (None, "0.1.0", "no agreement record"),
+        ({**AGREED, "passed": False}, "0.1.0", "did not pass"),
+        ({**AGREED, "algorithm_id": "other-gpu"}, "0.1.0", "is for other-gpu"),
+        (AGREED, "0.2.0", "not this release '0.2.0'"),
+        (AGREED, None, "not this release None"),
+    ],
+)
+def test_a_gpu_result_without_a_binding_agreement_is_excluded(record: Any, release: Any, why: str) -> None:
+    gpu = _Gpu()
+    services: dict[str, Any] = {"accelerators": {"sklearn-hdbscan": gpu}, "release": release}
+    if record is not None:
+        services["gpu_agreement"] = {"sklearn-hdbscan": record}
+    run = run_uc01(services=services)
+    assert gpu.calls == 0
+    assert run.outcome("STL-G-08") == "pass"
+    [note] = run.narrative["gpu_exclusions"]
+    assert note.startswith("sklearn-hdbscan: GPU result (cuml-hdbscan) excluded") and why in note
+
+
+@pytest.mark.req("STL-004")
+@pytest.mark.gate("STL-G-08")
+def test_an_agreed_gpu_adapter_stands_in_for_its_cpu_reference(clean_run: Run) -> None:
+    gpu = _Gpu()
     agreed = run_uc01(
         services={
-            "accelerators": {"sklearn-hdbscan": _Gpu()},
-            "gpu_agreement": {"sklearn-hdbscan": {"passed": True, "rand_index": 1.0}},
+            "accelerators": {"sklearn-hdbscan": gpu},
+            "gpu_agreement": {"sklearn-hdbscan": AGREED},
+            "release": "0.1.0",
         }
     )
-    assert agreed.narrative["gpu_exclusions"] == []
+    assert gpu.calls > 0 and agreed.narrative["gpu_exclusions"] == []
     assert agreed.outcome("STL-G-08") == "pass"
-    assert agreed.manifest["findings"] == excluded.manifest["findings"]
+    assert agreed.manifest["findings"] == clean_run.manifest["findings"]
 
 
-def test_only_the_null_count_and_bootstrap_count_may_be_overridden() -> None:
-    with pytest.raises(ValueError, match="predeclared and cannot be overridden"):
-        StellarClusterProtocol().plan(resolved(tables()), {"crossmatch_radius_deg": 1.0}, 1)
+@pytest.mark.parametrize(
+    ("params", "message"),
+    [
+        ({"crossmatch_radius_deg": 1.0}, "predeclared and cannot be overridden"),
+        ({"bootstrap_resamples": 0}, "bootstrap_resamples must be an integer of at least 1"),
+        ({"null_fields_per_region": -1}, "null_fields_per_region must be an integer of at least 0"),
+        ({"null_fields_per_region": True}, "null_fields_per_region must be an integer"),
+    ],
+)
+def test_bad_overrides_fail_the_run_at_planning(params: dict[str, Any], message: str) -> None:
+    with pytest.raises(PlanInvalid, match=message):
+        StellarClusterProtocol().plan(resolved(tables()), params, 1)
+    run = run_uc01(params=params)
+    assert run.experiment.state is ExperimentState.FAILED
+    assert message in str(run.experiment.refusal or run.experiment.failure)
 
 
 def test_the_plan_has_one_branch_per_region() -> None:

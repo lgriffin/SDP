@@ -13,6 +13,7 @@ import json
 from importlib import resources
 from typing import Any
 
+from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.findings import Finding, Findings
 from sdp.kernel.domain.gates import evaluate_gates
 from sdp.kernel.domain.ids import ProtocolId
@@ -100,8 +101,12 @@ class StellarClusterProtocol:
         declared = dict(self.predeclare().parameters)
         unknown = set(params) - set(OVERRIDABLE)
         if unknown:
-            raise ValueError(f"parameters {sorted(unknown)} are predeclared and cannot be overridden")
+            raise PlanInvalid(f"parameters {sorted(unknown)} are predeclared and cannot be overridden")
         p = {**declared, **{k: params[k] for k in OVERRIDABLE if k in params}}
+        for key, least in (("null_fields_per_region", 0), ("bootstrap_resamples", 1)):
+            value = p[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value < least:
+                raise PlanInvalid(f"{key} must be an integer of at least {least}, got {value!r}")
         roles = self.benchmark_roles()
         common: dict[str, Any] = {
             "feature_space_policy": p["feature_space_policy"],

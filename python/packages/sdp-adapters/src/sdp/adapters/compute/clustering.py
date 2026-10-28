@@ -112,6 +112,7 @@ def rand_index(a: np.ndarray, b: np.ndarray) -> float:
 class Agreement:
     algorithm_id: str
     reference_id: str
+    release: str
     rand_index: float
     max_probability_diff: float
     passed: bool
@@ -120,6 +121,7 @@ class Agreement:
         return {
             "algorithm_id": self.algorithm_id,
             "reference_id": self.reference_id,
+            "release": self.release,
             "rand_index": self.rand_index,
             "max_probability_diff": self.max_probability_diff,
             "passed": self.passed,
@@ -132,16 +134,17 @@ def agreement(
     features: np.ndarray,
     params: Mapping[str, Any],
     *,
+    release: str,
     min_rand_index: float = 0.999,
     max_probability_diff: float = 0.05,
     seed: int = 0,
 ) -> Agreement:
-    """Labels (up to relabelling) and membership probabilities of ``candidate`` against ``reference``."""
+    """Labels (up to relabelling) and membership probabilities of ``candidate`` against ``reference``,
+    recorded for ``release`` so the record cannot admit the GPU adapter in any other release."""
     a = candidate.search(features, params, seed)
     b = reference.search(features, params, seed)
     ri = rand_index(a.labels, b.labels)
     both = (a.labels >= 0) & (b.labels >= 0)
     diff = float(np.max(np.abs(a.probabilities[both] - b.probabilities[both]))) if both.any() else 0.0
-    return Agreement(
-        candidate.algorithm_id, reference.algorithm_id, ri, diff, ri >= min_rand_index and diff <= max_probability_diff
-    )
+    passed = ri >= min_rand_index and diff <= max_probability_diff
+    return Agreement(candidate.algorithm_id, reference.algorithm_id, release, ri, diff, passed)

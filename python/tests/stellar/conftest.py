@@ -57,7 +57,7 @@ def resolved(data: Mapping[str, pa.Table]) -> ResolvedInputs:
 class Run:
     k: InMemoryKernel
     experiment: Experiment
-    report: ValidationReport
+    report: ValidationReport | None
 
     @property
     def manifest(self) -> dict[str, Any]:
@@ -69,6 +69,7 @@ class Run:
         return next(f["value"] for f in self.manifest["findings"] if f["name"] == name)
 
     def outcome(self, gate_id: str) -> str:
+        assert self.report is not None
         return next(c.outcome.value for c in self.report.checks if c.gate_id == gate_id)
 
     @property
@@ -94,7 +95,7 @@ def run_uc01(
         DefineExperimentCommand(protocol.protocol_id.name, frozen.hash, artifacts, dict(params or QUICK), seed=seed)
     )
     experiment = k.kernel.run_experiment.execute(experiment.experiment_id)
-    report = k.kernel.validate_experiment.execute(experiment.experiment_id)
+    report = k.kernel.validate_experiment.execute(experiment.experiment_id) if experiment.findings is not None else None
     return Run(k, experiment, report)
 
 

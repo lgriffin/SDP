@@ -73,11 +73,16 @@ class _ShiftedGpu:
 def test_agreement_passes_only_when_labels_and_memberships_match_the_cpu_reference() -> None:
     x, _ = blobs()
     params = {"min_cluster_size": 10, "min_samples": 5}
-    same = agreement(_ShiftedGpu(), SklearnHdbscan(), x, params)
+    same = agreement(_ShiftedGpu(), SklearnHdbscan(), x, params, release="0.1.0")
     assert same.passed and same.rand_index == 1.0
-    assert not agreement(_ShiftedGpu(noise=0.2), SklearnHdbscan(), x, params).passed
-    assert not agreement(_ShiftedGpu(scramble=True), SklearnHdbscan(), x, params).passed
-    assert same.to_document()["reference_id"] == "sklearn-hdbscan"
+    assert not agreement(_ShiftedGpu(noise=0.2), SklearnHdbscan(), x, params, release="0.1.0").passed
+    assert not agreement(_ShiftedGpu(scramble=True), SklearnHdbscan(), x, params, release="0.1.0").passed
+    doc = same.to_document()
+    assert (doc["algorithm_id"], doc["reference_id"], doc["release"]) == (
+        "fake-gpu-hdbscan",
+        "sklearn-hdbscan",
+        "0.1.0",
+    )
 
 
 def test_cuml_absent_is_reported_not_faked() -> None:

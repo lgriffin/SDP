@@ -9,7 +9,8 @@ from typing import Any
 
 SENTENCE = "{candidate_id} is a candidate open cluster, not a confirmed discovery."
 _CLAIM = re.compile(r"\b(discover(?:ed|y|ies)|new (?:open )?cluster|confirmed cluster)\b", re.IGNORECASE)
-_SAFE = re.compile(r"\b(candidate|not a confirmed discovery|potentially new)\b", re.IGNORECASE)
+# Only the fixed sentence's own hedge exempts a sentence; "candidate" alone does not
+_SAFE = re.compile(r"\bnot a confirmed discovery\b", re.IGNORECASE)
 
 
 def statement(candidate_id: str) -> str:
@@ -39,6 +40,7 @@ def build(candidate: Mapping[str, Any]) -> dict[str, Any]:
             "cmd_coherence": candidate["cmd_coherence"],
             "crossmatch": candidate["crossmatch"],
         },
+        "evidence": candidate.get("evidence"),
         "centre": candidate["centre"],
         "rank": candidate.get("rank"),
         "score": candidate.get("score"),
