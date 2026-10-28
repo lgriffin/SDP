@@ -1812,6 +1812,7 @@ name = "sdp-cli"
 version = "0.1.0"
 source = { editable = "packages/sdp-cli" }
 dependencies = [
+    { name = "pyyaml" },
     { name = "sdp-adapters" },
     { name = "sdp-kernel" },
     { name = "typer" },
@@ -1819,6 +1820,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sdp-adapters", editable = "packages/sdp-adapters" },
     { name = "sdp-kernel", editable = "packages/sdp-kernel" },
     { name = "typer", specifier = ">=0.12" },

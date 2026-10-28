@@ -1,11 +1,21 @@
 // EvidenceSource over the sdp-api GraphQL endpoint. Queries name exactly the fields the pages use.
 import type { graphql } from "@sdp/contracts";
 
-import { EvidenceUnavailable, type EvidenceSource, type Experiment, type ExperimentSummary } from "../ports.ts";
+import {
+  EvidenceUnavailable,
+  type EvidenceSource,
+  type Experiment,
+  type ExperimentSummary,
+  type Investigation,
+  type InvestigationSet,
+  type InvestigationSetSummary,
+} from "../ports.ts";
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const SUMMARY = "id state protocol protocolVersion backend seed startedAt finishedAt verdict { status protocolVersion reasons }";
+const SET_SUMMARY =
+  "id fieldId profileId profileVersion profileHash seed startedAt complete objectsExamined investigationIds label stages { stage state artifactId finishedAt error summary }";
 
 export const QUERIES = {
   experiments: `query Experiments($state: String) { experiments(state: $state) { ${SUMMARY} } }`,
@@ -17,6 +27,13 @@ export const QUERIES = {
   lineage: `query Lineage($entityId: ID!) { lineage(entityId: $entityId) }`,
   ledger: `query Ledger { ledger { id sequence kind subjectId subjectHash recordedAt signer signatureMethod previousEntryHash payload } }`,
   events: `query Events($after: Int!, $limit: Int!) { events(after: $after, limit: $limit) { sequence name aggregateId occurredAt payload } }`,
+  investigationSets: `query InvestigationSets { investigationSets { ${SET_SUMMARY} } }`,
+  investigationSet: `query InvestigationSet($id: ID!) { investigationSet(id: $id) {
+    ${SET_SUMMARY} field profile testsApplied archiveReleases nullResults manifestId
+    investigations { id candidateKey score state label rankingPolicy } } }`,
+  investigation: `query Investigation($id: ID!) { investigation(id: $id) {
+    id setId fieldId candidateKey candidate state label score rankingPolicy testResults evidenceBundleIds evidenceUsed
+    transitions { fromState toState reason actor at } notes links dossier } }`,
 } as const;
 
 interface GraphQLResponse<T> {
@@ -71,5 +88,17 @@ export class GraphQLEvidenceSource implements EvidenceSource {
 
   async events(after = 0, limit = 200): Promise<graphql.Event[]> {
     return (await this.request<{ events: graphql.Event[] }>(QUERIES.events, { after, limit })).events;
+  }
+
+  async investigationSets(): Promise<InvestigationSetSummary[]> {
+    return (await this.request<{ investigationSets: InvestigationSetSummary[] }>(QUERIES.investigationSets)).investigationSets;
+  }
+
+  async investigationSet(id: string): Promise<InvestigationSet | null> {
+    return (await this.request<{ investigationSet: InvestigationSet | null }>(QUERIES.investigationSet, { id })).investigationSet;
+  }
+
+  async investigation(id: string): Promise<Investigation | null> {
+    return (await this.request<{ investigation: Investigation | null }>(QUERIES.investigation, { id })).investigation;
   }
 }

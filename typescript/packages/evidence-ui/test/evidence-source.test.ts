@@ -33,6 +33,22 @@ function contract(name: string, make: () => EvidenceSource): void {
       const events = await source.events(5, 3);
       expect(events.map((e) => e.sequence)).toEqual([6, 7, 8]);
     });
+
+    it("returns investigation sets, a set with its candidates, and an investigation with its dossier", async () => {
+      const source = make();
+      const sets = await source.investigationSets();
+      expect(sets.map((s) => s.id)).toEqual(["invset-000001"]);
+      expect(sets[0]?.stages.map((s) => s.state)).toEqual(["completed", "completed", "completed", "completed"]);
+      const set = await source.investigationSet("invset-000001");
+      expect(set?.investigations.map((i) => i.state).sort()).toEqual(["closed", "open", "open", "open", "parked"]);
+      expect(set?.label).toBe("EXPLORATORY");
+      const inv = await source.investigation("inv-000002");
+      expect(inv?.state).toBe("parked");
+      expect(inv?.transitions.at(-1)?.reason).toBe("Revisit when Gaia DR4 lands.");
+      expect((inv?.dossier as { kind: string }).kind).toBe("investigation-dossier");
+      expect(await source.investigationSet("invset-missing")).toBeNull();
+      expect(await source.investigation("inv-missing")).toBeNull();
+    });
   });
 }
 

@@ -18,6 +18,8 @@ from sdp.kernel.domain.dossier import Dossier as DomainDossier
 from sdp.kernel.domain.experiment import Experiment as DomainExperiment
 from sdp.kernel.domain.gates import Check
 from sdp.kernel.domain.hypothesis import Hypothesis as DomainHypothesis
+from sdp.kernel.domain.investigation import Investigation as DomainInvestigation
+from sdp.kernel.domain.investigation import InvestigationSet as DomainInvestigationSet
 from sdp.kernel.ports.events import StoredEvent
 from sdp.kernel.ports.ledger import LedgerEntry as DomainLedgerEntry
 
@@ -268,6 +270,142 @@ class LedgerEntry:
         )
 
 
+@strawberry.type(description="One Investigate stage of a set (Investigate §1).")
+class InvestigationStage:
+    stage: str
+    state: str
+    artifact_id: str | None
+    finished_at: str | None
+    error: str | None
+    summary: JSONValue
+
+
+@strawberry.type(description="A state change of an investigation, with who made it and why.")
+class InvestigationTransition:
+    from_state: str | None
+    to_state: str
+    reason: str
+    actor: str
+    at: str
+
+
+@strawberry.type(description="One candidate from a field: EXPLORATORY, never a verdict (INV-008).")
+class Investigation:
+    id: strawberry.ID
+    set_id: str
+    field_id: str
+    candidate_key: str
+    candidate: JSONValue
+    state: str
+    label: str
+    score: float
+    ranking_policy: str
+    test_results: JSONValue
+    evidence_bundle_ids: list[str]
+    evidence_used: JSONValue
+    transitions: list[InvestigationTransition]
+    notes: JSONValue
+    links: JSONValue
+
+    @strawberry.field(description="The candidate's dossier, rebuilt from the set's stage artifacts.")  # type: ignore[untyped-decorator]
+    def dossier(self, info: Info[Any, None]) -> JSONValue | None:
+        query = _kernel(info).query_investigations
+        return query.dossier(str(self.id)) if query else None
+
+    @classmethod
+    def of(cls, i: DomainInvestigation) -> Investigation:
+        doc = i.to_document()
+        return cls(
+            id=strawberry.ID(i.investigation_id),
+            set_id=i.set_id,
+            field_id=i.field_id,
+            candidate_key=i.candidate.key,
+            candidate=doc["candidate"],
+            state=i.state.value,
+            label=i.label,
+            score=i.rank.score,
+            ranking_policy=f"{i.rank.policy_id}@{i.rank.policy_version}",
+            test_results=doc["test_results"],
+            evidence_bundle_ids=list(i.evidence_bundle_ids),
+            evidence_used=doc["evidence_used"],
+            transitions=[
+                InvestigationTransition(
+                    from_state=t["from"], to_state=t["to"], reason=t["reason"], actor=t["actor"], at=t["at"]
+                )
+                for t in doc["transitions"]
+            ],
+            notes=doc["notes"],
+            links=doc["links"],
+        )
+
+
+@strawberry.type(description="One run of Investigate over a field under a profile, with its multiplicity.")
+class InvestigationSet:
+    id: strawberry.ID
+    field_id: str
+    field: JSONValue
+    profile_id: str
+    profile_version: str
+    profile_hash: str
+    profile: JSONValue
+    seed: int
+    started_at: str
+    complete: bool
+    stages: list[InvestigationStage]
+    objects_examined: int
+    tests_applied: JSONValue
+    archive_releases: list[str]
+    null_results: JSONValue
+    investigation_ids: list[str]
+    manifest_id: str | None
+    label: str
+
+    @strawberry.field(description="The set's manifest, as written to the store.")  # type: ignore[untyped-decorator]
+    def manifest(self, info: Info[Any, None]) -> JSONValue | None:
+        query = _kernel(info).query_investigations
+        return query.manifest(str(self.id)) if query else None
+
+    @strawberry.field(description="The set's investigations, highest score first.")  # type: ignore[untyped-decorator]
+    def investigations(self, info: Info[Any, None], state: str | None = None) -> list[Investigation]:
+        query = _kernel(info).query_investigations
+        found = sorted(query.investigations(str(self.id)) if query else [], key=lambda i: -i.rank.score)
+        return [Investigation.of(i) for i in found if state is None or i.state.value == state]
+
+    @classmethod
+    def of(cls, s: DomainInvestigationSet) -> InvestigationSet:
+        doc = s.to_document()
+        return cls(
+            id=strawberry.ID(s.set_id),
+            field_id=s.field.field_id,
+            field=doc["field"],
+            profile_id=s.profile.profile_id,
+            profile_version=s.profile.version,
+            profile_hash=s.profile_hash,
+            profile=doc["profile"],
+            seed=s.seed,
+            started_at=doc["started_at"],
+            complete=s.complete,
+            stages=[
+                InvestigationStage(
+                    stage=d["stage"],
+                    state=d["state"],
+                    artifact_id=d["artifact_id"],
+                    finished_at=d["finished_at"],
+                    error=d["error"],
+                    summary=d["summary"],
+                )
+                for d in doc["stages"]
+            ],
+            objects_examined=len(s.objects_examined),
+            tests_applied=doc["tests_applied"],
+            archive_releases=doc["archive_releases"],
+            null_results=doc["null_results"],
+            investigation_ids=list(s.investigation_ids),
+            manifest_id=doc["manifest_id"],
+            label=s.label,
+        )
+
+
 @strawberry.type
 class Query:
     @strawberry.field
@@ -308,6 +446,24 @@ class Query:
     @strawberry.field
     def ledger(self, info: Info[Any, None]) -> list[LedgerEntry]:
         return [LedgerEntry.of(e) for e in _kernel(info).query_evidence.ledger_entries()]
+
+    @strawberry.field(description="Investigation sets, newest first (Investigate).")  # type: ignore[untyped-decorator]
+    def investigation_sets(self, info: Info[Any, None]) -> list[InvestigationSet]:
+        query = _kernel(info).query_investigations
+        found = sorted(query.sets() if query else [], key=lambda s: s.started_at, reverse=True)
+        return [InvestigationSet.of(s) for s in found]
+
+    @strawberry.field
+    def investigation_set(self, info: Info[Any, None], id: strawberry.ID) -> InvestigationSet | None:
+        query = _kernel(info).query_investigations
+        found = query.set(str(id)) if query else None
+        return InvestigationSet.of(found) if found else None
+
+    @strawberry.field
+    def investigation(self, info: Info[Any, None], id: strawberry.ID) -> Investigation | None:
+        query = _kernel(info).query_investigations
+        found = query.investigation(str(id)) if query else None
+        return Investigation.of(found) if found else None
 
 
 schema = strawberry.Schema(query=Query)

@@ -1,6 +1,16 @@
 // The fake EvidenceSource (ADR-006). fixtures.json holds real answers from sdp-api over the in-memory
-// kernel: one approved VERIFIED experiment with a dossier, one REJECTED, one FAILED, one only defined.
-import type { DomainEvent, EvidenceSource, Experiment, ExperimentSummary, LedgerEntry } from "../ports.ts";
+// kernel: one approved VERIFIED experiment with a dossier, one REJECTED, one FAILED, one only defined,
+// and one investigation set over the synthetic field with a parked and a closed candidate.
+import type {
+  DomainEvent,
+  EvidenceSource,
+  Experiment,
+  ExperimentSummary,
+  Investigation,
+  InvestigationSet,
+  InvestigationSetSummary,
+  LedgerEntry,
+} from "../ports.ts";
 import data from "./fixtures.json" with { type: "json" };
 
 export interface FixtureData {
@@ -9,6 +19,9 @@ export interface FixtureData {
   ledger: LedgerEntry[];
   events: DomainEvent[];
   lineage: Record<string, string[]>;
+  investigationSets: InvestigationSetSummary[];
+  investigationSet: Record<string, InvestigationSet>;
+  investigation: Record<string, Investigation>;
 }
 
 export const FIXTURES = data as unknown as FixtureData;
@@ -38,5 +51,17 @@ export class InMemoryEvidenceSource implements EvidenceSource {
 
   async events(after = 0, limit = 200): Promise<DomainEvent[]> {
     return this.data.events.filter((e) => e.sequence > after).slice(0, limit);
+  }
+
+  async investigationSets(): Promise<InvestigationSetSummary[]> {
+    return this.data.investigationSets;
+  }
+
+  async investigationSet(id: string): Promise<InvestigationSet | null> {
+    return this.data.investigationSet[id] ?? null;
+  }
+
+  async investigation(id: string): Promise<Investigation | null> {
+    return this.data.investigation[id] ?? null;
   }
 }
