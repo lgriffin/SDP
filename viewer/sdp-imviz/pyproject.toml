@@ -1,0 +1,39 @@
+[project]
+name = "sdp-imviz"
+version = "0.1.0"
+description = "The SDP Investigate plugin for Jdaviz Imviz: a driving adapter that calls InvestigateField through sdp-api and renders its candidates (INV-012)"
+requires-python = ">=3.12"
+license = { text = "See repository LICENSE" }
+# Jdaviz keeps its own environment (Investigate §7): this package is not a member of the python/
+# workspace, its lock file is its own, and it reaches the kernel only over HTTP.
+dependencies = ["jdaviz>=5.0,<6", "pyyaml>=6.0"]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdp_imviz"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/sdp_imviz/investigate.vue" = "sdp_imviz/investigate.vue"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+junit_family = "xunit1"
+markers = [
+  "req(id): the requirement id(s) this test verifies (read by spec-harness trace)",
+  "tier(name): the test tier T0..T11 (§11.1)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "RUF"]

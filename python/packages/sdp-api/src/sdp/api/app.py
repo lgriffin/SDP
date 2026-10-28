@@ -1,6 +1,7 @@
-"""The ASGI app: ``/graphql`` for queries, ``/health``, and run/validate command endpoints (ADR-016).
+"""The ASGI app: ``/graphql`` for queries, ``/health``, run/validate command endpoints (ADR-016) and
+``POST /investigations``, which the field viewer calls to run InvestigateField (INV-012).
 
-Freezing and approval are not exposed here: they need a signer and belong to the CLI.
+Freezing, approval and triage are not exposed here: they need a signer or an actor and belong to the CLI.
 """
 
 from __future__ import annotations
@@ -17,6 +18,8 @@ from strawberry.asgi import GraphQL
 from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.domain.errors import DomainError
+from sdp.kernel.domain.investigation import Field, TestProfile, parse_region
+from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationRun
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.storage import ArtifactStore
 
@@ -80,11 +83,67 @@ def create_app(runtime: Runtime) -> Starlette:
         report = runtime.kernel.validate_experiment.execute(experiment_id)
         return {"experiment_id": experiment_id, "verdict": report.verdict.status.value}
 
+    async def investigate(request: Request) -> Response:
+        use_case = runtime.kernel.investigate_field
+        if use_case is None:
+            return JSONResponse({"error": "Investigate is not wired on this server"}, status_code=503)
+        try:
+            body = await request.json()
+            command = InvestigateFieldCommand(
+                Field(
+                    parse_region(str(body["region"])),
+                    epoch_jyear=float(body.get("epoch_jyear", 2016.0)),
+                    label=str(body.get("label", "")),
+                ),
+                TestProfile.from_document(body["profile"]),
+                seed=int(body.get("seed", 0)),
+                actor=str(body.get("actor", "viewer")),
+                set_id=body.get("resume"),
+            )
+        except (KeyError, TypeError, ValueError, DomainError) as exc:
+            return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
+        try:
+            run = use_case.execute(command)
+        except DomainError as exc:
+            return JSONResponse({"error": str(exc), "type": type(exc).__name__}, status_code=409)
+        return JSONResponse(run_summary(run))
+
     return Starlette(
         routes=[
             Route("/health", health),
+            Route("/investigations", investigate, methods=["POST"]),
             Route("/experiments/{experiment_id}/run", command(run), methods=["POST"]),
             Route("/experiments/{experiment_id}/validate", command(validate), methods=["POST"]),
             Mount("/graphql", _GraphQL(runtime)),
         ]
     )
+
+
+def run_summary(run: InvestigationRun) -> dict[str, Any]:
+    """What the viewer renders: the set, its stages, and each candidate with the sky positions of its
+    objects (one for an object, one per member for a structure)."""
+    s = run.investigation_set
+    positions = {b.object_key: [b.object.ra_deg, b.object.dec_deg] for b in run.bundles}
+    candidates = []
+    for i in sorted(run.investigations, key=lambda i: -i.rank.score):
+        keys = [i.candidate.object_key] if i.candidate.object_key is not None else list(i.candidate.members)
+        candidates.append(
+            {
+                "investigation_id": i.investigation_id,
+                "candidate": i.candidate.key,
+                "score": i.rank.score,
+                "state": i.state.value,
+                "label": i.label,
+                "positions": [positions[k] for k in keys if k in positions],
+            }
+        )
+    return {
+        "set_id": s.set_id,
+        "field_id": s.field.field_id,
+        "profile": f"{s.profile.profile_id}@{s.profile.version}",
+        "profile_hash": s.profile_hash,
+        "label": s.label,
+        "stages": {stage.value: record.state.value for stage, record in s.stages.items()},
+        "objects_examined": len(s.objects_examined),
+        "candidates": candidates,
+    }

@@ -97,7 +97,7 @@ requirements:
     rationale: "The Imviz plugin is a driving adapter; heavy work stays in the kernel's runner."
     verification: test
     tiers: [T0, T4]
-    status: draft
+    status: approved
     traces: []
   - id: INV-013
     pattern: optional
