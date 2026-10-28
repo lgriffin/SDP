@@ -91,6 +91,11 @@ jobs:
             fs.writeFileSync(`${dir}/scores.json`, JSON.stringify(all, null, 2) + "\n");
             console.log(all);
           '
+      - name: Refuse to record marks from a partial run
+        if: inputs.update && (needs.python.result != 'success' || needs.typescript.result != 'success')
+        run: |
+          echo "::error::a mutation job did not succeed (python: ${{ needs.python.result }}, typescript: ${{ needs.typescript.result }}); high-water marks are only recorded from a complete run"
+          exit 1
       - name: spec-harness ratchet
         run: pnpm harness ratchet --scores reports/mutation/scores.json --high-water mutation/high-water.json ${{ inputs.update && '--update' || '' }}
       - name: Push raised marks for review (manual runs with update)

@@ -33,6 +33,10 @@ class FakeZenodo:
     """The four calls of a deposition, with Zenodo's status codes and response shapes."""
 
     corrupt_upload: bool = False
+    bucket: str = f"{BASE}/api/files/b-1"
+    echo_auth: bool = False
+    lose_publish_reply: bool = False
+    deleted: bool = False
     calls: list[tuple[str, str]] = field(default_factory=list)
     files: dict[str, bytes] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -40,10 +44,16 @@ class FakeZenodo:
 
     def request(self, method: str, url: str, headers: Mapping[str, str], body: bytes = b"") -> Response:
         self.calls.append((method, url))
-        if headers.get("Authorization") != f"Bearer {TOKEN}":
-            return Response(401, b'{"message": "The server could not verify that you are authorized"}')
+        if headers.get("Authorization") != f"Bearer {TOKEN}" or self.echo_auth:
+            return Response(401, f'{{"message": "not authorized: {headers.get("Authorization")}"}}'.encode())
         if method == "POST" and url == f"{BASE}/api/deposit/depositions":
-            return Response(201, json.dumps({"id": 4242, "links": {"bucket": f"{BASE}/api/files/b-1"}}).encode())
+            return Response(201, json.dumps({"id": 4242, "links": {"bucket": self.bucket}}).encode())
+        if method == "DELETE" and url == f"{BASE}/api/deposit/depositions/4242":
+            self.deleted = True
+            return Response(204, b"")
+        if method == "GET" and url == f"{BASE}/api/deposit/depositions/4242":
+            doi = "10.5072/zenodo.4242"
+            return Response(200, json.dumps({"id": 4242, "submitted": self.published, "doi": doi}).encode())
         if method == "PUT" and url.startswith(f"{BASE}/api/files/b-1/"):
             name = url.rsplit("/", 1)[1]
             self.files[name] = body
@@ -57,6 +67,8 @@ class FakeZenodo:
             return Response(200, json.dumps({"id": 4242}).encode())
         if method == "POST" and url == f"{BASE}/api/deposit/depositions/4242/actions/publish":
             self.published = True
+            if self.lose_publish_reply:
+                raise TimeoutError("the read operation timed out")
             doi = "10.5072/zenodo.4242"
             return Response(202, json.dumps({"id": 4242, "doi": doi, "doi_url": f"https://doi.org/{doi}"}).encode())
         return Response(404, b"{}")
@@ -98,6 +110,28 @@ def test_an_http_error_names_the_call_and_never_the_token() -> None:
 
 
 @pytest.mark.req("NFR-009")
+def test_a_bucket_on_another_host_never_receives_the_token_and_the_draft_is_deleted() -> None:
+    service = FakeZenodo(bucket="https://elsewhere.example/api/files/b-1")
+    with pytest.raises(PublicationError, match=r"refusing to send the Zenodo token to 'elsewhere\.example'"):
+        _publisher(service).publish(b"bundle", "b.zip", {"title": "t"})
+    assert not any("elsewhere" in url for _, url in service.calls)
+    assert service.deleted and not service.published
+
+
+@pytest.mark.req("NFR-009")
+def test_an_error_body_that_echoes_the_token_is_redacted() -> None:
+    with pytest.raises(PublicationError, match=r"\[token\]") as info:
+        _publisher(FakeZenodo(echo_auth=True)).publish(b"b", "b.zip", {"title": "t"})
+    assert TOKEN not in str(info.value)
+
+
+def test_a_lost_reply_to_publish_returns_the_doi_zenodo_minted() -> None:
+    service = FakeZenodo(lose_publish_reply=True)
+    record = _publisher(service).publish(b"b", "b.zip", {"title": "t"})
+    assert record.doi == "10.5072/zenodo.4242" and service.calls[-1][0] == "GET"
+
+
+@pytest.mark.req("NFR-009")
 def test_the_token_never_appears_in_a_repr() -> None:
     assert TOKEN not in repr(_publisher(FakeZenodo()))
     settings = Settings.from_env(
@@ -119,8 +153,10 @@ def test_credentials_can_come_from_a_mounted_secret_file(tmp_path: Path) -> None
 def test_the_composition_root_refuses_without_a_token_and_defaults_to_the_sandbox() -> None:
     env = {"SDP_DATABASE_URL": "postgresql://x", "SDP_ARTIFACT_ROOT": "/tmp"}
     assert isinstance(publisher(Settings.from_env(env)), UnconfiguredPublisher)
+    # a missing creator list fails publication, not every command that builds the composition root
+    without_creators = publisher(Settings.from_env({**env, "SDP_ZENODO_TOKEN": TOKEN}))
     with pytest.raises(PublicationError, match="SDP_ZENODO_CREATORS"):
-        publisher(Settings.from_env({**env, "SDP_ZENODO_TOKEN": TOKEN}))
+        without_creators.publish(b"b", "b.zip", {"title": "t"})
     configured = publisher(
         Settings.from_env({**env, "SDP_ZENODO_TOKEN": TOKEN, "SDP_ZENODO_CREATORS": "Griffin, Leigh"})
     )
