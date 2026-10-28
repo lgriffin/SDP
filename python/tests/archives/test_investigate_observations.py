@@ -15,7 +15,7 @@ import astropy.units as u
 import pytest
 
 from sdp.adapters.archives.dasch import STANDARD_BAD_AFLAGS, DaschDialect, DaschGateway
-from sdp.adapters.archives.mast import MastObservationGateway
+from sdp.adapters.archives.mast import PRODUCT_TYPES, MastObservationGateway
 from sdp.adapters.archives.transport import CassetteTransport, HttpRequest, Transport, TransportError
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import FetchedProduct, Field, ObservationCriteria, ProductRef
@@ -36,7 +36,7 @@ pytestmark = pytest.mark.tier("T3")
 TARGET = ObservationTarget("obj-1", 83.8, -5.4)
 FIELD = Field(Cone(83.8, -5.4, 0.05))
 FITS = b"SIMPLE  =                    T / invented fixture" + b" " * 2830
-MAST_CRITERIA = ObservationCriteria(missions=("TESS",), product_types=("lightcurve",), radius_arcsec=10.0)
+MAST_CRITERIA = ObservationCriteria(missions=("TESS",), product_types=("timeseries",), radius_arcsec=10.0)
 DASCH_CRITERIA = ObservationCriteria(radius_arcsec=10.0)
 
 
@@ -187,7 +187,7 @@ class TestDaschAstrometryDialect(ProductDialectContract):
 def test_mast_search_is_bounded_ordered_obscore_adql_with_mission_and_type_filters() -> None:
     gateway = MastObservationGateway(PrimedService())
     criteria = ObservationCriteria(
-        missions=("TESS", "HST"), product_types=("lightcurve", "image"), radius_arcsec=5.0, epoch_min_mjd=50000.0
+        missions=("TESS", "HST"), product_types=("timeseries", "image"), radius_arcsec=5.0, epoch_min_mjd=50000.0
     )
     text = gateway.search_query(TARGET, criteria)
     assert text.startswith("SELECT TOP 500 obs_id, obs_collection")
@@ -207,7 +207,7 @@ def test_mast_records_carry_epochs_sizes_and_no_cloud_uri() -> None:
     first = index.records[0]
     assert (first.mission, first.product_type, first.epoch_mjd, first.epoch_end_mjd) == (
         "TESS",
-        "lightcurve",
+        "timeseries",
         58468.3,
         58490.0,
     )
@@ -223,6 +223,7 @@ def test_hapcut_answers_unzip_to_the_first_fits_file_by_name() -> None:
     primed_mast(fake, gateway)
     cut = gateway.cutout(FIELD, 1 * u.arcmin)
     assert cut.data == FITS and cut.product.product_id == "hapcut/hst_cutout_a.fits"
+    assert gateway.fetch(cut.product).data == FITS  # the reference names the member, not the zip
     assert "units=d" in cut.read_from and "x=0.01666" in cut.read_from
     with pytest.raises(ValueError, match="within a degree"):
         gateway.cutout_request(FIELD, 2 * u.deg)
@@ -277,6 +278,25 @@ def test_the_dasch_cutout_uses_the_first_plate_with_a_dasch_solved_wcs() -> None
     cut = gateway.cutout(FIELD, 1 * u.arcmin)
     assert cut.data == FITS and cut.media_type == "image/fits"
     assert cut.product.product_id == "cutout/b00042/0"
+    assert gateway.fetch(cut.product).data == FITS
+
+
+def test_a_dasch_cutout_that_is_not_json_is_a_transport_error() -> None:
+    fake = PrimedService()
+    gateway = DaschGateway(fake)
+    primed_dasch(fake, gateway)
+    fake.raw(
+        gateway.cutout_request("b00042", 0, TARGET.ra_deg, TARGET.dec_deg),
+        b"<html>busy</html>",
+        content_type="text/html",
+    )
+    with pytest.raises(TransportError, match="not JSON"):
+        gateway.cutout(FIELD, 1 * u.arcmin)
+
+
+def test_mast_time_series_are_not_offered_as_canonical_light_curves() -> None:
+    # Mission FITS is not the lightcurve CSV a variability test parses; a MAST dialect would curate it.
+    assert PRODUCT_TYPES["timeseries"] != "lightcurve"
 
 
 def test_the_dialect_drops_non_detections_and_bad_flags_and_falls_back_to_the_declared_error() -> None:
