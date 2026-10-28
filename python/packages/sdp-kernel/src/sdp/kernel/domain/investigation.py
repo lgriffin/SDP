@@ -48,7 +48,7 @@ def _finite(value: float | None, what: str) -> float | None:
 def _jsonable(value: Any) -> Any:
     """Plain JSON values only; NaN and infinity become null so canonical JSON can carry them."""
     if isinstance(value, float):
-        return value if math.isfinite(value) else None
+        return float(value) if math.isfinite(value) else None
     if isinstance(value, Mapping):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, list | tuple):

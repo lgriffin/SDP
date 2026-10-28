@@ -123,15 +123,20 @@ def synthetic_catalogue(n: int = 60, seed: int = 7) -> pa.Table:
 
 
 def synthetic_twomass(catalogue: pa.Table) -> pa.Table:
-    """Infrared counterparts 0.2 arcsec from every other star."""
+    """Infrared counterparts 0.2 arcsec from every other star, J−K = 0.4 (BP−RP) + 0.1 with 0.03 mag
+    scatter; star 4 (planted) carries a 0.5 mag infrared excess."""
+    rng = np.random.default_rng(11)
     rows = catalogue.to_pylist()[::2]
+    jk = [
+        0.4 * r["bp_rp"] + 0.1 + rng.normal(0, 0.03) + (0.5 if r["source_key"] == "gaia:DR3:4" else 0.0) for r in rows
+    ]
     return pa.table(
         {
             "source_key": [f"twomass:{i}" for i in range(len(rows))],
             "ra_deg": [r["ra_deg"] + 0.2 / 3600 for r in rows],
             "dec_deg": [r["dec_deg"] for r in rows],
             "j_mag": [r["g_mag"] - 1.0 for r in rows],
-            "k_mag": [r["g_mag"] - 1.6 for r in rows],
+            "k_mag": [r["g_mag"] - 1.0 - c for r, c in zip(rows, jk, strict=True)],
         }
     )
 
@@ -144,6 +149,45 @@ def twomass_archive(catalogue: pa.Table | None = None) -> FakeArchive:
     return FakeArchive(
         SYNTHETIC_2MASS, synthetic_twomass(catalogue or synthetic_catalogue()), ra_column="ra_deg", dec_column="dec_deg"
     )
+
+
+VARIABLE = "gaia:DR3:0"
+"""The planted star whose plate light curve varies (0.8 mag, 6000-day sinusoid); the others are constant."""
+ANOMALOUS = "gaia:DR3:2"
+"""The planted star whose plate positions disagree with its Gaia proper motion by 3 arcsec."""
+
+
+def planted_lightcurve(i: int, n: int = 40) -> bytes:
+    """Canonical ``mjd,mag,mag_err`` CSV over the plate era, 0.05 mag noise."""
+    rng = np.random.default_rng(100 + i)
+    mjd = np.linspace(9000.0, 47000.0, n)
+    mag = 12.0 + i + rng.normal(0.0, 0.05, n)
+    if i == 0:
+        mag = mag + 0.8 * np.sin(2 * math.pi * mjd / 6000.0)
+    lines = ["mjd,mag,mag_err", *(f"{float(t)!r},{float(m)!r},0.05" for t, m in zip(mjd, mag, strict=True))]
+    return ("\n".join(lines) + "\n").encode()
+
+
+def planted_positions(row: Mapping[str, Any], i: int, n: int = 12) -> bytes:
+    """Canonical ``epoch_jyear,ra_deg,dec_deg,pos_err_mas`` CSV from 1890 to 1985 that follows the
+    row's Gaia proper motion with 150 mas plate errors; star 2 sits 3 arcsec off."""
+    rng = np.random.default_rng(200 + i)
+    epochs = np.linspace(1890.0, 1985.0, n)
+    dt = epochs - float(row["epoch_jyear"])
+    cosd = math.cos(math.radians(float(row["dec_deg"])))
+    dec = float(row["dec_deg"]) + float(row["pm_dec_masyr"]) * dt / 3.6e6 + rng.normal(0, 150, n) / 3.6e6
+    ra = (
+        float(row["ra_deg"])
+        + float(row["pm_ra_cosdec_masyr"]) * dt / 3.6e6 / cosd
+        + rng.normal(0, 150, n) / 3.6e6 / cosd
+    )
+    if i == 2:
+        dec = dec + 3.0 / 3600
+    lines = [
+        "epoch_jyear,ra_deg,dec_deg,pos_err_mas",
+        *(f"{float(t)!r},{float(a)!r},{float(d)!r},150.0" for t, a, d in zip(epochs, ra, dec, strict=True)),
+    ]
+    return ("\n".join(lines) + "\n").encode()
 
 
 def observation_archive(catalogue: pa.Table | None = None) -> FakeObservationArchive:
@@ -191,7 +235,26 @@ def observation_archive(catalogue: pa.Table | None = None) -> FakeObservationArc
                     ),
                 )
             )
-            products[pid] = f"mjd,mag\n9000,{12 + i}\n47000,{12 + i}\n".encode()
+            products[pid] = planted_lightcurve(i)
+            pid = f"pos-{i}"
+            records.append(
+                PlacedRecord(
+                    r["ra_deg"],
+                    r["dec_deg"],
+                    ObservationRecord(
+                        product=ProductRef("fake-plates", pid, f"https://fake.invalid/{pid}.csv"),
+                        mission="DASCH",
+                        instrument="plates",
+                        product_type="astrometry",
+                        epoch_mjd=9000.0,
+                        epoch_end_mjd=47000.0,
+                        size_bytes=512,
+                        licence="fixture licence",
+                        citation="fixture citation",
+                    ),
+                )
+            )
+            products[pid] = planted_positions(r, i)
     return FakeObservationArchive("fake-plates", "dasch:DR7", tuple(records), products)
 
 

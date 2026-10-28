@@ -35,7 +35,7 @@ guard base="origin/main":
 
 # Python static checks: ruff, mypy strict, import-linter
 lint:
-    cd python && uv run ruff check . && uv run ruff format --check . && uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src packages/sdp-relativity/src tests && uv run lint-imports
+    cd python && uv run ruff check . && uv run ruff format --check . && uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src packages/sdp-relativity/src packages/sdp-investigate/src tests && uv run lint-imports
 
 # Python tiers T0-T4 (no live archives, no GPU)
 pytest *args:

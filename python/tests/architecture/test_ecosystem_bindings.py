@@ -45,8 +45,9 @@ BOUND = frozenset(
     }
 )
 
-#: Astropy modules the domain may treat as libraries.
-ASTROPY_ALLOWED = frozenset({"units", "constants", "coordinates", "time", "stats", "wcs"})
+#: Astropy modules the domain may treat as libraries, plus astropy.timeseries, which Investigate §7
+#: names as the analysis library (retrieval goes through a gateway, analysis runs as TaskKinds).
+ASTROPY_ALLOWED = frozenset({"units", "constants", "coordinates", "time", "stats", "wcs", "timeseries"})
 
 
 def _imports(path: Path) -> Iterator[tuple[int, str]]:
