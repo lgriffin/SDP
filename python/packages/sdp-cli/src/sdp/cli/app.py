@@ -81,6 +81,10 @@ db_app = typer.Typer(help="Database schema migrations (NFR-007).", no_args_is_he
 artifact_app = typer.Typer(help="Put and fetch content-addressed artifacts.", no_args_is_help=True)
 telemetry_app = typer.Typer(help="Prometheus textfile telemetry (NFR-010).", no_args_is_help=True)
 archive_app = typer.Typer(help="Archive sources, acquisition and the live schema smoke (§8).", no_args_is_help=True)
+integration_app = typer.Typer(
+    help="Integration v0.4.0: live recordings of capability descriptors and reference products.",
+    no_args_is_help=True,
+)
 investigate_app = typer.Typer(
     help="Investigate a field: identify, retrieve, test, candidates (Investigate §1). Results are EXPLORATORY.",
     invoke_without_command=True,
@@ -95,6 +99,7 @@ for name, sub in (
     ("telemetry", telemetry_app),
     ("archive", archive_app),
     ("investigate", investigate_app),
+    ("integration", integration_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -597,6 +602,32 @@ def archive_smoke(
     emit([r.to_document() for r in results])
     if any(r.problems for r in results):
         raise SystemExit(1)
+
+
+@integration_app.command("record")
+def integration_record(
+    obs_id: Annotated[str, typer.Option(help="MAST ObsCore obs_id of a public observation")],
+    filename: Annotated[str, typer.Option(help="The product file to record, e.g. jw..._i2d.fits")],
+    name: Annotated[str, typer.Option(help="Directory name for the reference product")],
+    out: Annotated[Path, typer.Option(help="Reference products root")] = Path("../fixtures/reference-products"),
+    cassettes: Annotated[Path, typer.Option(help="Where to keep every exchange")] = Path("../reports/cassettes"),
+) -> None:
+    """Record MAST's capability descriptor and one product as a to_verify reference product (live)."""
+    from sdp.adapters.archives.reference_recording import describe_mast, record_product
+    from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, UrllibTransport
+
+    live = PoliteTransport(UrllibTransport(), min_seconds_between_calls=1.0)
+    transport = CassetteTransport(
+        cassettes / "integration" / name, "record", inner=live, recorder="integration-recording"
+    )
+    descriptor = describe_mast(transport, cassettes / "integration")
+    recorded = record_product(transport, obs_id, filename, out / name)
+    emit(
+        {
+            "descriptor": {k: descriptor[k] for k in ("ivoid", "product_types", "protocols", "limits")},
+            "product": {"directory": str(recorded.directory), "url": recorded.access_url, "bytes": recorded.size_bytes},
+        }
+    )
 
 
 def main() -> None:

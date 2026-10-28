@@ -22,4 +22,6 @@ A directory holds:
 
 ## Recording
 
-The sandbox that builds SDP cannot reach MAST, so the files are recorded by a live run on a machine that can, through the archive `Transport` so the same exchange is also kept as a cassette. Records arrive as `to_verify`; a reviewer moves them to `verified`.
+The sandbox that builds SDP cannot reach MAST, so the files are recorded by the manual **Integration recordings** workflow (Actions, *Run workflow*, with an `obs_id`, a file name and a directory name), which runs `sdp integration record` through the archive `Transport` and pushes the result to a `reference-products/run-<id>` branch: the raw file, `inventory.json`, `obscore.json`, a `reference.template.json`, and the cassettes for every exchange plus MAST's capability descriptor.
+
+A person then fills the template from the mission documentation (not from the dialect's output), saves it as `reference.json` with `status: to_verify`, and opens a pull request; the test picks it up from then on. A second person checks it and the record moves to `verified` with both names in `verified_by`.

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -190,3 +191,20 @@ def test_recorded_reference_products_match_their_records(name, raw, reference) -
 
 def test_synthetic_arrays_are_float() -> None:
     assert np.zeros(1, dtype="f4").dtype.kind == "f"
+
+
+def test_a_recorded_product_without_a_reference_record_is_not_loaded(tmp_path: Path) -> None:
+    pending = tmp_path / "recorded-not-described"
+    pending.mkdir()
+    (pending / "reference.template.json").write_text("{}")
+    assert load_reference_products(tmp_path) == []
+
+
+def test_fits_served_as_octet_stream_is_read_as_fits_and_a_specific_type_is_never_overridden() -> None:
+    from sdp.adapters.products.fits import effective_media_type
+
+    data = image()
+    assert effective_media_type(data, "application/octet-stream") == "application/fits"
+    assert effective_media_type(data, "") == "application/fits"
+    assert effective_media_type(data, "image/jpeg") == "image/jpeg"
+    assert effective_media_type(b"\xff\xd8\xff", "application/octet-stream") == "application/octet-stream"

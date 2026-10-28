@@ -21,7 +21,7 @@ JWST through a mission-aware MAST adapter is the first acceptance case (§7, ADR
 | B Product model | `JwstDialect` (`ProductNormalizer`, extending Investigate's `ProductDialect`) and `EnvelopeValidator` (`ProductValidator`) in `sdp.adapters.products`; `ReferenceRecord` and `compare_to_reference` for T5s; curation guards (INT-006, 007, 008). Real reference products wait for a recording run | Done |
 | B2 Admission | Inputs name their adapter and product type (manifest 1.3.0, dataset-artifact 1.1.0); the kernel copies the matching compatibility records into the manifest and refuses a verdict without a passing one; harness `admit` and `claims`, both also in the release report (INT-002, INT-016 approved). `plan_artifact_id` is written once Stage E produces plans | Done |
 | C Capability registry | `PostgresCapabilityRegistry` (migration 0003, append-only with history); `VoCapabilityDiscovery` reads RegTAP, VOSI capabilities and ObsCore over the archive `Transport`; hand-written descriptors load from `capabilities/descriptors/`; `CapabilityBackedSourceRegistry` answers Investigate's `SourceRegistry` from registered descriptors (INT-017, 018 approved). The MAST source and its live recording come with Stage A | Done |
-| A JWST ingestion | JWST dialect on Investigate's `MastObservationGateway` (ObsTAP), one public level-2 or level-3 product with full provenance | After Investigate's MAST adapter |
+| A JWST ingestion | Retrieve normalises, validates and stores the envelope for every product from a source with `ProductEnvelopes` (normaliser, validator, `MastProductInventory`), stamps the raw product with its adapter and product type, and curates only after both checks pass (INT-019); FITS served as `application/octet-stream` is recognised. `sdp integration record` and the "Integration recordings" workflow record MAST's descriptor and one public product as a `to_verify` reference product | Code done; needs one recording run and Leigh's second-pass verification |
 | E Planning | The three driving ports wrapping Investigate's Retrieve stage; `EvidenceRequirement`s declared by every registered test; harness `rederive-plan` | After Investigate's adapters and stellar wiring |
 | Demonstration | The §7 JWST field, discover to dossier, reproduced from the plan artifact | Needs one live recording run |
 
@@ -40,11 +40,12 @@ JWST through a mission-aware MAST adapter is the first acceptance case (§7, ADR
 | Reference products for T5s | `fixtures/reference-products/` |
 | Descriptors and compatibility records the harness checks | `capabilities/` |
 | VO discovery and the capability-backed `SourceRegistry` | `sdp.adapters.archives.capabilities` |
+| MAST product inventory and the reference-product recording | `sdp.adapters.archives.mast_inventory`, `sdp.adapters.archives.reference_recording` |
 | `PostgresCapabilityRegistry` | `sdp.adapters.postgres.capabilities` |
 | Harness `admit` and `claims` | `typescript/packages/spec-harness/src/admit.ts` |
 | Requirements | `requirements/integration/integration.ears` |
 
-Deviations D30 to D37 in `docs/spec-deviations.md` record where the code differs from the document's wording.
+Deviations D30 to D38 in `docs/spec-deviations.md` record where the code differs from the document's wording.
 
 ## Association: what the methods assume
 

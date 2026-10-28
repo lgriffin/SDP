@@ -1,0 +1,65 @@
+# Integration v0.4.0 Stage A: record MAST's capability descriptor and one public JWST product as a
+# to_verify reference product (D35). Manual only; the sandbox that builds SDP cannot reach MAST.
+name: Integration recordings
+
+on:
+  workflow_dispatch:
+    inputs:
+      obs_id:
+        description: "MAST ObsCore obs_id of a public JWST observation (no exclusive-access period)"
+        required: true
+      filename:
+        description: "The product file to record, e.g. jw..._i2d.fits (level 2 or 3)"
+        required: true
+      name:
+        description: "Directory name under fixtures/reference-products/"
+        required: true
+
+permissions:
+  # write only so the run can push its recordings to a reference-products/ branch for review
+  contents: write
+
+jobs:
+  record:
+    name: live · MAST descriptor and reference product
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - name: Record
+        env:
+          OBS_ID: ${{ inputs.obs_id }}
+          FILENAME: ${{ inputs.filename }}
+          NAME: ${{ inputs.name }}
+        run: |
+          set -euo pipefail
+          case "$NAME" in *[!a-z0-9-]*|"") echo "name must be lowercase letters, digits and dashes"; exit 1;; esac
+          uv run sdp integration record --obs-id "$OBS_ID" --filename "$FILENAME" --name "$NAME" \
+            --out ../fixtures/reference-products --cassettes ../reports/cassettes | tee ../reports/integration-recording.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-recording
+          path: |
+            reports
+            fixtures/reference-products
+      - name: Push the recordings to a branch for review
+        shell: bash
+        working-directory: .
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          set -euo pipefail
+          branch="reference-products/run-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          mkdir -p python/tests/cassettes/integration
+          cp -R reports/cassettes/integration/. python/tests/cassettes/integration/
+          git add "fixtures/reference-products/$NAME" python/tests/cassettes/integration
+          git commit -m "Integration recordings from run ${GITHUB_RUN_ID}: MAST descriptor and $NAME (to_verify)"
+          git push origin "$branch"
