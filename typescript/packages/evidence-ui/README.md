@@ -1,6 +1,12 @@
 # @sdp/evidence-ui
 
-The reviewer's view of the evidence (ADR-002, ADR-016): experiments, the dossier page with every predeclared gate and the ones that decided the verdict, failure tracebacks, tasks, provenance and lineage, the manifest download, the signed ledger and the domain events; and Investigate sets with their stages, candidates and null-field rates, and each investigation with its results, evidence, triage history and the evidence promotion must avoid. It only reads; freezing, approval and triage stay on the `sdp` CLI.
+The SDP web UI for scientists with little computing experience. Home shows every piece of work with a step-by-step path (planned, run, checked, approved, published; or plan, search, test, review) and the one next step; Start explores a field or runs a planned experiment; Results explains each verdict with a ruler per predeclared gate; Candidates lets you review, park, close and annotate; Downloads shows each acquisition plan's cost against its budget for approval (ADR-020); Records holds the ledger and activity log; Help explains the ideas in plain words. Unsigned commands are buttons (run, validate, investigate, triage, below-threshold plans) sent to sdp-api's REST surface; signed steps (freeze, approve, promote, above-threshold plans) show the exact `sdp` command to copy. Product context for design work is in `PRODUCT.md`; the design skill is `/impeccable`.
+
+Environment: `SDP_API_URL` (GraphQL; commands go to the same host), `SDP_PROFILES_DIR` (folder of Investigate test-profile YAML files offered on Start), `ORIGIN` (the address people open, required by adapter-node for form posts), `SDP_UI_FIXTURES=1` (demonstration server: each browser gets its own copy of the synthetic data).
+
+The original reviewer description follows.
+
+The reviewer's view of the evidence (ADR-002, ADR-016): experiments, the dossier page with every predeclared gate and the ones that decided the verdict, failure tracebacks, tasks, provenance and lineage, the manifest download, the signed ledger and the domain events; and Investigate sets with their stages, candidates and null-field rates, and each investigation with its results, evidence, triage history and the evidence promotion must avoid.
 
 - `src/lib/ports.ts` is the one driven port, `EvidenceSource`, typed by the GraphQL client generated from `contracts/graphql/schema.graphql`.
 - `src/lib/adapters/graphql.ts` reads `sdp-api` at `SDP_API_URL` (default `http://127.0.0.1:8000/graphql`).

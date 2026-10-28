@@ -78,6 +78,7 @@ services:
     user: "1000:1000"
     environment:
       SDP_API_URL: http://api:8000/graphql
+      ORIGIN: http://127.0.0.1:3000
     ports: ["127.0.0.1:3000:3000"]
     depends_on: [api]
 

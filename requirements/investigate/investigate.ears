@@ -107,3 +107,19 @@ requirements:
     tiers: [T3]
     status: approved
     traces: []
+  - id: INV-014
+    pattern: event
+    text: "When the evidence UI sends a triage step, the API shall apply only park, reopen, close or annotate, record its actor and reason, and refuse promotion."
+    rationale: "Scientists triage without a terminal; promotion needs a frozen confirmatory predeclaration and stays on the CLI (INV-009)."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-015
+    pattern: ubiquitous
+    text: "The evidence UI shall show the exact sdp command for every signed step rather than perform it."
+    rationale: "Freezing, approval, promotion and above-threshold plan approval are signed with a personal key (ADR-004, INT-014)."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces: []

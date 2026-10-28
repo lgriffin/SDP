@@ -1,0 +1,512 @@
+[
+  {
+    "document": {
+      "approval": {
+        "actor": "kernel",
+        "decision": "auto_approved",
+        "ledger_entry_id": null,
+        "plan_id": "sha256:499844dddb9b30ff764c06a051808b9e0dc24017716ea88f3a82213cc75ee196",
+        "reason": "",
+        "threshold_bytes": 500000000
+      },
+      "constraints": {
+        "budget": {
+          "approval_threshold_bytes": 500000000,
+          "max_bytes": 5000000000,
+          "max_requests_per_source": 200,
+          "max_wall_seconds": 3600.0,
+          "min_nas_headroom_bytes": 50000000000
+        }
+      },
+      "cost": {
+        "estimated_wall_seconds": 9.6,
+        "nas_headroom_after_bytes": 811987000000,
+        "requests_per_source": {
+          "fake-plates": 1,
+          "synthetic-gaia": 1
+        },
+        "total_bytes": 13000000
+      },
+      "discovery": [
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-gaia",
+          "status": "satisfied"
+        },
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-plate-history",
+          "source_id": "fake-plates",
+          "status": "satisfied"
+        }
+      ],
+      "gaps": [],
+      "intent": {
+        "field": {
+          "epoch_jyear": 2016.0,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10.0,
+            "ra_deg": 120.0,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "planner_id": "minimum-product-set",
+        "planner_version": "1.0.0",
+        "profile_hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+        "requirements": [
+          {
+            "em_max_m": null,
+            "em_min_m": null,
+            "epoch_max_mjd": null,
+            "epoch_min_mjd": null,
+            "instruments": [],
+            "min_calibration_level": null,
+            "missions": [],
+            "needs_bytes": false,
+            "operations": [
+              "cone"
+            ],
+            "product_types": [
+              "catalogue"
+            ],
+            "public_only": true,
+            "requirement_id": "REQ-pm-excess-catalogue",
+            "test_kind": "pm-excess"
+          },
+          {
+            "em_max_m": null,
+            "em_min_m": null,
+            "epoch_max_mjd": null,
+            "epoch_min_mjd": null,
+            "instruments": [],
+            "min_calibration_level": null,
+            "missions": [
+              "DASCH"
+            ],
+            "needs_bytes": true,
+            "operations": [
+              "product_listing",
+              "cutout"
+            ],
+            "product_types": [
+              "image"
+            ],
+            "public_only": true,
+            "requirement_id": "REQ-plate-history",
+            "test_kind": "plate-variability"
+          }
+        ]
+      },
+      "items": [
+        {
+          "access_status": "public",
+          "calibration_level": null,
+          "expected_bytes": 4000000,
+          "expected_rows": 60,
+          "item_id": "item-201",
+          "licence": "public domain (synthetic)",
+          "operation": "cone",
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-gaia",
+          "target": "icrs;circle(120.0,-10.0,0.5) on gaia:DR3",
+          "test_kind": "pm-excess"
+        },
+        {
+          "access_status": "public",
+          "calibration_level": 2,
+          "expected_bytes": 9000000,
+          "expected_rows": null,
+          "item_id": "item-202",
+          "licence": "public domain (synthetic)",
+          "operation": "cutout",
+          "requirement_id": "REQ-plate-history",
+          "source_id": "fake-plates",
+          "target": "plate cutouts at 60 positions, 2 arcmin",
+          "test_kind": "plate-variability"
+        }
+      ],
+      "plan_id": "sha256:499844dddb9b30ff764c06a051808b9e0dc24017716ea88f3a82213cc75ee196",
+      "schema_version": "1.0.0"
+    },
+    "execution": {
+      "acquired": [
+        "sha256:f55ff16f66f43360266b95db6f8fec01d76031054306ae4a4b380598f6cfd114"
+      ],
+      "plan_id": "sha256:499844dddb9b30ff764c06a051808b9e0dc24017716ea88f3a82213cc75ee196",
+      "unavailable": [
+        "item-202"
+      ]
+    },
+    "id": "sha256:499844dddb9b30ff764c06a051808b9e0dc24017716ea88f3a82213cc75ee196",
+    "setId": "invset-000001",
+    "state": "executed"
+  },
+  {
+    "document": {
+      "approval": null,
+      "constraints": {
+        "budget": {
+          "approval_threshold_bytes": 500000000,
+          "max_bytes": 5000000000,
+          "max_requests_per_source": 200,
+          "max_wall_seconds": 3600.0,
+          "min_nas_headroom_bytes": 50000000000
+        }
+      },
+      "cost": {
+        "estimated_wall_seconds": 13.9,
+        "nas_headroom_after_bytes": 811985000000,
+        "requests_per_source": {
+          "fake-plates": 1,
+          "synthetic-2mass": 1,
+          "synthetic-gaia": 1
+        },
+        "total_bytes": 15000000
+      },
+      "discovery": [
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-gaia",
+          "status": "satisfied"
+        },
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-2mass",
+          "status": "satisfied"
+        },
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-plate-history",
+          "source_id": "fake-plates",
+          "status": "satisfied"
+        }
+      ],
+      "gaps": [],
+      "intent": {
+        "field": {
+          "epoch_jyear": 2016.0,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10.0,
+            "ra_deg": 120.0,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "planner_id": "minimum-product-set",
+        "planner_version": "1.0.0",
+        "profile_hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+        "requirements": [
+          {
+            "em_max_m": null,
+            "em_min_m": null,
+            "epoch_max_mjd": null,
+            "epoch_min_mjd": null,
+            "instruments": [],
+            "min_calibration_level": null,
+            "missions": [],
+            "needs_bytes": false,
+            "operations": [
+              "cone"
+            ],
+            "product_types": [
+              "catalogue"
+            ],
+            "public_only": true,
+            "requirement_id": "REQ-pm-excess-catalogue",
+            "test_kind": "pm-excess"
+          },
+          {
+            "em_max_m": null,
+            "em_min_m": null,
+            "epoch_max_mjd": null,
+            "epoch_min_mjd": null,
+            "instruments": [],
+            "min_calibration_level": null,
+            "missions": [
+              "DASCH"
+            ],
+            "needs_bytes": true,
+            "operations": [
+              "product_listing",
+              "cutout"
+            ],
+            "product_types": [
+              "image"
+            ],
+            "public_only": true,
+            "requirement_id": "REQ-plate-history",
+            "test_kind": "plate-variability"
+          }
+        ]
+      },
+      "items": [
+        {
+          "access_status": "public",
+          "calibration_level": null,
+          "expected_bytes": 4000000,
+          "expected_rows": 60,
+          "item_id": "item-001",
+          "licence": "public domain (synthetic)",
+          "operation": "cone",
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-gaia",
+          "target": "icrs;circle(120.0,-10.0,0.5) on gaia:DR3",
+          "test_kind": "pm-excess"
+        },
+        {
+          "access_status": "public",
+          "calibration_level": null,
+          "expected_bytes": 2000000,
+          "expected_rows": 58,
+          "item_id": "item-002",
+          "licence": "public domain (synthetic)",
+          "operation": "cone",
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-2mass",
+          "target": "icrs;circle(120.0,-10.0,0.5) on twomass:psc",
+          "test_kind": "pm-excess"
+        },
+        {
+          "access_status": "public",
+          "calibration_level": 2,
+          "expected_bytes": 9000000,
+          "expected_rows": null,
+          "item_id": "item-003",
+          "licence": "public domain (synthetic)",
+          "operation": "cutout",
+          "requirement_id": "REQ-plate-history",
+          "source_id": "fake-plates",
+          "target": "plate cutouts at 60 positions, 2 arcmin",
+          "test_kind": "plate-variability"
+        }
+      ],
+      "plan_id": "sha256:54c1021fcaf5706dfd1d4023b6f8cca9315f961ca6bd1fe88537ece815b70a88",
+      "schema_version": "1.0.0"
+    },
+    "execution": null,
+    "id": "sha256:54c1021fcaf5706dfd1d4023b6f8cca9315f961ca6bd1fe88537ece815b70a88",
+    "setId": null,
+    "state": "drafted"
+  },
+  {
+    "document": {
+      "approval": null,
+      "constraints": {
+        "budget": {
+          "approval_threshold_bytes": 500000000,
+          "max_bytes": 5000000000,
+          "max_requests_per_source": 200,
+          "max_wall_seconds": 3600.0,
+          "min_nas_headroom_bytes": 50000000000
+        }
+      },
+      "cost": {
+        "estimated_wall_seconds": 173.2,
+        "nas_headroom_after_bytes": 810710000000,
+        "requests_per_source": {
+          "synthetic-gaia": 1,
+          "synthetic-mast": 2
+        },
+        "total_bytes": 1290000000
+      },
+      "discovery": [
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-gaia",
+          "status": "satisfied"
+        },
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "satisfied",
+              "reason": "the source serves this product type over the field"
+            }
+          ],
+          "requirement_id": "REQ-jwst-imaging",
+          "source_id": "synthetic-mast",
+          "status": "satisfied"
+        },
+        {
+          "descriptor_verified_on": "2026-10-27",
+          "reasons": [
+            {
+              "field": "product_types",
+              "outcome": "unsatisfied",
+              "reason": "the source serves no JWST products"
+            }
+          ],
+          "requirement_id": "REQ-jwst-imaging",
+          "source_id": "synthetic-dasch",
+          "status": "unsatisfied"
+        }
+      ],
+      "gaps": [
+        {
+          "reason": "no public NIRSpec spectra cover this field",
+          "requirement_id": "REQ-jwst-spectra"
+        }
+      ],
+      "intent": {
+        "field": {
+          "epoch_jyear": 2016.0,
+          "images": [],
+          "label": "synthetic field",
+          "region": {
+            "dec_deg": -10.0,
+            "ra_deg": 120.0,
+            "radius_deg": 0.5,
+            "shape": "cone"
+          }
+        },
+        "planner_id": "minimum-product-set",
+        "planner_version": "1.0.0",
+        "profile_hash": "sha256:60c88230cbd4df58eba4e509e959cda8fb063fbdc2cd954270826957a97e7466",
+        "requirements": [
+          {
+            "em_max_m": null,
+            "em_min_m": null,
+            "epoch_max_mjd": null,
+            "epoch_min_mjd": null,
+            "instruments": [],
+            "min_calibration_level": null,
+            "missions": [],
+            "needs_bytes": false,
+            "operations": [
+              "cone"
+            ],
+            "product_types": [
+              "catalogue"
+            ],
+            "public_only": true,
+            "requirement_id": "REQ-pm-excess-catalogue",
+            "test_kind": "pm-excess"
+          },
+          {
+            "em_max_m": null,
+            "em_min_m": null,
+            "epoch_max_mjd": null,
+            "epoch_min_mjd": null,
+            "instruments": [
+              "NIRCAM"
+            ],
+            "min_calibration_level": 3,
+            "missions": [
+              "JWST"
+            ],
+            "needs_bytes": true,
+            "operations": [
+              "product_listing",
+              "download"
+            ],
+            "product_types": [
+              "image"
+            ],
+            "public_only": true,
+            "requirement_id": "REQ-jwst-imaging",
+            "test_kind": "morphology"
+          }
+        ]
+      },
+      "items": [
+        {
+          "access_status": "public",
+          "calibration_level": null,
+          "expected_bytes": 4000000,
+          "expected_rows": 60,
+          "item_id": "item-101",
+          "licence": "public domain (synthetic)",
+          "operation": "cone",
+          "requirement_id": "REQ-pm-excess-catalogue",
+          "source_id": "synthetic-gaia",
+          "target": "icrs;circle(120.0,-10.0,0.5) on gaia:DR3",
+          "test_kind": "pm-excess"
+        },
+        {
+          "access_status": "public",
+          "calibration_level": 3,
+          "expected_bytes": 674000000,
+          "expected_rows": null,
+          "item_id": "item-102",
+          "licence": "public domain (synthetic)",
+          "operation": "download",
+          "requirement_id": "REQ-jwst-imaging",
+          "source_id": "synthetic-mast",
+          "target": "jw01074-o104_t002_nircam_clear-f200w_i2d.fits",
+          "test_kind": "morphology"
+        },
+        {
+          "access_status": "public",
+          "calibration_level": 3,
+          "expected_bytes": 612000000,
+          "expected_rows": null,
+          "item_id": "item-103",
+          "licence": "public domain (synthetic)",
+          "operation": "download",
+          "requirement_id": "REQ-jwst-imaging",
+          "source_id": "synthetic-mast",
+          "target": "jw01074-o104_t002_nircam_clear-f444w_i2d.fits",
+          "test_kind": "morphology"
+        }
+      ],
+      "plan_id": "sha256:297aea48cac6cf41832f6b5207e6cd04ed5034bb611d1c5d72b2a4232ffc1181",
+      "schema_version": "1.0.0"
+    },
+    "execution": null,
+    "id": "sha256:297aea48cac6cf41832f6b5207e6cd04ed5034bb611d1c5d72b2a4232ffc1181",
+    "setId": null,
+    "state": "drafted"
+  }
+]

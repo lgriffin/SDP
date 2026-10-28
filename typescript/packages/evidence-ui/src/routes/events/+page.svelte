@@ -1,12 +1,16 @@
 <script lang="ts">
+  import RecordsTabs from "$lib/components/RecordsTabs.svelte";
+  import { humanTime } from "$lib/plain.ts";
+
   let { data } = $props();
   const last = $derived(data.events.at(-1)?.sequence);
 </script>
 
-<svelte:head><title>Events · SDP evidence</title></svelte:head>
+<svelte:head><title>Activity log · SDP</title></svelte:head>
 
-<h1>Domain events</h1>
-<p class="muted">Appended in the same transaction as the state change they describe (KRN-010), oldest first.</p>
+<h1>Records</h1>
+<RecordsTabs />
+<p class="lede">Everything the system did, oldest first, written at the same moment as the change it describes.</p>
 
 <div class="table-wrap">
   <table data-testid="events">
@@ -20,7 +24,7 @@
             {#if ev.aggregateId.startsWith("exp-")}<a href="/experiments/{ev.aggregateId}" class="mono">{ev.aggregateId}</a>
             {:else}<span class="mono">{ev.aggregateId}</span>{/if}
           </td>
-          <td class="muted">{ev.occurredAt}</td>
+          <td class="muted">{humanTime(ev.occurredAt)}</td>
         </tr>
       {:else}
         <tr><td colspan="4" class="muted">No events after #{data.after}.</td></tr>

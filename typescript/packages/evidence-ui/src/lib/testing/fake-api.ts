@@ -12,7 +12,8 @@ export interface FakeApi {
   requests: Request[];
 }
 
-export function fakeApi(data: FixtureData = FIXTURES, status = 200): FakeApi {
+/** `planner: false` answers like a server from before Stage E, whose schema has no plan queries. */
+export function fakeApi(data: FixtureData = FIXTURES, status = 200, planner = true): FakeApi {
   const requests: Request[] = [];
   const answer = (query: string, v: Record<string, unknown>): unknown => {
     const operation = /query\s+(\w+)/.exec(query)?.[1];
@@ -31,6 +32,10 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200): FakeApi {
         return { investigationSet: data.investigationSet[String(v.id)] ?? null };
       case "Investigation":
         return { investigation: data.investigation[String(v.id)] ?? null };
+      case "Plans":
+        return { plans: data.plans };
+      case "Plan":
+        return { plan: data.plans.find((p) => p.id === v.id) ?? null };
       case "Events":
         return { events: data.events.filter((e) => e.sequence > Number(v.after)).slice(0, Number(v.limit)) };
       default:
@@ -43,6 +48,12 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200): FakeApi {
       const body = JSON.parse(String(init?.body)) as Request;
       requests.push(body);
       if (status !== 200) return new Response("unavailable", { status });
+      const operation = /query\s+(\w+)/.exec(body.query)?.[1] ?? "";
+      if (!planner && operation.startsWith("Plan")) {
+        const field = operation === "Plans" ? "plans" : "plan";
+        const errors = [{ message: `Cannot query field "${field}" on type "Query".` }];
+        return new Response(JSON.stringify({ errors }), { headers: { "content-type": "application/json" } });
+      }
       const result = answer(body.query, body.variables);
       const payload = result === undefined ? { errors: [{ message: "unknown operation" }] } : { data: result };
       return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });

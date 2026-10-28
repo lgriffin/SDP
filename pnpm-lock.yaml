@@ -97,6 +97,9 @@ importers:
       vitest:
         specifier: 2.1.8
         version: 2.1.8(@types/node@22.10.2)
+      yaml:
+        specifier: 2.6.1
+        version: 2.6.1
 
   typescript/packages/relativity-fit:
     devDependencies:

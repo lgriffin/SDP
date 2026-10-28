@@ -1,24 +1,28 @@
 <script lang="ts">
   import Badge from "$lib/components/Badge.svelte";
+  import RecordsTabs from "$lib/components/RecordsTabs.svelte";
+  import { humanTime } from "$lib/plain.ts";
   import { isSelfApproval, shortHash } from "$lib/view.ts";
 
   let { data } = $props();
 </script>
 
-<svelte:head><title>Ledger · SDP evidence</title></svelte:head>
+<svelte:head><title>Ledger · SDP</title></svelte:head>
 
-<h1>Ledger</h1>
-<p class="muted">
-  Signed, hash-chained entries: one per frozen predeclaration and one per reviewer approval. Signatures and hashes
-  are verified by <code>sdp ledger verify</code>; this page checks that the chain is unbroken.
+<h1>Records</h1>
+<RecordsTabs />
+<p class="lede">
+  The signed ledger holds one entry for every set of checks frozen before a run, and one for every reviewer's
+  approval. Each entry names the one before it, so nothing can be quietly changed or removed.
 </p>
+<p class="muted">This page checks that the chain is unbroken; <code>sdp ledger verify</code> also checks every signature.</p>
 
 {#if data.problems.length}
   <ul class="problems" data-testid="chain-problems">
     {#each data.problems as p (p.entry + p.message)}<li><span class="mono">{p.entry}</span>: {p.message}</li>{/each}
   </ul>
 {:else}
-  <p data-testid="chain-ok"><Badge tone="good" label="chain intact" /> {data.entries.length} entries</p>
+  <p data-testid="chain-ok"><Badge tone="good" label="Chain intact" /> {data.entries.length} entries</p>
 {/if}
 
 <div class="table-wrap">
@@ -38,7 +42,7 @@
           </td>
           <td>{entry.signer}</td>
           <td class="mono">{entry.signatureMethod}</td>
-          <td class="muted">{entry.recordedAt}</td>
+          <td class="muted">{humanTime(entry.recordedAt)}</td>
           <td class="mono muted" title={entry.previousEntryHash ?? ""}>{shortHash(entry.previousEntryHash)}</td>
         </tr>
       {/each}

@@ -9,6 +9,8 @@ import {
   type Investigation,
   type InvestigationSet,
   type InvestigationSetSummary,
+  type Plan,
+  PlannerUnavailable,
 } from "../ports.ts";
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -35,6 +37,19 @@ export const QUERIES = {
     id setId fieldId candidateKey candidate state label score rankingPolicy testResults evidenceBundleIds evidenceUsed
     transitions { fromState toState reason actor at } notes links dossier } }`,
 } as const;
+
+/**
+ * The planner's queries (ADR-020), in the shape agreed with Stage E. They are kept apart from QUERIES
+ * because the committed schema does not carry them until the planner lands; the schema test checks
+ * them against that agreed extension instead.
+ */
+const PLAN = "id setId state document execution";
+export const PLAN_QUERIES = {
+  plans: `query Plans { plans { ${PLAN} } }`,
+  plan: `query Plan($id: ID!) { plan(id: $id) { ${PLAN} } }`,
+} as const;
+
+const MISSING_PLANNER = /Cannot query field "plans?" on type "Query"/;
 
 interface GraphQLResponse<T> {
   data?: T;
@@ -100,5 +115,24 @@ export class GraphQLEvidenceSource implements EvidenceSource {
 
   async investigation(id: string): Promise<Investigation | null> {
     return (await this.request<{ investigation: Investigation | null }>(QUERIES.investigation, { id })).investigation;
+  }
+
+  async plans(): Promise<Plan[]> {
+    return (await this.planRequest<{ plans: Plan[] }>(PLAN_QUERIES.plans)).plans;
+  }
+
+  async plan(id: string): Promise<Plan | null> {
+    return (await this.planRequest<{ plan: Plan | null }>(PLAN_QUERIES.plan, { id })).plan;
+  }
+
+  async planRequest<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+    try {
+      return await this.request<T>(query, variables);
+    } catch (e) {
+      if (e instanceof EvidenceUnavailable && MISSING_PLANNER.test(e.message)) {
+        throw new PlannerUnavailable("this server does not offer the planner yet");
+      }
+      throw e;
+    }
   }
 }

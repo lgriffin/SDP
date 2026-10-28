@@ -15,6 +15,8 @@ DropCapability=ALL
 NoNewPrivileges=true
 ReadOnly=true
 Environment=SDP_API_URL=http://sdp-api:8000/graphql
+# The address people open, so the UI accepts its own form posts (adapter-node CSRF check).
+Environment=ORIGIN=http://127.0.0.1:3000
 
 [Service]
 Restart=on-failure
