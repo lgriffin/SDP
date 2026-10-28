@@ -147,6 +147,12 @@ class InvestigationTestRegistry:
             missing = sorted(set(s.needs_products) - set(t.needs_products))
             if missing:
                 raise PlanInvalid(f"profile asks {s.key} for products {missing} the test does not declare")
+            check = getattr(t, "check_thresholds", None)  # optional: a test may refuse thresholds up front
+            if check is not None:
+                try:
+                    check(s.thresholds)
+                except ValueError as exc:
+                    raise PlanInvalid(f"{s.key}: {exc}") from exc
         return tests
 
     def task_kinds(self) -> TaskKindRegistry:

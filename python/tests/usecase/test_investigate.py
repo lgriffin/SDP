@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 import pyarrow as pa
 import pytest
 
+from sdp.kernel.application.investigate import SignificanceRanker
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.dataset import DatasetStatus
 from sdp.kernel.domain.errors import (
@@ -25,6 +26,7 @@ from sdp.kernel.domain.investigation import (
     IdentificationMethod,
     IdentifyRoute,
     InvestigationState,
+    RankingPolicy,
     Stage,
     StageState,
     TestSelection,
@@ -154,6 +156,30 @@ def test_only_registered_tests_with_a_null_model_can_run(world: World) -> None:
     assert "InvestigationSetStarted" not in world.events()
     with pytest.raises(Exception, match="null model"):
         make_world(ProperMotionExcessTest(null_model=" "))
+
+
+@pytest.mark.req("INV-007")
+def test_a_ranking_policy_without_a_ranker_is_refused_before_anything_runs(world: World) -> None:
+    unknown = replace(synthetic_profile(), ranking=RankingPolicy("unheard-of", "1.0.0", 0.5))
+    with pytest.raises(PlanInvalid, match="no ranker for ranking policy 'unheard-of'"):
+        world.run(profile=unknown)
+    assert "InvestigationSetStarted" not in world.events()
+
+
+@pytest.mark.req("INV-007")
+def test_the_ranking_policy_picks_its_ranker() -> None:
+    class Everyone:
+        ranker_id = "everyone"
+
+        def rank(self, results: object, policy: RankingPolicy) -> list[object]:
+            return [replace(c, score=1.0) for c in SignificanceRanker().rank(results, policy)]  # type: ignore[arg-type]
+
+    world = make_world(rankers={"everyone": Everyone()})
+    run = world.run(profile=replace(synthetic_profile(), ranking=RankingPolicy("everyone", "1.0.0", 1.0)))
+    assert len(run.investigations) == 60
+    assert {i.rank.policy_id for i in run.investigations} == {"everyone"}
+    with pytest.raises(PlanInvalid, match="kernel's own ranking policy"):
+        make_world(rankers={"significance": Everyone()}).run()
 
 
 @pytest.mark.req("INV-003")

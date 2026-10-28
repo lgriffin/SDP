@@ -4,6 +4,7 @@ injection generators, ranking and the claim lint."""
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import numpy as np
 import pyarrow as pa
@@ -11,6 +12,7 @@ import pytest
 
 from sdp.adapters.compute.clustering import SklearnHdbscan
 from sdp.kernel.domain.errors import InvariantViolation
+from sdp.kernel.domain.investigation import RankingPolicy, Subject, TestResult
 from sdp.kernel.domain.predeclaration import Predeclaration
 from sdp_stellar import dossier, ranking
 from sdp_stellar.features import FeatureMatrix, PolicyError, apply_policy, tangent_plane
@@ -19,6 +21,7 @@ from sdp_stellar.membership import estimate
 from sdp_stellar.null import null_field
 from sdp_stellar.protocol import StellarClusterProtocol, load_predeclaration
 from sdp_stellar.quality import QualityCuts, column
+from sdp_stellar.ranking import StellarCandidateRanker
 from sdp_stellar.search import Configuration, configurations, labelling_document, run
 
 from .conftest import field, targets
@@ -232,3 +235,34 @@ def test_the_packaged_predeclaration_is_the_reviewed_draft() -> None:
 
     draft = Path(__file__).parents[3] / "experiments" / "uc01-stellar-clusters" / "predeclaration.json"
     assert json.loads(draft.read_text("utf-8")) == load_predeclaration()
+
+
+def _result(subject: Subject, p: float | None, **details: object) -> TestResult:
+    return TestResult("astrometric-coherence", "1.0.0", subject, statistic=3.0, seed=1, p_value=p, details=details)
+
+
+def test_the_investigate_ranker_scores_groups_as_uc01_candidates_and_objects_by_significance() -> None:
+    policy = RankingPolicy("stellar", "1.0.0", threshold=0.0, alpha=0.05)
+    tight = Subject(structure_id="g1", members=("a", "b"), membership=(1.0, 0.6))
+    loose = Subject(structure_id="g2", members=("c", "d"), membership=(1.0, 1.0))
+    star = Subject.of_object("e")
+    results = [
+        _result(tight, 0.01, stability=0.8, cmd_coherence=2.0),
+        _result(loose, 0.40, stability=1.0, cmd_coherence=4.0),
+        replace(_result(star, 0.001), test_name="parallax-consistency"),
+    ]
+    ranked = StellarCandidateRanker().rank(results, policy)
+    by_key = {c.subject.key: c.score for c in ranked}
+    # Novelty is not assessed (D26), so the score is the weighted mean of the three terms assessed.
+    assert by_key[tight.key] == pytest.approx((0.35 * 0.8 + 0.25 * 0.5 + 0.25 * 0.8) / 0.85)
+    assert by_key[loose.key] == 0.0  # not significant against its null fields: stability does not rescue it
+    assert by_key[star.key] == 1.0  # the kernel's significance score
+    assert [c.subject.key for c in ranked] == [star.key, tight.key, loose.key]
+    assert StellarCandidateRanker().rank(list(reversed(results)), policy) == ranked
+
+
+def test_a_group_scores_on_the_terms_its_test_could_assess() -> None:
+    policy = RankingPolicy("stellar", "1.0.0", threshold=0.5, alpha=0.05)
+    group = Subject(structure_id="g1", members=("a", "b"), membership=(1.0, 1.0))
+    alone = StellarCandidateRanker().rank([_result(group, 0.01, stability=None, cmd_coherence=None)], policy)
+    assert alone[0].score == pytest.approx(1.0)  # membership alone: a certain group clears an ordinary threshold

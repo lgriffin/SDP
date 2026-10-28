@@ -9,6 +9,9 @@ dependencies = ["sdp-kernel", "numpy>=1.26", "scipy>=1.13", "astropy>=6.1", "pya
 [project.entry-points."sdp.protocols"]
 uc01-stellar-clusters = "sdp_stellar.protocol:StellarClusterProtocol"
 
+[project.entry-points."sdp.candidate_rankers"]
+stellar = "sdp_stellar.ranking:StellarCandidateRanker"
+
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
