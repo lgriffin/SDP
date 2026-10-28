@@ -4,7 +4,7 @@ import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.t
 import * as common from "./common.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/dataset-artifact.schema.json";
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.1.0";
 
 export const AcquisitionPart = z.object({
     "part": z.number().int().gte(0),
@@ -31,6 +31,12 @@ export const DialectRef = z.object({
   }).strict();
 export type DialectRef = z.infer<typeof DialectRef>;
 
+export const ProductUse = z.object({
+    "adapter": z.string().min(1),
+    "product_type": z.enum(["image","spectrum","cube","timeseries","measurements","catalogue"]),
+  }).strict();
+export type ProductUse = z.infer<typeof ProductUse>;
+
 /** Metadata for one content-addressed dataset: raw artifacts are immutable, curated artifacts cite their raw parents and the dialect that produced them. */
 export const DatasetArtifact = z.object({
     "schema_version": common.SchemaVersion,
@@ -44,6 +50,7 @@ export const DatasetArtifact = z.object({
     "parents": z.array(common.Sha256Id),
     "acquisition": AcquisitionRecord.nullable(),
     "rejection_reason": z.string().nullable().optional(),
+    "product": ProductUse.nullable().optional(),
   }).strict();
 export type DatasetArtifact = z.infer<typeof DatasetArtifact>;
 // silence unused-import checks in files without refinements

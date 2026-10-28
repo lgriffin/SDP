@@ -1,3 +1,4 @@
+export * from "./admit.ts";
 export * from "./conform.ts";
 export * from "./ears.ts";
 export * from "./gates.ts";

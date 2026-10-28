@@ -1,10 +1,12 @@
 // Harness use cases: each composes ports and pure functions; the CLI only parses arguments.
-import { hashDocument, type ContractError } from "@sdp/contracts";
+import { hashDocument, parse, type ContractError } from "@sdp/contracts";
 
+import { admit, checkClaims, type ClaimCheck, type Unadmitted } from "./admit.ts";
 import { readManifest } from "./conform.ts";
 import { compileEars, type CompiledRequirements } from "./ears.ts";
 import { guard, type FileChange, type GateSnapshot, type GuardResult } from "./guard.ts";
 import type {
+  DocumentSource,
   LedgerSource,
   ManifestSource,
   PredeclarationSource,
@@ -92,4 +94,27 @@ export async function approvals(ledger: LedgerSource): Promise<Approval[]> {
 
 export function guardChanges(changes: readonly FileChange[], gates: readonly GateSnapshot[]): GuardResult {
   return guard(changes, gates);
+}
+
+export async function admitAll(source: ManifestSource): Promise<{ path: string; experimentId: string; verdict: string | null; unadmitted: Unadmitted[] }[]> {
+  return (await source.manifests()).map(({ path, document }) => {
+    const result = readManifest(document);
+    if (!result.ok) throw new Error(`${path} does not conform: ${result.errors.map((e) => `${e.path} ${e.message}`).join("; ")}`);
+    const m = result.manifest;
+    return { path, experimentId: m.identity.experiment_id, verdict: m.verdict?.status ?? null, unadmitted: admit(m) };
+  });
+}
+
+const parseAll = async <N extends "capability-descriptor" | "adapter-compatibility">(name: N, source: DocumentSource) =>
+  (await source.documents()).map(({ path, document }) => {
+    try {
+      return parse(name, document);
+    } catch (e) {
+      throw new Error(`${path} is not a valid ${name}: ${(e as Error).message}`);
+    }
+  });
+
+export async function claimsAll(descriptors: DocumentSource, records: DocumentSource): Promise<ClaimCheck[]> {
+  const recs = await parseAll("adapter-compatibility", records);
+  return (await parseAll("capability-descriptor", descriptors)).map((d) => checkClaims(d, recs));
 }

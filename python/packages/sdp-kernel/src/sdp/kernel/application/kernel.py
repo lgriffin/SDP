@@ -28,6 +28,7 @@ from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe
 from sdp.kernel.ports.determinism import Clock, IdGenerator
 from sdp.kernel.ports.evidence import ExperimentTracker
+from sdp.kernel.ports.integration import AdapterCompatibilitySource
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher
@@ -55,6 +56,8 @@ class KernelPorts:
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     min_free_bytes: int = 50 * 1024**3
     investigate: InvestigatePorts | None = None
+    compatibility: AdapterCompatibilitySource | None = None
+    """The release's adapter compatibility records (Integration v0.4.0 §6); none admits no adapter."""
 
 
 @dataclass
@@ -75,7 +78,7 @@ class Kernel:
 
     @classmethod
     def build(cls, ports: KernelPorts) -> Kernel:
-        manifests = ManifestWriter(ports.store)
+        manifests = ManifestWriter(ports.store, ports.compatibility)
         kernel = cls(
             ports=ports,
             register_hypothesis=RegisterHypothesisUseCase(ports.uow, ports.clock),

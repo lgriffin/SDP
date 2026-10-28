@@ -2,6 +2,7 @@
 // frozen gates, findings and oracle records, and compare with what the kernel recorded.
 import { hashDocument } from "@sdp/contracts";
 
+import { admit, type Unadmitted } from "./admit.ts";
 import type { Manifest } from "./conform.ts";
 import { decideVerdict, evaluateGate, type Check, type VerdictStatus } from "./gates.ts";
 
@@ -19,7 +20,9 @@ export interface Rederivation {
   harnessVerdict: VerdictStatus;
   checks: Check[];
   disagreements: Disagreement[];
-  /** Publication is blocked unless both sides agree on a validated verdict. */
+  /** Adapters and product types the inputs used without a passing compatibility record (INT-016). */
+  unadmitted: Unadmitted[];
+  /** Publication is blocked unless both sides agree on a validated verdict and every adapter is admitted. */
   publishable: boolean;
 }
 
@@ -62,6 +65,13 @@ export function rederive(manifest: Manifest): Rederivation {
     if (kernelVerdict !== harness.status) disagreements.push({ subject: "verdict", kernel: kernelVerdict, harness: harness.status });
   }
 
+  const unadmitted = admit(manifest);
+  if (kernelVerdict !== null) {
+    for (const u of unadmitted) {
+      disagreements.push({ subject: `admission ${u.adapter}/${u.productType}`, kernel: "verdict issued", harness: `not admitted: ${u.reason}` });
+    }
+  }
+
   const state = kernelVerdict === null ? "unvalidated" : disagreements.length ? "disagree" : "agree";
   return {
     experimentId: manifest.identity.experiment_id,
@@ -70,6 +80,7 @@ export function rederive(manifest: Manifest): Rederivation {
     harnessVerdict: harness.status,
     checks,
     disagreements,
-    publishable: state === "agree",
+    unadmitted,
+    publishable: state === "agree" && unadmitted.length === 0,
   };
 }

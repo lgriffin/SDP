@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.1.0",
+  "artifact_id": "sha256:2bfd662205589a2d535391e5eb2d34c46666ebcdf566e832a0e07c30be0afa23",
+  "kind": "raw",
+  "status": "acquired",
+  "media_type": "application/vnd.apache.parquet",
+  "byte_count": 182733,
+  "source_ref": {
+    "kind": "archive",
+    "identity": "esa.gaia.tap",
+    "release_label": "gaia:DR3",
+    "query_text": "SELECT TOP 5000 source_id, ra, dec FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',56.75,24.12,1.0))",
+    "doi": null,
+    "bibcode": null,
+    "licence": "CC BY-SA 3.0 IGO",
+    "citation": "Gaia Collaboration, Vallenari et al. 2023, A&A 674, A1"
+  },
+  "dialect": null,
+  "parents": [],
+  "acquisition": {
+    "rendered_query": "SELECT TOP 5000 source_id, ra, dec FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',56.75,24.12,1.0))",
+    "idempotency_key": "sha256:2c70e12b7a0646f92279f427c7b38e7334d8e5389cff167a1dc30e73f826b683",
+    "source_release": "gaia:DR3",
+    "acquired_at": "2026-10-28T12:30:00Z",
+    "checksum": "sha256:2bfd662205589a2d535391e5eb2d34c46666ebcdf566e832a0e07c30be0afa23",
+    "byte_count": 182733,
+    "parts": [
+      {
+        "part": 0,
+        "artifact_id": "sha256:2bfd662205589a2d535391e5eb2d34c46666ebcdf566e832a0e07c30be0afa23",
+        "byte_count": 182733,
+        "row_count": 5000
+      }
+    ]
+  },
+  "rejection_reason": null,
+  "product": {
+    "adapter": "gaia-tap",
+    "product_type": "catalogue"
+  }
+}

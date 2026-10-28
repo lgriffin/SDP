@@ -14,6 +14,7 @@ from sdp.kernel.domain.association import (
     ObjectHypothesis,
 )
 from sdp.kernel.domain.integration import (
+    AdapterCompatibilityRecord,
     CapabilityMatch,
     EvidenceRequirement,
     SourceCapabilityDescriptor,
@@ -21,6 +22,16 @@ from sdp.kernel.domain.integration import (
     order_matches,
 )
 from sdp.kernel.domain.investigation import Field
+
+
+class StaticCompatibilityRecords:
+    """AdapterCompatibilitySource over a fixed list, as a release's conformance run would produce."""
+
+    def __init__(self, records: Sequence[AdapterCompatibilityRecord] = ()) -> None:
+        self._records = tuple(records)
+
+    def records(self) -> Sequence[AdapterCompatibilityRecord]:
+        return self._records
 
 
 class InMemoryCapabilityRegistry:

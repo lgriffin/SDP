@@ -17,6 +17,19 @@ class Identity(BaseModel):
     protocol_version: common_schema.SchemaVersion
 
 
+class ProductType(StrEnum):
+    """
+    The product type the experiment used this input as (1.3.0).
+    """
+
+    IMAGE = "image"
+    SPECTRUM = "spectrum"
+    CUBE = "cube"
+    TIMESERIES = "timeseries"
+    MEASUREMENTS = "measurements"
+    CATALOGUE = "catalogue"
+
+
 class Input(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -27,6 +40,16 @@ class Input(BaseModel):
     source_ref: common_schema.SourceRef
     dialect_id: str | None = None
     acquisition_key: common_schema.Sha256Id | None = None
+    adapter: Annotated[
+        str | None,
+        Field(
+            description="The SDP adapter that acquired this input, when it came through an integration adapter (1.3.0); the harness checks it against environment.adapter_compatibility (INT-016)."
+        ),
+    ] = None
+    product_type: Annotated[
+        ProductType | None,
+        Field(description="The product type the experiment used this input as (1.3.0)."),
+    ] = None
 
 
 class Backend(StrEnum):

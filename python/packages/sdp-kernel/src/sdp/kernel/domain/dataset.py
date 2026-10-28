@@ -13,6 +13,11 @@ from sdp.kernel.domain.ids import ArtifactId, check_semver
 from sdp.kernel.domain.sources import SourceRef
 
 SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION_WITH_PRODUCT = "1.1.0"
+"""Documents carry 1.1.0 only when ``product`` is set, so artifacts registered before it keep their
+exact metadata and re-registration still compares equal (KRN-014)."""
+
+ADMITTABLE_PRODUCT_TYPES = frozenset({"image", "spectrum", "cube", "timeseries", "measurements", "catalogue"})
 
 
 class ArtifactKind(StrEnum):
@@ -34,6 +39,21 @@ class DialectRef:
 
     def __post_init__(self) -> None:
         check_semver(self.dialect_version)
+
+
+@dataclass(frozen=True)
+class ProductUse:
+    """Which integration adapter acquired an artifact and as which product type (Integration v0.4.0
+    §6). The kernel copies it into the manifest's inputs; admission is checked per pair (INT-016)."""
+
+    adapter: str
+    product_type: str
+
+    def __post_init__(self) -> None:
+        if not self.adapter:
+            raise InvariantViolation("a product use names its adapter")
+        if self.product_type not in ADMITTABLE_PRODUCT_TYPES:
+            raise InvariantViolation(f"{self.product_type!r} is not a product type an adapter is admitted for")
 
 
 @dataclass(frozen=True)
@@ -69,6 +89,7 @@ class DatasetArtifact:
     parents: tuple[ArtifactId, ...] = ()
     acquisition: AcquisitionRecord | None = None
     rejection_reason: str | None = None
+    product: ProductUse | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -134,8 +155,8 @@ class DatasetArtifact:
 
     def to_document(self) -> dict[str, Any]:
         acq = self.acquisition
-        return {
-            "schema_version": SCHEMA_VERSION,
+        doc: dict[str, Any] = {
+            "schema_version": SCHEMA_VERSION_WITH_PRODUCT if self.product else SCHEMA_VERSION,
             "artifact_id": self.artifact_id.value,
             "kind": self.kind.value,
             "status": self.status.value,
@@ -171,6 +192,9 @@ class DatasetArtifact:
             ),
             "rejection_reason": self.rejection_reason,
         }
+        if self.product:
+            doc["product"] = {"adapter": self.product.adapter, "product_type": self.product.product_type}
+        return doc
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> DatasetArtifact:
@@ -202,4 +226,7 @@ class DatasetArtifact:
                 else None
             ),
             rejection_reason=doc.get("rejection_reason"),
+            product=ProductUse(doc["product"]["adapter"], doc["product"]["product_type"])
+            if doc.get("product")
+            else None,
         )

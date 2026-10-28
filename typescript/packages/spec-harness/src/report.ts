@@ -1,5 +1,6 @@
 // The release report (§11.6, TST-006, TST-007): gates, re-derived verdicts, mutation scores, reproduction
 // result and approvals. It refuses to claim a reproducibility level whose tiers did not pass in this run.
+import type { ClaimCheck } from "./admit.ts";
 import type { TestResult } from "./junit.ts";
 import type { RatchetResult } from "./ratchet.ts";
 import type { Rederivation } from "./rederive.ts";
@@ -44,6 +45,8 @@ export interface ReleaseInputs {
   approvals?: readonly Approval[];
   /** Citations of independent confirmations; Level 4 needs at least one and is never inferred from tiers. */
   independentEvidence?: readonly string[];
+  /** Capability descriptors checked against the release's compatibility records (INT-002). */
+  claims?: readonly ClaimCheck[];
 }
 
 export interface LevelClaim {
@@ -63,6 +66,7 @@ export interface ReleaseReport {
   traceability: Traceability["summary"];
   mutation: RatchetResult | null;
   approvals: readonly Approval[];
+  claims: readonly ClaimCheck[];
 }
 
 export function tierStatuses(tests: readonly TestResult[], external: Record<string, TierStatus> = {}): Record<string, TierStatus> {
@@ -106,9 +110,17 @@ export function buildReleaseReport(inputs: ReleaseInputs): ReleaseReport {
   });
   for (const claim of levels) if (!claim.granted) blocking.push(`Level ${claim.level} claimed but ${claim.reason}`);
   for (const r of inputs.rederivations) {
-    if (r.state === "disagree") blocking.push(`${r.experimentId}: harness re-derived ${r.harnessVerdict}, kernel issued ${r.kernelVerdict}`);
+    if (r.state !== "disagree") continue;
+    const admission = r.disagreements.filter((d) => d.subject.startsWith("admission "));
+    if (!admission.length || admission.length < r.disagreements.length) {
+      blocking.push(`${r.experimentId}: harness re-derived ${r.harnessVerdict}, kernel issued ${r.kernelVerdict}`);
+    }
+    for (const u of r.unadmitted) blocking.push(`${r.experimentId}: verdict issued with ${u.adapter} not admitted for ${u.productType} (${u.reason})`);
   }
   for (const v of inputs.traceability.violations) blocking.push(`traceability: ${v.message}`);
+  for (const c of inputs.claims ?? []) {
+    for (const r of c.removed) blocking.push(`claims: ${c.sourceId} claims ${r.productType} without admission (${r.reason}); claim removed`);
+  }
   if (inputs.mutation && !inputs.mutation.ok) {
     for (const v of inputs.mutation.violations) blocking.push(`mutation: ${v.pkg} scored ${v.score}, high-water ${v.highWater}`);
     for (const pkg of inputs.mutation.missing) blocking.push(`mutation: no score for ${pkg}`);
@@ -123,6 +135,7 @@ export function buildReleaseReport(inputs: ReleaseInputs): ReleaseReport {
     traceability: inputs.traceability.summary,
     mutation: inputs.mutation ?? null,
     approvals: inputs.approvals ?? [],
+    claims: inputs.claims ?? [],
   };
 }
 
@@ -149,6 +162,16 @@ export function renderReleaseReport(report: ReleaseReport): string {
   if (report.approvals.length) {
     lines.push("", "## Approvals", "", "| Experiment | Reviewer | Verdict | Self-approval |", "|---|---|---|---|");
     for (const a of report.approvals) lines.push(`| ${a.experimentId} | ${a.reviewer} | ${a.verdict} | ${a.selfApproval ? "yes" : "no"} |`);
+  }
+  const unadmitted = report.rederivations.flatMap((r) => r.unadmitted.map((u) => ({ id: r.experimentId, ...u })));
+  if (unadmitted.length) {
+    lines.push("", "## Adapter admission", "", "| Experiment | Adapter | Product type | Why not admitted |", "|---|---|---|---|");
+    for (const u of unadmitted) lines.push(`| ${u.id} | ${u.adapter} | ${u.productType} | ${u.reason} |`);
+  }
+  const removed = report.claims.flatMap((c) => c.removed.map((r) => ({ source: c.sourceId, ...r })));
+  if (removed.length) {
+    lines.push("", "## Claims removed", "", "| Source | Product type | Why |", "|---|---|---|");
+    for (const r of removed) lines.push(`| ${r.source} | ${r.productType} | ${r.reason} |`);
   }
   const t = report.traceability;
   lines.push("", "## Requirements", "", `Covered ${t.covered}, failing ${t.failing}, untested ${t.untested}, draft ${t.draft}.`);
