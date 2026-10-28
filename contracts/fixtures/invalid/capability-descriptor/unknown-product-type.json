@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "source_id": "synthetic-mast",
+  "ivoid": "ivo://synthetic/mast/caom",
+  "title": "Synthetic MAST ObsCore",
+  "publisher": "SDP test fixtures",
+  "origin": "registry",
+  "verified_on": "2026-10-28",
+  "protocols": [
+    {
+      "standard": "TAP",
+      "version": "1.1",
+      "base_url": "https://example.invalid/mast/tap"
+    }
+  ],
+  "data_models": [
+    "ObsCore-1.1",
+    "CAOM-2.4"
+  ],
+  "product_types": [
+    "image",
+    "hologram"
+  ],
+  "missions": [
+    "JWST",
+    "HST",
+    "TESS"
+  ],
+  "instruments": [
+    "NIRCAM",
+    "NIRSPEC",
+    "MIRI",
+    "WFC3"
+  ],
+  "coverage": {
+    "all_sky": true,
+    "regions": [],
+    "t_min_mjd": null,
+    "t_max_mjd": null,
+    "em_min_m": null,
+    "em_max_m": null
+  },
+  "operations": [
+    "cone",
+    "criteria",
+    "download",
+    "product_listing"
+  ],
+  "cutout_support": {
+    "image": "per-product"
+  },
+  "access": "public",
+  "limits": {
+    "max_rows": 100000,
+    "page_size": null,
+    "requests_per_second": null,
+    "max_concurrent": null,
+    "upload": false,
+    "throughput_bytes_per_s": 5000000.0
+  },
+  "rights": {
+    "licence": "public domain",
+    "citation": "MAST",
+    "acknowledgement": "Based on observations obtained from MAST at STScI."
+  },
+  "adapter": {
+    "name": "mast-observations",
+    "version": "1.0.0",
+    "last_compatibility_check": "2026-10-28",
+    "conformance": {
+      "image": true
+    }
+  }
+}

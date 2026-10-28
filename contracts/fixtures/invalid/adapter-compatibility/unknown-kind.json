@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "adapter": "mast-observations",
+  "adapter_version": "1.0.0",
+  "product_type": "image",
+  "upstream_versions": {
+    "astropy": "7.0.0"
+  },
+  "results": [
+    {
+      "kind": "vibes",
+      "passed": true,
+      "ci_run_id": "ci-run-0"
+    },
+    {
+      "kind": "operational",
+      "passed": true,
+      "ci_run_id": "ci-run-0"
+    },
+    {
+      "kind": "semantic",
+      "passed": true,
+      "ci_run_id": "ci-run-0"
+    },
+    {
+      "kind": "scientific",
+      "passed": true,
+      "ci_run_id": "ci-run-0"
+    }
+  ],
+  "passed": true,
+  "live_smoke_on": "2026-10-28",
+  "fixture_digests": [
+    "sha256:abababababababababababababababababababababababababababababababab"
+  ]
+}

@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json",
-  "x-version": "1.1.0",
+  "x-version": "1.2.0",
   "title": "EvidenceManifest",
-  "description": "The durable contract between the kernel and the harness: one document per experiment, written atomically to the NAS and mirrored in PostgreSQL (§7).",
+  "description": "The durable contract between the kernel and the harness: one document per experiment, written atomically to the NAS and mirrored in PostgreSQL (\u00a77).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -63,6 +63,16 @@
         },
         "predeclaration": {
           "$ref": "predeclaration.schema.json"
+        },
+        "plan_artifact_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/Sha256Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -225,6 +235,12 @@
           "type": "object",
           "additionalProperties": {
             "type": "string"
+          }
+        },
+        "adapter_compatibility": {
+          "type": "array",
+          "items": {
+            "$ref": "adapter-compatibility.schema.json"
           }
         }
       },

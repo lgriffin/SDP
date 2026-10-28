@@ -1,11 +1,12 @@
 // Generated from contracts/schemas/evidence-manifest.schema.json by scripts/generate-zod.mjs. Do not edit.
 import { z } from "zod";
 import { also, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
+import * as adapterCompatibility from "./adapter-compatibility.ts";
 import * as common from "./common.ts";
 import * as predeclaration from "./predeclaration.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/evidence-manifest.schema.json";
-export const SCHEMA_VERSION = "1.1.0";
+export const SCHEMA_VERSION = "1.2.0";
 
 export const Approval = z.object({
     "ledger_entry_id": z.string(),
@@ -26,6 +27,7 @@ export const Environment = z.object({
     "platform": z.string(),
     "constants_version": z.string().nullable().optional(),
     "packages": z.record(z.string(), z.string()).optional(),
+    "adapter_compatibility": z.array(adapterCompatibility.AdapterCompatibilityRecord).optional(),
   }).strict()
   .superRefine(when(z.unknown().superRefine(ifObject(z.object({
       "backend": z.literal("cuda"),
@@ -128,6 +130,7 @@ export const EvidenceManifest = z.object({
       "predeclaration_hash": common.Sha256Id,
       "ledger_entry_id": z.string().min(1),
       "predeclaration": predeclaration.Predeclaration,
+      "plan_artifact_id": common.Sha256Id.nullable().optional(),
     }).strict(),
     "inputs": z.array(Input),
     "environment": Environment,

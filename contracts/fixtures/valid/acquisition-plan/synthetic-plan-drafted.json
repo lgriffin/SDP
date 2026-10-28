@@ -1,0 +1,323 @@
+{
+  "schema_version": "1.0.0",
+  "intent": {
+    "field": {
+      "region": {
+        "shape": "cone",
+        "ra_deg": 53.16,
+        "dec_deg": -27.78,
+        "radius_deg": 0.05
+      },
+      "epoch_jyear": 2023.0,
+      "images": [],
+      "label": "synthetic-deep-field"
+    },
+    "profile_hash": "sha256:abababababababababababababababababababababababababababababababab",
+    "planner_id": "fixture-planner",
+    "planner_version": "1.0.0",
+    "requirements": [
+      {
+        "requirement_id": "req-jwst-image",
+        "test_kind": "detect-sources",
+        "product_types": [
+          "image"
+        ],
+        "min_calibration_level": 2,
+        "missions": [
+          "JWST"
+        ],
+        "instruments": [],
+        "epoch_min_mjd": null,
+        "epoch_max_mjd": null,
+        "em_min_m": null,
+        "em_max_m": null,
+        "operations": [],
+        "needs_bytes": true,
+        "public_only": true
+      },
+      {
+        "requirement_id": "req-gaia-astrometry",
+        "test_kind": "astrometric-coherence",
+        "product_types": [
+          "catalogue"
+        ],
+        "min_calibration_level": null,
+        "missions": [],
+        "instruments": [],
+        "epoch_min_mjd": null,
+        "epoch_max_mjd": null,
+        "em_min_m": null,
+        "em_max_m": null,
+        "operations": [
+          "cone"
+        ],
+        "needs_bytes": true,
+        "public_only": true
+      }
+    ]
+  },
+  "discovery": [
+    {
+      "source_id": "synthetic-mast",
+      "requirement_id": "req-jwst-image",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers image"
+        },
+        {
+          "field": "missions",
+          "outcome": "satisfied",
+          "reason": "serves JWST"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for image"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-gaia",
+      "requirement_id": "req-jwst-image",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of image; offers catalogue"
+        },
+        {
+          "field": "missions",
+          "outcome": "unsatisfied",
+          "reason": "does not serve JWST"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-dasch",
+      "requirement_id": "req-jwst-image",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers image"
+        },
+        {
+          "field": "missions",
+          "outcome": "unsatisfied",
+          "reason": "does not serve JWST"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "partial",
+          "reason": "spatial coverage unknown"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no adapter admitted for the product types needed"
+        }
+      ],
+      "descriptor_verified_on": "2026-09-01"
+    },
+    {
+      "source_id": "synthetic-mast",
+      "requirement_id": "req-gaia-astrometry",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of catalogue; offers cube, image, spectrum, timeseries"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-gaia",
+      "requirement_id": "req-gaia-astrometry",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for catalogue"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-dasch",
+      "requirement_id": "req-gaia-astrometry",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of catalogue; offers image, timeseries"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "partial",
+          "reason": "spatial coverage unknown"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-09-01"
+    }
+  ],
+  "items": [
+    {
+      "item_id": "item-1",
+      "source_id": "synthetic-mast",
+      "operation": "download",
+      "target": "synthetic:JWST/product/jw00000-o001_t001_nircam_clear-f200w_i2d.fits",
+      "expected_bytes": 5000000,
+      "expected_rows": null,
+      "calibration_level": 3,
+      "access_status": "public",
+      "licence": "public domain",
+      "requirement_id": "req-jwst-image",
+      "test_kind": "detect-sources"
+    },
+    {
+      "item_id": "item-2",
+      "source_id": "synthetic-gaia",
+      "operation": "cone",
+      "target": "SELECT ... CONTAINS(...)",
+      "expected_bytes": 20000,
+      "expected_rows": 100,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "CC-BY-SA-3.0 IGO",
+      "requirement_id": "req-gaia-astrometry",
+      "test_kind": "astrometric-coherence"
+    }
+  ],
+  "cost": {
+    "total_bytes": 5020000,
+    "requests_per_source": {
+      "synthetic-gaia": 1,
+      "synthetic-mast": 1
+    },
+    "estimated_wall_seconds": 2.0,
+    "nas_headroom_after_bytes": null
+  },
+  "constraints": {
+    "budget": {
+      "max_bytes": 1000000000,
+      "max_requests_per_source": 50,
+      "max_wall_seconds": 3600.0,
+      "min_nas_headroom_bytes": 0,
+      "approval_threshold_bytes": 10000000
+    }
+  },
+  "gaps": [],
+  "plan_id": "sha256:49d254c534025d54f1643b2e545410b25818e98a25a4e76b2118a524ccc0825f",
+  "approval": null
+}

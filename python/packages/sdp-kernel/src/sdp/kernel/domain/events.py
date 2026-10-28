@@ -31,6 +31,11 @@ EVENT_NAMES = (
     "InvestigationPromotionRefused",
     "InvestigationClosed",
     "InvestigationAnnotated",
+    "PlanDrafted",
+    "PlanApproved",
+    "PlanRefused",
+    "PlanExecuted",
+    "AssociationReviewed",
 )
 
 
@@ -83,6 +88,12 @@ InvestigationPromoted = _event("InvestigationPromoted")
 InvestigationPromotionRefused = _event("InvestigationPromotionRefused")
 InvestigationClosed = _event("InvestigationClosed")
 InvestigationAnnotated = _event("InvestigationAnnotated")
+# Integration v0.4.0 §5, §4: the plan's lifecycle, and each reviewer decision on an association.
+PlanDrafted = _event("PlanDrafted")
+PlanApproved = _event("PlanApproved")
+PlanRefused = _event("PlanRefused")
+PlanExecuted = _event("PlanExecuted")
+AssociationReviewed = _event("AssociationReviewed")
 
 EVENT_TYPES: dict[str, type[DomainEvent]] = {
     cls.name: cls
@@ -111,6 +122,11 @@ EVENT_TYPES: dict[str, type[DomainEvent]] = {
         InvestigationPromotionRefused,
         InvestigationClosed,
         InvestigationAnnotated,
+        PlanDrafted,
+        PlanApproved,
+        PlanRefused,
+        PlanExecuted,
+        AssociationReviewed,
     )
 }
 

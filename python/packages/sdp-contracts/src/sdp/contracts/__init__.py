@@ -19,21 +19,31 @@ from jsonschema.exceptions import ValidationError
 from pydantic import BaseModel
 from referencing import Registry, Resource
 
+from sdp.contracts.v1.acquisition_plan_schema import AcquisitionPlan
+from sdp.contracts.v1.adapter_compatibility_schema import AdapterCompatibilityRecord
+from sdp.contracts.v1.association_graph_schema import AssociationGraph
 from sdp.contracts.v1.canonical_astrometry_schema import CanonicalAstrometryRow
+from sdp.contracts.v1.capability_descriptor_schema import SourceCapabilityDescriptor
 from sdp.contracts.v1.dataset_artifact_schema import DatasetArtifact
 from sdp.contracts.v1.evidence_manifest_schema import EvidenceManifest
 from sdp.contracts.v1.ledger_entry_schema import LedgerEntry
 from sdp.contracts.v1.predeclaration_schema import Predeclaration
+from sdp.contracts.v1.scientific_data_product_schema import ScientificDataProduct
 from sdp.contracts.v1.validation_report_schema import ValidationReport
 
 SCHEMA_MAJOR = 1
 
 MODELS: dict[str, type[BaseModel]] = {
+    "acquisition-plan": AcquisitionPlan,
+    "adapter-compatibility": AdapterCompatibilityRecord,
+    "association-graph": AssociationGraph,
     "canonical-astrometry": CanonicalAstrometryRow,
+    "capability-descriptor": SourceCapabilityDescriptor,
     "dataset-artifact": DatasetArtifact,
     "evidence-manifest": EvidenceManifest,
     "ledger-entry": LedgerEntry,
     "predeclaration": Predeclaration,
+    "scientific-data-product": ScientificDataProduct,
     "validation-report": ValidationReport,
 }
 

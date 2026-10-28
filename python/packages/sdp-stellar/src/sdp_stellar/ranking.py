@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
+
+from sdp.kernel.domain.investigation import RankedCandidate, RankingPolicy, TestResult, rank_by_significance
 
 WEIGHTS = {"membership": 0.35, "coherence": 0.25, "stability": 0.25, "novelty": 0.15}
 
@@ -26,3 +29,53 @@ def rank(candidates: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     for i, c in enumerate(scored, start=1):
         c["rank"] = i
     return scored
+
+
+STRUCTURE_TEST = "astrometric-coherence"
+
+
+@dataclass(frozen=True)
+class StellarCandidateRanker:
+    """The CandidateRanker above, for Investigate (Investigate §6), under the ``stellar`` policy.
+
+    A co-moving group scores as a UC-01 candidate from its structure test's result: mean membership,
+    CMD coherence and stability across the predeclared grid. A group whose structure test is not
+    significant at the policy's alpha against its null fields scores 0. Novelty needs a benchmark
+    cross-match Investigate does not run yet (deviation D26), so it is left out, and so are CMD
+    coherence and stability when the test could not assess them: the score is the weighted mean of
+    the terms assessed, in [0, 1] like a single object's significance score, so one policy
+    threshold applies to both.
+    """
+
+    ranker_id: str = "stellar-uc01"
+    structure_test: str = STRUCTURE_TEST
+
+    def rank(self, results: Sequence[TestResult], policy: RankingPolicy) -> Sequence[RankedCandidate]:
+        ranked = []
+        for candidate in rank_by_significance(results, policy):
+            subject = candidate.subject
+            if subject.structure_id is None:
+                ranked.append(candidate)
+                continue
+            structure = next((r for r in candidate.results if r.test_name == self.structure_test), None)
+            value = 0.0
+            if structure is not None and structure.p_value is not None and structure.p_value < policy.alpha:
+                membership = subject.membership or ()
+                coherence, stability = structure.details.get("cmd_coherence"), structure.details.get("stability")
+                assessed = WEIGHTS["membership"]
+                assessed += WEIGHTS["coherence"] if coherence is not None else 0.0
+                assessed += WEIGHTS["stability"] if stability is not None else 0.0
+                value = (
+                    score(
+                        {
+                            "mean_membership": sum(membership) / len(membership) if membership else 0.0,
+                            "cmd_coherence": coherence,
+                            "stability": stability or 0.0,
+                            "status": "unassessed",
+                        }
+                    )
+                    / assessed
+                )
+            ranked.append(RankedCandidate(subject, round(value, 12), candidate.results))
+        ranked.sort(key=lambda c: (-c.score, c.subject.key))
+        return ranked

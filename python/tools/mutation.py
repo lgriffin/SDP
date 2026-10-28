@@ -29,16 +29,34 @@ class Target:
     package: str
     only_mutate: tuple[str, ...]
     tests: tuple[str, ...]
+    do_not_mutate: tuple[str, ...] = ()
+
+
+#: The v0.4.0 integration cores (association, the acquisition planner, the product model) are scored
+#: by the integration work's own mutation targets, so the main train leaves them out.
+INTEGRATION = (
+    "src/sdp/kernel/domain/association.py",
+    "src/sdp/kernel/domain/integration.py",
+    "src/sdp/kernel/science/association.py",
+)
 
 
 TARGETS = {
     t.name: t
     for t in (
         Target(
-            "sdp-kernel-domain", "sdp-kernel", ("src/sdp/kernel/domain/*",), ("tests/unit/kernel", "tests/property")
+            "sdp-kernel-domain",
+            "sdp-kernel",
+            ("src/sdp/kernel/domain/*",),
+            ("tests/unit/kernel", "tests/property"),
+            INTEGRATION,
         ),
         Target(
-            "sdp-kernel-science", "sdp-kernel", ("src/sdp/kernel/science/*",), ("tests/unit/kernel", "tests/property")
+            "sdp-kernel-science",
+            "sdp-kernel",
+            ("src/sdp/kernel/science/*",),
+            ("tests/unit/kernel", "tests/property"),
+            INTEGRATION,
         ),
         Target(
             "sdp-kernel-application",
@@ -76,6 +94,7 @@ def setup_cfg(target: Target) -> str:
         f"only_mutate =\n    {only}\n"
         f"pytest_add_cli_args_test_selection =\n    {tests}\n"
         "also_copy =\n    tests\n    pytest.ini\n"
+        + (f"do_not_mutate =\n    {skip}\n" if (skip := "\n    ".join(target.do_not_mutate)) else "")
     )
 
 

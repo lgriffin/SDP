@@ -1,0 +1,459 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/scientific-data-product.schema.json",
+  "x-version": "1.0.0",
+  "title": "ScientificDataProduct",
+  "description": "A raw artifact kept byte for byte plus its ObsCore 1.1-shaped envelope and semantic validation report (v0.4.0 \u00a73, ADR-018).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "raw_artifact_id",
+    "curated_artifact_id",
+    "metadata",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "raw_artifact_id": {
+      "$ref": "common.schema.json#/$defs/Sha256Id"
+    },
+    "curated_artifact_id": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metadata": {
+      "$ref": "#/$defs/ProductMetadata"
+    },
+    "validation": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/SemanticValidationReport"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "ProductMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product_id",
+        "product_type",
+        "mission",
+        "instrument",
+        "detector",
+        "filter_or_grating",
+        "observation_id",
+        "programme_id",
+        "target_position",
+        "s_region",
+        "time",
+        "spectral_range_m",
+        "spatial_resolution_arcsec",
+        "field_of_view_deg",
+        "calibration_level",
+        "pipeline_version",
+        "format",
+        "dimensions",
+        "units",
+        "extensions",
+        "has_wcs",
+        "uncertainty_present",
+        "quality_present",
+        "access_status",
+        "exclusive_access_ends",
+        "rights",
+        "source_id",
+        "query",
+        "checksum",
+        "size_bytes",
+        "relationships",
+        "calibration_references"
+      ],
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_type": {
+          "type": "string",
+          "enum": [
+            "image",
+            "spectrum",
+            "cube",
+            "timeseries",
+            "measurements",
+            "catalogue",
+            "preview",
+            "thumbnail",
+            "auxiliary"
+          ]
+        },
+        "mission": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instrument": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filter_or_grating": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "programme_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_position": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ra_deg",
+            "dec_deg",
+            "frame"
+          ],
+          "properties": {
+            "ra_deg": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "dec_deg": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "frame": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "s_region": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start_mjd",
+            "end_mjd",
+            "scale"
+          ],
+          "properties": {
+            "start_mjd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "end_mjd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "scale": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "spectral_range_m": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "spatial_resolution_arcsec": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "field_of_view_deg": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "calibration_level": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pipeline_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "units": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "role",
+              "unit"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "data",
+                  "error",
+                  "quality",
+                  "variance",
+                  "other"
+                ]
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "has_wcs": {
+          "type": "boolean"
+        },
+        "uncertainty_present": {
+          "type": "boolean"
+        },
+        "quality_present": {
+          "type": "boolean"
+        },
+        "access_status": {
+          "type": "string",
+          "enum": [
+            "public",
+            "exclusive_access",
+            "login"
+          ]
+        },
+        "exclusive_access_ends": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "licence",
+            "citation",
+            "acknowledgement"
+          ],
+          "properties": {
+            "licence": {
+              "type": "string",
+              "minLength": 1
+            },
+            "citation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "acknowledgement": {
+              "type": "string"
+            }
+          }
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "query": {
+          "type": "string"
+        },
+        "checksum": {
+          "$ref": "common.schema.json#/$defs/Sha256Id"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "semantics",
+              "product_id",
+              "description"
+            ],
+            "properties": {
+              "semantics": {
+                "type": "string",
+                "enum": [
+                  "#this",
+                  "#progenitor",
+                  "#auxiliary",
+                  "#preview",
+                  "#calibration",
+                  "#derivation"
+                ]
+              },
+              "product_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "calibration_references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "keyword",
+              "file"
+            ],
+            "properties": {
+              "keyword": {
+                "type": "string",
+                "minLength": 1
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "SemanticValidationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product_id",
+        "validator_id",
+        "validator_version",
+        "passed",
+        "checks"
+      ],
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validator_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validator_version": {
+          "$ref": "common.schema.json#/$defs/SchemaVersion"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "passed",
+              "detail"
+            ],
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

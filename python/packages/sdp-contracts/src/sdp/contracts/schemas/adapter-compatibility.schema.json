@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/adapter-compatibility.schema.json",
+  "x-version": "1.0.0",
+  "title": "AdapterCompatibilityRecord",
+  "description": "Four-kind conformance for one adapter and one product type, carried in the manifest's environment group and checked by the harness before any verdict (v0.4.0 \u00a76, ADR-021).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "adapter",
+    "adapter_version",
+    "product_type",
+    "upstream_versions",
+    "results",
+    "passed",
+    "live_smoke_on",
+    "fixture_digests"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "adapter": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_version": {
+      "$ref": "common.schema.json#/$defs/SchemaVersion"
+    },
+    "product_type": {
+      "type": "string",
+      "enum": [
+        "image",
+        "spectrum",
+        "cube",
+        "timeseries",
+        "measurements",
+        "catalogue"
+      ]
+    },
+    "upstream_versions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "passed",
+          "ci_run_id"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "operational",
+              "semantic",
+              "scientific"
+            ]
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "ci_run_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "live_smoke_on": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fixture_digests": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Sha256Id"
+      }
+    }
+  }
+}
