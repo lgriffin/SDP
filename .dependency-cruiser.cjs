@@ -16,6 +16,13 @@ module.exports = {
       to: { path: "^typescript/packages/(?!evidence-ui/|contracts/)" },
     },
     {
+      name: "relativity-fit-is-independent",
+      comment: "REL-007: the second fitter shares no code with anything else in the workspace.",
+      severity: "error",
+      from: { path: "^typescript/packages/relativity-fit/" },
+      to: { path: "^typescript/packages/(?!relativity-fit/)" },
+    },
+    {
       name: "contracts-import-nothing-from-the-workspace",
       severity: "error",
       from: { path: "^typescript/packages/contracts/" },

@@ -1,0 +1,20 @@
+{
+  "name": "@sdp/relativity-fit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The independent implementation of the UC-02 deflection fitter (REL-007), written from the specification, not the Python code",
+  "bin": { "relativity-fit": "./src/cli.ts" },
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "fit": "node src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "fast-check": "3.23.2",
+    "typescript": "5.8.3",
+    "vitest": "2.1.8"
+  }
+}

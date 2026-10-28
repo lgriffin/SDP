@@ -10,6 +10,7 @@ Driven adapters for the kernel's ports (§6). Each one passes the same contract 
 | `Ledger` | `ledger.git.GitSignedLedger` | `<kind>s.jsonl`, one hash chain, Ed25519 signatures from an OpenSSH key, checked against `allowed_signers`; optional commit per entry |
 | `ComputeExecutor` | `compute.cpu.CpuExecutor` | The kernel's reference loop with BLAS/OpenMP threads pinned |
 | `Clock`, `IdGenerator`, `Hasher`, `EnvironmentProbe` | `system` | ULIDs; Git revision, `uv.lock` digest, image digest and CUDA versions |
+| `HistoricalSourceGateway` | `historical.filesystem.FilesystemHistoricalSources` | `<doc>/document.json`, page scans, append-only `transcriptions.jsonl` and `verifications.jsonl`; a correction is a non-matching verification, never an edit (REL-001) |
 | `ExperimentTracker` | `telemetry.prometheus.PrometheusTextfileTracker` | node_exporter textfiles for Grafana, plus `sdp_gpu.prom` from `nvidia-smi` (NFR-010) |
 
 `logs.configure_logging` emits one JSON object per line with every `extra` the kernel attaches (NFR-005). `bootstrap.build_application(Settings.from_env())` is the composition root the CLI and API share; it is the only module that imports more than one adapter (import-linter enforces it).

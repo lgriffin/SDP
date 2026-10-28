@@ -1,0 +1,584 @@
+{
+ "implementation": {
+  "name": "sdp_relativity.fitter",
+  "language": "Python"
+ },
+ "fits": [
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8834497528058474,
+   "sigma_alpha_arcsec": 0.07862179771217223,
+   "loglik": 49.42595878065384
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.887694746139044,
+   "sigma_alpha_arcsec": 0.07914208206298311,
+   "loglik": 49.67512829666552
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8834497528058474,
+   "sigma_alpha_arcsec": 0.07862179771217223,
+   "loglik": 49.42595878065384
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.887694746139044,
+   "sigma_alpha_arcsec": 0.07914208206298311,
+   "loglik": 49.67512829666552
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.7785291422294904,
+   "sigma_alpha_arcsec": 0.0486693585585956,
+   "loglik": 23.064843302702542
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.7585540379513378,
+   "sigma_alpha_arcsec": 0.051400063263371515,
+   "loglik": 31.768682798725592
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8534045200006746,
+   "sigma_alpha_arcsec": 0.07141307182025948,
+   "loglik": 35.416129130126876
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.8512154534218348,
+   "sigma_alpha_arcsec": 0.0737498174077579,
+   "loglik": 37.73257356872483
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8834497528058518,
+   "sigma_alpha_arcsec": 0.11656485171096534,
+   "loglik": 48.063639842638906
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.884225272332142,
+   "sigma_alpha_arcsec": 0.11138589871310563,
+   "loglik": 40.24690897197928
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8834497528058518,
+   "sigma_alpha_arcsec": 0.11656485171096534,
+   "loglik": 48.063639842638906
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.884225272332142,
+   "sigma_alpha_arcsec": 0.11138589871310563,
+   "loglik": 40.24690897197928
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.7785291422294907,
+   "sigma_alpha_arcsec": 0.07215729897221847,
+   "loglik": 36.07100825765775
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.7687425870443716,
+   "sigma_alpha_arcsec": 0.07093441910927736,
+   "loglik": 29.742533956129904
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8344128143455354,
+   "sigma_alpha_arcsec": 0.0984239524634577,
+   "loglik": 38.77581517602022
+  },
+  {
+   "instrument": "sobral-4in",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.8311205978725271,
+   "sigma_alpha_arcsec": 0.09546604421610029,
+   "loglik": 31.37749438530622
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.6147010636694834,
+   "sigma_alpha_arcsec": 0.2031698271685433,
+   "loglik": -60.46538289465943
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.633130912968271,
+   "sigma_alpha_arcsec": 0.20273645596337908,
+   "loglik": -44.59757849059329
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.6147010636694834,
+   "sigma_alpha_arcsec": 0.2031698271685433,
+   "loglik": -60.46538289465943
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.633130912968271,
+   "sigma_alpha_arcsec": 0.20273645596337908,
+   "loglik": -44.59757849059329
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.411508277987682,
+   "sigma_alpha_arcsec": 0.10052116898261206,
+   "loglik": -94.77252103390563
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.33912913154113,
+   "sigma_alpha_arcsec": 0.10047545545493876,
+   "loglik": -66.1344661984044
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.135714805146401,
+   "sigma_alpha_arcsec": 0.14484977420498163,
+   "loglik": -85.6989271500126
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.07695718039298,
+   "sigma_alpha_arcsec": 0.14350516943444083,
+   "loglik": -63.35319667318345
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.614701063669494,
+   "sigma_alpha_arcsec": 0.30122003649348195,
+   "loglik": -49.75753067449318
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.6345124168443537,
+   "sigma_alpha_arcsec": 0.28717091566636366,
+   "loglik": -58.53014136571079
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.614701063669494,
+   "sigma_alpha_arcsec": 0.30122003649348195,
+   "loglik": -49.75753067449318
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.6345124168443537,
+   "sigma_alpha_arcsec": 0.28717091566636366,
+   "loglik": -58.53014136571079
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.4115082779876835,
+   "sigma_alpha_arcsec": 0.14903290814039719,
+   "loglik": -65.36509738703094
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.3509570379196725,
+   "sigma_alpha_arcsec": 0.1422565270726342,
+   "loglik": -70.8478720806309
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.2565512940340833,
+   "sigma_alpha_arcsec": 0.18879654928565653,
+   "loglik": -63.943554513201036
+  },
+  {
+   "instrument": "sobral-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.196308280297101,
+   "sigma_alpha_arcsec": 0.17945551184937145,
+   "loglik": -70.39956743567868
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.26067440090913,
+   "sigma_alpha_arcsec": 0.44953152781011285,
+   "loglik": -1.309428851458808
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.191255127645812,
+   "sigma_alpha_arcsec": 0.4218284326510882,
+   "loglik": -2.8639553647848963
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.26067440090913,
+   "sigma_alpha_arcsec": 0.44953152781011285,
+   "loglik": -1.309428851458808
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.191255127645812,
+   "sigma_alpha_arcsec": 0.4218284326510882,
+   "loglik": -2.8639553647848963
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8775906042494164,
+   "sigma_alpha_arcsec": 0.25277618230698057,
+   "loglik": -4.958229103054695
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.8923173638097976,
+   "sigma_alpha_arcsec": 0.24127995340913833,
+   "loglik": -5.874299614086905
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.9557082283542158,
+   "sigma_alpha_arcsec": 0.2905859670820388,
+   "loglik": -5.349091040516303
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "probable_as_standard",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.963907070847115,
+   "sigma_alpha_arcsec": 0.2777294290185695,
+   "loglik": -6.2490258656741275
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.260674400909132,
+   "sigma_alpha_arcsec": 0.6664764404194863,
+   "loglik": -5.364446883012839
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.224054451155845,
+   "sigma_alpha_arcsec": 0.6111443377992498,
+   "loglik": -7.064693657914386
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 2.260674400909132,
+   "sigma_alpha_arcsec": 0.6664764404194863,
+   "loglik": -5.364446883012839
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "solved",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 2.224054451155845,
+   "sigma_alpha_arcsec": 0.6111443377992498,
+   "loglik": -7.064693657914386
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.8775906042494157,
+   "sigma_alpha_arcsec": 0.3747665286737059,
+   "loglik": -7.024419018151669
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "independent",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.8831458109664452,
+   "sigma_alpha_arcsec": 0.3462638455026356,
+   "loglik": -8.734126978332093
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "gaussian"
+   },
+   "alpha_arcsec": 1.916358318172996,
+   "sigma_alpha_arcsec": 0.40356052330915276,
+   "loglik": -7.274638677585884
+  },
+  {
+   "instrument": "principe-astro",
+   "scenario": {
+    "error_convention": "converted",
+    "plate_scale": "fixed_from_check_plates",
+    "error_correlation": "per_plate",
+    "likelihood": "student_t"
+   },
+   "alpha_arcsec": 1.920130826141172,
+   "sigma_alpha_arcsec": 0.3729487701790544,
+   "loglik": -8.977930276842034
+  }
+ ]
+}

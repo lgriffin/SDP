@@ -3,7 +3,7 @@ name = "sdp-workspace"
 version = "0.1.0"
 description = "SDP uv workspace root"
 requires-python = ">=3.12"
-dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api"]
+dependencies = ["sdp-kernel", "sdp-contracts", "sdp-adapters", "sdp-cli", "sdp-api", "sdp-relativity"]
 
 [dependency-groups]
 dev = [
@@ -29,6 +29,7 @@ sdp-contracts = { workspace = true }
 sdp-adapters = { workspace = true }
 sdp-cli = { workspace = true }
 sdp-api = { workspace = true }
+sdp-relativity = { workspace = true }
 
 [tool.uv]
 package = false
@@ -76,16 +77,16 @@ python_version = "3.12"
 strict = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src"]
+mypy_path = ["packages/sdp-kernel/src", "packages/sdp-contracts/src", "packages/sdp-adapters/src", "packages/sdp-cli/src", "packages/sdp-api/src", "packages/sdp-relativity/src"]
 plugins = []
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["astropy.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*"]
+module = ["astropy.*", "scipy.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
-root_packages = ["sdp"]
+root_packages = ["sdp", "sdp_relativity"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -119,4 +120,11 @@ modules = [
   "sdp.adapters.ledger",
   "sdp.adapters.compute",
   "sdp.adapters.telemetry",
+  "sdp.adapters.historical",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Science modules import only the kernel's domain, science and testing seams (§4, KRN-011)"
+type = "forbidden"
+source_modules = ["sdp_relativity"]
+forbidden_modules = ["sdp.adapters", "sdp.cli", "sdp.api", "sdp.kernel.application", "sdp.kernel.ports.repositories", "psycopg", "httpx"]
