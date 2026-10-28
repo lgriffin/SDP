@@ -9,6 +9,7 @@ a parser compromised by a hostile document gains nothing in the parent process.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from sdp.adapters.archives.votable import TapQueryError
 
 MAX_DOCUMENT_BYTES = 512 * 1024**2
 TAP_ERROR_EXIT = 3
+_DECLARATION = re.compile(rb"<!\s*(DOCTYPE|ENTITY)", re.IGNORECASE)
 
 
 class UntrustedInput(ValueError):
@@ -31,16 +33,9 @@ def validate_votable(body: bytes, max_bytes: int = MAX_DOCUMENT_BYTES) -> None:
     head = body[:4096].lstrip(b"\xef\xbb\xbf \t\r\n")
     if not head.startswith((b"<?xml", b"<VOTABLE")):
         raise UntrustedInput("response is not an XML VOTable document")
-    upper = body[:65536].upper()
-    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+    # the whole (bounded) document, so a long valid prefix cannot push a DTD past the check
+    if _DECLARATION.search(body):
         raise UntrustedInput("VOTable documents carry no DTD; refusing a document that declares one")
-
-
-def _limits(memory_bytes: int, cpu_seconds: int) -> None:  # pragma: no cover - runs in the child
-    import resource
-
-    resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
 
 
 @dataclass(frozen=True)
@@ -51,22 +46,12 @@ class IsolatedVotableParser:
 
     def __call__(self, body: bytes) -> pa.Table:
         validate_votable(body)
-        preexec = None
-        if sys.platform.startswith("linux"):
-            memory, cpu = self.memory_bytes, self.cpu_seconds
-
-            def preexec() -> None:  # pragma: no cover - runs in the child
-                _limits(memory, cpu)
-
+        # the child sets its own limits before importing the parser: no preexec_fn, which can
+        # deadlock between fork and exec in a threaded parent such as the API server
+        command = [sys.executable, "-I", "-m", "sdp.adapters.archives.isolated_parse"]
+        command += ["--memory", str(self.memory_bytes), "--cpu", str(self.cpu_seconds)]
         try:
-            done = subprocess.run(
-                [sys.executable, "-I", "-m", "sdp.adapters.archives.isolated_parse"],
-                input=body,
-                capture_output=True,
-                timeout=self.timeout_s,
-                preexec_fn=preexec,
-                check=False,
-            )
+            done = subprocess.run(command, input=body, capture_output=True, timeout=self.timeout_s, check=False)
         except subprocess.TimeoutExpired as exc:
             raise UntrustedInput(f"VOTable parsing exceeded {self.timeout_s:.0f} s") from exc
         message = done.stderr.decode("utf-8", "replace").strip().splitlines()

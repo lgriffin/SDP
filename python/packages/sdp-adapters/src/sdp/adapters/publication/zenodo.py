@@ -9,6 +9,7 @@ sent only in the Authorization header (NFR-009).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import urllib.error
@@ -44,14 +45,22 @@ class HttpClient(Protocol):
     def request(self, method: str, url: str, headers: Mapping[str, str], body: bytes = b"") -> Response: ...
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """urllib forwards the Authorization header on a redirect, so a redirect is an error here."""
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+        return None
+
+
 class UrllibClient:
     def __init__(self, timeout_s: float = 120.0) -> None:
         self.timeout_s = timeout_s
+        self._opener = urllib.request.build_opener(_NoRedirect())
 
     def request(self, method: str, url: str, headers: Mapping[str, str], body: bytes = b"") -> Response:
         req = urllib.request.Request(url, data=body or None, method=method, headers=dict(headers))
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
+            with self._opener.open(req, timeout=self.timeout_s) as r:
                 return Response(r.status, r.read())
         except urllib.error.HTTPError as e:
             return Response(e.code, e.read())
@@ -83,8 +92,6 @@ class ZenodoPublisher:
     def __post_init__(self) -> None:
         if not self.token.strip():
             raise PublicationError("a Zenodo access token is required")
-        if not self.creators:
-            raise PublicationError("Zenodo needs at least one creator; set SDP_ZENODO_CREATORS")
 
     @property
     def sandbox(self) -> bool:
@@ -93,10 +100,20 @@ class ZenodoPublisher:
     def _headers(self, content_type: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token}", "Content-Type": content_type, "Accept": "application/json"}
 
+    def _origin(self, url: str) -> tuple[str, str]:
+        parts = urllib.parse.urlsplit(url)
+        return parts.scheme, parts.netloc.lower()
+
     def _call(self, method: str, url: str, body: bytes, content_type: str, ok: tuple[int, ...]) -> Any:
-        response = self.client.request(method, url, self._headers(content_type), body)
+        # the token goes only to the configured service, whatever a response says the next URL is
+        if self._origin(url) != self._origin(self.base_url) or self._origin(url)[0] != "https":
+            raise PublicationError(f"refusing to send the Zenodo token to {self._origin(url)[1] or url!r}")
+        try:
+            response = self.client.request(method, url, self._headers(content_type), body)
+        except (OSError, urllib.error.URLError) as exc:
+            raise PublicationError(f"Zenodo {method} {urllib.parse.urlsplit(url).path}: {exc}") from exc
         if response.status not in ok:
-            detail = response.body[:500].decode("utf-8", "replace")
+            detail = response.body[:500].decode("utf-8", "replace").replace(self.token, "[token]")
             raise PublicationError(
                 f"Zenodo {method} {urllib.parse.urlsplit(url).path}: HTTP {response.status}: {detail}"
             )
@@ -122,21 +139,35 @@ class ZenodoPublisher:
         return doc
 
     def publish(self, bundle: bytes, filename: str, metadata: Mapping[str, Any]) -> DoiRecord:
+        if not self.creators:
+            raise PublicationError("Zenodo needs at least one creator; set SDP_ZENODO_CREATORS")
         base = self.base_url.rstrip("/")
         deposition = self._call("POST", f"{base}/api/deposit/depositions", b"{}", "application/json", (201,))
         dep_id = str(deposition["id"])
-        bucket = deposition["links"]["bucket"]
-        uploaded = self._call(
-            "PUT", f"{bucket}/{urllib.parse.quote(filename)}", bundle, "application/octet-stream", (200, 201)
-        )
-        expected = "md5:" + hashlib.md5(bundle, usedforsecurity=False).hexdigest()
-        if uploaded.get("checksum") != expected:
-            raise PublicationError(f"Zenodo stored {uploaded.get('checksum')} for {filename}, expected {expected}")
-        body = json.dumps({"metadata": self.metadata(metadata)}).encode()
-        self._call("PUT", f"{base}/api/deposit/depositions/{dep_id}", body, "application/json", (200,))
-        published = self._call(
-            "POST", f"{base}/api/deposit/depositions/{dep_id}/actions/publish", b"", "application/json", (202,)
-        )
+        dep_url = f"{base}/api/deposit/depositions/{dep_id}"
+        try:
+            bucket = deposition["links"]["bucket"]
+            uploaded = self._call(
+                "PUT", f"{bucket}/{urllib.parse.quote(filename)}", bundle, "application/octet-stream", (200, 201)
+            )
+            expected = "md5:" + hashlib.md5(bundle, usedforsecurity=False).hexdigest()
+            if uploaded.get("checksum") != expected:
+                raise PublicationError(f"Zenodo stored {uploaded.get('checksum')} for {filename}, expected {expected}")
+            body = json.dumps({"metadata": self.metadata(metadata)}).encode()
+            self._call("PUT", dep_url, body, "application/json", (200,))
+        except PublicationError as exc:
+            # nothing is published yet, so the draft goes rather than lingering as an orphan
+            with contextlib.suppress(PublicationError):
+                self._call("DELETE", dep_url, b"", "application/json", (201, 204))
+            raise PublicationError(f"deposition {dep_id}: {exc}") from exc
+        try:
+            published = self._call("POST", f"{dep_url}/actions/publish", b"", "application/json", (202,))
+        except PublicationError as exc:
+            # a lost reply may hide a publication that happened: ask before anyone retries and mints a second DOI
+            state = self._call("GET", dep_url, b"", "application/json", (200,))
+            if not (state.get("submitted") and state.get("doi")):
+                raise PublicationError(f"deposition {dep_id} is a draft and was not published: {exc}") from exc
+            published = state
         doi = str(published.get("doi") or "")
         if not doi:
             raise PublicationError(f"Zenodo published deposition {dep_id} without a DOI")

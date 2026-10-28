@@ -39,6 +39,13 @@ def test_implausible_documents_are_refused_before_any_parser_sees_them(body: byt
         validate_votable(body, max_bytes=1024)
 
 
+def test_a_dtd_after_a_long_valid_prefix_is_still_refused() -> None:
+    body = b"<?xml version='1.0'?><VOTABLE>" + b"<!-- padding -->" * 8192 + b"<!doctype x [<!ENTITY a 'a'>]>"
+    assert len(body) > 65536
+    with pytest.raises(UntrustedInput, match="no DTD"):
+        validate_votable(body)
+
+
 def test_the_isolated_parser_returns_what_the_in_process_parser_does() -> None:
     body = to_votable(SMALL)
     assert IsolatedVotableParser()(body).equals(parse(body))

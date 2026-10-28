@@ -4,8 +4,10 @@
 
 Each target copies its package's ``src`` and the tests that exercise it into a scratch directory,
 because mutmut expects a single ``src`` layout and a uv workspace spreads ``sdp`` over several.
-The score is killed / (killed + survived + timeout) in percent; mutants no test reaches count as
-survived, so an untested line lowers the score. spec-harness ratchet compares the scores with the
+The score is (killed + timeout) / (killed + timeout + survived + no_tests) in percent, the same
+accounting as typescript/tools/stryker-scores.mjs: a mutant that hangs the tests is detected, and one
+no test reaches counts against the score, so an untested line lowers it. A run that reaches no
+mutant at all is an error, never a score of 0. spec-harness ratchet compares the scores with the
 recorded high-water marks.
 """
 
@@ -99,8 +101,11 @@ def setup_cfg(target: Target) -> str:
 
 
 def score(stats: dict[str, int]) -> float:
-    reached = stats.get("killed", 0) + stats.get("survived", 0) + stats.get("timeout", 0) + stats.get("no_tests", 0)
-    return round(100.0 * stats.get("killed", 0) / reached, 2) if reached else 0.0
+    detected = stats.get("killed", 0) + stats.get("timeout", 0)
+    reached = detected + stats.get("survived", 0) + stats.get("no_tests", 0)
+    if not reached:
+        raise RuntimeError(f"mutmut reached no mutants ({stats}); the baseline tests or the run failed")
+    return round(100.0 * detected / reached, 2)
 
 
 def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
@@ -119,12 +124,16 @@ def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
             shutil.copytree(ROOT / path, work / path, ignore=shutil.ignore_patterns("__pycache__"))
         (work / "pytest.ini").write_text(PYTEST_INI)
         (work / "setup.cfg").write_text(setup_cfg(target))
-        subprocess.run(
+        done = subprocess.run(
             [sys.executable, "-m", "mutmut", "run", "--max-children", str(children)],
             cwd=work,
             check=False,
-            stdout=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
         )
+        # mutmut exits non-zero when mutants survive, so the status alone does not mean failure;
+        # the tail stays in the log so a failed baseline can be diagnosed
+        print("\n".join((done.stdout + done.stderr).splitlines()[-40:]), flush=True)
         subprocess.run([sys.executable, "-m", "mutmut", "export-cicd-stats"], cwd=work, check=True)
         stats = json.loads((work / "mutants" / "mutmut-cicd-stats.json").read_text())
     return score(stats), stats
