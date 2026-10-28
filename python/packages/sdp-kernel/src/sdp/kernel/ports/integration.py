@@ -9,7 +9,7 @@ contract suite in ``sdp.testing``.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Protocol
 
@@ -23,7 +23,8 @@ from sdp.kernel.domain.integration import (
     SemanticValidationReport,
     SourceCapabilityDescriptor,
 )
-from sdp.kernel.domain.investigation import Field, TestProfile
+from sdp.kernel.domain.investigation import FetchedProduct, Field, TestProfile
+from sdp.kernel.ports.investigate import CuratedProduct
 
 # ---------------------------------------------------------------------------------------------
 # Driven ports
@@ -72,25 +73,37 @@ class AssociationService(Protocol):
 
 @dataclass(frozen=True)
 class RawProduct:
-    """What a normaliser reads: the raw bytes as served, and the two metadata rows recorded for it."""
+    """What a normaliser reads: the product as Investigate fetched it, its registered raw artifact,
+    and the metadata rows recorded for it (v0.4.0 §3)."""
 
+    fetched: FetchedProduct
     raw_artifact_id: str
-    data: bytes
-    media_type: str
-    source_id: str
+    """The SHA-256 the kernel computed from ``fetched.data`` when it registered the raw artifact."""
     rendered_query: str
-    inventory_row: Mapping[str, Any]
+    inventory_row: Mapping[str, Any] = field(default_factory=dict)
     """The archive's product-inventory row (``productType``, ``calib_level``, ``dataRights``, ...)."""
-    obscore_row: Mapping[str, Any]
+    obscore_row: Mapping[str, Any] = field(default_factory=dict)
     """The ObsCore row from the service's ObsTAP view, empty when the service has none."""
+    links: tuple[Mapping[str, Any], ...] = ()
+    """DataLink rows for the product (``semantics``, ``access_url`` or ``ID``, ``description``)."""
+
+    @property
+    def data(self) -> bytes:
+        return self.fetched.data
+
+    @property
+    def source_id(self) -> str:
+        return self.fetched.product.archive
 
 
 class ProductNormalizer(Protocol):
     """Fills the ObsCore-shaped envelope from ObsCore, inventory and FITS keywords (v0.4.0 §3).
 
     A dialect in the v0.3.0 sense, one per mission and release. It extends the Investigate
-    ``ProductDialect``: ``curate`` stays the dialect's, ``normalize`` adds the envelope.
+    ``ProductDialect``: ``curate`` stays the dialect's, ``normalize`` adds the envelope (D33).
     """
+
+    def curate(self, product_type: str, raw: FetchedProduct) -> CuratedProduct | None: ...
 
     @property
     def dialect_id(self) -> str: ...

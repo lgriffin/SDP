@@ -58,6 +58,10 @@ export const ProductMetadata = z.object({
       "product_id": z.string().min(1),
       "description": z.string(),
     }).strict()),
+    "calibration_references": z.array(z.object({
+      "keyword": z.string().min(1),
+      "file": z.string().min(1),
+    }).strict()),
   }).strict();
 export type ProductMetadata = z.infer<typeof ProductMetadata>;
 

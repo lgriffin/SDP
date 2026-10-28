@@ -79,7 +79,8 @@
         "query",
         "checksum",
         "size_bytes",
-        "relationships"
+        "relationships",
+        "calibration_references"
       ],
       "properties": {
         "product_id": {
@@ -376,6 +377,27 @@
               },
               "description": {
                 "type": "string"
+              }
+            }
+          }
+        },
+        "calibration_references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "keyword",
+              "file"
+            ],
+            "properties": {
+              "keyword": {
+                "type": "string",
+                "minLength": 1
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
               }
             }
           }

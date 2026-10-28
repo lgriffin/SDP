@@ -58,7 +58,7 @@ requirements:
     rationale: "Curation preserves what the science reads."
     verification: test
     tiers: [T5s]
-    status: draft
+    status: approved
     traces: []
   - id: INT-008
     pattern: unwanted
