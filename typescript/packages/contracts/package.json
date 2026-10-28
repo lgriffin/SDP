@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Zod schemas generated from contracts/schemas, plus canonical JSON (RFC 8785)",
+  "description": "Zod schemas generated from contracts/schemas, GraphQL types from contracts/graphql, plus canonical JSON (RFC 8785)",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "codegen": "node scripts/generate-zod.mjs",
+    "codegen": "node scripts/generate-zod.mjs && node scripts/generate-graphql.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "22.10.2",
+    "graphql": "16.9.0",
     "typescript": "5.8.3",
     "vitest": "2.1.8"
   }

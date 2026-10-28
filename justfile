@@ -29,13 +29,25 @@ guard base="origin/main":
 
 # Python static checks: ruff, mypy strict, import-linter
 lint:
-    cd python && uv run ruff check . && uv run ruff format --check . && uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src tests && uv run lint-imports
+    cd python && uv run ruff check . && uv run ruff format --check . && uv run mypy packages/sdp-kernel/src packages/sdp-contracts/src packages/sdp-adapters/src packages/sdp-cli/src packages/sdp-api/src tests && uv run lint-imports
 
 # Python tiers T0-T4 (no live archives, no GPU)
 pytest *args:
     cd python && uv run pytest -q -m "not integration and not live and not gpu" --junitxml=../reports/junit-python.xml {{args}}
 
-# Regenerate Pydantic and Zod bindings from contracts/schemas
+# Tier T5: real adapters on PostgreSQL. Needs SDP_TEST_DATABASE_URL (a server where you may create databases)
+integration *args:
+    cd python && SDP_REQUIRE_DATABASE=1 uv run pytest -q -m integration --junitxml=../reports/junit-python-integration.xml {{args}}
+
+# Apply pending database migrations (SDP_DATABASE_URL)
+migrate:
+    cd python && uv run sdp db migrate
+
+# Serve the GraphQL API and health endpoint from the environment's settings
+api:
+    cd python && uv run sdp-api
+
+# Regenerate Pydantic, Zod and GraphQL bindings from contracts/schemas
 codegen:
     contracts/tools/generate.sh
 
@@ -48,4 +60,4 @@ ts:
     pnpm lint && pnpm -r typecheck && CI=true pnpm -r test
 
 # Stages 1-2 of §11.7
-test: contracts ears codegen-check lint pytest ts cross-language trace
+test: contracts ears codegen-check lint pytest integration ts cross-language trace

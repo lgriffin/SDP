@@ -60,7 +60,7 @@ def test_domain_is_pure() -> None:
 
 @pytest.mark.req("TST-005")
 def test_no_mocks_or_pickle_in_kernel_or_fakes() -> None:
-    for package in ("sdp.kernel", "sdp.testing", "sdp.contracts"):
+    for package in ("sdp.kernel", "sdp.testing", "sdp.contracts", "sdp.adapters", "sdp.cli", "sdp.api"):
         (
             archrule(f"fakes, not mocks; no pickle ({package})")
             .match(f"{package}*")
@@ -77,3 +77,28 @@ def test_import_linter_contracts_are_kept() -> None:
     root = Path(__file__).resolve().parents[2]
     result = subprocess.run([lint_imports], cwd=root, capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.req("NFR-006")
+def test_adapters_never_import_test_fakes() -> None:
+    (
+        archrule("production adapters do not depend on sdp.testing")
+        .match("sdp.adapters*")
+        .should_not_import("sdp.testing*")
+        .check("sdp.adapters")
+    )
+
+
+def test_driving_adapters_reach_infrastructure_only_through_bootstrap() -> None:
+    for package in ("sdp.cli", "sdp.api"):
+        (
+            archrule(f"{package} wires adapters only through sdp.adapters.bootstrap and settings")
+            .match(f"{package}*")
+            .should_not_import(
+                "sdp.adapters.postgres.__init__",
+                "sdp.adapters.storage*",
+                "sdp.adapters.ledger*",
+                "sdp.adapters.compute*",
+            )
+            .check(package)
+        )

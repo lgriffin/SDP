@@ -1,11 +1,13 @@
-// Boundary schemas generated from contracts/schemas (ADR-007), and canonical JSON.
+// Boundary schemas generated from contracts/schemas (ADR-007), GraphQL query types generated from
+// contracts/graphql/schema.graphql (CTR-005), and canonical JSON.
 import type { z } from "zod";
 
 import * as generated from "./generated/index.ts";
+import * as graphql from "./graphql/generated.ts";
 import { leafIssues } from "./refinements.ts";
 
 export * from "./canonical.ts";
-export { generated };
+export { generated, graphql };
 export { leafIssues } from "./refinements.ts";
 
 export const SCHEMA_MAJOR = 1;

@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS prov_relations;
+DROP TABLE IF EXISTS prov_nodes;
+DROP TRIGGER IF EXISTS events_append_only ON events;
+DROP TRIGGER IF EXISTS events_notify ON events;
+DROP FUNCTION IF EXISTS refuse_event_change();
+DROP FUNCTION IF EXISTS notify_event();
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS datasets;
+DROP TABLE IF EXISTS dossiers;
+DROP TABLE IF EXISTS experiments;
+DROP TABLE IF EXISTS frozen_predeclarations;
+DROP TABLE IF EXISTS predeclaration_drafts;
+DROP TABLE IF EXISTS hypotheses;
