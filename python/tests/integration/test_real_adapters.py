@@ -7,6 +7,8 @@ its real adapter fails (or the reverse) shows up as a failure in exactly one of 
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import replace
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,7 @@ from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.historical.filesystem import FilesystemHistoricalSources
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.postgres import PostgresDatabase, PostgresDatasetRepository
+from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import Sha256Hasher, SystemClock, UlidGenerator
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker
@@ -24,10 +27,12 @@ from sdp.testing.contracts.artifact_store import ArtifactStoreContract
 from sdp.testing.contracts.compute import ComputeExecutorContract
 from sdp.testing.contracts.dataset_repository import DatasetRepositoryContract
 from sdp.testing.contracts.historical_sources import HistoricalSourcesContract
+from sdp.testing.contracts.integration import CapabilityRegistryContract, RegistryCase
 from sdp.testing.contracts.investigate import InvestigationRepositoryContract, sample_investigation, sample_set
 from sdp.testing.contracts.ledger import LedgerContract
 from sdp.testing.contracts.metadata import UnitOfWorkContract
 from sdp.testing.contracts.misc import DeterminismContract, TrackerContract
+from sdp.testing.integration import registry_descriptors
 
 from .keys import write_signing_key
 
@@ -116,3 +121,23 @@ class TestPostgresInvestigations(InvestigationRepositoryContract):
             uow.commit()
         with psycopg.connect(database_url, autocommit=True) as conn, pytest.raises(psycopg.errors.RaiseException):
             conn.execute("DELETE FROM investigations WHERE investigation_id = 'inv-kept'")
+
+
+class TestPostgresCapabilityRegistry(CapabilityRegistryContract):
+    @pytest.fixture
+    def capability_registry_case(self, database_url: str) -> RegistryCase:
+        return RegistryCase(PostgresCapabilityRegistry(database_url), registry_descriptors())
+
+    @pytest.mark.req("INT-018")
+    def test_every_past_descriptor_stays_readable_and_rows_are_never_edited(self, database_url: str) -> None:
+        registry = PostgresCapabilityRegistry(database_url)
+        first = registry_descriptors()[0]
+        newer = replace(first, verified_on=date(2030, 1, 1))
+        registry.put(first)
+        registry.put(newer)
+        assert [d.verified_on for d in registry.history(first.source_id)] == [first.verified_on, newer.verified_on]
+        with psycopg.connect(database_url, autocommit=True) as conn:
+            with pytest.raises(psycopg.errors.RaiseException, match="never edited"):
+                conn.execute("UPDATE capability_descriptors SET verified_on = '2000-01-01'")
+            with pytest.raises(psycopg.errors.RaiseException, match="retained"):
+                conn.execute("DELETE FROM capability_descriptors")

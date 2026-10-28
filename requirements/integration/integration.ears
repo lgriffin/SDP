@@ -132,3 +132,19 @@ requirements:
     tiers: [T1, harness]
     status: approved
     traces: []
+  - id: INT-017
+    pattern: ubiquitous
+    text: "The Investigate SourceRegistry shall list only VO services that have a registered SourceCapabilityDescriptor and whose recorded coverage does not exclude the field."
+    rationale: "A source is admitted to SDP only with a descriptor (v0.4.0 §2); discovery reads the capability registry rather than every service the IVOA registry knows (D37)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces: []
+  - id: INT-018
+    pattern: ubiquitous
+    text: "The capability registry shall keep every descriptor it has registered; a newer descriptor supersedes the current one and no descriptor is edited or deleted."
+    rationale: "A plan records the descriptors it was matched against; they must stay readable (ADR-020)."
+    verification: test
+    tiers: [T3, T5]
+    status: approved
+    traces: []

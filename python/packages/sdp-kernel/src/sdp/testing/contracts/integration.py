@@ -38,6 +38,7 @@ class CapabilityRegistryContract:
             assert got.verified_on == d.verified_on
         assert {d.source_id for d in reg.all()} >= {d.source_id for d in capability_registry_case.descriptors}
 
+    @pytest.mark.req("INT-018")
     def test_put_replaces_rather_than_merges(self, capability_registry_case: RegistryCase) -> None:
         reg = capability_registry_case.registry
         first = capability_registry_case.descriptors[0]
