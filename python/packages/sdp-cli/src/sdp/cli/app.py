@@ -555,6 +555,11 @@ def archive_smoke(
         baseline,
         record,
     )
+    from sdp.adapters.archives.investigate_smoke import run_investigate_smoke
+
+    results += run_investigate_smoke(
+        lambda _: PoliteTransport(UrllibTransport(), min_seconds_between_calls=1.0), record
+    )
     emit([r.to_document() for r in results])
     if any(r.problems for r in results):
         raise SystemExit(1)

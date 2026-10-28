@@ -30,7 +30,7 @@ requirements:
   - id: INV-004
     pattern: event
     text: "When objects are identified, the system shall retrieve catalogue rows and observation indices only through ArchiveGateway and ObservationArchiveGateway."
-    rationale: "Two ports, cassettes in CI, one weekly live smoke per adapter. The SIMBAD resolver and the VO registry travel through the same Transport and cassettes."
+    rationale: "Two ports, cassettes in CI, one weekly live smoke per adapter. The SIMBAD resolver and the VO registry travel through the same Transport and cassettes, and the weekly live smoke asks each Investigate service one question at the Pleiades and records the answers."
     verification: test
     tiers: [T0, T3]
     status: approved
