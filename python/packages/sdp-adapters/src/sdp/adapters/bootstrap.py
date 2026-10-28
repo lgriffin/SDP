@@ -13,6 +13,7 @@ from sdp.adapters.archives.dialect import YamlDialectCurator
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
+from sdp.adapters.compute.clustering import SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.logs import configure_logging
@@ -108,6 +109,11 @@ def cross_match(settings: Settings) -> CdsXMatchAdapter:
     return CdsXMatchAdapter(archive_transport(settings, "cds-xmatch", 1.0))
 
 
+def clusterers() -> dict[str, Any]:
+    """The CPU reference ClusterSearchAlgorithms by algorithm id (UC-01); GPU ones join only after agreement."""
+    return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan())}
+
+
 def build_application(settings: Settings, overrides: Overrides | None = None, *, logging: bool = True) -> Application:
     overrides = overrides or Overrides()
     if logging:
@@ -131,7 +137,7 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         publisher=overrides.publisher or UnconfiguredPublisher(),
         curator=overrides.curator or YamlDialectCurator.packaged(),
         gateways={**archive_gateways(settings), **overrides.gateways},
-        services=dict(overrides.services),
+        services={"clusterers": clusterers(), **overrides.services},
         min_free_bytes=settings.min_free_bytes,
     )
     return Application(settings, Kernel.build(ports), database, store, ledger)
