@@ -13,6 +13,7 @@ import logging
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib.metadata import entry_points
 from typing import Any
 
 import astropy.units as u
@@ -78,6 +79,8 @@ from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.repositories import UnitOfWork
 from sdp.kernel.ports.storage import ArtifactStore
 from sdp.kernel.science.investigation import (
+    PRODUCTS_SERVICE,
+    TEST_ENTRY_POINT_GROUP,
     InvestigationTestRegistry,
     describe,
     null_task_kind,
@@ -109,6 +112,17 @@ class InvestigatePorts:
     refiner: WcsRefiner | None = None
     resolver: ObjectResolver | None = None
     ranker: CandidateRanker | None = None
+    services: Mapping[str, Any] = field(default_factory=dict)
+    """Kernel ports a test may use (for example ``clusterer``: a ClusterSearchAlgorithm)."""
+
+
+def load_investigation_tests(group: str = TEST_ENTRY_POINT_GROUP) -> InvestigationTestRegistry:
+    """Every test registered by an installed package under ``group``."""
+    registry = InvestigationTestRegistry()
+    for ep in entry_points(group=group):
+        for test in ep.load()():
+            registry.register(test)
+    return registry
 
 
 @dataclass(frozen=True)
@@ -683,7 +697,11 @@ class InvestigateFieldUseCase:
             )
         plan = ComputePlan(tuple(tasks), outputs=tuple(t.task_id for t in tasks))
         sink = _StoreCheckpoints(self.store, self.uow, self.clock, investigation_set.set_id)
-        values = self.executor.execute(plan, registry.task_kinds(), seed=investigation_set.seed, sink=sink, services={})
+        products = {p.artifact_id.value: self.store.get(p.artifact_id) for b in bundles for p in b.products}
+        services = {**self.ports.services, PRODUCTS_SERVICE: products}
+        values = self.executor.execute(
+            plan, registry.task_kinds(), seed=investigation_set.seed, sink=sink, services=services
+        )
         results = [
             TestResult.from_document(doc) for selection in profile.tests for doc in values[f"run:{selection.key}"]
         ]

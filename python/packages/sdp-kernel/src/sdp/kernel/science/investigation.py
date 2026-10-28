@@ -66,6 +66,24 @@ class InvestigationTest(Protocol):
         ...
 
 
+#: The service through which a test reads the bytes of products its bundles name. The kernel fills
+#: it from the artifact store (registered artifacts only), never from an archive.
+PRODUCTS_SERVICE = "products"
+
+#: Entry-point group through which test packages register (each entry is a zero-argument callable
+#: returning an iterable of tests), the way science modules register through ``sdp.protocols``.
+TEST_ENTRY_POINT_GROUP = "sdp.investigation_tests"
+
+
+def product_bytes(context: TaskContext, artifact_id: str) -> bytes:
+    """The bytes of a registered product a bundle names."""
+    products: Mapping[str, bytes] = context.service(PRODUCTS_SERVICE)
+    try:
+        return products[artifact_id]
+    except KeyError:
+        raise PlanInvalid(f"product {artifact_id} is not among the registered artifacts this task may read") from None
+
+
 def task_kind(name: str, version: str) -> str:
     return f"investigate.{name}@{version}"
 
