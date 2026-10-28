@@ -178,6 +178,8 @@ def test_the_ranking_policy_picks_its_ranker() -> None:
     run = world.run(profile=replace(synthetic_profile(), ranking=RankingPolicy("everyone", "1.0.0", 1.0)))
     assert len(run.investigations) == 60
     assert {i.rank.policy_id for i in run.investigations} == {"everyone"}
+    with pytest.raises(PlanInvalid, match="kernel's own ranking policy"):
+        make_world(rankers={"significance": Everyone()}).run()
 
 
 @pytest.mark.req("INV-003")

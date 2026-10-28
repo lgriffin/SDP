@@ -253,8 +253,16 @@ def test_the_investigate_ranker_scores_groups_as_uc01_candidates_and_objects_by_
     ]
     ranked = StellarCandidateRanker().rank(results, policy)
     by_key = {c.subject.key: c.score for c in ranked}
-    assert by_key[tight.key] == pytest.approx(0.35 * 0.8 + 0.25 * 0.5 + 0.25 * 0.8)
+    # Novelty is not assessed (D26), so the score is the weighted mean of the three terms assessed.
+    assert by_key[tight.key] == pytest.approx((0.35 * 0.8 + 0.25 * 0.5 + 0.25 * 0.8) / 0.85)
     assert by_key[loose.key] == 0.0  # not significant against its null fields: stability does not rescue it
     assert by_key[star.key] == 1.0  # the kernel's significance score
     assert [c.subject.key for c in ranked] == [star.key, tight.key, loose.key]
     assert StellarCandidateRanker().rank(list(reversed(results)), policy) == ranked
+
+
+def test_a_group_scores_on_the_terms_its_test_could_assess() -> None:
+    policy = RankingPolicy("stellar", "1.0.0", threshold=0.5, alpha=0.05)
+    group = Subject(structure_id="g1", members=("a", "b"), membership=(1.0, 1.0))
+    alone = StellarCandidateRanker().rank([_result(group, 0.01, stability=None, cmd_coherence=None)], policy)
+    assert alone[0].score == pytest.approx(1.0)  # membership alone: a certain group clears an ordinary threshold

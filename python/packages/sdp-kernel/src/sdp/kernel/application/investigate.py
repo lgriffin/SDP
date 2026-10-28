@@ -858,6 +858,8 @@ class InvestigateFieldUseCase:
         """The ranker the policy names; a policy never silently falls back to another (Investigate §6)."""
         if self.ports.ranker is not None:
             return self.ports.ranker
+        if SIGNIFICANCE_POLICY in self.ports.rankers:
+            raise PlanInvalid(f"{SIGNIFICANCE_POLICY!r} is the kernel's own ranking policy; a ranker cannot replace it")
         rankers: dict[str, CandidateRanker] = {SIGNIFICANCE_POLICY: SignificanceRanker(), **self.ports.rankers}
         if policy.policy_id not in rankers:
             raise PlanInvalid(f"no ranker for ranking policy {policy.policy_id!r}; registered: {sorted(rankers)}")

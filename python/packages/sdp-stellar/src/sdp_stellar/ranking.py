@@ -41,9 +41,10 @@ class StellarCandidateRanker:
     A co-moving group scores as a UC-01 candidate from its structure test's result: mean membership,
     CMD coherence and stability across the predeclared grid. A group whose structure test is not
     significant at the policy's alpha against its null fields scores 0. Novelty needs a benchmark
-    cross-match Investigate does not run yet, so every group is scored as not novel (deviation D26):
-    the term is the same for all, so it does not change the order. Single objects keep the kernel's
-    significance score.
+    cross-match Investigate does not run yet (deviation D26), so it is left out, and so are CMD
+    coherence and stability when the test could not assess them: the score is the weighted mean of
+    the terms assessed, in [0, 1] like a single object's significance score, so one policy
+    threshold applies to both.
     """
 
     ranker_id: str = "stellar-uc01"
@@ -60,13 +61,20 @@ class StellarCandidateRanker:
             value = 0.0
             if structure is not None and structure.p_value is not None and structure.p_value < policy.alpha:
                 membership = subject.membership or ()
-                value = score(
-                    {
-                        "mean_membership": sum(membership) / len(membership) if membership else 0.0,
-                        "cmd_coherence": structure.details.get("cmd_coherence"),
-                        "stability": structure.details.get("stability") or 0.0,
-                        "status": "unassessed",
-                    }
+                coherence, stability = structure.details.get("cmd_coherence"), structure.details.get("stability")
+                assessed = WEIGHTS["membership"]
+                assessed += WEIGHTS["coherence"] if coherence is not None else 0.0
+                assessed += WEIGHTS["stability"] if stability is not None else 0.0
+                value = (
+                    score(
+                        {
+                            "mean_membership": sum(membership) / len(membership) if membership else 0.0,
+                            "cmd_coherence": coherence,
+                            "stability": stability or 0.0,
+                            "status": "unassessed",
+                        }
+                    )
+                    / assessed
                 )
             ranked.append(RankedCandidate(subject, round(value, 12), candidate.results))
         ranked.sort(key=lambda c: (-c.score, c.subject.key))

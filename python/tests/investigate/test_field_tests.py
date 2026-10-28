@@ -3,13 +3,16 @@ null fields stay near their nominal rate, and every test runs through the kernel
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pytest
 
 from sdp.kernel.application.investigate import load_candidate_rankers, load_investigation_tests
 from sdp.kernel.application.media import JSON, decode_artifact
+from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.investigation import (
     ArchiveRole,
     ArchiveSelection,
@@ -20,7 +23,9 @@ from sdp.kernel.domain.investigation import (
     TestResult,
     TestSelection,
 )
+from sdp.kernel.ports.compute import ClusterLabels
 from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationRun
+from sdp.kernel.science.investigation import InvestigationTestRegistry
 from sdp.testing.fakes.compute import FakeClusterer
 from sdp.testing.investigate import (
     ANOMALOUS,
@@ -35,7 +40,7 @@ from sdp.testing.investigate import (
 )
 from sdp.testing.wiring import build_in_memory_kernel
 from sdp_investigate import registered_tests
-from sdp_investigate.astrometry import ParallaxConsistency, ra_offset_deg
+from sdp_investigate.astrometry import AstrometricCoherence, ParallaxConsistency, ra_offset_deg
 from sdp_investigate.base import Features
 from sdp_investigate.formats import lightcurve_csv, parse_lightcurve, parse_positions, positions_csv
 from sdp_investigate.photometry import ColourMagnitudeCoherence, robust_polyfit
@@ -180,8 +185,10 @@ def test_the_stellar_ranker_puts_the_co_moving_group_above_the_field_blobs(surve
     ranked = StellarCandidateRanker().rank(survey.all_results, policy)
     structures = [c for c in ranked if c.subject.structure_id is not None]
     assert set(structures[0].subject.members) == set(PLANTED)
+    membership = float(np.mean(group.subject.membership))
     assert structures[0].score == pytest.approx(
-        WEIGHTS["membership"] * 1.0 + WEIGHTS["stability"] * group.details["stability"]
+        (WEIGHTS["membership"] * membership + WEIGHTS["stability"] * group.details["stability"])
+        / (WEIGHTS["membership"] + WEIGHTS["stability"])
     )
     assert all(c.score == 0.0 for c in structures[1:])  # not significant against their null fields
     assert "stellar" in load_candidate_rankers()
@@ -229,3 +236,40 @@ def test_robust_fit_ignores_outliers() -> None:
 def test_motion_residuals_take_right_ascension_the_shortest_way_round() -> None:
     offsets = ra_offset_deg(np.array([359.9999, 0.0001, 10.0]), np.array([0.0001, 359.9999, 9.0]))
     assert offsets == pytest.approx([-0.0002, 0.0002, 1.0])
+
+
+class CountingClusterer(FakeClusterer):
+    calls: int = 0
+
+    def search(self, features: np.ndarray, params: Mapping[str, Any], seed: int) -> ClusterLabels:
+        type(self).calls += 1
+        return super().search(features, params, seed)
+
+
+def test_null_fields_skip_the_grid_and_a_long_grid_is_refused_up_front() -> None:
+    test = AstrometricCoherence()
+    rng = np.random.default_rng(1)
+    x = np.vstack([rng.normal(0, 1, (40, 3)), rng.normal(6, 0.05, (6, 3))])
+    feats = Features(
+        tuple(f"k{i}" for i in range(len(x))),
+        {
+            "x": x,
+            "g": np.zeros(len(x)),
+            "g_mag": np.full(len(x), np.nan),
+            "bp_rp": np.full(len(x), np.nan),
+            "clusterer": CountingClusterer(),
+        },
+    )
+    grid = [{"eps": 0.5, "min_cluster_size": 4}] * 3
+    thresholds = {"clusterer_params": {"eps": 0.5, "min_cluster_size": 4}, "clusterer_grid": grid, "inner_trials": 2}
+    CountingClusterer.calls = 0
+    scored = test.evaluate(feats, thresholds, rng)
+    assert scored and scored[0].details["stability"] == 1.0
+    assert CountingClusterer.calls == 1 + 3 + 2  # the reference, the grid, the inner null fields
+    CountingClusterer.calls = 0
+    nulls = test.evaluate(test.null_features(feats, thresholds, rng), thresholds, rng)
+    assert CountingClusterer.calls <= 1 + 2 and all("stability" not in s.details for s in nulls)  # never the grid
+    registry = InvestigationTestRegistry.of(test)
+    too_long = TestSelection("astrometric-coherence", "1.0.0", {"clusterer_grid": [{}] * (test.MAX_GRID + 1)})
+    with pytest.raises(PlanInvalid, match="at most 12"):
+        registry.validate([too_long])
