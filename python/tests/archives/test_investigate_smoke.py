@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sdp.adapters.archives import investigate_smoke
-from sdp.adapters.archives.dasch import DaschGateway
+from sdp.adapters.archives.dasch import LIGHTCURVE_COLUMNS, DaschGateway
 from sdp.adapters.archives.investigate_smoke import STAR, run_investigate_smoke
 from sdp.adapters.archives.transport import HttpRequest, HttpResponse, Transport, TransportError
 
@@ -50,7 +50,7 @@ def test_dasch_column_drift_is_named() -> None:
 
 
 def test_a_healthy_dasch_light_curve_passes() -> None:
-    columns = sorted(investigate_smoke.LIGHTCURVE_COLUMNS)
+    columns = sorted(LIGHTCURVE_COLUMNS)
     values = {
         "date_jd": "2420000.5",
         "magcal_magdep": "12.0",
