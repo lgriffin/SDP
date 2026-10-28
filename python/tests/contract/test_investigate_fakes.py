@@ -8,14 +8,16 @@ import numpy as np
 import pytest
 
 from sdp.kernel.domain.archive import Cone
-from sdp.kernel.domain.investigation import Field, ObservationCriteria
+from sdp.kernel.domain.investigation import FetchedProduct, Field, ObservationCriteria, ProductRef
 from sdp.kernel.ports.investigate import Detection, ImageFrame, ObservationTarget, ServiceRecord
 from sdp.testing.contracts.investigate import (
     DetectorCase,
+    DialectCase,
     InvestigationRepositoryContract,
     ObjectResolverContract,
     ObservationArchiveGatewayContract,
     ObservationCase,
+    ProductDialectContract,
     RefinerCase,
     RegistryCase,
     ResolverCase,
@@ -24,8 +26,14 @@ from sdp.testing.contracts.investigate import (
     WcsRefinerContract,
 )
 from sdp.testing.fakes import InMemoryDatabase
-from sdp.testing.fakes.investigate import NearestWcsRefiner, PlantedDetector, StaticSourceRegistry
-from sdp.testing.investigate import fixture_resolver, observation_archive, synthetic_catalogue, synthetic_field
+from sdp.testing.fakes.investigate import NearestWcsRefiner, PlantedDetector, StaticSourceRegistry, ThinningDialect
+from sdp.testing.investigate import (
+    fixture_resolver,
+    observation_archive,
+    planted_lightcurve,
+    synthetic_catalogue,
+    synthetic_field,
+)
 
 pytestmark = pytest.mark.tier("T3")
 
@@ -105,3 +113,13 @@ class TestInMemoryInvestigationRepository(InvestigationRepositoryContract):
     @pytest.fixture
     def uow_factory(self) -> Any:
         return InMemoryDatabase().unit_of_work
+
+
+class TestThinningDialect(ProductDialectContract):
+    @pytest.fixture
+    def dialect_case(self) -> DialectCase:
+        ref = ProductRef("fake-plates", "lc-0", "https://fake.invalid/lc-0.csv")
+        raw = FetchedProduct(
+            ref, planted_lightcurve(0), "text/csv", "fake:1", "fixture licence", "fixture citation", ref.uri
+        )
+        return DialectCase(ThinningDialect(), raw, "lightcurve", min_epochs=10)

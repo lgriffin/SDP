@@ -815,18 +815,25 @@ class FetchedProduct:
 
 @dataclass(frozen=True)
 class ProductEvidence:
+    """A product a test may read. ``artifact_id`` is what the test reads: the curated child when a
+    product dialect curated the product, else the raw product itself (``raw_artifact_id`` is then None)."""
+
     product: ProductRef
     product_type: str
     artifact_id: ArtifactId
     read_from: str
+    raw_artifact_id: ArtifactId | None = None
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        doc: dict[str, Any] = {
             "product": self.product.to_document(),
             "product_type": self.product_type,
             "artifact_id": self.artifact_id.value,
             "read_from": self.read_from,
         }
+        if self.raw_artifact_id is not None:
+            doc["raw_artifact_id"] = self.raw_artifact_id.value
+        return doc
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> ProductEvidence:
@@ -835,6 +842,7 @@ class ProductEvidence:
             doc["product_type"],
             ArtifactId(doc["artifact_id"]),
             doc["read_from"],
+            ArtifactId(doc["raw_artifact_id"]) if doc.get("raw_artifact_id") else None,
         )
 
 
