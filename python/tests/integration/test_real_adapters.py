@@ -24,6 +24,7 @@ from sdp.testing.contracts.artifact_store import ArtifactStoreContract
 from sdp.testing.contracts.compute import ComputeExecutorContract
 from sdp.testing.contracts.dataset_repository import DatasetRepositoryContract
 from sdp.testing.contracts.historical_sources import HistoricalSourcesContract
+from sdp.testing.contracts.investigate import InvestigationRepositoryContract, sample_investigation, sample_set
 from sdp.testing.contracts.ledger import LedgerContract
 from sdp.testing.contracts.metadata import UnitOfWorkContract
 from sdp.testing.contracts.misc import DeterminismContract, TrackerContract
@@ -99,3 +100,19 @@ class TestFilesystemHistoricalSources(HistoricalSourcesContract):
     @pytest.fixture
     def historical_sources(self, tmp_path: Path) -> FilesystemHistoricalSources:
         return FilesystemHistoricalSources(tmp_path / "historical")
+
+
+class TestPostgresInvestigations(InvestigationRepositoryContract):
+    @pytest.fixture
+    def uow_factory(self, database_url: str) -> Any:
+        return PostgresDatabase(database_url).unit_of_work
+
+    @pytest.mark.req("INV-010")
+    def test_the_schema_refuses_to_delete_an_investigation(self, database_url: str) -> None:
+        uow_factory = PostgresDatabase(database_url).unit_of_work
+        with uow_factory() as uow:
+            uow.investigations.save_set(sample_set())
+            uow.investigations.save(sample_investigation("inv-kept"))
+            uow.commit()
+        with psycopg.connect(database_url, autocommit=True) as conn, pytest.raises(psycopg.errors.RaiseException):
+            conn.execute("DELETE FROM investigations WHERE investigation_id = 'inv-kept'")

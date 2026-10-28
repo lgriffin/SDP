@@ -18,6 +18,7 @@ from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.events import DomainEvent
 from sdp.kernel.domain.experiment import Experiment
 from sdp.kernel.domain.hypothesis import Hypothesis
+from sdp.kernel.domain.investigation import Investigation, InvestigationSet
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration, Predeclaration
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.ports.events import StoredEvent
@@ -35,6 +36,8 @@ class _State:
     events: list[StoredEvent] = field(default_factory=list)
     graph: ProvGraph = field(default_factory=ProvGraph)
     datasets: InMemoryDatasetRepository = field(default_factory=InMemoryDatasetRepository)
+    investigation_sets: dict[str, dict[str, Any]] = field(default_factory=dict)
+    investigations: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class InMemoryHypothesisRepository:
@@ -133,6 +136,35 @@ class InMemoryDossierRepository:
         ]
 
 
+class InMemoryInvestigationRepository:
+    def __init__(self, state: _State) -> None:
+        self._s = state
+
+    def save_set(self, investigation_set: InvestigationSet) -> None:
+        self._s.investigation_sets[investigation_set.set_id] = investigation_set.to_document()
+
+    def get_set(self, set_id: str) -> InvestigationSet | None:
+        doc = self._s.investigation_sets.get(set_id)
+        return InvestigationSet.from_document(copy.deepcopy(doc)) if doc else None
+
+    def list_sets(self) -> Sequence[InvestigationSet]:
+        return [InvestigationSet.from_document(copy.deepcopy(d)) for _, d in sorted(self._s.investigation_sets.items())]
+
+    def save(self, investigation: Investigation) -> None:
+        self._s.investigations[investigation.investigation_id] = investigation.to_document()
+
+    def get(self, investigation_id: str) -> Investigation | None:
+        doc = self._s.investigations.get(investigation_id)
+        return Investigation.from_document(copy.deepcopy(doc)) if doc else None
+
+    def for_set(self, set_id: str) -> Sequence[Investigation]:
+        return [
+            Investigation.from_document(copy.deepcopy(d))
+            for _, d in sorted(self._s.investigations.items())
+            if d["set_id"] == set_id
+        ]
+
+
 class InMemoryEventLog:
     def __init__(self, state: _State | None = None) -> None:
         self._s = state or _State()
@@ -191,6 +223,7 @@ class InMemoryUnitOfWork:
         self.datasets = state.datasets
         self.events = InMemoryEventLog(state)
         self.evidence = InMemoryEvidenceGraph(state)
+        self.investigations = InMemoryInvestigationRepository(state)
 
     def __enter__(self) -> Self:
         self._snapshot = copy.deepcopy(self._db.state)
