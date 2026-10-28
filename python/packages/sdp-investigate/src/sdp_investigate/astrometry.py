@@ -15,6 +15,9 @@ from sdp.kernel.science.investigation import product_bytes
 from sdp.kernel.science.plan import TaskContext
 from sdp_investigate.base import Features, FieldTest, Scored, catalogue_row, finite, robust_sigma
 from sdp_investigate.formats import ASTROMETRY, parse_positions
+from sdp_stellar.cmd import absolute_g
+from sdp_stellar.cmd import coherence as cmd_coherence
+from sdp_stellar.membership import jaccard
 
 MAS_PER_DEG = 3.6e6
 
@@ -160,6 +163,11 @@ class AstrometricCoherence(FieldTest):
     outranks a loose overdensity at the field's own centre. Its p-value is the
     fraction of null fields (shuffled within magnitude bins) whose most coherent cluster is at least
     as coherent: (1 + count) / (1 + inner trials).
+
+    Each cluster also records what the stellar module's CandidateRanker reads: its stability across
+    the profile's predeclared ``clusterer_grid`` (the mean best Jaccard overlap, as UC-01 measures
+    it; None without a grid) and the stellar CMD coherence of its members (None below the stellar
+    module's minimum count with a colour).
     """
 
     name = "astrometric-coherence"
@@ -181,11 +189,12 @@ class AstrometricCoherence(FieldTest):
                         float(row["pm_dec_masyr"]),
                         float(row["parallax_mas"]),
                         float(row.get("g_mag") or 0.0),
+                        float(row["bp_rp"]) if finite(row.get("bp_rp")) else math.nan,
                     )
                 )
-        data = np.array(rows, dtype=float).reshape(-1, 4)
+        data = np.array(rows, dtype=float).reshape(-1, 5)
         clusterer: ClusterSearchAlgorithm = context.service("clusterer")
-        return Features(tuple(keys), {"x": data[:, :3], "g": data[:, 3], "clusterer": clusterer})
+        return Features(tuple(keys), {"x": data[:, :3], "g": data[:, 3], "bp_rp": data[:, 4], "clusterer": clusterer})
 
     @staticmethod
     def _scaled(x: np.ndarray) -> np.ndarray:
@@ -195,11 +204,38 @@ class AstrometricCoherence(FieldTest):
         spread = np.array([robust_sigma(x[:, i]) for i in range(x.shape[1])])
         return np.asarray((x - centre) / spread)
 
-    def _labels(self, features: Features, thresholds: Mapping[str, Any], seed: int) -> tuple[np.ndarray, np.ndarray]:
+    def _labels(
+        self, features: Features, thresholds: Mapping[str, Any], seed: int, params: Mapping[str, Any] | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
         clusterer: ClusterSearchAlgorithm = features.arrays["clusterer"]
-        params = dict(thresholds.get("clusterer_params", {"eps": 0.5, "min_cluster_size": 4}))
-        found = clusterer.search(self._scaled(features.arrays["x"]), params, seed)
+        if params is None:
+            params = thresholds.get("clusterer_params", {"eps": 0.5, "min_cluster_size": 4})
+        found = clusterer.search(self._scaled(features.arrays["x"]), dict(params), seed)
         return np.asarray(found.labels), np.asarray(found.probabilities)
+
+    def _stability(
+        self, features: Features, thresholds: Mapping[str, Any], seed: int, clusters: Mapping[int, np.ndarray]
+    ) -> dict[int, float | None]:
+        """Each cluster's mean best Jaccard overlap over the predeclared grid (UC-01 membership)."""
+        grid = thresholds.get("clusterer_grid") or ()
+        if not grid:
+            return dict.fromkeys(clusters)
+        labellings = [self._labels(features, thresholds, seed, params)[0] for params in grid]
+        out: dict[int, float | None] = {}
+        for k, rows in clusters.items():
+            overlaps = [
+                max((jaccard(rows, np.nonzero(lab == o)[0]) for o in set(lab[rows].tolist()) - {-1}), default=0.0)
+                for lab in labellings
+            ]
+            out[k] = float(np.mean(overlaps))
+        return out
+
+    @staticmethod
+    def _cmd_coherence(features: Features, rows: np.ndarray, seed: int) -> float | None:
+        x = features.arrays["x"]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            absolute = np.where(x[:, 2] > 0, absolute_g(features.arrays["g"], x[:, 2]), np.nan)
+        return cmd_coherence(rows, features.arrays["bp_rp"], absolute, seed)
 
     @staticmethod
     def contrast(field: np.ndarray, members: np.ndarray) -> float:
@@ -219,10 +255,12 @@ class AstrometricCoherence(FieldTest):
     def evaluate(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> list[Scored]:
         if len(features) < 4:
             return []
-        labels, probs = self._labels(features, thresholds, int(rng.integers(2**31 - 1)))
+        seed = int(rng.integers(2**31 - 1))
+        labels, probs = self._labels(features, thresholds, seed)
         clusters = sorted(set(labels.tolist()) - {-1})
         if not clusters:
             return []
+        stability = self._stability(features, thresholds, seed, {k: np.nonzero(labels == k)[0] for k in clusters})
         inner = int(thresholds.get("inner_trials", 20))
         null_best = [
             self._best(self.null_features(features, thresholds, rng), thresholds, int(rng.integers(2**31 - 1)))
@@ -253,6 +291,8 @@ class AstrometricCoherence(FieldTest):
                         "mean_parallax_mas": float(x[:, 2].mean()),
                         "null_best_contrast": null_best,
                         "algorithm": features.arrays["clusterer"].algorithm_id,
+                        "stability": stability[k],
+                        "cmd_coherence": self._cmd_coherence(features, idx, seed),
                     },
                 )
             )

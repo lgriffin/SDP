@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
-from sdp.kernel.application.investigate import load_investigation_tests
+from sdp.kernel.application.investigate import load_candidate_rankers, load_investigation_tests
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.investigation import (
     ArchiveRole,
@@ -39,6 +39,7 @@ from sdp_investigate.astrometry import ParallaxConsistency, ra_offset_deg
 from sdp_investigate.base import Features
 from sdp_investigate.formats import lightcurve_csv, parse_lightcurve, parse_positions, positions_csv
 from sdp_investigate.photometry import ColourMagnitudeCoherence, robust_polyfit
+from sdp_stellar.ranking import WEIGHTS, StellarCandidateRanker
 
 pytestmark = pytest.mark.tier("T4")
 
@@ -56,7 +57,12 @@ def full_profile(trials: int = 5) -> TestProfile:
         TestSelection(
             "astrometric-coherence",
             "1.0.0",
-            {**GAIA, "clusterer_params": {"eps": 0.6, "min_cluster_size": 5}, "inner_trials": 39},
+            {
+                **GAIA,
+                "clusterer_params": {"eps": 0.6, "min_cluster_size": 5},
+                "clusterer_grid": [{"eps": e, "min_cluster_size": 5} for e in (0.5, 0.6, 0.7)],
+                "inner_trials": 39,
+            },
         ),
     )
     return TestProfile(
@@ -163,6 +169,22 @@ def test_astrometric_coherence_opens_one_investigation_for_the_group(survey: Sur
         r for r in survey.results("astrometric-coherence").values() if set(r.subject.members) != set(PLANTED)
     ]
     assert all(r.p_value is not None and r.p_value >= 0.05 for r in field_blobs)
+
+
+@pytest.mark.scientific
+def test_the_stellar_ranker_puts_the_co_moving_group_above_the_field_blobs(survey: Survey) -> None:
+    group = next(r for r in survey.results("astrometric-coherence").values() if set(r.subject.members) == set(PLANTED))
+    assert group.details["stability"] is not None and 0.0 < group.details["stability"] <= 1.0
+    assert group.details["cmd_coherence"] is None  # five members: below the stellar module's minimum with a colour
+    policy = RankingPolicy("stellar", "1.0.0", threshold=0.3, alpha=0.05)
+    ranked = StellarCandidateRanker().rank(survey.all_results, policy)
+    structures = [c for c in ranked if c.subject.structure_id is not None]
+    assert set(structures[0].subject.members) == set(PLANTED)
+    assert structures[0].score == pytest.approx(
+        WEIGHTS["membership"] * 1.0 + WEIGHTS["stability"] * group.details["stability"]
+    )
+    assert all(c.score == 0.0 for c in structures[1:])  # not significant against their null fields
+    assert "stellar" in load_candidate_rankers()
 
 
 @pytest.mark.req("INV-006")

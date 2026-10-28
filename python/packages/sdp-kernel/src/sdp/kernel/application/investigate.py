@@ -30,6 +30,7 @@ from sdp.kernel.domain.errors import (
     IntegrityError,
     InvalidTransition,
     InvariantViolation,
+    PlanInvalid,
     PredeclarationNotFrozen,
     PromotionRefused,
 )
@@ -119,6 +120,9 @@ class InvestigatePorts:
     """Kernel ports a test may use (for example ``clusterer``: a ClusterSearchAlgorithm)."""
     product_dialects: Mapping[str, ProductDialect] = field(default_factory=dict)
     """Dialects that curate an archive's native products into canonical ones, by archive source id."""
+    rankers: Mapping[str, CandidateRanker] = field(default_factory=dict)
+    """Candidate rankers by ranking policy id; ``significance`` is the kernel's own. ``ranker``, when
+    set, overrides the choice for every policy (fixtures)."""
 
 
 def load_investigation_tests(group: str = TEST_ENTRY_POINT_GROUP) -> InvestigationTestRegistry:
@@ -128,6 +132,17 @@ def load_investigation_tests(group: str = TEST_ENTRY_POINT_GROUP) -> Investigati
         for test in ep.load()():
             registry.register(test)
     return registry
+
+
+SIGNIFICANCE_POLICY = "significance"
+
+
+RANKER_ENTRY_POINT_GROUP = "sdp.candidate_rankers"
+
+
+def load_candidate_rankers(group: str = RANKER_ENTRY_POINT_GROUP) -> dict[str, CandidateRanker]:
+    """Every CandidateRanker an installed package registers under ``group``, by ranking policy id."""
+    return {ep.name: ep.load()() for ep in entry_points(group=group)}
 
 
 @dataclass(frozen=True)
@@ -208,6 +223,7 @@ class InvestigateFieldUseCase:
     def execute(self, command: InvestigateFieldCommand) -> InvestigationRun:
         profile = command.profile
         tests = self.ports.tests.validate(profile.tests)  # INV-006: before anything runs
+        self._ranker(profile.ranking)  # an unknown ranking policy fails here, not after the tests ran
         tests_described = [
             {**describe(t), "thresholds": dict(s.thresholds)} for s, t in zip(profile.tests, tests, strict=True)
         ]
@@ -838,6 +854,15 @@ class InvestigateFieldUseCase:
             epoch_max_jyear=max(epochs) if epochs else None,
         )
 
+    def _ranker(self, policy: RankingPolicy) -> CandidateRanker:
+        """The ranker the policy names; a policy never silently falls back to another (Investigate §6)."""
+        if self.ports.ranker is not None:
+            return self.ports.ranker
+        rankers: dict[str, CandidateRanker] = {SIGNIFICANCE_POLICY: SignificanceRanker(), **self.ports.rankers}
+        if policy.policy_id not in rankers:
+            raise PlanInvalid(f"no ranker for ranking policy {policy.policy_id!r}; registered: {sorted(rankers)}")
+        return rankers[policy.policy_id]
+
     def _candidates(
         self,
         investigation_set: InvestigationSet,
@@ -850,7 +875,7 @@ class InvestigateFieldUseCase:
             with self.uow() as uow:
                 return list(uow.investigations.for_set(investigation_set.set_id))
         policy = investigation_set.profile.ranking
-        ranker = self.ports.ranker or SignificanceRanker()
+        ranker = self._ranker(policy)
         ranked = [c for c in ranker.rank(results, policy) if c.score >= policy.threshold]
         by_key = {b.object_key: b for b in bundles}
         investigations: list[Investigation] = []
