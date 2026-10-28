@@ -8,8 +8,10 @@ requirements:
     rationale: "One port, one canonical schema, one declared dialect per source (§8)."
     verification: test
     tiers: [T0, T3]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.archives.test_dialects::test_a_release_without_a_dialect_cannot_be_curated"
+      - "python/tests.archives.test_tap::test_every_packaged_source_declares_licence_citation_limits_and_a_dialect"
   - id: DSI-002
     pattern: event
     text: "When a dataset is acquired, the system shall record the rendered query text, source release, licence, citation, checksum, byte count and timestamp."
@@ -46,13 +48,18 @@ requirements:
     rationale: "Live archives are rate-limited and change (ADR-015)."
     verification: test
     tiers: [T5]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.archives.test_tap::test_replay_never_falls_back_to_the_network"
+      - "python/tests.archives.test_transport::test_a_missing_cassette_is_an_error_not_a_live_call"
+      - "python/tests.archives.test_wiring::test_replay_mode_puts_every_gateway_on_cassettes"
   - id: DSI-008
     pattern: event
     text: "When the weekly live smoke detects a column added, renamed or retyped, the system shall fail the job and name the column."
     rationale: "Schema drift is caught within a week."
     verification: test
     tiers: [T11]
-    status: draft
-    traces: []
+    status: approved
+    traces:
+      - "python/tests.archives.test_smoke::test_the_smoke_records_then_fails_on_drift_naming_the_column"
+      - "python/tests.archives.test_xmatch_drift_duckdb::test_drift_names_every_added_removed_and_retyped_column"

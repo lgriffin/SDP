@@ -77,6 +77,7 @@ ledger_app = typer.Typer(help="Inspect and verify the signed ledger.", no_args_i
 db_app = typer.Typer(help="Database schema migrations (NFR-007).", no_args_is_help=True)
 artifact_app = typer.Typer(help="Put and fetch content-addressed artifacts.", no_args_is_help=True)
 telemetry_app = typer.Typer(help="Prometheus textfile telemetry (NFR-010).", no_args_is_help=True)
+archive_app = typer.Typer(help="Archive sources, acquisition and the live schema smoke (§8).", no_args_is_help=True)
 for name, sub in (
     ("predeclaration", predeclaration_app),
     ("experiment", experiment_app),
@@ -85,6 +86,7 @@ for name, sub in (
     ("db", db_app),
     ("artifact", artifact_app),
     ("telemetry", telemetry_app),
+    ("archive", archive_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -315,6 +317,82 @@ def telemetry_gpu(directory: Annotated[Path, typer.Option(envvar="SDP_METRICS_DI
     from sdp.adapters.telemetry.prometheus import write_gpu_telemetry
 
     emit({"written": str(write_gpu_telemetry(directory))})
+
+
+# --- archives -----------------------------------------------------------------------------------
+
+
+@archive_app.command("sources")
+def archive_sources() -> None:
+    """The packaged archive sources: release, table, licence, citation, limits and dialect."""
+    from sdp.adapters.archives.tap import load_sources
+
+    emit(
+        [
+            {
+                "source_id": s.descriptor.source_id,
+                "release_label": s.descriptor.release_label,
+                "service_url": s.service_url,
+                "table": s.descriptor.table,
+                "licence": s.descriptor.licence,
+                "citation": s.descriptor.citation,
+                "max_rows_per_call": s.descriptor.max_rows_per_call,
+                "dialect_id": s.descriptor.dialect_id,
+            }
+            for s in load_sources().values()
+        ]
+    )
+
+
+@archive_app.command("acquire")
+def archive_acquire(
+    source: Annotated[str, typer.Option(help="Source id, e.g. gaia")],
+    release: Annotated[str, typer.Option(help="Release label, e.g. gaia:DR3")],
+    ra: Annotated[float, typer.Option(help="Cone centre RA (deg)")],
+    dec: Annotated[float, typer.Option(help="Cone centre Dec (deg)")],
+    radius: Annotated[float, typer.Option(help="Cone radius (deg, at most 10)")],
+    column: Annotated[list[str], typer.Option("--column", help="Native column; repeat")],
+    row_cap: Annotated[int, typer.Option()] = 100_000,
+    chunk_rows: Annotated[int, typer.Option()] = 50_000,
+    curate: Annotated[bool, typer.Option()] = True,
+) -> None:
+    """Acquire a bounded cone: raw Parquet parts, then canonical astrometry through the source's dialect."""
+    from sdp.kernel.domain.archive import CatalogueQuery, Cone
+    from sdp.kernel.ports.driving import AcquireDatasetCommand
+
+    query = CatalogueQuery(
+        source, release, Cone(ra, dec, radius), tuple(column), row_cap=row_cap, chunk_rows=chunk_rows
+    )
+    result = state.runtime().kernel.acquire_dataset.execute(AcquireDatasetCommand(query, curate=curate))
+    emit(
+        {
+            "raw": result.raw.artifact_id.value,
+            "curated": result.curated.artifact_id.value if result.curated else None,
+            "reused": result.reused,
+            "query": result.raw.source_ref.query_text,
+        }
+    )
+
+
+@archive_app.command("smoke")
+def archive_smoke(
+    baseline: Annotated[Path, typer.Option(help="Committed cassettes to compare against")],
+    record: Annotated[Path, typer.Option(help="Where to write the new recordings")],
+) -> None:
+    """The weekly live smoke (DSI-008): fails naming every added, removed or retyped column."""
+    from sdp.adapters.archives.smoke import run_smoke
+    from sdp.adapters.archives.tap import load_sources
+    from sdp.adapters.archives.transport import PoliteTransport, UrllibTransport
+
+    results = run_smoke(
+        load_sources(),
+        lambda s: PoliteTransport(UrllibTransport(), min_seconds_between_calls=s.descriptor.min_seconds_between_calls),
+        baseline,
+        record,
+    )
+    emit([r.to_document() for r in results])
+    if any(r.problems for r in results):
+        raise SystemExit(1)
 
 
 def main() -> None:

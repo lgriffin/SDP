@@ -1,0 +1,77 @@
+{
+ "note": "Hand-written rows that pin the mapping (units, epoch, key, flags). They are not archive data.",
+ "native": [
+  {
+   "designation": "03020000-1215000",
+   "ra": 45.5,
+   "dec": -12.25,
+   "jdate": 2450997.125,
+   "j_m": 12.5,
+   "h_m": 12.0,
+   "k_m": 11.75,
+   "ph_qual": "AAA"
+  },
+  {
+   "designation": "03020600-1230000",
+   "ra": 45.525,
+   "dec": -12.5,
+   "jdate": 2451545.0,
+   "j_m": 12.5,
+   "h_m": 12.0,
+   "k_m": 11.75,
+   "ph_qual": "AAC"
+  }
+ ],
+ "canonical": [
+  {
+   "source_key": "2mass:03020000-1215000",
+   "ra_deg": 45.5,
+   "dec_deg": -12.25,
+   "epoch_jyear": 1998.5,
+   "parallax_mas": null,
+   "parallax_mas_err": null,
+   "pm_ra_cosdec_masyr": null,
+   "pm_ra_cosdec_masyr_err": null,
+   "pm_dec_masyr": null,
+   "pm_dec_masyr_err": null,
+   "astrometric_corr": null,
+   "g_mag": null,
+   "bp_rp": null,
+   "ruwe": null,
+   "quality_flags": {
+    "h_m": 12.0,
+    "j_m": 12.5,
+    "k_m": 11.75,
+    "ph_qual": "AAA"
+   },
+   "quality_class": "good",
+   "zero_point_corrected": false,
+   "source_release": "2mass:psc"
+  },
+  {
+   "source_key": "2mass:03020600-1230000",
+   "ra_deg": 45.525,
+   "dec_deg": -12.5,
+   "epoch_jyear": 2000.0,
+   "parallax_mas": null,
+   "parallax_mas_err": null,
+   "pm_ra_cosdec_masyr": null,
+   "pm_ra_cosdec_masyr_err": null,
+   "pm_dec_masyr": null,
+   "pm_dec_masyr_err": null,
+   "astrometric_corr": null,
+   "g_mag": null,
+   "bp_rp": null,
+   "ruwe": null,
+   "quality_flags": {
+    "h_m": 12.0,
+    "j_m": 12.5,
+    "k_m": 11.75,
+    "ph_qual": "AAC"
+   },
+   "quality_class": "poor",
+   "zero_point_corrected": false,
+   "source_release": "2mass:psc"
+  }
+ ]
+}

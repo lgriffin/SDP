@@ -1,0 +1,77 @@
+{
+ "note": "Hand-written rows that pin the mapping (units, epoch, key, flags). They are not archive data.",
+ "native": [
+  {
+   "objID": 108000455000000001,
+   "raMean": 45.5,
+   "decMean": -12.25,
+   "epochMean": 56000.0,
+   "gMeanPSFMag": 18.5,
+   "rMeanPSFMag": 18.0,
+   "iMeanPSFMag": 17.75,
+   "nDetections": 25
+  },
+  {
+   "objID": 108000455000000002,
+   "raMean": 45.5,
+   "decMean": -12.25,
+   "epochMean": 51544.5,
+   "gMeanPSFMag": null,
+   "rMeanPSFMag": 18.0,
+   "iMeanPSFMag": 17.75,
+   "nDetections": 2
+  }
+ ],
+ "canonical": [
+  {
+   "source_key": "ps1:DR2:108000455000000001",
+   "ra_deg": 45.5,
+   "dec_deg": -12.25,
+   "epoch_jyear": 2012.1984941820672,
+   "parallax_mas": null,
+   "parallax_mas_err": null,
+   "pm_ra_cosdec_masyr": null,
+   "pm_ra_cosdec_masyr_err": null,
+   "pm_dec_masyr": null,
+   "pm_dec_masyr_err": null,
+   "astrometric_corr": null,
+   "g_mag": null,
+   "bp_rp": null,
+   "ruwe": null,
+   "quality_flags": {
+    "gMeanPSFMag": 18.5,
+    "iMeanPSFMag": 17.75,
+    "nDetections": 25,
+    "rMeanPSFMag": 18.0
+   },
+   "quality_class": "good",
+   "zero_point_corrected": false,
+   "source_release": "ps1:DR2"
+  },
+  {
+   "source_key": "ps1:DR2:108000455000000002",
+   "ra_deg": 45.5,
+   "dec_deg": -12.25,
+   "epoch_jyear": 2000.0,
+   "parallax_mas": null,
+   "parallax_mas_err": null,
+   "pm_ra_cosdec_masyr": null,
+   "pm_ra_cosdec_masyr_err": null,
+   "pm_dec_masyr": null,
+   "pm_dec_masyr_err": null,
+   "astrometric_corr": null,
+   "g_mag": null,
+   "bp_rp": null,
+   "ruwe": null,
+   "quality_flags": {
+    "gMeanPSFMag": null,
+    "iMeanPSFMag": 17.75,
+    "nDetections": 2,
+    "rMeanPSFMag": 18.0
+   },
+   "quality_class": "poor",
+   "zero_point_corrected": false,
+   "source_release": "ps1:DR2"
+  }
+ ]
+}

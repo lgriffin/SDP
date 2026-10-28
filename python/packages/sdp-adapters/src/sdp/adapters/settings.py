@@ -31,6 +31,9 @@ class Settings:
     threads: int = 1
     min_free_bytes: int = 50 * 1024**3
     log_level: str = "INFO"
+    #: live (the archives, politely), replay (committed cassettes only) or record (live, writing cassettes)
+    archive_mode: str = "live"
+    cassette_dir: Path | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -57,4 +60,15 @@ class Settings:
             threads=int(env.get("SDP_THREADS", "1")),
             min_free_bytes=int(env.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
             log_level=env.get("SDP_LOG_LEVEL", "INFO"),
+            archive_mode=archive_mode(env.get("SDP_ARCHIVE_MODE", "live")),
+            cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
         )
+
+
+ARCHIVE_MODES = ("live", "replay", "record")
+
+
+def archive_mode(value: str) -> str:
+    if value not in ARCHIVE_MODES:
+        raise SettingsError(f"SDP_ARCHIVE_MODE must be one of {', '.join(ARCHIVE_MODES)}, got {value!r}")
+    return value
