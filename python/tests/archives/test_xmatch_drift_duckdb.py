@@ -104,3 +104,11 @@ def test_duckdb_reads_curated_parquet_through_the_verified_store(tmp_path: pytes
     ]
     with pytest.raises(ValueError):
         catalogue.register("bad name", [artifact])
+
+
+@pytest.mark.tier("T11")
+@pytest.mark.req("DSI-008")
+def test_drift_ignores_identifier_case_and_names_an_unknown_table() -> None:
+    folded = {name.lower(): kind for name, kind in LIVE.items()}
+    assert [p for p in schema_drift(GAIA, None, folded) if "declared column" in p] == []
+    assert schema_drift(GAIA, None, {}) == [f"gaia: TAP_SCHEMA lists no columns for table {GAIA.descriptor.table}"]
