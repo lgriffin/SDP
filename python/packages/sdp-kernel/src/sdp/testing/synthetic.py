@@ -30,6 +30,12 @@ PROTOCOL = ProtocolId("synthetic-linear", "1.0.0")
 SERIES_MEDIA_TYPE = "application/json"
 FIT_POLICY = NumericalPolicy(rtol=1e-9, atol=1e-12)
 
+#: What stops each TaskKind from reproducing bitwise (NFR-008; docs/determinism.md).
+NONDETERMINISM = {
+    "synthetic.fit_line": "least squares in float64; float64 reductions run through NumPy/BLAS, whose summation order can change with the BLAS build, CPU features and thread count, so results agree within the policy tolerance, not bitwise",
+    "synthetic.residuals": "residual RMS in float64; float64 reductions run through NumPy/BLAS, whose summation order can change with the BLAS build, CPU features and thread count, so results agree within the policy tolerance, not bitwise",
+}
+
 
 def make_series(n: int = 200, slope: float = 2.0, intercept: float = 0.5, noise: float = 0.1, seed: int = 7) -> bytes:
     rng = np.random.default_rng(seed)
@@ -118,8 +124,8 @@ class SyntheticLinearProtocol:
 
     def task_kinds(self) -> TaskKindRegistry:
         registry = TaskKindRegistry()
-        registry.register("synthetic.fit_line", fit_line)
-        registry.register("synthetic.residuals", residuals)
+        registry.register("synthetic.fit_line", fit_line, nondeterminism=NONDETERMINISM["synthetic.fit_line"])
+        registry.register("synthetic.residuals", residuals, nondeterminism=NONDETERMINISM["synthetic.residuals"])
         return registry
 
     def plan(self, inputs: ResolvedInputs, params: Params, seed: int) -> ComputePlan:

@@ -12,8 +12,8 @@ import urllib.parse
 import pyarrow as pa
 
 from sdp.adapters.archives import votable
-from sdp.adapters.archives.untrusted import validate_votable
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
+from sdp.adapters.archives.untrusted import validate_votable
 
 
 def sync_request(service_url: str, adql: str, maxrec: int) -> HttpRequest:

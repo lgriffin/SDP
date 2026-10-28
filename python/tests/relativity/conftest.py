@@ -40,10 +40,14 @@ class Run:
     experiment: Experiment
     report: ValidationReport
 
-    def finding(self, name: str) -> Any:
+    @property
+    def manifest(self) -> dict[str, Any]:
         manifest = self.k.kernel.query_evidence.manifest(self.experiment.experiment_id)
         assert manifest is not None
-        return next(f["value"] for f in manifest["findings"] if f["name"] == name)
+        return manifest
+
+    def finding(self, name: str) -> Any:
+        return next(f["value"] for f in self.manifest["findings"] if f["name"] == name)
 
     def outcome(self, gate_id: str) -> str:
         return next(c.outcome.value for c in self.report.checks if c.gate_id == gate_id)
