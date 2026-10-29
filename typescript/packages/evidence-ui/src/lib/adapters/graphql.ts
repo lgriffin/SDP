@@ -16,6 +16,7 @@ import {
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const SUMMARY = "id state protocol protocolVersion backend seed startedAt finishedAt verdict { status protocolVersion reasons }";
+const PLAN = "id setId state document execution";
 const SET_SUMMARY =
   "id fieldId profileId profileVersion profileHash seed startedAt complete objectsExamined investigationIds label stages { stage state artifactId finishedAt error summary }";
 
@@ -36,15 +37,7 @@ export const QUERIES = {
   investigation: `query Investigation($id: ID!) { investigation(id: $id) {
     id setId fieldId candidateKey candidate state label score rankingPolicy testResults evidenceBundleIds evidenceUsed
     transitions { fromState toState reason actor at } notes links dossier } }`,
-} as const;
-
-/**
- * The planner's queries (ADR-020), in the shape agreed with Stage E. They are kept apart from QUERIES
- * because the committed schema does not carry them until the planner lands; the schema test checks
- * them against that agreed extension instead.
- */
-const PLAN = "id setId state document execution";
-export const PLAN_QUERIES = {
+  // The planner (ADR-020). A server older than Stage E answers these with PlannerUnavailable.
   plans: `query Plans { plans { ${PLAN} } }`,
   plan: `query Plan($id: ID!) { plan(id: $id) { ${PLAN} } }`,
 } as const;
@@ -118,11 +111,11 @@ export class GraphQLEvidenceSource implements EvidenceSource {
   }
 
   async plans(): Promise<Plan[]> {
-    return (await this.planRequest<{ plans: Plan[] }>(PLAN_QUERIES.plans)).plans;
+    return (await this.planRequest<{ plans: Plan[] }>(QUERIES.plans)).plans;
   }
 
   async plan(id: string): Promise<Plan | null> {
-    return (await this.planRequest<{ plan: Plan | null }>(PLAN_QUERIES.plan, { id })).plan;
+    return (await this.planRequest<{ plan: Plan | null }>(QUERIES.plan, { id })).plan;
   }
 
   async planRequest<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {

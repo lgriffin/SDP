@@ -7,6 +7,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sdp.kernel.application.planning import DEFAULT_BUDGET
+from sdp.kernel.domain.integration import AcquisitionBudget
+
 
 class SettingsError(ValueError):
     pass
@@ -39,6 +42,9 @@ class Settings:
     zenodo_url: str = "https://sandbox.zenodo.org"
     zenodo_creators: str = ""
     zenodo_community: str | None = None
+    #: The AcquisitionBudget plans are drafted under (Integration v0.4.0 §5); its NAS headroom floor
+    #: is ``min_free_bytes``, the same floor DSI-010 refuses acquisition below
+    plan_budget: AcquisitionBudget = DEFAULT_BUDGET
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -76,6 +82,17 @@ class Settings:
             zenodo_url=env.get("SDP_ZENODO_URL", "https://sandbox.zenodo.org"),
             zenodo_creators=env.get("SDP_ZENODO_CREATORS", ""),
             zenodo_community=env.get("SDP_ZENODO_COMMUNITY") or None,
+            plan_budget=AcquisitionBudget(
+                max_bytes=int(env.get("SDP_PLAN_MAX_BYTES", str(DEFAULT_BUDGET.max_bytes))),
+                max_requests_per_source=int(
+                    env.get("SDP_PLAN_MAX_REQUESTS_PER_SOURCE", str(DEFAULT_BUDGET.max_requests_per_source))
+                ),
+                max_wall_seconds=float(env.get("SDP_PLAN_MAX_WALL_SECONDS", str(DEFAULT_BUDGET.max_wall_seconds))),
+                min_nas_headroom_bytes=int(env.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
+                approval_threshold_bytes=int(
+                    env.get("SDP_PLAN_APPROVAL_THRESHOLD_BYTES", str(DEFAULT_BUDGET.approval_threshold_bytes))
+                ),
+            ),
         )
 
 

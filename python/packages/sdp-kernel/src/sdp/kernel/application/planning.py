@@ -30,6 +30,7 @@ from sdp.kernel.domain.canonical import canonical_json
 from sdp.kernel.domain.errors import IntegrityError, InvariantViolation
 from sdp.kernel.domain.integration import (
     AccessStatus,
+    AcquisitionBudget,
     AcquisitionPlan,
     EvidenceRequirement,
     IntegrationRefused,
@@ -69,6 +70,16 @@ UNKNOWN_SIZE_BYTES = 1_000_000
 CELL_BYTES = 8
 THROUGHPUT_BYTES_PER_S = 1_000_000.0
 SECONDS_PER_REQUEST = 1.0
+
+
+#: The budget a deployment applies when it names none (SDP_PLAN_* in the adapters' settings).
+DEFAULT_BUDGET = AcquisitionBudget(
+    max_bytes=5_000_000_000,
+    max_requests_per_source=200,
+    max_wall_seconds=3600.0,
+    min_nas_headroom_bytes=50_000_000_000,
+    approval_threshold_bytes=500_000_000,
+)
 
 
 def plan_path(plan_id: str) -> str:

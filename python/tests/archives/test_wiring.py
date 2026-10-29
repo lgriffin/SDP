@@ -7,8 +7,11 @@ from pathlib import Path
 import pytest
 
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport
-from sdp.adapters.bootstrap import archive_gateways, archive_transport, cross_match
+from sdp.adapters.bootstrap import archive_gateways, archive_transport, capability_discovery, cross_match
+from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.settings import Settings, SettingsError
+from sdp.kernel.application.planning import DEFAULT_BUDGET
+from sdp.kernel.domain.integration import AcquisitionBudget
 
 pytestmark = pytest.mark.tier("T3")
 
@@ -73,3 +76,26 @@ def test_investigate_is_wired_to_the_ecosystem_adapters_on_cassettes(tmp_path: P
     for name, adapter in (*ports.observation_gateways.items(), ("simbad", ports.resolver)):
         transport = adapter.transport  # type: ignore[attr-defined]
         assert isinstance(transport, CassetteTransport) and transport.directory == tmp_path / name
+
+
+def test_the_plan_budget_comes_from_the_environment_and_the_planner_reads_registered_descriptors(
+    tmp_path: Path,
+) -> None:
+    default = Settings.from_env(ENV).plan_budget
+    assert default.approval_threshold_bytes == DEFAULT_BUDGET.approval_threshold_bytes
+    assert default.min_nas_headroom_bytes == 50 * 1024**3, "the same floor DSI-010 refuses acquisition below"
+    settings = Settings.from_env(
+        {
+            **ENV,
+            "SDP_PLAN_MAX_BYTES": "2000",
+            "SDP_PLAN_APPROVAL_THRESHOLD_BYTES": "100",
+            "SDP_PLAN_MAX_REQUESTS_PER_SOURCE": "3",
+            "SDP_PLAN_MAX_WALL_SECONDS": "60",
+            "SDP_MIN_FREE_BYTES": "0",
+            "SDP_ARCHIVE_MODE": "replay",
+            "SDP_CASSETTE_DIR": str(tmp_path),
+        }
+    )
+    assert settings.plan_budget == AcquisitionBudget(2000, 3, 60.0, 0, 100)
+    discovery = capability_discovery(settings)
+    assert discovery.sources == {} and isinstance(discovery.registry, PostgresCapabilityRegistry)
