@@ -30,6 +30,20 @@ Feature: Acquisition plan approval and execution
       When "leigh" approves the plan
       Then the plan is "approved" under that ledger entry
 
+    Scenario: A plan above the threshold is not executed until it is approved
+      Given an investigation planned with an approval threshold of 1000 bytes
+      When "leigh" approves the plan
+      And the plan is executed
+      Then the execution is refused because "not approved"
+      And nothing has been acquired
+
+    Scenario: A plan above the threshold runs once a signed approval approves it
+      Given an investigation planned with an approval threshold of 1000 bytes
+      And "leigh" has signed a ledger approval of the plan
+      And "leigh" approves the plan
+      When the plan is executed
+      Then every plan item was acquired
+
   Rule: INT-015: If an acquisition is requested that no approved plan item names, then the executor shall refuse it and record the refusal.
 
     Scenario: An unapproved plan acquires nothing

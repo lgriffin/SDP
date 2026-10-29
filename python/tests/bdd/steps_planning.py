@@ -39,6 +39,7 @@ class PlanningWorld:
 
     k: InMemoryKernel
     gaia: FakeArchive
+    twomass: FakeArchive
     plates: FakeObservationArchive
     plan: AcquisitionPlan
     entry: LedgerEntry | None = None
@@ -69,9 +70,9 @@ def world(ctx: dict[str, Any]) -> PlanningWorld:
 @given("an investigation planned with an approval threshold of {threshold:d} bytes")
 def _planned(ctx: dict[str, Any], threshold: int) -> None:
     catalogue = synthetic_catalogue()
-    gaia, plates = gaia_archive(catalogue), observation_archive(catalogue)
+    gaia, twomass, plates = gaia_archive(catalogue), twomass_archive(catalogue), observation_archive(catalogue)
     k = build_in_memory_kernel(
-        gateways={"synthetic-gaia": gaia, "synthetic-2mass": twomass_archive(catalogue)},
+        gateways={"synthetic-gaia": gaia, "synthetic-2mass": twomass},
         investigate=investigate_ports(
             ProperMotionExcessTest(needs_products=LIGHTCURVES), catalogue=catalogue, observations=plates
         ),
@@ -82,7 +83,7 @@ def _planned(ctx: dict[str, Any], threshold: int) -> None:
     plan = k.kernel.plan_investigation.execute(
         PlanInvestigationCommand(synthetic_field(), synthetic_profile(needs_products=LIGHTCURVES), budget, seed=11)
     )
-    ctx["planning"] = PlanningWorld(k, gaia, plates, plan)
+    ctx["planning"] = PlanningWorld(k, gaia, twomass, plates, plan)
 
 
 @given('"{signer}" has signed a ledger approval of another plan')
@@ -172,7 +173,7 @@ def _refused(ctx: dict[str, Any], reason: str) -> None:
 @then("nothing has been acquired")
 def _nothing(ctx: dict[str, Any]) -> None:
     w = world(ctx)
-    assert w.gaia.fetch_calls == 0 and w.plates.fetches == []
+    assert w.gaia.fetch_calls == 0 and w.twomass.fetch_calls == 0 and w.plates.fetches == []
 
 
 @then('"{product_id}" was not fetched')
