@@ -26,7 +26,7 @@ from starlette.routing import Mount, Route
 from strawberry.asgi import GraphQL
 
 from sdp.adapters.products.preview import preview_png
-from sdp.api.jobs import REGISTER_JOB, RUNNING, Jobs, plan_job, reproduce_job
+from sdp.api.jobs import REGISTER_JOB, REPRODUCE_JOBS, RUNNING, JobBusy, Jobs, plan_job, reproduce_job
 from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, plan_view
@@ -415,7 +415,13 @@ def create_app(
         def reproduce() -> dict[str, Any]:
             return use_case.reproduce(use_case.build(set_id)).to_document()
 
-        job, started = work.start(reproduce_job(set_id), reproduce)
+        try:
+            # Each reproduction re-runs a whole Test stage: one at a time keeps the API answering.
+            job, started = work.start(reproduce_job(set_id), reproduce, alone_among=REPRODUCE_JOBS)
+        except JobBusy as busy:
+            other = busy.running.removeprefix(REPRODUCE_JOBS)
+            message = f"set {other} is being reproduced; try again when it has finished"
+            return JSONResponse({"error": message}, status_code=409)
         return JSONResponse({"reproduction": job.to_document()}, status_code=202 if started else 200)
 
     def archive_sources(_: Request) -> Response:

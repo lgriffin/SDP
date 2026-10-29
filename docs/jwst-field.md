@@ -11,14 +11,15 @@ Plan on about 30 minutes the first time. Most of that is waiting for MAST.
 |---|---|---|
 | 0. Set up the archives once | Start page: **Read what the archives offer** | `sdp integration register` |
 | 1. Select a field | Start page: **JWST: the outskirts of M92** | `--region "icrs;circle(259.323,43.1505,0.004)"` |
-| 2. Discover the JWST observations | **Plan the downloads** | `sdp plan draft` |
-| 3. Approve a bounded download | **Approve**, then **Download now** | `sdp plan approve`, `sdp plan execute` |
+| 2. Discover the JWST observations | **Plan the downloads** | `sdp plan draft --region … --profile …` |
+| 3. Approve a bounded download | **Approve**, then **Download now** | `sdp plan approve <plan> --actor …`, `sdp plan execute <plan>` |
 | 4. Ingest and validate the FITS files | The set page: **The images**, then each image's checks | `sdp investigate show <set>` |
 | 5. Overlay Gaia's stars | The image page | (app only) |
 | 6. Inspect ambiguous matches | **Stars to look at**, then **Zoom in** | `sdp investigate dossier <candidate>` |
 | 7. Save a reproducible dossier | **Save evidence dossier** and **Check it reproduces** | `sdp investigate bundle <set>`, `sdp investigate reproduce <file>` |
 
-`sdp demo jwst` in the SDP Command Prompt runs steps 0 to 3 in one go and prints the set id.
+`sdp demo jwst` in the SDP Command Prompt runs steps 0 to 3 in one go and prints the set id. The
+full terminal sequence is under [In a terminal only](#in-a-terminal-only).
 
 ## 0. Set up the archives (once)
 
@@ -122,14 +123,32 @@ refuses a file whose checksums do not match.
 
 ## In a terminal only
 
+In the desktop app's **SDP Command Prompt** the profiles folder is already set, so the shortest
+route is:
+
+```
+sdp demo jwst                         # registers if needed, plans, approves (as "demo") and runs M92
+```
+
+In any other terminal, point at the profile file yourself: `sdp demo jwst --profile
+profiles/jwst-image-check.yaml` from a checkout of the repository, or set `SDP_PROFILES_DIR` to the
+folder that holds it. Step by step, with the same field:
+
 ```
 sdp integration register
-sdp demo jwst                         # plans, approves (as "demo") and runs M92; prints the set id
+sdp plan draft --region "icrs;circle(259.323,43.1505,0.004)" \
+               --profile profiles/jwst-image-check.yaml --label "M92 outskirts" --actor ada
+                                      # prints the plan, its items and cost; note its plan_id
+sdp plan approve <plan_id> --actor ada
+sdp plan execute <plan_id> --actor ada   # 10 to 20 minutes; prints the set id
 sdp investigate list <set>            # the candidates, strongest first
 sdp investigate dossier <candidate>   # one candidate's evidence, with every hypothesis
 sdp investigate bundle <set> --out m92.zip
 sdp investigate reproduce m92.zip
 ```
+
+A plan above the approval threshold needs `--actor` to be a principal in the ledger's
+`allowed_signers`, with `SDP_SIGNING_KEY` set: the SDP Command Prompt sets both for you.
 
 ## When something goes wrong
 

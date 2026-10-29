@@ -166,8 +166,13 @@ def test_the_picture_stretch_bins_and_png() -> None:
     assert binned(big, 3).shape == (3, 3) and binned(big, 3)[0, 0] == pytest.approx(3.5)
     assert binned(big, 6) is big
     odd = binned(np.arange(35.0).reshape(7, 5), 3)
-    assert odd.shape == (3, 2), "partial edge blocks are kept, so the picture spans the whole grid"
-    assert odd[2, 1] == pytest.approx(np.mean([33.0, 34.0])) and odd[2, 0] == pytest.approx(np.mean([30.0, 31.0, 32.0]))
+    assert odd.shape == (3, 2), "blocks spread over the whole grid, so the picture spans it"
+    # rows split 0-2, 2-5, 5-7 and columns 0-2, 2-5: every picture pixel covers about 7/3 by 5/2 pixels
+    assert odd[2, 0] == pytest.approx(np.mean([25.0, 26.0, 30.0, 31.0]))
+    assert odd[2, 1] == pytest.approx(np.mean([27.0, 28.0, 29.0, 32.0, 33.0, 34.0]))
+    holes = np.arange(36.0).reshape(6, 6)
+    holes[:2, :2] = np.nan
+    assert np.isnan(binned(holes, 3)[0, 0]) and binned(holes, 3)[0, 1] == pytest.approx(np.mean([2.0, 3.0, 8.0, 9.0]))
     assert (decode_png(png(np.array([[1, 2], [3, 4]], dtype=np.uint8))) == [[1, 2], [3, 4]]).all()
     drawn = decode_png(preview_png(jwst_i2d(), max_side=100))
     assert drawn.shape == (80, 80), "320 pixels binned by 4"
