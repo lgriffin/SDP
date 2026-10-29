@@ -109,6 +109,20 @@ export class InMemoryWorkbench implements Workbench {
 
   async planInvestigation(request: InvestigateRequest): Promise<{ planId: string }> {
     this.commands.push({ command: "plan", args: [request] });
+    // A field that reads MAST gets a fresh draft of the synthetic JWST plan, so the demonstration
+    // walks the whole JWST journey: plan, approve, download, images, candidates and dossier.
+    const archives = (request.profile.archives ?? []) as { source_id?: string }[];
+    const template = this.source.data.plans.find((p) => p.setId && p.document.items.some((i) => i.source_id.endsWith("mast")));
+    if (template && archives.some((a) => a.source_id === "mast")) {
+      const plan = structuredClone(template);
+      const n = this.source.data.plans.length;
+      plan.id = plan.document.plan_id = `sha256:${n.toString(16).padStart(8, "0")}${"d".repeat(56)}`;
+      Object.assign(plan, { state: "drafted", setId: null, execution: null, run: null });
+      plan.document.approval = null;
+      this.source.data.plans.push(plan);
+      this.source.demoSets[plan.id] = template.setId!;
+      return { planId: plan.id };
+    }
     const drafted = this.source.data.plans.find((p) => p.state === "drafted");
     if (!drafted) throw new CommandRefused("the demonstration server has no plan to draft", 409);
     return { planId: drafted.id };
