@@ -848,7 +848,7 @@ The risks that could sink the programme are integrity and scope risks, not perfo
 | Gaia DR4 arrives mid-programme (2 Dec 2026) | Benchmark moves under the analysis | Predeclare DR3; DR4 as a separate cross-release experiment; dialect per release | §8 |
 | cuML or CUDA toolchain gaps on ARM64 | GPU adapter late | CPU reference first; Phase 0 spike; GPU results never required for a gate | ADR-007, §17 |
 | Historical plate data unavailable | UC-02 cannot go beyond published tables | Recoverability stated in the dossier; REL-G-09 lint on claims | §9 |
-| Transcription errors | Wrong conclusions | Two-pass verification records; oracle status gate | REL-G-01, REL-G-02 |
+| Transcription errors | Wrong conclusions | Recorded second-pass verification (the single user may make it); oracle status gate | REL-G-01, REL-G-02 |
 | Probable-error versus standard-error confusion | Overstated or understated significance | Convention is a `Measurement` field; conversion is explicit and tested | §5, REL-002 |
 | Over-engineering before science | Slow delivery | Walking skeleton then Einstein slice; Prefect and MLflow deferred | ADR-012, ADR-014 |
 | Archive schema or rate-limit changes | Broken ingestion | Cassettes, weekly live smoke, dialect golden rows | ADR-015 |
