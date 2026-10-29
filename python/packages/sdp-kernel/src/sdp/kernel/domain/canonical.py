@@ -27,7 +27,7 @@ def es_number(value: float) -> str:
     if value == 0:
         return "0"
     sign = "-" if value < 0 else ""
-    text = repr(abs(value))
+    text = repr(abs(float(value)))
     mantissa, _, exponent = text.partition("e")
     integer_part, _, fraction_part = mantissa.partition(".")
     raw = integer_part + fraction_part
