@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
 from sdp.adapters.archives.dialect import YamlDialectCurator
 from sdp.adapters.archives.mast import MastObservationGateway
@@ -25,6 +26,7 @@ from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
+from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.products import EnvelopeValidator, JwstDialect
 from sdp.adapters.publication.zenodo import ZenodoPublisher, creators_from
 from sdp.adapters.settings import Settings
@@ -39,6 +41,7 @@ from sdp.kernel.application.investigate import (
 )
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.application.plugins import EntryPointProtocolRegistry
+from sdp.kernel.domain.integration import AcquisitionBudget
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.evidence import ExperimentTracker
 from sdp.kernel.ports.investigate import ObservationArchiveGateway
@@ -87,6 +90,10 @@ class Application:
     database: PostgresDatabase
     store: NasArtifactStore
     ledger: GitSignedLedger
+
+    @property
+    def budget(self) -> AcquisitionBudget:
+        return self.settings.plan_budget
 
 
 def build_ledger(settings: Settings) -> GitSignedLedger:
@@ -195,6 +202,14 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
     )
 
 
+def capability_discovery(settings: Settings) -> VoCapabilityDiscovery:
+    """What plans are matched against: the registered descriptors (migration 0003). Nothing is read
+    from the VO while planning; descriptors are registered by ``sdp integration`` and the weekly job."""
+    return VoCapabilityDiscovery(
+        archive_transport(settings, "regtap", 1.0), PostgresCapabilityRegistry(settings.database_url)
+    )
+
+
 def build_application(settings: Settings, overrides: Overrides | None = None, *, logging: bool = True) -> Application:
     overrides = overrides or Overrides()
     if logging:
@@ -221,5 +236,6 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         services={"clusterers": clusterers(), **overrides.services},
         min_free_bytes=settings.min_free_bytes,
         investigate=overrides.investigate or investigate_ports(settings, overrides.services),
+        discovery=capability_discovery(settings),
     )
     return Application(settings, Kernel.build(ports), database, store, ledger)

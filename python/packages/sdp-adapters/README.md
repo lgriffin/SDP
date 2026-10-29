@@ -33,5 +33,6 @@ Driven adapters for the kernel's ports (§6). Each one passes the same contract 
 | `SDP_METRICS_DIR` | node_exporter textfile directory |
 | `SDP_ARCHIVE_MODE`, `SDP_CASSETTE_DIR` | `live` (default), `replay` or `record`; cassettes default to `python/tests/cassettes` |
 | `SDP_THREADS`, `SDP_MIN_FREE_BYTES`, `SDP_LOG_LEVEL` | Executor threads, NAS headroom, log level |
+| `SDP_PLAN_MAX_BYTES`, `SDP_PLAN_APPROVAL_THRESHOLD_BYTES`, `SDP_PLAN_MAX_REQUESTS_PER_SOURCE`, `SDP_PLAN_MAX_WALL_SECONDS` | The AcquisitionBudget plans are drafted under (5 GB, 500 MB, 200, 3600 s by default); its NAS headroom is `SDP_MIN_FREE_BYTES` |
 
 Credentials come only from the environment, never from Git (NFR-009).

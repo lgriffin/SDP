@@ -19,6 +19,7 @@ import typer
 
 from sdp.kernel.application.investigate import QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
+from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
 from sdp.kernel.domain.errors import DomainError
 from sdp.kernel.domain.investigation import Field, Investigation, InvestigationSet, TestProfile, parse_region
 from sdp.kernel.ports.driving import (
@@ -26,6 +27,12 @@ from sdp.kernel.ports.driving import (
     AssembleDossierCommand,
     DefineExperimentCommand,
     FreezePredeclarationCommand,
+)
+from sdp.kernel.ports.integration import (
+    ApprovePlanCommand,
+    ExecutePlanCommand,
+    PlanInvestigationCommand,
+    PlanRecord,
 )
 from sdp.kernel.ports.investigate import InvestigateFieldCommand, TriageCommand
 from sdp.kernel.ports.ledger import Ledger
@@ -85,6 +92,11 @@ integration_app = typer.Typer(
     help="Integration v0.4.0: live recordings of capability descriptors and reference products.",
     no_args_is_help=True,
 )
+plan_app = typer.Typer(
+    help="Plan, approve and execute acquisitions (Integration v0.4.0 §5, ADR-020). Approval above the "
+    "budget threshold is a signed ledger entry.",
+    no_args_is_help=True,
+)
 investigate_app = typer.Typer(
     help="Investigate a field: identify, retrieve, test, candidates (Investigate §1). Results are EXPLORATORY.",
     invoke_without_command=True,
@@ -99,6 +111,7 @@ for name, sub in (
     ("telemetry", telemetry_app),
     ("archive", archive_app),
     ("investigate", investigate_app),
+    ("plan", plan_app),
     ("integration", integration_app),
 ):
     app.add_typer(sub, name=name)
@@ -490,6 +503,123 @@ def investigate_promote(
     """Promote to a confirmatory experiment (INV-009): refused unless the frozen predeclaration names
     evidence this investigation did not use. A refusal is recorded and exits 1."""
     _triage(TriageCommand(investigation_id, "promote", actor, reason, predeclaration, experiment))
+
+
+# --- plans ------------------------------------------------------------------------------------
+
+
+def _plan_summary(record: PlanRecord) -> dict[str, Any]:
+    plan = record.plan
+    return {
+        "plan_id": plan.plan_id,
+        "state": record.state,
+        "set_id": record.set_id,
+        "items": len(plan.items),
+        "gaps": [g.to_document() for g in plan.gaps],
+        "total_bytes": plan.cost.total_bytes,
+        "approval_threshold_bytes": plan.budget.approval_threshold_bytes,
+        "requires_signed_approval": plan.requires_signed_approval,
+    }
+
+
+def _plans() -> QueryPlansUseCase:
+    query = state.runtime().kernel.query_plans
+    if query is None:
+        raise DomainError("plan queries are not wired")
+    return query
+
+
+def _plan_record(plan_id: str) -> PlanRecord:
+    record = _plans().plan(plan_id)
+    if record is None:
+        raise DomainError(f"no plan {plan_id}")
+    return record
+
+
+@plan_app.command("draft")
+def plan_draft(
+    region: Annotated[str, typer.Option(help='DS9 region, e.g. "icrs;circle(120.0,-10.0,0.5)"')],
+    profile: Annotated[Path, typer.Option(help="Test profile (YAML)")],
+    epoch: Annotated[float, typer.Option(help="Field epoch, Julian year")] = 2016.0,
+    label: Annotated[str, typer.Option()] = "",
+    seed: Annotated[int, typer.Option()] = 0,
+    actor: Annotated[str, typer.Option()] = "cli",
+) -> None:
+    """Draft the plan for a field under a profile: what its tests need, from which sources, at what cost.
+    Nothing is acquired."""
+    runtime = state.runtime()
+    use_case = runtime.kernel.plan_investigation
+    if use_case is None:
+        raise DomainError("the planner is not wired: Investigate and capability discovery are both needed")
+    plan = use_case.execute(
+        PlanInvestigationCommand(
+            Field(parse_region(region), epoch_jyear=epoch, label=label),
+            load_profile(profile),
+            getattr(runtime, "budget", DEFAULT_BUDGET),
+            actor=actor,
+            seed=seed,
+        )
+    )
+    emit(_plan_summary(_plan_record(plan.plan_id)))
+
+
+@plan_app.command("list")
+def plan_list() -> None:
+    """Every plan with its state."""
+    emit([_plan_summary(r) for r in _plans().plans()])
+
+
+@plan_app.command("show")
+def plan_show(plan_id: str) -> None:
+    """The plan document: intent, capability matches, items, cost, gaps and approval."""
+    emit(plan_view(_plan_record(plan_id)))
+
+
+@plan_app.command("approve")
+def plan_approve(plan_id: str, actor: Annotated[str, typer.Option(help="Principal in allowed_signers")]) -> None:
+    """Approve a plan. Below its budget threshold the approval is automatic and recorded; above it,
+    this signs a ledger approval of the plan id as ``actor`` first (INT-014)."""
+    runtime = state.runtime()
+    use_case = runtime.kernel.approve_plan
+    assert use_case is not None
+    plan = _plan_record(plan_id).plan
+    entry_id = None
+    if plan.requires_signed_approval and plan.approval is None:
+        entry = runtime.ledger.append(
+            kind="approval",
+            subject_id=plan_id,
+            subject_hash=plan_id,
+            signer=actor,
+            payload={
+                "plan_id": plan_id,
+                "total_bytes": plan.cost.total_bytes,
+                "approval_threshold_bytes": plan.budget.approval_threshold_bytes,
+            },
+        )
+        entry_id = entry.entry_id
+    use_case.execute(ApprovePlanCommand(plan_id, actor, ledger_entry_id=entry_id))
+    emit(_plan_summary(_plan_record(plan_id)))
+
+
+@plan_app.command("refuse")
+def plan_refuse(plan_id: str, actor: Actor, reason: Reason) -> None:
+    """Refuse a plan; the reason is recorded and the plan can never be executed."""
+    use_case = state.runtime().kernel.approve_plan
+    assert use_case is not None
+    if not reason.strip():
+        raise typer.BadParameter("a refusal records why", param_hint="--reason")
+    use_case.execute(ApprovePlanCommand(plan_id, actor, refuse_reason=reason))
+    emit(_plan_summary(_plan_record(plan_id)))
+
+
+@plan_app.command("execute")
+def plan_execute(plan_id: str, actor: Annotated[str, typer.Option()] = "cli") -> None:
+    """Run the approved plan: InvestigateField, with every acquisition checked against the plan (INT-015)."""
+    use_case = state.runtime().kernel.execute_plan
+    if use_case is None:
+        raise DomainError("Investigate is not wired: no observation archive or cross-match adapters are configured")
+    execution = use_case.execute(ExecutePlanCommand(plan_id, actor))
+    emit({**_plan_summary(_plan_record(plan_id)), "execution": execution.to_document()})
 
 
 # --- database and telemetry (need only settings) ------------------------------------------------

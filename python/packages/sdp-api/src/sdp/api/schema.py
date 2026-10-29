@@ -13,6 +13,7 @@ from strawberry.scalars import JSON
 from strawberry.types import Info
 
 from sdp.kernel.application.kernel import Kernel
+from sdp.kernel.application.planning import plan_view
 from sdp.kernel.domain.dataset import DatasetArtifact
 from sdp.kernel.domain.dossier import Dossier as DomainDossier
 from sdp.kernel.domain.experiment import Experiment as DomainExperiment
@@ -21,6 +22,7 @@ from sdp.kernel.domain.hypothesis import Hypothesis as DomainHypothesis
 from sdp.kernel.domain.investigation import Investigation as DomainInvestigation
 from sdp.kernel.domain.investigation import InvestigationSet as DomainInvestigationSet
 from sdp.kernel.ports.events import StoredEvent
+from sdp.kernel.ports.integration import PlanRecord
 from sdp.kernel.ports.ledger import LedgerEntry as DomainLedgerEntry
 
 if TYPE_CHECKING:
@@ -359,6 +361,9 @@ class InvestigationSet:
     investigation_ids: list[str]
     manifest_id: str | None
     label: str
+    plan_artifact_id: str | None = strawberry.field(
+        default=None, description="The approved AcquisitionPlan this run executed, when it was planned."
+    )
 
     @strawberry.field(description="The set's manifest, as written to the store.")  # type: ignore[untyped-decorator]
     def manifest(self, info: Info[Any, None]) -> JSONValue | None:
@@ -403,6 +408,29 @@ class InvestigationSet:
             investigation_ids=list(s.investigation_ids),
             manifest_id=doc["manifest_id"],
             label=s.label,
+            plan_artifact_id=s.plan_artifact_id,
+        )
+
+
+@strawberry.type(
+    description="An AcquisitionPlan (ADR-020) with its state: drafted, auto_approved, approved, refused or executed."
+)
+class Plan:
+    id: strawberry.ID
+    set_id: str | None = strawberry.field(description="The investigation set its execution opened.")
+    state: str
+    document: JSONValue = strawberry.field(description="The plan document (acquisition-plan.schema.json).")
+    execution: JSONValue | None = strawberry.field(description="plan_id, acquired artifact ids, unavailable items.")
+
+    @classmethod
+    def of(cls, record: PlanRecord) -> Plan:
+        view = plan_view(record)
+        return cls(
+            id=strawberry.ID(view["id"]),
+            set_id=view["setId"],
+            state=view["state"],
+            document=view["document"],
+            execution=view["execution"],
         )
 
 
@@ -464,6 +492,17 @@ class Query:
         query = _kernel(info).query_investigations
         found = query.investigation(str(id)) if query else None
         return Investigation.of(found) if found else None
+
+    @strawberry.field(description="Acquisition plans (ADR-020).")  # type: ignore[untyped-decorator]
+    def plans(self, info: Info[Any, None]) -> list[Plan]:
+        query = _kernel(info).query_plans
+        return [Plan.of(r) for r in (query.plans() if query else [])]
+
+    @strawberry.field
+    def plan(self, info: Info[Any, None], id: strawberry.ID) -> Plan | None:
+        query = _kernel(info).query_plans
+        found = query.plan(str(id)) if query else None
+        return Plan.of(found) if found else None
 
 
 schema = strawberry.Schema(query=Query)

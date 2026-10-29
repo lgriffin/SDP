@@ -120,6 +120,9 @@ type InvestigationSet {
   manifestId: String
   label: String!
 
+  """The approved AcquisitionPlan this run executed, when it was planned."""
+  planArtifactId: String
+
   """The set's manifest, as written to the store."""
   manifest: JSON
 
@@ -164,6 +167,23 @@ type LedgerEntry {
   payload: JSON!
 }
 
+"""
+An AcquisitionPlan (ADR-020) with its state: drafted, auto_approved, approved, refused or executed.
+"""
+type Plan {
+  id: ID!
+
+  """The investigation set its execution opened."""
+  setId: String
+  state: String!
+
+  """The plan document (acquisition-plan.schema.json)."""
+  document: JSON!
+
+  """plan_id, acquired artifact ids, unavailable items."""
+  execution: JSON
+}
+
 type Query {
   experiments(state: String = null): [Experiment!]!
   experiment(id: ID!): Experiment
@@ -183,6 +203,10 @@ type Query {
   investigationSets: [InvestigationSet!]!
   investigationSet(id: ID!): InvestigationSet
   investigation(id: ID!): Investigation
+
+  """Acquisition plans (ADR-020)."""
+  plans: [Plan!]!
+  plan(id: ID!): Plan
 }
 
 type Task {
