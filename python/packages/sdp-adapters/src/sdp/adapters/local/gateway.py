@@ -26,7 +26,7 @@ import numpy as np
 
 from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.local.solver import project, read_frame, solving_image
-from sdp.adapters.local.solving import SOLVED
+from sdp.adapters.local.solving import SOLVED, LocalSolver
 from sdp.adapters.local.sources import LocalSource
 from sdp.kernel.domain.investigation import (
     FetchedProduct,
@@ -153,7 +153,8 @@ class LocalImageGateway:
             frames = []
             for row in FrameIndex(self.source, self.data).rows():
                 path = root / (row["path"] + SOLVED)
-                if row["kind"] in ("light", "stack") and path.exists():
+                # a solution written for the file as it is now, not before it was replaced
+                if row["kind"] in ("light", "stack") and LocalSolver.current(path, row):
                     frames.append(SolvedFrame(row, json.loads(path.read_text("utf-8"))))
             self._frames = frames
         return self._frames

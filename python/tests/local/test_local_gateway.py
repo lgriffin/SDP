@@ -3,6 +3,7 @@ them (#71). Synthetic frames with planted stars at a known WCS; nothing is read 
 
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAsso
 from sdp.adapters.bootstrap import local_image_gateways
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector, read_image
 from sdp.adapters.local.gateway import LocalFrameDialect, LocalImageGateway
+from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.settings import Settings
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.investigation import (
@@ -90,6 +92,12 @@ def test_an_unsolved_or_calibration_frame_is_never_offered(tmp_path: Path) -> No
     (w.source.output_dir(w.data, "solutions") / (LIGHT + ".wcs.json")).unlink()
     found = LocalImageGateway(w.source, w.data).search(ObservationTarget("f", *w.centre), criteria())
     assert [r.product.product_id for r in found.records] == [STACK]
+    # a stack replaced since it was solved has no solution until it is solved again
+    stack = w.source.path / STACK
+    stack.write_bytes(stack.read_bytes())
+    os.utime(stack, ns=(1, 1))
+    FrameIndex(w.source, w.data).update()
+    assert LocalImageGateway(w.source, w.data).search(ObservationTarget("f", *w.centre), criteria()).records == ()
 
 
 @pytest.mark.req("LOC-005")

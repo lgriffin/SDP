@@ -130,9 +130,11 @@ def write_solution(data: Path, source: LocalSource, relative: str, truth: Truth,
     s = abs(truth.header["CD1_1"] * truth.header["CD2_2"] - truth.header["CD1_2"] * truth.header["CD2_1"]) ** 0.5
     wcs = {**truth.header, "CUNIT1": "deg", "CUNIT2": "deg", "RADESYS": "ICRS", "EQUINOX": 2000.0}
     centre = truth.wcs.all_pix2world([(width + 1) / 2], [(height + 1) / 2], 1)
+    stat = (source.path / relative).stat()
     doc = {
         "frame": relative,
         "source": source.source_id,
+        "file": {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns},
         "wcs": {**wcs, "NAXIS1": width, "NAXIS2": height},
         "scale_arcsec": s * 3600.0,
         "centre": {"ra_deg": float(centre[0][0]), "dec_deg": float(centre[1][0])},
