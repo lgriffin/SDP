@@ -4,7 +4,8 @@ The planner matches a field only against registered descriptors, so a fresh data
 until this has run once (``sdp integration register``). MAST is read from the VO: its registry
 record, VOSI capabilities and ObsCore. The catalogue sources SDP ships (Gaia, 2MASS, Pan-STARRS)
 are described by hand from their packaged source files, as native TAP services without ObsCore, and
-so are Gaia's DataLink products (epoch photometry and BP/RP spectra), which no registry record lists.
+so are Gaia's DataLink products (epoch photometry and BP/RP spectra), which no registry record lists,
+and IRSA's WISE and NEOWISE per-exposure light curves.
 No descriptor claims an admitted adapter: conformance comes only from compatibility records, so
 their evidence feeds exploratory runs and no verdict until one is admitted (INT-016).
 """
@@ -20,6 +21,10 @@ from sdp.adapters.archives.tap import TapSource, load_sources
 from sdp.adapters.archives.transport import Transport
 from sdp.adapters.gaia_dr3 import ACKNOWLEDGEMENT, DATALINK, DR3_SPAN_MJD, GAIA_BAND_M, GAIA_TAP, LICENCE
 from sdp.adapters.gaia_dr3 import CITATION as GAIA_CITATION
+from sdp.adapters.wise import ACKNOWLEDGEMENT as WISE_ACKNOWLEDGEMENT
+from sdp.adapters.wise import CITATION as WISE_CITATION
+from sdp.adapters.wise import IRSA_TAP, WISE_BAND_M, WISE_TABLES
+from sdp.adapters.wise import LICENCE as WISE_LICENCE
 from sdp.kernel.domain.integration import (
     AdapterInfo,
     Coverage,
@@ -36,6 +41,8 @@ from sdp.kernel.ports.integration import CapabilityRegistry
 TAP_ADAPTER = ("tap-archive", "1.0.0")
 #: The adapter that serves Gaia's DataLink products (bootstrap admits its products under the same name).
 GAIA_DATALINK = ("gaia-datalink", "1.0.0")
+#: The adapter that serves WISE and NEOWISE light curves from IRSA (bootstrap admits them under it too).
+IRSA_WISE = ("irsa-wise", "1.0.0")
 
 
 def catalogue_descriptor(source: TapSource, today: date) -> SourceCapabilityDescriptor:
@@ -87,6 +94,36 @@ def gaia_datalink_descriptor(today: date) -> SourceCapabilityDescriptor:
     )
 
 
+def irsa_wise_descriptor(today: date) -> SourceCapabilityDescriptor:
+    """WISE and NEOWISE per-exposure light curves from IRSA's TAP service: AllWISE sources found by a
+    cone, each light curve a cone query on a per-exposure table. All sky, from the first WISE survey
+    to the end of NEOWISE, in W1 and W2."""
+    name, version = IRSA_WISE
+    spans = [t.span_mjd for t in WISE_TABLES.values()]
+    return SourceCapabilityDescriptor(
+        source_id="irsa-wise",
+        title="WISE and NEOWISE per-exposure light curves (IRSA)",
+        publisher="NASA/IPAC Infrared Science Archive",
+        verified_on=today,
+        origin="hand-written",
+        protocols=(ProtocolEndpoint("TAP", "1.1", IRSA_TAP),),
+        product_types=frozenset({ProductType.TIMESERIES}),
+        coverage=Coverage(
+            all_sky=True,
+            t_min_mjd=min(s[0] for s in spans),
+            t_max_mjd=max(s[1] for s in spans),
+            em_min_m=WISE_BAND_M[0],
+            em_max_m=WISE_BAND_M[1],
+        ),
+        operations=frozenset({Operation.CONE, Operation.DOWNLOAD}),
+        instruments=("WISE",),
+        calibration_levels=frozenset({2}),
+        limits=ServiceLimits(max_rows=2000, requests_per_second=1.0),
+        rights=Rights(WISE_LICENCE, WISE_CITATION, WISE_ACKNOWLEDGEMENT),
+        adapter=AdapterInfo(name, version),
+    )
+
+
 def register_defaults(
     registry: CapabilityRegistry,
     transport_for: Callable[[str], Transport],
@@ -95,17 +132,16 @@ def register_defaults(
     today: Callable[[], date] = date.today,
     mast: bool = True,
 ) -> list[SourceCapabilityDescriptor]:
-    """Register MAST (read from the VO), every packaged catalogue source and Gaia's DataLink
-    products; returns what was
-    registered. A newer descriptor supersedes the one before it and none is deleted (INT-018)."""
+    """Register MAST (read from the VO), every packaged catalogue source, Gaia's DataLink products and
+    IRSA's WISE light curves; returns what was registered. A newer descriptor supersedes the one before it and none is deleted (INT-018)."""
     registered = []
     for source in (sources if sources is not None else load_sources()).values():
         descriptor = catalogue_descriptor(source, today())
         registry.put(descriptor)
         registered.append(descriptor)
-    datalink = gaia_datalink_descriptor(today())
-    registry.put(datalink)
-    registered.append(datalink)
+    for descriptor in (gaia_datalink_descriptor(today()), irsa_wise_descriptor(today())):
+        registry.put(descriptor)
+        registered.append(descriptor)
     if mast:
         transport = transport_for("mast")
         discovery = VoCapabilityDiscovery(transport, Unregistered(), {"mast": mast_source(mast_ivoid(transport))})

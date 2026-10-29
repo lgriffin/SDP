@@ -1,0 +1,60 @@
+# WISE light curves: has a star's infrared brightness changed over ten years of NEOWISE visits?
+#
+# NASA's WISE satellite mapped the whole sky in the infrared in 2010, and as NEOWISE it went on
+# revisiting every patch of sky for about a day every six months until 2024. IRSA, NASA's infrared
+# archive, publishes every one of those exposures. SDP cuts each star's light curve out of them.
+#
+#   variability -> do the W1 (3.4 micron) measurements scatter more than the field's own stars do?
+#
+# NEOWISE's quoted error bars are smaller than the scatter it shows even for steady stars (1.3 to 1.8
+# times in the Pleiades, checked live 2026-10-29), so the test scales them by what the field's own stars
+# show (`error_scale: field`). A star is flagged only when it scatters more than its neighbours.
+# Try it on the Pleiades: region "icrs;circle(56.5349,23.3473,0.02)". WISE's beam is 6 arcseconds
+# wide, so stars closer than that share one light curve; the association service keeps them as a blend.
+#
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: wise-light-curves
+version: 1.0.0
+description: >-
+  Infrared light curves from WISE and NEOWISE, 2010 to 2024: flags stars whose brightness at 3.4 microns
+  changed more than their neighbours' does. A light curve is fetched for each star WISE saw.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}
+    - {column: phot_g_mean_mag, op: "<", value: 17}   # fainter Gaia stars are rarely clean in a WISE exposure
+  match_radius_arcsec: 1.0
+  row_cap: 300                         # each star costs a request to IRSA, and a NEOWISE one takes up to a minute
+  resolve: true
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: irsa-wise
+    role: observations
+    release_label: irsa:allwise-neowise
+    product_types: [lightcurve]
+    match_radius_arcsec: 2.0           # an AllWISE position is good to a few tenths of an arcsecond; 2 keeps a neighbour out
+
+tests:
+  - name: variability
+    version: 1.0.0
+    thresholds: {min_points: 20, error_scale: field}   # NEOWISE gives about 200 exposures; 20 keeps patchy ones out
+    needs_products: [lightcurve]
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0
+
+null_fields:
+  trials: 10

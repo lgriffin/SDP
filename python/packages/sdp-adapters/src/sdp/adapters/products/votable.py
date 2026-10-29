@@ -65,7 +65,7 @@ def parse_table(data: bytes) -> Table:
     tables = list(_document(data).iter_tables())
     if not tables:
         raise ValueError("not a readable VOTable: it holds no table")
-    return tables[0].to_table()
+    return tables[0].to_table(use_names_over_ids=True)
 
 
 def numbers(table: Table, name: str) -> np.ndarray:
