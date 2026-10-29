@@ -112,15 +112,19 @@ def parse_product_id(value: str) -> tuple[str, float, float, WiseTable]:
     return match.group(1), float(match.group(2)), float(match.group(3)), WISE_TABLES[match.group(4)]
 
 
-def lightcurve_query(table: WiseTable, ra_deg: float, dec_deg: float) -> str:
+def lightcurve_query(
+    table: WiseTable, ra_deg: float, dec_deg: float, radius_arcsec: float = LIGHTCURVE_RADIUS_ARCSEC
+) -> str:
     return (
         f"SELECT {', '.join(table.columns())} FROM {table.table} WHERE 1 = CONTAINS(POINT('ICRS', ra, dec), "
-        f"CIRCLE('ICRS', {ra_deg:.7f}, {dec_deg:+.7f}, {LIGHTCURVE_RADIUS_ARCSEC / 3600.0!r})) ORDER BY mjd"
+        f"CIRCLE('ICRS', {ra_deg:.7f}, {dec_deg:+.7f}, {radius_arcsec / 3600.0!r})) ORDER BY mjd"
     )
 
 
-def lightcurve_url(table: WiseTable, ra_deg: float, dec_deg: float) -> str:
+def lightcurve_url(
+    table: WiseTable, ra_deg: float, dec_deg: float, radius_arcsec: float = LIGHTCURVE_RADIUS_ARCSEC
+) -> str:
     query = urllib.parse.urlencode(
-        {"LANG": "ADQL", "FORMAT": "votable", "QUERY": lightcurve_query(table, ra_deg, dec_deg)}
+        {"LANG": "ADQL", "FORMAT": "votable", "QUERY": lightcurve_query(table, ra_deg, dec_deg, radius_arcsec)}
     )
     return f"{IRSA_TAP}/sync?{query}"

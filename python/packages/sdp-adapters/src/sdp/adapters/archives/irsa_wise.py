@@ -24,6 +24,7 @@ from sdp.adapters.wise import (
     CITATION,
     IRSA_TAP,
     LICENCE,
+    LIGHTCURVE_RADIUS_ARCSEC,
     MAX_PRODUCT_BYTES,
     MEDIA_TYPE,
     MISSION,
@@ -48,6 +49,9 @@ from sdp.kernel.science import products
 
 #: AllWISE positions are at about 2010.5; a moving star is looked for where its motion put it then.
 ALLWISE_EPOCH_JYEAR = 2010.5589
+#: A star that moves less than this over a table's span is cut out at its AllWISE position.
+MOTION_TOLERANCE_ARCSEC = 1.0
+J2000_MJD = 51544.5
 
 
 def _wanted(criteria: ObservationCriteria) -> list[WiseTable]:
@@ -77,6 +81,25 @@ def at_allwise_epoch(target: ObservationTarget) -> tuple[float, float]:
     dec = target.dec_deg + target.pm_dec_masyr * years / 3.6e6
     ra = target.ra_deg + target.pm_ra_cosdec_masyr * years / 3.6e6 / math.cos(math.radians(target.dec_deg))
     return ra % 360.0, dec
+
+
+def lightcurve_cone(
+    target: ObservationTarget, wise: WiseTable, ra_deg: float, dec_deg: float
+) -> tuple[float, float, float]:
+    """Where a source's light curve is cut out of a table: at its AllWISE position, or, for a star that
+    moves more than ``MOTION_TOLERANCE_ARCSEC`` across the table's span, at the middle of its path with
+    the radius grown by half the path, so its exposures late in NEOWISE are kept."""
+    if not target.moving:
+        return ra_deg, dec_deg, LIGHTCURVE_RADIUS_ARCSEC
+    assert target.pm_ra_cosdec_masyr is not None and target.pm_dec_masyr is not None
+    start, end = (2000.0 + (mjd - J2000_MJD) / 365.25 for mjd in wise.span_mjd)
+    path = math.hypot(target.pm_ra_cosdec_masyr, target.pm_dec_masyr) / 1000.0 * (end - start)
+    if path <= MOTION_TOLERANCE_ARCSEC:
+        return ra_deg, dec_deg, LIGHTCURVE_RADIUS_ARCSEC
+    years = (start + end) / 2.0 - ALLWISE_EPOCH_JYEAR
+    dec = dec_deg + target.pm_dec_masyr * years / 3.6e6
+    ra = ra_deg + target.pm_ra_cosdec_masyr * years / 3.6e6 / math.cos(math.radians(dec_deg))
+    return ra % 360.0, dec, LIGHTCURVE_RADIUS_ARCSEC + path / 2.0
 
 
 @dataclass
@@ -117,7 +140,7 @@ class IrsaWiseGateway:
                             product=ProductRef(
                                 self.archive_id,
                                 product_id(designation, src_ra, src_dec, wise.key),
-                                lightcurve_url(wise, src_ra, src_dec),
+                                lightcurve_url(wise, *lightcurve_cone(target, wise, src_ra, src_dec)),
                             ),
                             mission=wise.mission,
                             instrument="WISE",

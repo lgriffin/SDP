@@ -22,7 +22,13 @@ import pytest
 from astropy.io.votable import from_table
 from astropy.table import MaskedColumn, Table
 
-from sdp.adapters.archives.irsa_wise import IrsaWiseGateway, IrsaWiseInventory, _wanted, at_allwise_epoch
+from sdp.adapters.archives.irsa_wise import (
+    IrsaWiseGateway,
+    IrsaWiseInventory,
+    _wanted,
+    at_allwise_epoch,
+    lightcurve_cone,
+)
 from sdp.adapters.archives.transport import CassetteTransport, HttpRequest, HttpResponse, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.votable import TapQueryError
@@ -475,3 +481,28 @@ def test_both_methods_reconcile_wise_exposures_with_the_gaia_pair_its_beam_blend
         roles.append(tops)
     assert roles[0] == roles[1], "the two methods agree on every exposure"
     assert roles[0]["blend"] >= 0.9 * len(dets) and set(roles[0]) <= {"blend", "no-counterpart"}
+
+
+def test_a_fast_star_is_followed_along_its_path_and_a_slow_one_cut_where_allwise_saw_it() -> None:
+    neowise = WISE_TABLES["NEOWISE"]
+    assert lightcurve_cone(STAR, neowise, *SOURCE) == (*SOURCE, 2.5), "the Pleiades star moves 0.5″ in 10 years"
+    assert lightcurve_cone(FIELD, neowise, *SOURCE) == (*SOURCE, 2.5)
+    fast = ObservationTarget("fast", 10.0, 60.0, 1000.0, -2000.0, 2016.0)
+    ra, dec, radius = lightcurve_cone(fast, neowise, 10.0, 60.0)
+    start, end = (2000.0 + (m - 51544.5) / 365.25 for m in neowise.span_mjd)
+    years = (start + end) / 2 - 2010.5589
+    assert dec == pytest.approx(60.0 - 2000.0 * years / 3.6e6, abs=1e-12)
+    assert ra == pytest.approx(10.0 + 1000.0 * years / 3.6e6 / 0.5, abs=1e-9)
+    assert radius == pytest.approx(2.5 + np.hypot(1.0, 2.0) * (end - start) / 2)
+    edge = ObservationTarget("edge", 10.0, 0.0, 1000.0 / (end - start), 0.0, 2016.0)
+    assert lightcurve_cone(edge, neowise, 10.0, 0.0)[2] == 2.5, "exactly the tolerance stays put"
+    wrapped = lightcurve_cone(ObservationTarget("w", 359.9999, 0.0, -5000.0, 0.0, 2016.0), neowise, 359.9999, 0.0)
+    assert 359.9 < wrapped[0] < 360.0 or wrapped[0] < 0.1
+
+
+def test_a_fast_star_light_curve_url_is_the_wider_cone() -> None:
+    fast = ObservationTarget("fast", SOURCE[0], SOURCE[1], 3000.0, 0.0, 2016.0)
+    ra, dec, radius = lightcurve_cone(fast, WISE_TABLES["NEOWISE"], *SOURCE)
+    assert radius > 10.0
+    query = lightcurve_query(WISE_TABLES["NEOWISE"], ra, dec, radius)
+    assert f"{radius / 3600.0!r}))" in query and f"{ra:.7f}" in query

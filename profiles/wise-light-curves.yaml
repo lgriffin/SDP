@@ -41,6 +41,7 @@ archives:
   - source_id: irsa-wise
     role: observations
     release_label: irsa:allwise-neowise
+    missions: [NEOWISE]                # the test reads one light curve a star: NEOWISE's decade, not AllWISE's year
     product_types: [lightcurve]
     match_radius_arcsec: 2.0           # an AllWISE position is good to a few tenths of an arcsecond; 2 keeps a neighbour out
 

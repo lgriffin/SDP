@@ -147,6 +147,9 @@ def on_synthetic_world(profile: TestProfile) -> TestProfile:
             columns=("source_key", "ra_deg", "dec_deg", "j_mag", "k_mag"),
         )
         if a.role is ArchiveRole.CATALOGUE
+        # the fake plate archive serves every light curve under its own mission name
+        else replace(a, source_id="fake-plates", missions=())
+        if SYNTHETIC.get(a.source_id) == "fake-plates"
         else replace(a, source_id=SYNTHETIC.get(a.source_id, a.source_id))
         for a in profile.archives
     )
