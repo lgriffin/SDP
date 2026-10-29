@@ -127,7 +127,7 @@ requirements:
   - id: INT-016
     pattern: unwanted
     text: "If a manifest names an adapter without a passing AdapterCompatibilityRecord for a product type the experiment used, then the kernel shall not issue a verdict and the harness shall block publication."
-    rationale: "Admission to a gate is checked, not asserted (ADR-021). It is checked per adapter version, so a record for an older version never admits a newer one, and an input naming only part of adapter, version and product type is unadmitted."
+    rationale: "Admission to a gate is checked, not asserted (ADR-021). It is checked per adapter version, so a record for an older version never admits a newer one, and an input naming only part of adapter, version and product type is unadmitted. A reference record is verified when one named person has checked it against the documentation: SDP is a single-user app (decided 2026-10-29)."
     verification: test
     tiers: [T1, harness]
     status: approved

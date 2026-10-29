@@ -23,6 +23,7 @@ from sdp.adapters.archives.reference_recording import (
 from sdp.adapters.archives.transport import HttpRequest
 from sdp.adapters.archives.vo import literal, sync_request
 from sdp.contracts import validate
+from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.integration import ReferenceRecord, ReferenceStatus
 from sdp.kernel.domain.investigation import ProductRef
 from sdp.testing.fakes.integration import InMemoryCapabilityRegistry
@@ -100,6 +101,10 @@ def test_a_recorded_product_is_laid_out_for_review_and_loads_once_described(tmp_
     }
     ref = ReferenceRecord.from_document(filled)
     assert ref.status is ReferenceStatus.TO_VERIFY and not ref.admits
+    verified = ReferenceRecord.from_document({**filled, "status": "verified", "verified_by": ["leigh"]})
+    assert verified.admits, "SDP has one user, so one named verifier is enough"
+    with pytest.raises(InvariantViolation, match="names who verified it"):
+        ReferenceRecord.from_document({**filled, "status": "verified", "verified_by": []})
 
 
 def test_a_file_obscore_does_not_list_is_named_with_what_it_does_list(tmp_path: Path) -> None:

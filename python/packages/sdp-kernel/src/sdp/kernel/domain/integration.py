@@ -920,14 +920,14 @@ class ReferenceRecord:
     verified_by: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.status is ReferenceStatus.VERIFIED and len(set(self.verified_by)) < 2:
-            raise InvariantViolation("a verified reference record carries two independent passes")
+        if self.status is ReferenceStatus.VERIFIED and not any(v.strip() for v in self.verified_by):
+            raise InvariantViolation("a verified reference record names who verified it")
         if not self.documentation:
             raise InvariantViolation("a reference record cites the documentation it was read from")
 
     @property
     def admits(self) -> bool:
-        """Only a second-pass verified record can admit an adapter to a gate."""
+        """Only a verified record can admit an adapter to a gate."""
         return self.status is ReferenceStatus.VERIFIED
 
     @classmethod

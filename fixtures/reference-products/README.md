@@ -17,11 +17,11 @@ A directory holds:
 ## Status
 
 - `to_verify`: recorded, not yet checked. The comparison runs and reports, but cannot admit an adapter.
-- `verified`: two different people have checked the record against the documentation (`verified_by` names both). Only verified records admit an adapter for a product type (INT-016).
+- `verified`: someone has checked the record against the documentation and `verified_by` names them. SDP is a single-user app, so one person is enough, and that can be the person who filled it in, as a separate deliberate pass. Only verified records admit an adapter for a product type (INT-016).
 - `synthetic`: built in code for tests. Never admits anything. The synthetic JWST-layout products live in `python/tests/products/synthetic_products.py`, not here.
 
 ## Recording
 
 The sandbox that builds SDP cannot reach MAST, so the files are recorded by the manual **Integration recordings** workflow (Actions, *Run workflow*, with an `obs_id`, a file name and a directory name), which runs `sdp integration record` through the archive `Transport` and pushes the result to a `reference-products/run-<id>` branch: the raw file, `inventory.json`, `obscore.json`, a `reference.template.json`, and the cassettes for every exchange plus MAST's capability descriptor.
 
-A person then fills the template from the mission documentation (not from the dialect's output), saves it as `reference.json` with `status: to_verify`, and opens a pull request; the test picks it up from then on. A second person checks it and the record moves to `verified` with both names in `verified_by`.
+A person then fills the template from the mission documentation (not from the dialect's output), saves it as `reference.json` with `status: to_verify`, and opens a pull request; the test picks it up from then on. Checking it means re-reading each field against the cited documentation page. Once it matches, the record moves to `verified` with your name in `verified_by`.
