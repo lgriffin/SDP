@@ -25,6 +25,7 @@ from sdp.adapters.archives.registry import REGTAP, bounding_cone
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
+from sdp.adapters.archives.votable import TapQueryError
 from sdp.kernel.domain.integration import (
     AccessStatus,
     AdapterInfo,
@@ -45,9 +46,6 @@ from sdp.kernel.ports.integration import CapabilityRegistry
 from sdp.kernel.ports.investigate import ServiceRecord
 
 log = logging.getLogger("sdp.adapters.capabilities")
-
-#: Rows read when a service cannot answer the DISTINCT products scan in time.
-SAMPLE_ROWS = 50_000
 
 MAX_CAPABILITIES_BYTES = 4 * 1024**2
 H_C_J_M = 6.62607015e-34 * 299792458.0
@@ -231,12 +229,13 @@ class VoCapabilityDiscovery:
         )
         return sync_request(source.obscore_url, adql, 100000)
 
-    def products_sample_request(self, source: VoSource) -> HttpRequest:
+    def product_type_probe(self, source: VoSource, obscore_type: str) -> HttpRequest:
+        where = source.collection_filter() or " WHERE 1 = 1"
         adql = (
-            f"SELECT TOP {SAMPLE_ROWS} {self._product_columns(source)} "
-            f"FROM {source.obscore_table}{source.collection_filter()}"
+            f"SELECT TOP 1 dataproduct_type FROM {source.obscore_table}{where} "
+            f"AND dataproduct_type = {literal(obscore_type)}"
         )
-        return sync_request(source.obscore_url, adql, SAMPLE_ROWS)
+        return sync_request(source.obscore_url, adql, 1)
 
     def extent_request(self, source: VoSource) -> HttpRequest:
         adql = (
@@ -268,6 +267,18 @@ class VoCapabilityDiscovery:
 
     # -- reading
 
+    def _present_types(self, source: VoSource) -> list[str]:
+        present = []
+        for obscore_type in OBSCORE_PRODUCT_TYPES:
+            try:
+                probe = run_sync(self.transport, self.product_type_probe(source, obscore_type), f"{obscore_type} probe")
+            except (TransportError, TapQueryError) as exc:
+                log.warning("product type probe failed", extra={"type": obscore_type, "error": str(exc)})
+                continue
+            if probe.num_rows:
+                present.append(obscore_type)
+        return present
+
     def _read(self, source: VoSource) -> SourceCapabilityDescriptor:
         identity = run_sync(self.transport, self.identity_request(source), f"RegTAP record {source.ivoid}").to_pylist()
         if not identity:
@@ -279,18 +290,22 @@ class VoCapabilityDiscovery:
         vosi = parse_capabilities(response.body)
         try:
             rows = run_sync(self.transport, self.products_request(source), f"ObsCore products of {source.source_id}")
-        except TransportError as exc:
-            # A DISTINCT over a large archive can time out (MAST answers 504 even for JWST alone). A
-            # sample of rows can only under-claim, and every claim still needs a passing conformance
-            # suite before the harness keeps it (INT-002), so the sample is a safe stand-in.
+            products = rows.to_pylist()
+        except (TransportError, TapQueryError) as exc:
+            # A DISTINCT over a large archive can time out (MAST answers 504 even for JWST alone).
+            # Absence cannot be read from a partial answer, so only what is cheap to prove is kept:
+            # each product type by a TOP 1 probe (a present type answers at once), and the missions
+            # the scan was limited to. Instruments and calibration levels stay unpublished, which the
+            # matcher reports as partial rather than unsatisfied (INT-003).
             log.warning(
-                "ObsCore products scan unavailable; reading a sample",
+                "ObsCore products scan unavailable; probing product types",
                 extra={"source": source.source_id, "error": str(exc)},
             )
-            rows = run_sync(
-                self.transport, self.products_sample_request(source), f"ObsCore product sample of {source.source_id}"
-            )
-        products = rows.to_pylist()
+            products = [
+                {"dataproduct_type": t, "obs_collection": c}
+                for t in self._present_types(source)
+                for c in (source.collections or (None,))
+            ]
         try:
             extent = run_sync(self.transport, self.extent_request(source), f"ObsCore extent of {source.source_id}")
             ext = extent.to_pylist()[0] if extent.num_rows else {}

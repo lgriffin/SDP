@@ -153,20 +153,32 @@ def test_a_large_archive_is_scanned_by_collection_and_its_extent_falls_back_to_t
     products = discovery.products_request(source).body.decode()
     assert "obs_collection+IN+%28%27JWST%27%29" in products and "data_rights" not in products
     fake.raw(discovery.products_request(source), b"<html>504 Gateway Time-out</html>", status=504)
-    fake.table(
-        discovery.products_sample_request(source),
-        {
-            "dataproduct_type": ["image", "image", "spectrum"],
-            "obs_collection": ["JWST", "JWST", "JWST"],
-            "instrument_name": ["NIRCAM/IMAGE", "NIRCAM/IMAGE", "NIRSPEC/MSA"],
-            "calib_level": [3, 2, 3],
-        },
-    )
+    for obscore_type, present in (("image", True), ("spectrum", True), ("cube", False), ("timeseries", False)):
+        fake.table(discovery.product_type_probe(source, obscore_type), {"dataproduct_type": [obscore_type] * present})
+    fake.raw(discovery.product_type_probe(source, "measurements"), b"<html>504</html>", status=504)
     d = discovery.describe(source.source_id)
-    assert d.product_types == {ProductType.IMAGE, ProductType.SPECTRUM}, "a timed-out scan falls back to a sample"
-    assert d.instruments == ("NIRCAM/IMAGE", "NIRSPEC/MSA") and d.calibration_levels == {2, 3}
+    assert d.product_types == {ProductType.IMAGE, ProductType.SPECTRUM}, "each present type is proven by a probe"
+    assert d.missions == ("JWST",), "the missions the scan was limited to"
+    assert d.instruments == () and d.calibration_levels == frozenset(), "unproven, so unpublished, never absent"
     assert d.coverage.t_min_mjd == 40000.0, "the registry's coverage stands in for the timed-out extent"
     assert d.access is AccessStatus.PUBLIC, "without a rights column, access is read per product"
+
+
+def test_a_scan_the_service_reports_as_a_tap_error_also_falls_back_to_probes() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(
+        discovery.products_request(source),
+        b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">'
+        b'<RESOURCE type="results"><INFO name="QUERY_STATUS" value="ERROR">query timed out</INFO></RESOURCE></VOTABLE>',
+    )
+    for obscore_type in ("image", "spectrum", "cube", "timeseries", "measurements"):
+        fake.table(discovery.product_type_probe(source, obscore_type), {"dataproduct_type": [obscore_type]})
+    assert ProductType.TIMESERIES in discovery.describe(source.source_id).product_types
 
 
 @pytest.mark.req("INT-004")
