@@ -60,10 +60,10 @@ None of these can be scripted, because each one rests on human judgement or on y
 
 - **The 1919 measurements (UC-02).** The eclipse numbers have to be copied from the 1920 paper
   (Dyson, Eddington and Davidson, *Phil. Trans. R. Soc. A* 220), one printed row at a time, each with
-  its page and table. Then a second person checks every row against the paper. A row checked by the
-  person who typed it doesn't count. The checking exists because a single typo would change the
-  verdict, and nobody could tell afterwards. Until both steps are done, UC-02 reports INCONCLUSIVE
-  on purpose, never a made-up value.
+  its page and table. Then go over every row a second time against the paper and record that check.
+  One person is enough: SDP is single-user, so your own second pass counts. The second pass exists
+  because a single typo would change the verdict, and nobody could tell afterwards. Until both steps
+  are done, UC-02 reports INCONCLUSIVE on purpose, never a made-up value.
 - **Signing off the experiment plans.** Both predeclarations (`experiments/*/predeclaration.json`)
   are drafts. Someone confirms the regions, quality cuts and tolerances, then freezes them with
   `sdp predeclaration freeze`. After that they can't change, which is the point.

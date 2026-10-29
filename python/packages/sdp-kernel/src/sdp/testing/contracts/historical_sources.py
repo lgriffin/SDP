@@ -46,11 +46,13 @@ class HistoricalSourcesContract:
         with pytest.raises(KeyError):
             historical_sources.add_transcription(TranscribedRecord("r9", "nope", "p. 1", {}, "leigh", AT))
 
-    def test_second_pass_verification_by_someone_else(self, historical_sources: HistoricalSourceGateway) -> None:
+    def test_a_matching_second_pass_verifies(self, historical_sources: HistoricalSourceGateway) -> None:
         historical_sources.register(DOC)
         rec = TranscribedRecord("r2", "dyson-1920", "p. 312, table VI, row 4", {"dx": "0.10"}, "leigh", AT)
         historical_sources.add_transcription(rec)
-        historical_sources.add_verification(VerificationRecord("r2", "leigh", AT, True))
         assert not is_verified(rec, tuple(historical_sources.verifications("r2")))
-        historical_sources.add_verification(VerificationRecord("r2", "second-reader", AT, True))
+        historical_sources.add_verification(VerificationRecord("r2", "leigh", AT, False, {"dx": "0.12"}))
+        assert not is_verified(rec, tuple(historical_sources.verifications("r2")))
+        # single-user: the transcriber's own second pass counts
+        historical_sources.add_verification(VerificationRecord("r2", "leigh", AT, True))
         assert is_verified(rec, tuple(historical_sources.verifications("r2")))

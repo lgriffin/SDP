@@ -20,7 +20,7 @@ _STAR_FIELDS = ("x_arcmin", "y_arcmin", "dx_arcsec", "dy_arcsec", "error_arcsec"
 def _effective(record: TranscribedRecord, verifications: Sequence[VerificationRecord]) -> dict[str, Any]:
     fields = dict(record.fields)
     for v in verifications:
-        if v.record_id == record.record_id and not v.matches and v.verifier != record.transcriber:
+        if v.record_id == record.record_id and not v.matches:
             fields.update(v.corrections)
     return fields
 
