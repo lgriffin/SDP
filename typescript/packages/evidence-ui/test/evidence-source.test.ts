@@ -133,6 +133,40 @@ describe("images", () => {
   });
 });
 
+describe("the evidence dossier", () => {
+  it("[INV-021] downloads a set's dossier from beside the GraphQL endpoint; the demonstration has none", async () => {
+    const seen: string[] = [];
+    const source = new GraphQLEvidenceSource("http://api.test/graphql", async (url) => {
+      seen.push(url);
+      return url.includes("missing") ? new Response("", { status: 404 }) : new Response(new Uint8Array([0x50, 0x4b]), { headers: { "content-type": "application/zip" } });
+    });
+    expect(await source.dossier("invset 1")).toEqual({ body: new Uint8Array([0x50, 0x4b]), mediaType: "application/zip" });
+    expect(await source.dossier("invset-missing")).toBeNull();
+    expect(seen[0]).toBe("http://api.test/investigations/invset%201/dossier.zip");
+    expect(await new InMemoryEvidenceSource().dossier("invset-000101")).toBeNull();
+  });
+
+  it("[INV-022] reads the last reproduction check, or null from a server without one", async () => {
+    const run = { state: "finished", started_at: "a", finished_at: "b", error: null, result: { ok: true, results_compared: 3, seed: 1, differences: [] } };
+    const seen: string[] = [];
+    const source = new GraphQLEvidenceSource("http://api.test/graphql", async (url) => {
+      seen.push(url);
+      if (url.includes("older")) return new Response("Method Not Allowed", { status: 405 });
+      return new Response(JSON.stringify({ reproduction: url.includes("fresh") ? null : run }));
+    });
+    expect(await source.reproduction("invset 1")).toEqual(run);
+    expect(await source.reproduction("fresh")).toBeNull();
+    expect(await source.reproduction("older")).toBeNull();
+    expect(seen[0]).toBe("http://api.test/investigations/invset%201/reproduce");
+    const down = new GraphQLEvidenceSource("http://api.test/graphql", async () => new Response("", { status: 500 }));
+    await expect(down.reproduction("x")).rejects.toBeInstanceOf(EvidenceUnavailable);
+    const gone = new GraphQLEvidenceSource("http://api.test/graphql", async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(gone.reproduction("x")).rejects.toThrow("cannot reach");
+  });
+});
+
 describe("an older sdp-api", () => {
   const older = (missing: string) => async (_: string, init?: RequestInit) => {
     const { query } = JSON.parse(String(init?.body)) as { query: string };

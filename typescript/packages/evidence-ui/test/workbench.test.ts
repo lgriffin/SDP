@@ -88,6 +88,16 @@ describe("RestWorkbench", () => {
     expect(s.sent.map((x) => x.url)).toEqual(["http://api.test/archives/register"]);
   });
 
+  it("[INV-022] starts reproducing a set from its dossier in the background", async () => {
+    const run = { state: "running", started_at: "2026-10-29T22:00:00+00:00", finished_at: null, error: null };
+    const s = server(202, JSON.stringify({ reproduction: run }));
+    const w = new RestWorkbench("http://api.test", s.fetch);
+    expect(await w.reproduceSet("invset 1")).toEqual(run);
+    expect(s.sent.map((x) => x.url)).toEqual(["http://api.test/investigations/invset%201/reproduce"]);
+    const refused = new RestWorkbench("http://api.test", server(404, JSON.stringify({ error: "no investigation set x" })).fetch);
+    await expect(refused.reproduceSet("x")).rejects.toBeInstanceOf(CommandRefused);
+  });
+
   it("reports an unreachable server", async () => {
     const w = new RestWorkbench("http://api.test", async () => {
       throw new TypeError("fetch failed");
@@ -152,6 +162,40 @@ describe("InMemoryWorkbench background runs", () => {
     expect(p.run).toEqual({ state: "finished", started_at: "2026-10-29T09:00:00.000Z", finished_at: "2026-10-29T09:00:03.000Z", error: null });
     expect(p.execution?.acquired.length).toBe(p.document.items.length);
     expect(p.setId).toBe("invset-000001");
+  });
+
+  it("[INV-022] reproduces a demonstration set a moment after it starts, and fails one whose tests did not run", async () => {
+    const source = new InMemoryEvidenceSource();
+    const w = new InMemoryWorkbench(source, () => "2026-10-29T09:00:00.000Z");
+    const set = source.data.investigationSet["invset-000101"]!;
+    expect(await source.reproduction(set.id)).toBeNull();
+    expect((await w.reproduceSet(set.id)).state).toBe("running");
+    expect(await w.reproduceSet(set.id)).toBe(source.data.reproductions[set.id]);
+    const done = await source.reproduction(set.id);
+    expect(done).toMatchObject({ state: "finished", result: { ok: true, results_compared: set.objectsExamined, seed: set.seed, differences: [] } });
+    await expect(w.reproduceSet("invset-missing")).rejects.toMatchObject({ status: 404 });
+    expect(await source.reproduction("invset-missing")).toBeNull();
+    set.stages = set.stages.map((st) => (st.stage === "test" ? { ...st, state: "failed" } : st));
+    await w.reproduceSet(set.id);
+    expect(await source.reproduction(set.id)).toMatchObject({ state: "failed", error: expect.stringContaining("no stages/test.json") });
+  });
+
+  it("[INV-021] drafts the JWST plan only for the JWST example, and opens its set once it has run", async () => {
+    const source = new InMemoryEvidenceSource();
+    const w = new InMemoryWorkbench(source, () => "2026-10-29T09:00:00.000Z");
+    const profile = { profile_id: "jwst-image-check", archives: [{ source_id: "mast" }] };
+    const ask = (region: string, p: Record<string, unknown> = profile) =>
+      w.planInvestigation({ region, epochJyear: 2016, label: "", profile: p, seed: 0, actor: "ada" });
+    const { planId } = await ask("icrs;circle(259.323,43.1505,0.004)");
+    const p = source.data.plans.find((x) => x.id === planId)!;
+    expect(p.state).toBe("drafted");
+    expect(p.document.items.some((i) => i.source_id.endsWith("mast"))).toBe(true);
+    await w.approvePlan(planId, "ada");
+    await w.executePlan(planId, "ada");
+    source.settle(p, Date.parse("2026-10-29T09:00:03.000Z"));
+    expect(p.setId).toBe("invset-000101");
+    await expect(ask("icrs;circle(10,10,0.1)")).rejects.toThrow("one JWST field");
+    await expect(ask("icrs;circle(259.323,43.1505,0.004)", { ...profile, profile_id: "other" })).rejects.toMatchObject({ status: 409 });
   });
 
   it("[INV-019] registers the demonstration archives", async () => {

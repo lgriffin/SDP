@@ -44,6 +44,7 @@ from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
 from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.products import EnvelopeValidator, GaiaDataLinkDialect, JwstDialect
+from sdp.adapters.products.preview import preview_png
 from sdp.adapters.publication.zenodo import ZenodoPublisher, creators_from
 from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
@@ -64,6 +65,7 @@ from sdp.kernel.ports.investigate import ObservationArchiveGateway
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher, DoiRecord
 from sdp.kernel.ports.storage import ArtifactStore
+from sdp.kernel.science.investigation import InvestigationTestRegistry
 
 
 class NotConfigured(RuntimeError):
@@ -241,6 +243,24 @@ def product_envelopes(mast: Transport, gaia: Transport) -> dict[str, ProductEnve
     }
 
 
+def investigation_services(detector: PhotutilsDetector, refiner: TweakwcsRefiner) -> dict[str, Any]:
+    """The services the installed investigation tests call: UC-01's CPU reference HDBSCAN, the image
+    tests' detector, both association methods (v0.4.0 §7, ADR-019) and the optional alignment to Gaia.
+    Reproducing a dossier needs these and nothing else."""
+    return {
+        "clusterer": SklearnHdbscan(),
+        "detector": detector,
+        "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
+        "refiner": refiner,
+    }
+
+
+def reproduction_tools() -> tuple[CpuExecutor, InvestigationTestRegistry, dict[str, Any]]:
+    """What re-running an evidence dossier needs (INV-022), and nothing more: the installed tests and
+    the services they call, with no database, archive or settings."""
+    return CpuExecutor(), load_investigation_tests(), investigation_services(PhotutilsDetector(), TweakwcsRefiner())
+
+
 def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> InvestigatePorts:
     """Investigate wired to the ecosystem adapters (Investigate §7): the tests installed under the
     ``sdp.investigation_tests`` entry point, SIMBAD, MAST (JWST products enveloped), Gaia's DataLink
@@ -261,17 +281,11 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
         detector=detector,
         refiner=refiner,
         resolver=SimbadResolver(simbad_transport(settings)),
-        services={
-            "clusterer": SklearnHdbscan(),
-            # the image tests' detector and both association methods (v0.4.0 §7, ADR-019)
-            "detector": detector,
-            "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
-            "refiner": refiner,  # an image test's optional alignment to Gaia
-            **services,
-        },
+        services={**investigation_services(detector, refiner), **services},
         product_dialects={"dasch": DaschDialect(), **{k: LocalFrameDialect(g) for k, g in local.items()}},
         rankers=load_candidate_rankers(),
         product_envelopes=product_envelopes(mast, gaia),
+        picture=preview_png,
     )
 
 

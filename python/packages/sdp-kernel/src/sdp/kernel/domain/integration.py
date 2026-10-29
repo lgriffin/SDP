@@ -1614,10 +1614,19 @@ class AdapterCompatibilityRecord:
 def require_admitted(
     records: Sequence[AdapterCompatibilityRecord], used: Iterable[tuple[str, str, ProductType]]
 ) -> None:
-    """Refuse a verdict when any (adapter, version, product type) used lacks a passing record
-    (INT-016). A record for another version of the same adapter admits nothing."""
+    """Refuse a verdict when any (adapter, version, product type) used lacks a passing record, or has
+    a failing one beside it (INT-016). A record for another version of the same adapter admits nothing."""
     passing = {(r.adapter, r.adapter_version, r.product_type) for r in records if r.passed}
-    missing = sorted({(a, v, t.value) for a, v, t in used if (a, v, t) not in passing})
-    if missing:
-        named = ", ".join(f"{a} {v} for {t}" for a, v, t in missing)
-        raise IntegrationRefused(f"no passing adapter compatibility record: {named}; no verdict (INT-016)")
+    failing = {(r.adapter, r.adapter_version, r.product_type) for r in records if not r.passed}
+    triples = set(used)
+    missing = sorted((a, v, t.value) for a, v, t in triples - passing)
+    conflicting = sorted((a, v, t.value) for a, v, t in triples & passing & failing)
+
+    def named(found: list[tuple[str, str, str]]) -> str:
+        return ", ".join(f"{a} {v} for {t}" for a, v, t in found)
+
+    problems = [f"no passing adapter compatibility record: {named(missing)}"] if missing else []
+    if conflicting:
+        problems.append(f"a failing adapter compatibility record contradicts the passing one: {named(conflicting)}")
+    if problems:
+        raise IntegrationRefused(f"{'; '.join(problems)}; no verdict (INT-016)")

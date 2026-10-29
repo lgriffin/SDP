@@ -1,4 +1,4 @@
-// A FITS image drawn north up, from sdp-api through this server so the browser needs no API token (INV-020).
+// A FITS image drawn as a picture, from sdp-api through this server so the browser needs no API token (INV-020).
 import { error } from "@sveltejs/kit";
 
 import { evidence } from "$lib/server/source.ts";

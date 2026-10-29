@@ -12,6 +12,7 @@ import {
   type Plan,
   type ArchivesStatus,
   type ArtifactBytes,
+  type ReproductionRun,
   PlannerUnavailable,
 } from "../ports.ts";
 
@@ -146,6 +147,24 @@ export class GraphQLEvidenceSource implements EvidenceSource {
 
   async preview(artifactId: string): Promise<ArtifactBytes | null> {
     return this.bytes(`/artifacts/${encodeURIComponent(artifactId)}/preview.png`);
+  }
+
+  async dossier(setId: string): Promise<ArtifactBytes | null> {
+    return this.bytes(`/investigations/${encodeURIComponent(setId)}/dossier.zip`);
+  }
+
+  async reproduction(setId: string): Promise<ReproductionRun | null> {
+    const url = `${this.endpoint.replace(/\/graphql\/?$/, "")}/investigations/${encodeURIComponent(setId)}/reproduce`;
+    let response: Response;
+    try {
+      response = await this.fetch(url, { method: "GET", headers: { accept: "application/json" } });
+    } catch (cause) {
+      throw new EvidenceUnavailable(`cannot reach ${url}: ${(cause as Error).message}`);
+    }
+    // No such set, or an sdp-api from before dossiers: nothing has been checked.
+    if (response.status === 404 || response.status === 405) return null;
+    if (!response.ok) throw new EvidenceUnavailable(`${url} answered ${response.status}`);
+    return ((await response.json()) as { reproduction: ReproductionRun | null }).reproduction;
   }
 
   /** Bytes from sdp-api beside its GraphQL endpoint; null for a 404 or a 415 (not an image). */

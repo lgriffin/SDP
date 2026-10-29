@@ -15,6 +15,7 @@ import type {
   ArtifactBytes,
   LedgerEntry,
   Plan,
+  ReproductionRun,
 } from "../ports.ts";
 import data from "./fixtures.json" with { type: "json" };
 import jwst from "./jwst.json" with { type: "json" };
@@ -33,6 +34,8 @@ export interface FixtureData {
   archives: ArchivesStatus;
   /** Pictures of the fixture images, base64 PNG by artifact id (scripts/jwst-fixtures.py). */
   previews: Record<string, string>;
+  /** Checks that a set reproduces from its dossier, by set id (INV-022). */
+  reproductions: Record<string, ReproductionRun>;
 }
 
 /** What a server that has registered its archives lists: the packaged catalogues and MAST. */
@@ -57,10 +60,13 @@ export const FIXTURES = {
   plans: [...plans, ...jwst.plans],
   archives: REGISTERED_ARCHIVES,
   previews: jwst.previews,
+  reproductions: {},
 } as unknown as FixtureData;
 
 export class InMemoryEvidenceSource implements EvidenceSource {
   readonly data: FixtureData;
+  /** The set a demonstration plan opens when it has run, by plan id; others open the first set. */
+  readonly demoSets: Record<string, string> = {};
 
   constructor(data: FixtureData = FIXTURES) {
     this.data = structuredClone(data);
@@ -121,12 +127,29 @@ export class InMemoryEvidenceSource implements EvidenceSource {
     return b64 ? { body: new Uint8Array(Buffer.from(b64, "base64")), mediaType: "image/png" } : null;
   }
 
+  async dossier(_setId: string): Promise<ArtifactBytes | null> {
+    return null; // nor a dossier: it would need those files
+  }
+
+  async reproduction(setId: string): Promise<ReproductionRun | null> {
+    const run = this.data.reproductions[setId];
+    const set = this.data.investigationSet[setId];
+    if (!run || !set) return null;
+    if (run.state === "running" && Date.now() - Date.parse(run.started_at) >= DEMO_RUN_MS) {
+      const tested = set.stages.some((s) => s.stage === "test" && s.state === "completed");
+      Object.assign(run, { finished_at: new Date().toISOString() });
+      if (tested) Object.assign(run, { state: "finished", result: { ok: true, results_compared: set.objectsExamined, seed: set.seed, differences: [] } });
+      else Object.assign(run, { state: "failed", error: "IntegrityError: the dossier has no stages/test.json; only a set whose Test stage completed is reproduced" });
+    }
+    return run;
+  }
+
   /** A demonstration run finishes a moment after it starts, so the page shows it running first. */
   settle(p: Plan, now = Date.now()): void {
     if (p.run?.state !== "running" || now - Date.parse(p.run.started_at) < DEMO_RUN_MS) return;
     p.state = "executed";
     p.execution = { plan_id: p.id, acquired: p.document.items.map((i) => `synthetic:${i.item_id}`), unavailable: [] };
-    p.setId = this.data.investigationSets[0]?.id ?? null;
+    p.setId = this.demoSets[p.id] ?? this.data.investigationSets[0]?.id ?? null;
     p.run = { ...p.run, state: "finished", finished_at: new Date(now).toISOString() };
   }
 }

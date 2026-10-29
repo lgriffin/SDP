@@ -1,5 +1,5 @@
 """T4 for the image view of a field (INV-020): each image the set read with its envelope's checks and
-the Gaia stars on it, the image's bytes, and its north-up picture, over the synthetic JWST slice."""
+the Gaia stars on it, the image's bytes, and its picture, over the synthetic JWST slice."""
 
 from __future__ import annotations
 
@@ -137,7 +137,7 @@ def test_an_image_size_is_read_from_the_science_header() -> None:
 
     from astropy.io import fits
 
-    def fits_bytes(*hdus: fits.ImageHDU | fits.PrimaryHDU) -> bytes:
+    def fits_bytes(*hdus: Any) -> bytes:
         sink = io.BytesIO()
         fits.HDUList(list(hdus)).writeto(sink)
         return sink.getvalue()
@@ -149,6 +149,11 @@ def test_an_image_size_is_read_from_the_science_header() -> None:
     assert image_size(fits_bytes(primary)) == (5, 3)
     assert image_size(fits_bytes(fits.PrimaryHDU(), fits.ImageHDU(np.zeros(4), name="ERR"))) is None
     assert image_size(b"short") is None
+    squeezed = fits.CompImageHDU(np.zeros((6, 11), dtype=np.float32), name="SCI")
+    assert image_size(fits_bytes(fits.PrimaryHDU(), squeezed)) == (11, 6), "a compressed image by its ZNAXIS cards"
+    table = fits.BinTableHDU.from_columns([fits.Column(name="a", format="E", array=np.zeros(4))])
+    later = fits.ImageHDU(np.zeros((2, 3)), name="IMG")
+    assert image_size(fits_bytes(fits.PrimaryHDU(), table, later)) == (3, 2), "a table is not an image"
 
 
 def test_the_picture_stretch_bins_and_png() -> None:
@@ -160,8 +165,37 @@ def test_the_picture_stretch_bins_and_png() -> None:
     big = np.arange(36.0).reshape(6, 6)
     assert binned(big, 3).shape == (3, 3) and binned(big, 3)[0, 0] == pytest.approx(3.5)
     assert binned(big, 6) is big
+    odd = binned(np.arange(35.0).reshape(7, 5), 3)
+    assert odd.shape == (3, 2), "blocks spread over the whole grid, so the picture spans it"
+    # rows split 0-2, 2-5, 5-7 and columns 0-2, 2-5: every picture pixel covers about 7/3 by 5/2 pixels
+    assert odd[2, 0] == pytest.approx(np.mean([25.0, 26.0, 30.0, 31.0]))
+    assert odd[2, 1] == pytest.approx(np.mean([27.0, 28.0, 29.0, 32.0, 33.0, 34.0]))
+    holes = np.arange(36.0).reshape(6, 6)
+    holes[:2, :2] = np.nan
+    assert np.isnan(binned(holes, 3)[0, 0]) and binned(holes, 3)[0, 1] == pytest.approx(np.mean([2.0, 3.0, 8.0, 9.0]))
     assert (decode_png(png(np.array([[1, 2], [3, 4]], dtype=np.uint8))) == [[1, 2], [3, 4]]).all()
     drawn = decode_png(preview_png(jwst_i2d(), max_side=100))
     assert drawn.shape == (80, 80), "320 pixels binned by 4"
     with pytest.raises(ValueError, match="not a readable FITS file"):
         preview_png(b"not fits")
+
+
+def test_a_picture_is_drawn_once_and_the_oldest_forgotten(
+    world: tuple[InMemoryKernel, dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sdp.api.app as api
+
+    drawn: list[int] = []
+
+    def counted(data: bytes, max_side: int = 2048) -> bytes:
+        drawn.append(len(data))
+        return preview_png(data, max_side)
+
+    monkeypatch.setattr(api, "preview_png", counted)
+    monkeypatch.setattr(api, "PICTURES_KEPT", 1)
+    k, _ = world
+    client = TestClient(create_app(k))
+    first, second = (k.store.put(jwst_i2d(seed=s), "application/fits").value for s in (11, 12))
+    for artifact in (first, first, second, first):
+        assert client.get(f"/artifacts/{artifact}/preview.png").status_code == 200
+    assert len(drawn) == 3, "drawn once, then again only after the newer picture pushed it out"
