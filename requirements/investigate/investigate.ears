@@ -133,3 +133,14 @@ requirements:
     traces:
       - "python/tests.usecase.test_investigate::test_a_field_resolver_is_asked_once_for_the_whole_field_with_the_same_answers"
       - "python/tests.archives.test_investigate_vo::test_a_field_is_resolved_from_one_box_query_nearest_first_then_lower_oid"
+  - id: INV-017
+    pattern: event
+    text: "When an acquisition or an Investigate stage completes, the system shall report the bytes it added to the artifact store, counting an artifact that was already stored as zero, together with an acquisition's archive requests and rows."
+    rationale: "A stress run needs to know what each pull cost in disk and calls without measuring it by hand (#60)."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_metrics::test_acquire_reports_rows_bytes_requests_and_time_and_a_reread_costs_nothing"
+      - "python/tests.cli.test_cli_metrics::test_a_run_reports_seconds_and_stored_bytes_per_stage"
+      - "python/tests.cli.test_cli_metrics::test_the_meter_counts_equal_bytes_once"

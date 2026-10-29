@@ -54,6 +54,34 @@ It takes a few minutes and runs these steps:
 Add `--no-push` to record and check without committing anything. The script exits with status 1 if
 any step failed, and the output names the failing archive.
 
+## Measuring a pull
+
+Every pull now says what it cost:
+
+- `sdp archive acquire` prints `rows`, `raw_bytes`, `curated_bytes`, `stored_bytes` (everything it
+  added to the store, its parts included), `requests` (archive calls), `seconds` and `truncated`.
+  A repeated read reuses what is stored: `requests` and `stored_bytes` are then 0.
+- `sdp investigate`, `sdp investigate sets` and `sdp plan execute` print a `timing` block with the
+  seconds and `stored_bytes` of each stage (identify, retrieve, test, candidates).
+- `sdp artifact usage` prints the store's objects and bytes, per media type, and the free space
+  against `SDP_MIN_FREE_BYTES`, the floor below which acquisition is refused. It needs only
+  `SDP_ARTIFACT_ROOT`.
+
+To run a list of fields one after another and get a CSV back:
+
+```
+cd python
+uv run python tools/stress_pull.py fields.csv               # each field once
+uv run python tools/stress_pull.py fields.csv --repeat 2    # the second pass times reuse
+uv run python tools/stress_pull.py fields.csv --parallel 3  # three at once
+```
+
+`fields.csv` has a header row. A row with a `profile` is a run (`label,region,profile`); a row with a
+`source` is an archive read (`label,source,region,row_cap,columns`, cones only, blank `columns` reads
+every declared column). The report lands in `reports/stress/<date>-<time>.csv` with rows, bytes,
+seconds, peak memory (when `psutil` is installed) and the error text of any run that failed.
+
+
 ## Full-size JWST products on your own disk
 
 `sdp integration record` refuses a product over 35 MB, the most a committed reference product may be.
@@ -89,3 +117,21 @@ None of these can be scripted, because each one rests on human judgement or on y
 - **Mutation baselines.** Run the **Mutation** workflow once with `update` ticked, then review the
   branch it pushes.
 - **The DGX Spark spike.** It runs on that machine; the steps are in `docs/spike/phase0-dgx-spark.md`.
+
+## All of Gaia DR3 on your own disk
+
+`sdp archive bulk` copies the whole of Gaia DR3 `gaia_source` from ESA's bulk files (about 3,400
+gzipped files listed in ESA's `_MD5SUM.txt`), not through TAP, as ESA asks for whole-catalogue copies.
+Each file is checked against its published MD5, cut down to the 27 columns SDP reads, and stored as
+one Parquet artifact under `bulk/gaia/gaia_DR3/` in the artifact store, with a JSON record of its URL,
+MD5 and row count beside it. It needs only `SDP_ARTIFACT_ROOT` (and `SDP_MIN_FREE_BYTES`), not the
+database.
+
+```
+sdp archive bulk --count 1        # one file first: about 500,000 stars
+sdp archive bulk --workers 4      # then the rest; Ctrl+C any time
+sdp archive bulk --status         # files done, rows and bytes stored, free space
+```
+
+Run the same command again to resume: stored files are skipped and a file that failed is tried again.
+The sweep stops cleanly before a file when free space falls below `SDP_MIN_FREE_BYTES`.
