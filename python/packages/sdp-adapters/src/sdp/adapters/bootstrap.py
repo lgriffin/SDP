@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
@@ -218,6 +219,11 @@ def capability_discovery(settings: Settings) -> VoCapabilityDiscovery:
     return VoCapabilityDiscovery(
         archive_transport(settings, "regtap", 1.0), PostgresCapabilityRegistry(settings.database_url)
     )
+
+
+def artifact_store(root: Path) -> NasArtifactStore:
+    """The artifact store alone, for commands that need no database (``sdp archive bulk``)."""
+    return NasArtifactStore(root)
 
 
 def build_application(settings: Settings, overrides: Overrides | None = None, *, logging: bool = True) -> Application:

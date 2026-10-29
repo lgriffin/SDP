@@ -777,7 +777,7 @@ def archive_bulk(
 
     from sdp.adapters.archives.bulk import GAIA_DR3_BULK, BulkSweep, select_files
     from sdp.adapters.archives.tap import load_sources
-    from sdp.adapters.storage.nas import NasArtifactStore
+    from sdp.adapters.bootstrap import artifact_store
 
     if source != "gaia":
         raise typer.BadParameter("only gaia publishes bulk files SDP reads", param_hint="--source")
@@ -786,7 +786,7 @@ def archive_bulk(
         raise DomainError("SDP_ARTIFACT_ROOT is not set: it names the artifact store the sweep fills")
     descriptor = load_sources()["gaia"].descriptor
     sweep = BulkSweep(
-        store=NasArtifactStore(Path(root)),
+        store=artifact_store(Path(root)),
         descriptor=descriptor,
         work_dir=work_dir or Path(root).parent / "downloads",
         columns=descriptor.column_names(),
