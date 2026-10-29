@@ -21,7 +21,7 @@ from sdp.adapters.archives.capabilities import (
     load_descriptors,
     parse_capabilities,
 )
-from sdp.adapters.archives.transport import CassetteTransport, Transport
+from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.contracts import validate
 from sdp.kernel.domain.archive import Cone
@@ -153,20 +153,97 @@ def test_a_large_archive_is_scanned_by_collection_and_its_extent_falls_back_to_t
     products = discovery.products_request(source).body.decode()
     assert "obs_collection+IN+%28%27JWST%27%29" in products and "data_rights" not in products
     fake.raw(discovery.products_request(source), b"<html>504 Gateway Time-out</html>", status=504)
-    fake.table(
-        discovery.products_sample_request(source),
-        {
-            "dataproduct_type": ["image", "image", "spectrum"],
-            "obs_collection": ["JWST", "JWST", "JWST"],
-            "instrument_name": ["NIRCAM/IMAGE", "NIRCAM/IMAGE", "NIRSPEC/MSA"],
-            "calib_level": [3, 2, 3],
-        },
-    )
+    for obscore_type, present in (
+        ("image", True),
+        ("spectrum", True),
+        ("cube", False),
+        ("timeseries", False),
+        ("measurements", False),
+    ):
+        probe = discovery.product_type_probe(source, obscore_type, "JWST")
+        fake.table(probe, {"dataproduct_type": [obscore_type] * present})
     d = discovery.describe(source.source_id)
-    assert d.product_types == {ProductType.IMAGE, ProductType.SPECTRUM}, "a timed-out scan falls back to a sample"
-    assert d.instruments == ("NIRCAM/IMAGE", "NIRSPEC/MSA") and d.calibration_levels == {2, 3}
+    assert d.product_types == {ProductType.IMAGE, ProductType.SPECTRUM}, "each present type is proven by a probe"
+    assert d.missions == ("JWST",), "the missions the scan was limited to"
+    assert d.instruments == () and d.calibration_levels == frozenset(), "unproven, so unpublished, never absent"
     assert d.coverage.t_min_mjd == 40000.0, "the registry's coverage stands in for the timed-out extent"
     assert d.access is AccessStatus.PUBLIC, "without a rights column, access is read per product"
+
+
+def test_a_scan_the_service_reports_as_a_tap_error_also_falls_back_to_probes() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(
+        discovery.products_request(source),
+        b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">'
+        b'<RESOURCE type="results"><INFO name="QUERY_STATUS" value="ERROR">query timed out</INFO></RESOURCE></VOTABLE>',
+    )
+    for obscore_type in ("image", "spectrum", "cube", "timeseries", "measurements"):
+        fake.table(discovery.product_type_probe(source, obscore_type, "JWST"), {"dataproduct_type": [obscore_type]})
+    assert ProductType.TIMESERIES in discovery.describe(source.source_id).product_types
+
+
+def test_a_missing_probe_cassette_is_an_error_not_an_absent_type() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(discovery.products_request(source), b"<html>504</html>", status=504)
+    with pytest.raises(CassetteMissing):
+        discovery.describe(source.source_id)
+
+
+def test_a_failed_probe_is_an_error_not_an_absent_type() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(discovery.products_request(source), b"<html>504</html>", status=504)
+    fake.raw(discovery.product_type_probe(source, "image", "JWST"), b"<html>504</html>", status=504)
+    with pytest.raises(TransportError):
+        discovery.describe(source.source_id)
+
+
+def test_probes_publish_only_the_collections_they_find_products_in() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST", "HST"), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(discovery.products_request(source), b"<html>504</html>", status=504)
+    for obscore_type in ("image", "spectrum", "cube", "timeseries", "measurements"):
+        for collection, present in (("JWST", obscore_type == "image"), ("HST", False)):
+            probe = discovery.product_type_probe(source, obscore_type, collection)
+            fake.table(probe, {"dataproduct_type": [obscore_type] * present})
+    d = discovery.describe(source.source_id)
+    assert d.missions == ("JWST",), "a configured collection without products is not claimed"
+    assert d.product_types == {ProductType.IMAGE}
+
+
+def test_probed_access_is_proprietary_unless_a_public_product_is_found() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",))
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(discovery.products_request(source), b"<html>504</html>", status=504)
+    for obscore_type in ("image", "spectrum", "cube", "timeseries", "measurements"):
+        probe = discovery.product_type_probe(source, obscore_type, "JWST")
+        fake.table(probe, {"dataproduct_type": [obscore_type] * (obscore_type == "image")})
+    fake.table(discovery.public_probe(source), {"data_rights": []})
+    assert discovery.describe(source.source_id).access is AccessStatus.EXCLUSIVE_ACCESS
+    fake.table(discovery.public_probe(source), {"data_rights": ["public"]})
+    assert discovery.describe(source.source_id).access is AccessStatus.PUBLIC
 
 
 @pytest.mark.req("INT-004")

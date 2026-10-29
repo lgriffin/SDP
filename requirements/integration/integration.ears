@@ -7,7 +7,7 @@ requirements:
   - id: INT-001
     pattern: ubiquitous
     text: "Every registered source shall have a SourceCapabilityDescriptor with a verification date, read from the IVOA registry and VOSI where the source publishes them."
-    rationale: "Read, not invent: the registry already describes most sources (ADR-017). A large archive is scanned only over the collections SDP uses, and where its own extent query times out the registry's coverage stands in. Registry queries are plain ADQL (joins, no scalar subqueries) against GAVO's RegTAP host. When the DISTINCT products scan times out, a sample of rows stands in: it can only under-claim, and INT-002 still strips any unproven claim."
+    rationale: "Read, not invent: the registry already describes most sources (ADR-017). A large archive is scanned only over the collections SDP uses, and where its own extent query times out the registry's coverage stands in. Registry queries are plain ADQL (joins, no scalar subqueries) against GAVO's RegTAP host. When the DISTINCT products scan times out, each product type is proven per collection by a TOP 1 probe, a failed probe is an error rather than absence, access is proprietary unless a public product is probed, and instruments and calibration levels stay unpublished (partial, never unsatisfied)."
     verification: test
     tiers: [T3, T11]
     status: draft

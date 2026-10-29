@@ -25,6 +25,7 @@ from sdp.adapters.archives.registry import REGTAP, bounding_cone
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
+from sdp.adapters.archives.votable import TapQueryError
 from sdp.kernel.domain.integration import (
     AccessStatus,
     AdapterInfo,
@@ -45,9 +46,6 @@ from sdp.kernel.ports.integration import CapabilityRegistry
 from sdp.kernel.ports.investigate import ServiceRecord
 
 log = logging.getLogger("sdp.adapters.capabilities")
-
-#: Rows read when a service cannot answer the DISTINCT products scan in time.
-SAMPLE_ROWS = 50_000
 
 MAX_CAPABILITIES_BYTES = 4 * 1024**2
 H_C_J_M = 6.62607015e-34 * 299792458.0
@@ -231,12 +229,22 @@ class VoCapabilityDiscovery:
         )
         return sync_request(source.obscore_url, adql, 100000)
 
-    def products_sample_request(self, source: VoSource) -> HttpRequest:
+    def product_type_probe(self, source: VoSource, obscore_type: str, collection: str | None = None) -> HttpRequest:
+        where = f" WHERE obs_collection = {literal(collection)} AND" if collection else " WHERE"
         adql = (
-            f"SELECT TOP {SAMPLE_ROWS} {self._product_columns(source)} "
-            f"FROM {source.obscore_table}{source.collection_filter()}"
+            f"SELECT TOP 1 dataproduct_type FROM {source.obscore_table}{where} "
+            f"dataproduct_type = {literal(obscore_type)}"
         )
-        return sync_request(source.obscore_url, adql, SAMPLE_ROWS)
+        return sync_request(source.obscore_url, adql, 1)
+
+    def public_probe(self, source: VoSource) -> HttpRequest:
+        assert source.rights_column, "only a source with a rights column is probed for public products"
+        where = source.collection_filter() or " WHERE 1 = 1"
+        adql = (
+            f"SELECT TOP 1 {source.rights_column} FROM {source.obscore_table}{where} "
+            f"AND {source.rights_column} = 'public'"
+        )
+        return sync_request(source.obscore_url, adql, 1)
 
     def extent_request(self, source: VoSource) -> HttpRequest:
         adql = (
@@ -268,6 +276,27 @@ class VoCapabilityDiscovery:
 
     # -- reading
 
+    def _probe(self, request: HttpRequest, what: str) -> bool:
+        # A probe that fails is no evidence either way, so it is not read as absence: the error
+        # stands and no descriptor is published from a partial answer (a missing cassette included).
+        return bool(run_sync(self.transport, request, what).num_rows)
+
+    def _proven_products(self, source: VoSource) -> list[dict[str, object]]:
+        """Product rows built only from what TOP 1 probes prove: each type in each collection it is
+        found in, and, where the service has a rights column, whether any product is public."""
+        products: list[dict[str, object]] = [
+            {"dataproduct_type": t, "obs_collection": c}
+            for c in (source.collections or (None,))
+            for t in OBSCORE_PRODUCT_TYPES
+            if self._probe(self.product_type_probe(source, t, c), f"{t} probe of {c or source.source_id}")
+        ]
+        if source.rights_column:
+            # Without a public row the archive is taken as proprietary, the conservative reading.
+            public = self._probe(self.public_probe(source), f"public probe of {source.source_id}")
+            for row in products:
+                row[source.rights_column] = "public" if public else "proprietary"
+        return products
+
     def _read(self, source: VoSource) -> SourceCapabilityDescriptor:
         identity = run_sync(self.transport, self.identity_request(source), f"RegTAP record {source.ivoid}").to_pylist()
         if not identity:
@@ -279,18 +308,18 @@ class VoCapabilityDiscovery:
         vosi = parse_capabilities(response.body)
         try:
             rows = run_sync(self.transport, self.products_request(source), f"ObsCore products of {source.source_id}")
-        except TransportError as exc:
-            # A DISTINCT over a large archive can time out (MAST answers 504 even for JWST alone). A
-            # sample of rows can only under-claim, and every claim still needs a passing conformance
-            # suite before the harness keeps it (INT-002), so the sample is a safe stand-in.
+            products = rows.to_pylist()
+        except (TransportError, TapQueryError) as exc:
+            # A DISTINCT over a large archive can time out (MAST answers 504 even for JWST alone).
+            # Absence cannot be read from a partial answer, so only what is cheap to prove is kept:
+            # each product type in each collection by a TOP 1 probe (a present type answers at once),
+            # and public access by one more. Instruments and calibration levels stay unpublished,
+            # which the matcher reports as partial rather than unsatisfied (INT-003).
             log.warning(
-                "ObsCore products scan unavailable; reading a sample",
+                "ObsCore products scan unavailable; probing product types",
                 extra={"source": source.source_id, "error": str(exc)},
             )
-            rows = run_sync(
-                self.transport, self.products_sample_request(source), f"ObsCore product sample of {source.source_id}"
-            )
-        products = rows.to_pylist()
+            products = self._proven_products(source)
         try:
             extent = run_sync(self.transport, self.extent_request(source), f"ObsCore extent of {source.source_id}")
             ext = extent.to_pylist()[0] if extent.num_rows else {}
