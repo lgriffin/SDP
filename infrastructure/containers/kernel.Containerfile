@@ -6,6 +6,11 @@ FROM ghcr.io/astral-sh/uv:0.11.32 AS uv
 
 FROM docker.io/library/python:3.12-slim-bookworm AS build
 COPY --from=uv /uv /usr/local/bin/uv
+# spherical-geometry (via tweakwcs) ships no linux/arm64 wheel, so the arm64 build compiles it.
+# The compiler stays in this stage; the runtime image below never sees it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends g++ \
+ && rm -rf /var/lib/apt/lists/*
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /opt/sdp/python
 COPY python/ ./

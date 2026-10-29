@@ -14,7 +14,8 @@ RUN ln -s /usr/local/lib/node_modules/corepack/dist/corepack.js /usr/local/bin/c
 ENV UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy COREPACK_HOME=/opt/corepack CI=true
 WORKDIR /opt/sdp
 COPY --chown=10001:10001 . .
-RUN corepack enable && mkdir -p /opt/corepack && chown 10001:10001 /opt/corepack
+# COPY --chown covers the copied files but not /opt/sdp itself, and pnpm writes temp files there.
+RUN corepack enable && mkdir -p /opt/corepack && chown 10001:10001 /opt/corepack /opt/sdp
 USER 10001:10001
 RUN cd python && uv sync --frozen --all-packages \
  && cd .. && corepack pnpm install --frozen-lockfile --filter @sdp/spec-harness...
