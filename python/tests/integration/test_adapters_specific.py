@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import os
 import stat
 import subprocess
 import sys
@@ -15,6 +16,7 @@ import pytest
 from sdp.adapters.ledger.git import GitSignedLedger, LedgerError, load_signing_key
 from sdp.adapters.logs import JsonFormatter, configure_logging
 from sdp.adapters.settings import Settings, SettingsError
+from sdp.adapters.storage import nas
 from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import SystemEnvironmentProbe, UlidGenerator
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker, gpu_telemetry, write_gpu_telemetry
@@ -58,6 +60,35 @@ def test_nas_survives_a_reopen(tmp_path: Path) -> None:
     assert reopened.get(artifact) == b"kept"
     assert reopened.media_type(artifact) == "application/json"
     assert reopened.resolve("raw/gaia/part-0") == artifact
+
+
+def test_nas_writes_without_opening_directories_where_the_os_cannot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_open = os.open
+
+    def files_only(path: str | Path, flags: int, mode: int = 0o777) -> int:
+        if Path(path).is_dir():
+            raise PermissionError(13, "Permission denied", str(path))  # what Windows does
+        return real_open(path, flags, mode)
+
+    monkeypatch.setattr(nas, "_CAN_FSYNC_DIRECTORIES", False)
+    monkeypatch.setattr(os, "open", files_only)
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"windows", "text/plain", logical_path="plans/p")
+    assert store.get(artifact) == b"windows"
+    assert store.resolve("plans/p") == artifact
+
+
+def test_nas_put_restores_a_media_type_lost_to_an_interrupted_write(tmp_path: Path) -> None:
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"half written", "application/json")
+    hexdigest = artifact.value.removeprefix("sha256:")
+    media = tmp_path / "objects" / "sha256" / hexdigest[:2] / f"{hexdigest[2:]}.media"
+    media.chmod(0o644)  # written read-only, and Windows will not delete a read-only file
+    media.unlink()
+    assert store.put(b"half written", "application/json") == artifact
+    assert store.media_type(artifact) == "application/json"
 
 
 # --- Git-signed ledger --------------------------------------------------------------------------
