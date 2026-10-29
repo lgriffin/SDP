@@ -186,6 +186,33 @@ def test_the_sweep_refuses_without_a_catalogue_or_without_benchmarks(bulk: Path)
     )
 
 
+@pytest.mark.req("STL-009")
+def test_tiles_are_not_reused_once_the_catalogue_or_the_benchmarks_change(bulk: Path) -> None:
+    invoke("discover", "prepare", "--workers", "1", "--count", "1")
+    invoke("discover", "sweep", "--bands", "54", "--without-benchmarks", "--workers", "1")
+    tiles = bulk / "data" / "sweep" / "gaia-dr3" / "tiles"
+    assert json.loads((tiles / "_settings.json").read_text("utf-8"))["benchmarks_used"] == []  # stored, not used
+    result = runner.invoke(cli.app, ["discover", "sweep", "--bands", "54", "--workers", "1"])
+    assert result.exit_code != 0 and "was made with other sweep settings" in str(result.exception)
+    invoke("discover", "prepare", "--workers", "1")
+    result = runner.invoke(cli.app, ["discover", "sweep", "--bands", "54", "--without-benchmarks", "--workers", "1"])
+    assert result.exit_code != 0 and "was made with other sweep settings" in str(result.exception)
+
+
+def test_a_trial_prepare_needs_a_positive_count(bulk: Path) -> None:
+    result = runner.invoke(cli.app, ["discover", "prepare", "--count", "-1"])
+    assert result.exit_code != 0 and "--count" in result.output
+
+
+def test_a_catalogue_stored_under_another_release_is_refused(bulk: Path) -> None:
+    store = artifact_store(bulk / "artifacts")
+    table = benchmark_tables()["cga20"]
+    stale = table.replace_schema_metadata({**(table.schema.metadata or {}), b"sdp.benchmark.release": b"cga20:v0"})
+    store.link(discover._benchmark_path("cga20", "cga20:v1"), store.put(parquet(stale), PARQUET))
+    with pytest.raises(DomainError, match=r"the stored cga20 catalogue is release 'cga20:v0', not 'cga20:v1'"):
+        discover._load_benchmarks(store, ["hr23:v1.0", "cga20:v1"])
+
+
 def test_bands_out_of_range_are_refused(bulk: Path) -> None:
     invoke("discover", "prepare", "--workers", "1", "--count", "1")
     result = runner.invoke(cli.app, ["discover", "sweep", "--bands", "80:95"])
@@ -245,6 +272,25 @@ def test_the_predeclared_run_needs_both_benchmarks(k: InMemoryKernel) -> None:
     assert result.exit_code != 0 and "no stored ['hr23', 'cga20']; run `sdp benchmark fetch` first" in str(
         result.exception
     )
+
+
+def test_a_region_predeclared_on_another_release_is_refused(k: InMemoryKernel, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sdp.adapters.archives import tap
+
+    store_benchmarks(k.store)
+    sources = tap.load_sources()
+    dr4 = dataclasses.replace(sources["gaia"], descriptor=dataclasses.replace(GAIA, release_label="gaia:DR4"))
+    monkeypatch.setattr(tap, "load_sources", lambda: {**sources, "gaia": dr4})
+    result = runner.invoke(cli.app, ["discover", "run", "--signer", "leigh"])
+    assert result.exit_code != 0 and "is predeclared on 'gaia:DR3' but this SDP reads 'gaia:DR4'" in str(
+        result.exception
+    )
+
+
+def test_a_region_that_fills_the_row_cap_gets_no_verdict(k: InMemoryKernel) -> None:
+    store_benchmarks(k.store)
+    result = runner.invoke(cli.app, ["discover", "run", "--signer", "leigh", "--row-cap", "10"])
+    assert result.exit_code != 0 and "filled its 10-row cap, so the field is incomplete" in str(result.exception)
 
 
 @pytest.mark.req("STL-009")

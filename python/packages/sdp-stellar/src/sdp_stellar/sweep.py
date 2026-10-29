@@ -158,6 +158,14 @@ def _owned(candidates: Sequence[dict[str, Any]], t: Tile) -> list[dict[str, Any]
     ]
 
 
+def _owned_stars(kept: pa.Table, t: Tile) -> int:
+    """Stars that passed the cuts inside the tile itself, not its rim: each star counts in one tile."""
+    ra, dec = ra_dec(kept)
+    ra = ra % 360.0
+    in_dec = ((t.dec_min <= dec) & (dec < t.dec_max)) | ((dec == 90.0) & (t.dec_max == 90.0))
+    return int(np.count_nonzero(in_dec & (t.ra_min <= ra) & (ra < t.ra_max)))
+
+
 def sweep_tile(
     table: pa.Table,
     t: Tile,
@@ -180,6 +188,7 @@ def sweep_tile(
         "seed": s,
         "benchmarks": [b.benchmark_id for b in usable],
         "cuts": cuts,
+        "owned_stars": _owned_stars(kept, t),
         "candidates": [],
         "null_fields": 0,
         "null_fields_with_survivors": 0,
@@ -237,7 +246,7 @@ def summarise(results: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "label": LABEL,
         "tiles": len(results),
         "tiles_skipped": sum(1 for r in results if r["skipped"]),
-        "stars_searched": sum(int(r["cuts"]["kept_rows"]) for r in results if not r["skipped"]),
+        "stars_searched": sum(int(r["owned_stars"]) for r in results if not r["skipped"]),
         "candidates": dict(sorted(statuses.items())),
         "null_fields": nulls,
         "null_false_positive_rate": with_survivors / nulls if nulls else None,

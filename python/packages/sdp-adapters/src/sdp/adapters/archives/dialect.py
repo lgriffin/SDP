@@ -275,7 +275,9 @@ def curate_columnar(dialect: Dialect, native: pa.Table) -> pa.Table:
             v = np.asarray((v * u.Unit(spec.get("unit", _PHYSICAL[name]))).to_value(_PHYSICAL[name]), dtype=np.float64)
         numbers[name] = v
     if dialect.pm_ra_needs_cos_dec and "dec_deg" in numbers:
-        factor = np.cos(np.radians(numbers["dec_deg"]))
+        # The row path leaves the motion as it is when the declination is blank; so does this.
+        dec = numbers["dec_deg"]
+        factor = np.where(np.isnan(dec), 1.0, np.cos(np.radians(dec)))
         for name in ("pm_ra_cosdec_masyr", "pm_ra_cosdec_masyr_err"):
             if name in numbers:
                 numbers[name] = numbers[name] * factor
