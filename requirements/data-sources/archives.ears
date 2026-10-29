@@ -63,3 +63,13 @@ requirements:
     traces:
       - "python/tests.archives.test_smoke::test_the_smoke_records_then_fails_on_drift_naming_the_column"
       - "python/tests.archives.test_xmatch_drift_duckdb::test_drift_names_every_added_removed_and_retyped_column"
+  - id: DSI-011
+    pattern: event
+    text: "When a catalogue query covers a cone of 0.5 degrees radius or more, the system shall bound the cone's ADQL with an RA and Dec range that holds the whole cone."
+    rationale: "The Gaia archive times out on CONTAINS alone beyond about 1 degree; the same circle behind a BETWEEN range answers in seconds (#58)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_tap::test_a_wide_cone_puts_a_bounding_box_in_front_of_contains"
+      - "python/tests.archives.test_tap::test_the_bounding_box_always_holds_the_whole_circle"
