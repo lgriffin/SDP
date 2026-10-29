@@ -118,6 +118,20 @@ its reason. Solutions go to `<data>/solutions/astro/<frame>.wcs.json`, refusals 
 `<frame>.unsolved.json`. A rerun skips both; `--resolve` redoes solved frames, `--retry-refused` the
 refused ones. The frames themselves are only read.
 
+### Checking them against Gaia
+
+Once frames are solved, the `my-frames` profile asks of them what `jwst-image-check` asks of JWST: is each
+Gaia star where its motion puts it on the frame's date? An indexed local source is an observation archive
+named `local:<name>` for every run; SDP cuts a square around the field out of each dated, solved frame
+(binned 2 x 2 for a raw Bayer sub, as for solving) and writes the frame's solution into the cut's header.
+The cut is stored in the artifact store like an archive's cutout; the frame itself is only read.
+
+```
+sdp investigate --region "icrs;circle(10.6847,41.2687,0.2)" --profile ..\profiles\my-frames.yaml --label m31-frames
+```
+
+`sdp plan` does not plan local frames yet: run them with `sdp investigate`.
+
 ## Full-size JWST products on your own disk
 
 `sdp integration record` refuses a product over 35 MB, the most a committed reference product may be.

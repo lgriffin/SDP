@@ -4,7 +4,7 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These four profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These five profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
@@ -12,6 +12,7 @@ These four profiles ship with SDP. You do not need to edit them to get started. 
 | [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
+| [my-frames](my-frames.yaml) | You want to check Gaia's stars against your own solved stacks | Gaia and your own frames (`local:astro`) | A minute or two a stack. Add, index and solve your frames first (`sdp local`). |
 
 All of them only *suggest* candidates. Every result is labelled EXPLORATORY. A candidate becomes a claim only after a separate, predeclared confirmatory experiment, which you promote in the SDP Command Prompt.
 
@@ -85,3 +86,22 @@ These rules keep a profile valid:
 - A test that needs plate data must say so under `needs_products`.
 
 `python/tests/investigate/test_default_profiles.py` checks all of this for the profiles in this folder.
+
+### my-frames: your own frames
+
+The same image-counterpart test as jwst-image-check, asked of your own telescope's frames. SDP reads the
+source you added with `sdp local add astro ...`, and only its frames that `sdp local solve` solved and that
+carry a date (`DATE-OBS`). Nothing in your folder is written. The values assume a Vespera Pro (1.65
+arcseconds a pixel); change them, and the `version`, for another telescope.
+
+- **`missions: [stack]`.** For a local source these are frame kinds. Stacks are deep and few, so a run
+  reads a handful of frames. `[light]` reads every solved sub instead: hundreds of frames for one target.
+- **`cutout_arcsec: 1800`.** SDP cuts a 30-arcminute square around your field out of each frame, so a region
+  of up to 15 arcminutes radius fits, such as M31's core, `icrs;circle(10.6847,41.2687,0.2)`.
+- **`phot_g_mean_mag` between 9 and 14.** Fainter than 14 a stack may not show the star clearly, and
+  "missing" would only mean "too faint". Brighter than 9 the star saturates and has no clean centre.
+- **`fwhm_px: 3`, `search_radius_arcsec: 4`.** A star on a stack is about 5 arcseconds wide, 3 pixels; a
+  counterpart may sit up to about two and a half pixels from where Gaia puts it.
+- **`align_wcs: false`.** SDP solved every frame against Gaia, so there is nothing left to align.
+- **`min_sigma_arcsec: 0.5`.** The smallest position uncertainty SDP assumes for a star on your frame. Its
+  solution fits Gaia to about an arcsecond, so a smaller value would flag ordinary stars.

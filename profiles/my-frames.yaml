@@ -1,0 +1,71 @@
+# My frames: are Gaia's stars where your own pictures show them?
+#
+# The same question as jwst-image-check, asked of your own telescope's frames instead of JWST's. For
+# every Gaia star in the field, it moves the star along its Gaia proper motion to the date of each of
+# your solved frames, and asks whether the frame shows a star there:
+#   image-counterpart -> missing, or further off than the frame's sharpness allows
+# It reads the local source called `astro` (D:\astrophotography on Leigh's PC). Before the first run:
+#   sdp local add astro D:\astrophotography --scale 1.65
+#   sdp local index astro
+#   sdp local solve astro --kind stack
+# Only solved, dated frames take part, and SDP only ever reads them. It cuts a 30-arcminute square
+# around the field out of each frame (cutout_arcsec), so give a region no wider than that, such as M31
+# "icrs;circle(10.6847,41.2687,0.2)".
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: my-frames
+version: 1.0.0
+description: >-
+  Gaia against your own frames. Checks that each bright Gaia star appears on your solved stacks where
+  its motion puts it. Needs your frames added, indexed and solved first (sdp local). Exploratory: a
+  flag is a lead, never a claim.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}               # well-behaved single-star astrometry (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: "<", value: 14.0}   # stars every stack shows clearly, so a missing one means something
+    - {column: phot_g_mean_mag, op: ">", value: 9.0}    # brighter stars saturate, so no clean centre
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: false                       # SIMBAD would cost a request per star; turn on for a small field
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: local:astro
+    role: observations
+    release_label: local:astro
+    columns: []
+    match_radius_arcsec: 60.0          # frames that reach within a minute of arc of the field
+    missions: [stack]                  # for a local source these are frame kinds: stack or light
+    product_types: [image]
+    cutout_arcsec: 1800.0              # a 30-arcminute square: about 1100 x 1100 pixels of a stack, 5 MB
+
+tests:
+  - name: image-counterpart
+    version: 1.0.0
+    thresholds:
+      source_id: gaia
+      fwhm_px: 3.0                     # a star's width on a stack at 1.65 arcsec a pixel: about 5 arcsec of seeing
+      nsigma: 5.0                      # a detection is 5 times the background noise
+      search_radius_arcsec: 4.0        # about two and a half pixels of a stack
+      align_wcs: false                 # SDP solved each frame against Gaia already
+      anchor_sigma_arcsec: 0.01        # Gaia position at the frame's date
+      min_sigma_arcsec: 0.5            # the floor of a solved frame's star positions (its fit is good to about 1 arcsec)
+    needs_products: [image]            # the test reads your frames, so the run must cut some
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0                       # one test, so a star is a candidate only when it is significant
+
+null_fields:
+  trials: 5

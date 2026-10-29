@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from logging import getLogger
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,9 @@ from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
+from sdp.adapters.local.gateway import LocalFrameDialect, LocalImageGateway
+from sdp.adapters.local.index import FrameIndex
+from sdp.adapters.local.sources import LocalSourceError, LocalSources, data_dir
 from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
 from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
@@ -168,6 +172,22 @@ def observation_gateways(settings: Settings, mast: Transport | None = None) -> d
     }
 
 
+def local_image_gateways(settings: Settings) -> dict[str, LocalImageGateway]:
+    """One gateway per local source that has been indexed (#71), keyed ``local:<name>``, so a profile
+    names the person's own frames as it names an archive. SDP's data folder is ``SDP_DATA`` or the one
+    holding the artifact store; with no sources there are no gateways."""
+    try:
+        data = data_dir()
+    except LocalSourceError:
+        data = settings.artifact_root.parent
+    try:
+        sources = LocalSources(data).all()
+        return {s.source_id: LocalImageGateway(s, data) for s in sources.values() if FrameIndex(s, data).path.exists()}
+    except Exception as exc:  # an unreadable or hand-broken registry never stops the archives' runs
+        getLogger("sdp.adapters.bootstrap").warning("local sources not read", extra={"error": str(exc)})
+        return {}
+
+
 #: The adapter name and version MAST products are admitted under (INT-016): a compatibility record
 #: for ``mast-observations`` at this version and the product type admits them.
 MAST_ADAPTER = ("mast-observations", "1.0.0")
@@ -193,17 +213,18 @@ def product_envelopes(mast: Transport) -> dict[str, ProductEnvelopes]:
 def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> InvestigatePorts:
     """Investigate wired to the ecosystem adapters (Investigate §7): the tests installed under the
     ``sdp.investigation_tests`` entry point, SIMBAD, MAST (JWST products enveloped) and DASCH with the
-    DASCH product dialect,
+    DASCH product dialect, the person's own solved frames (``local:<name>``),
     photutils and tweakwcs, and the installed candidate rankers (the stellar module's under the
     ``stellar`` policy). The ``clusterer`` a structure test uses is UC-01's CPU reference HDBSCAN
     unless ``services`` names another."""
     mast = archive_transport(settings, "mast", 1.0)
     detector = PhotutilsDetector()
     refiner = TweakwcsRefiner()
+    local = local_image_gateways(settings)
     return InvestigatePorts(
         tests=load_investigation_tests(),
         cross_match=cross_match(settings),
-        observation_gateways=observation_gateways(settings, mast),
+        observation_gateways={**observation_gateways(settings, mast), **local},
         detector=detector,
         refiner=refiner,
         resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
@@ -215,7 +236,7 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
             "refiner": refiner,  # an image test's optional alignment to Gaia
             **services,
         },
-        product_dialects={"dasch": DaschDialect()},
+        product_dialects={"dasch": DaschDialect(), **{k: LocalFrameDialect(g) for k, g in local.items()}},
         rankers=load_candidate_rankers(),
         product_envelopes=product_envelopes(mast),
     )

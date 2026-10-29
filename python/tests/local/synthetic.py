@@ -3,15 +3,20 @@ solver can be checked against the truth. Invented values only; nothing is read f
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pyarrow as pa
 from astropy.wcs import WCS
 
+from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.local.solver import Reference, deproject
+from sdp.adapters.local.solving import SOLVED
+from sdp.adapters.local.sources import LocalSource, LocalSources
 
 from .fits_files import write
 
@@ -118,3 +123,84 @@ def bayer_frame(
     gaia = mag < 15.0
     reference = Reference(ra[gaia], dec[gaia], mag[gaia], "sha256:synthetic-gaia")
     return Truth(wcs, wcs_doc, reference, path)
+
+
+def write_solution(data: Path, source: LocalSource, relative: str, truth: Truth, width: int, height: int) -> Path:
+    """The truth's WCS written where ``sdp local solve`` writes a solution, as if the frame had solved."""
+    s = abs(truth.header["CD1_1"] * truth.header["CD2_2"] - truth.header["CD1_2"] * truth.header["CD2_1"]) ** 0.5
+    wcs = {**truth.header, "CUNIT1": "deg", "CUNIT2": "deg", "RADESYS": "ICRS", "EQUINOX": 2000.0}
+    centre = truth.wcs.all_pix2world([(width + 1) / 2], [(height + 1) / 2], 1)
+    stat = (source.path / relative).stat()
+    doc = {
+        "frame": relative,
+        "source": source.source_id,
+        "file": {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns},
+        "wcs": {**wcs, "NAXIS1": width, "NAXIS2": height},
+        "scale_arcsec": s * 3600.0,
+        "centre": {"ra_deg": float(centre[0][0]), "dec_deg": float(centre[1][0])},
+        "matched": 40,
+        "rms_arcsec": 0.2,
+    }
+    path = source.output_dir(data, "solutions") / (relative + SOLVED)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc), "utf-8")
+    return path
+
+
+@dataclass(frozen=True)
+class LocalWorld:
+    """A local source of two solved frames of the same sky (a raw Bayer sub and a stacked master), a
+    dark that is never offered, and the bright, isolated Gaia stars of a field inside them."""
+
+    source: LocalSource
+    data: Path
+    light: Truth
+    stack: Truth
+    catalogue: pa.Table
+    centre: tuple[float, float]
+    vanished: str
+
+
+LOCAL_DATE = "2025-09-14T22:01:03"
+VANISHED = "gaia:DR3:vanished"
+
+
+def local_world(tmp: Path, *, field_radius_deg: float = 0.12, size: int = 1800, seed: int = 7) -> LocalWorld:
+    root, data = tmp / "astrophotography", tmp / "SDP"
+    (root / "M31" / "lights").mkdir(parents=True)
+    (root / "M31" / "darks").mkdir()
+    common: dict[str, Any] = {"centre_offset": (0.45, 0.4), "rotation_deg": 37.0, "width": size, "height": size}
+    common |= {"per_deg2": 3000.0, "seed": seed}
+    light = bayer_frame(root / "M31" / "lights" / "sub-001.fits", **common)
+    stack = bayer_frame(root / "M31" / "M31_stacked.fits", stack=True, header={"DATE-OBS": LOCAL_DATE}, **common)
+    write(root / "M31" / "darks" / "dark-001.fits", {
+        "SIMPLE": True, "BITPIX": 16, "NAXIS": 2, "NAXIS1": 8, "NAXIS2": 8, "IMAGETYP": "Dark",
+    }, bytes(128))  # fmt: skip
+    source = LocalSources(data).add("astro", root, 1.65)
+    FrameIndex(source, data).update()
+    for truth, relative in ((light, "M31/lights/sub-001.fits"), (stack, "M31/M31_stacked.fits")):
+        write_solution(data, source, relative, truth, size, size)
+    # the field sits at the frames' centre; its catalogue is the bright stars with no near neighbour
+    ra_c, dec_c = (float(v[0]) for v in light.wcs.all_pix2world([(size + 1) / 2], [(size + 1) / 2], 1))
+    ra, dec, mag = gaia_field(M31, 1.5, 3000.0, seed)
+    cosd = math.cos(math.radians(dec_c))
+    near = np.hypot((ra - ra_c) * cosd, dec - dec_c) < field_radius_deg
+    keep = []
+    for i in np.flatnonzero(near & (mag < 13.0) & (mag > 9.0)):
+        gap = np.hypot((ra - ra[i]) * cosd, dec - dec[i]) * 3600
+        if not np.any((gap > 0) & (gap < 25.0) & (mag < mag[i] + 3.0)):
+            keep.append(i)
+    # one Gaia star where the frames show nothing: the run should flag it and only it
+    angle = np.linspace(0, 2 * math.pi, 64, endpoint=False)
+    spots = [(ra_c + 0.06 * math.cos(a) / cosd, dec_c + 0.06 * math.sin(a)) for a in angle]
+    lonely = max(spots, key=lambda p: float(np.min(np.hypot((ra - p[0]) * cosd, dec - p[1]))))
+    rows = [(f"gaia:DR3:{i}", float(ra[i]), float(dec[i]), float(mag[i])) for i in keep]
+    rows.append((VANISHED, lonely[0], lonely[1], 11.0))
+    n = len(rows)
+    catalogue = pa.table({
+        "source_key": [r[0] for r in rows], "ra_deg": [r[1] for r in rows], "dec_deg": [r[2] for r in rows],
+        "epoch_jyear": [2016.0] * n, "parallax_mas": [1.0] * n, "parallax_mas_err": [0.05] * n,
+        "pm_ra_cosdec_masyr": [0.0] * n, "pm_dec_masyr": [0.0] * n, "g_mag": [r[3] for r in rows],
+        "bp_rp": [0.8] * n,
+    })  # fmt: skip
+    return LocalWorld(source, data, light, stack, catalogue, (ra_c, dec_c), VANISHED)
