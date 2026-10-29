@@ -111,7 +111,7 @@ requirements:
   - id: INT-014
     pattern: unwanted
     text: "If a plan exceeds the profile's AcquisitionBudget threshold, then the system shall require a signed ledger approval before execution."
-    rationale: "Large downloads become signed decisions. The approval is the ledger entry itself, bound to the plan id and the actor; an entry id alone, an entry for another plan or an automatic approval approves nothing above the threshold, and every budget limit is checked, not only bytes. The harness refuses an automatic approval above the threshold and an approval without its ledger entry."
+    rationale: "Large downloads become signed decisions. The approval is the ledger entry itself, bound to the plan id and the actor; an entry id alone, an entry for another plan or an automatic approval approves nothing above the threshold, and every budget limit is checked, not only bytes. The harness refuses an automatic approval above the threshold and an approval without its ledger entry. A request may tighten the operator's budget but never relax it, and an approval entry must verify against allowed_signers."
     verification: test
     tiers: [T4, harness]
     status: approved
