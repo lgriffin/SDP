@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import dataclasses
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -109,25 +110,58 @@ def test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cel
     assert disagree == {("eclipse", "Dx", "I"), ("comparison", "Dx", "14_2a"), ("eclipse", "Dy", "VIII")}
 
 
-@pytest.mark.req("REL-009")
-def test_a_record_is_verified_only_when_every_cell_it_cites_was_checked(tmp_path: Path) -> None:
+def _with_checks(tmp_path: Path, check: Callable[[str], str]) -> Path:
+    """The committed transcription with each row's check column replaced by check(cell key)."""
     rows = list(csv.DictReader(CSV.open(newline="", encoding="utf-8")))
-    target = f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"
-    cites = {r.record_id: set(r.fields["printed"]) for r in paper1920.records(paper1920.Transcription.read(CSV))}
-    dropped = sorted(cites[target])[0]
     for r in rows:
-        key = paper1920.Cell(*(r[f] for f in FIELDS)).key
-        r["check"] = "" if key == dropped else "re-read by claude 2026-10-30"
+        r["check"] = check(paper1920.Cell(*(r[f] for f in FIELDS)).key)
     path = tmp_path / "checked.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+    return path
+
+
+@pytest.mark.req("REL-009")
+def test_a_record_is_verified_only_when_every_cell_it_cites_was_checked(tmp_path: Path) -> None:
+    cites = {r.record_id: set(r.fields["printed"]) for r in paper1920.records(paper1920.Transcription.read(CSV))}
+    target = f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"
+    dropped = sorted(cites[target] - cites[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/4"])[0]
+    path = _with_checks(tmp_path, lambda key: "" if key == dropped else "re-read by claude 2026-10-30")
     passes = {v["record_id"]: v for v in paper1920.bundle(path)["verifications"]}
-    assert set(passes) == {k for k, keys in cites.items() if dropped not in keys}
     assert target not in passes
     some = passes[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/4"]
     assert some["matches"] and some["verifier"] == "claude" and some["verified_at"].startswith("2026-10-30")
+
+
+@pytest.mark.req("REL-009")
+def test_an_unchecked_plate_or_instrument_cell_withholds_every_star_fitted_with_it(tmp_path: Path) -> None:
+    cites = {r.record_id: set(r.fields["printed"]) for r in paper1920.records(paper1920.Transcription.read(CSV))}
+    plate = f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1"
+    orientation = next(k for k in cites[plate] if "theta" in k)
+    path = _with_checks(tmp_path, lambda key: "" if key == orientation else "re-read by claude 2026-10-30")
+    passes = {v["record_id"] for v in paper1920.bundle(path)["verifications"]}
+    assert not {k for k in cites if k.startswith(f"{plate}/")} & passes
+    assert f"{paper1920.DOCUMENT_ID}/principe-astro/W-D1/5" in passes
+    # The astrographic error is derived from Table I and the p. 304 coefficients as well as the p. 311 values.
+    position = next(k for k in cites[f"{paper1920.DOCUMENT_ID}/sobral-astro"] if k.startswith("I/10/"))
+    path = _with_checks(tmp_path, lambda key: "" if key == position else "re-read by claude 2026-10-30")
+    passes = {v["record_id"] for v in paper1920.bundle(path)["verifications"]}
+    assert not {k for k in passes if k.startswith(f"{paper1920.DOCUMENT_ID}/sobral-astro")}
+
+
+@pytest.mark.req("REL-009")
+def test_only_a_recorded_check_counts_never_a_note_that_merely_contains_one(tmp_path: Path) -> None:
+    for note in ("not checked by Leigh 2026-10-29", "to be re-read by claude 2026-10-29"):
+
+        def negative(key: str, note: str = note) -> str:
+            return note
+
+        path = _with_checks(tmp_path, negative)
+        assert paper1920.bundle(path)["verifications"] == []
+    both = _with_checks(tmp_path, lambda key: "checked by Leigh 2026-10-29; re-read by claude 2026-10-30")
+    assert {v["verifier"] for v in paper1920.bundle(both)["verifications"]} == {"Leigh"}
 
 
 @pytest.mark.req("REL-009")
