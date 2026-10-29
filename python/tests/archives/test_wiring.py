@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport
+from sdp.adapters.archives.transport import CassetteTransport, MirrorTransport, PoliteTransport
 from sdp.adapters.bootstrap import archive_gateways, archive_transport, capability_discovery, cross_match
 from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.settings import Settings, SettingsError
@@ -73,9 +73,24 @@ def test_investigate_is_wired_to_the_ecosystem_adapters_on_cassettes(tmp_path: P
     assert default.services["clusterer"].algorithm_id == "sklearn-hdbscan"  # UC-01's CPU reference
     names = {k.split("@")[0] for k in ports.tests.keys()}  # noqa: SIM118 - a registry, not a dict
     assert names >= {"parallax-consistency", "long-baseline-motion"}
-    for name, adapter in (*ports.observation_gateways.items(), ("simbad", ports.resolver)):
-        transport = adapter.transport  # type: ignore[attr-defined]
+    resolver_transport = ports.resolver.transport
+    assert isinstance(resolver_transport, MirrorTransport)
+    for name, transport in (
+        *((n, gateway.transport) for n, gateway in ports.observation_gateways.items()),  # type: ignore[attr-defined]
+        ("simbad", resolver_transport.inner),
+    ):
         assert isinstance(transport, CassetteTransport) and transport.directory == tmp_path / name
+
+
+def test_simbad_fails_over_to_the_harvard_mirrors_unless_turned_off() -> None:
+    from sdp.adapters.archives.simbad import SESAME, SIMBAD_TAP
+    from sdp.adapters.bootstrap import simbad_transport
+
+    mirrored = simbad_transport(Settings.from_env(ENV))
+    assert isinstance(mirrored, MirrorTransport)
+    assert mirrored.mirrors[SIMBAD_TAP] == ("https://simbad.harvard.edu/simbad/sim-tap",)
+    assert mirrored.mirrors[SESAME] == ("https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-ox/S",)
+    assert isinstance(simbad_transport(Settings.from_env({**ENV, "SDP_ARCHIVE_MIRRORS": "0"})), PoliteTransport)
 
 
 def test_the_plan_budget_comes_from_the_environment_and_the_planner_reads_registered_descriptors(

@@ -39,6 +39,8 @@ class Settings:
     cassette_dir: Path | None = None
     #: where Gaia fields are read: auto (the bulk copy once complete, else the archive), tap or bulk (#72)
     gaia_source: str = "auto"
+    #: fail over to an archive's official mirror (SIMBAD and Sesame at Harvard) when it gives no answer
+    archive_mirrors: bool = True
     #: Zenodo: the token never appears in a repr, a log or a manifest; the sandbox is the default service
     zenodo_token: str | None = field(default=None, repr=False)
     zenodo_url: str = "https://sandbox.zenodo.org"
@@ -85,6 +87,7 @@ class Settings:
             archive_mode=archive_mode(env.get("SDP_ARCHIVE_MODE", "live")),
             cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
             gaia_source=gaia_source(env.get("SDP_GAIA_SOURCE", "auto")),
+            archive_mirrors=_flag(env.get("SDP_ARCHIVE_MIRRORS", "1")),
             zenodo_token=secret(env, "SDP_ZENODO_TOKEN"),
             zenodo_url=env.get("SDP_ZENODO_URL", "https://sandbox.zenodo.org"),
             zenodo_creators=env.get("SDP_ZENODO_CREATORS", ""),
