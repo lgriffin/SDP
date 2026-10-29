@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
 from sdp.kernel.domain.canonical import canonical_json, es_number, hash_document
@@ -36,3 +37,10 @@ def test_keys_sort_by_utf16_code_units() -> None:
 def test_non_json_values_are_refused(bad: object) -> None:
     with pytest.raises(InvariantViolation):
         canonical_json(bad)
+
+
+@pytest.mark.req("CTR-003")
+def test_numpy_floats_are_written_as_the_numbers_they_hold() -> None:
+    # numpy 2 decorates repr() as np.float64(...); canonical text must not depend on it
+    assert es_number(np.float64(2.5)) == "2.5"
+    assert canonical_json({"slope": np.float64(0.1), "rms": [np.float64(1e-7)]}) == '{"rms":[1e-7],"slope":0.1}'
