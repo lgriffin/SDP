@@ -10,6 +10,7 @@ import pytest
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import FetchedProduct, Field, ObservationCriteria, ProductRef
 from sdp.kernel.ports.investigate import Detection, ImageFrame, ObservationTarget, ServiceRecord
+from sdp.testing.contracts.integration import PlanRepositoryContract
 from sdp.testing.contracts.investigate import (
     DetectorCase,
     DialectCase,
@@ -110,6 +111,12 @@ class TestStaticSourceRegistry(SourceRegistryContract):
 
 
 class TestInMemoryInvestigationRepository(InvestigationRepositoryContract):
+    @pytest.fixture
+    def uow_factory(self) -> Any:
+        return InMemoryDatabase().unit_of_work
+
+
+class TestInMemoryPlanRepository(PlanRepositoryContract):
     @pytest.fixture
     def uow_factory(self) -> Any:
         return InMemoryDatabase().unit_of_work

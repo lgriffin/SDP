@@ -18,10 +18,12 @@ from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.events import DomainEvent
 from sdp.kernel.domain.experiment import Experiment
 from sdp.kernel.domain.hypothesis import Hypothesis
+from sdp.kernel.domain.integration import AcquisitionPlan
 from sdp.kernel.domain.investigation import Investigation, InvestigationSet
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration, Predeclaration
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.ports.events import StoredEvent
+from sdp.kernel.ports.integration import PlanExecution, PlanRecord
 from sdp.testing.fakes.storage import InMemoryDatasetRepository
 
 
@@ -38,6 +40,7 @@ class _State:
     datasets: InMemoryDatasetRepository = field(default_factory=InMemoryDatasetRepository)
     investigation_sets: dict[str, dict[str, Any]] = field(default_factory=dict)
     investigations: dict[str, dict[str, Any]] = field(default_factory=dict)
+    plans: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class InMemoryHypothesisRepository:
@@ -165,6 +168,55 @@ class InMemoryInvestigationRepository:
         ]
 
 
+class InMemoryPlanRepository:
+    """Plans as documents: the plan once, its decision once, its execution once (ADR-020)."""
+
+    def __init__(self, state: _State) -> None:
+        self._s = state
+
+    def add(self, plan: AcquisitionPlan) -> None:
+        if plan.approval is not None:
+            raise InvariantViolation("a plan is stored as drafted and decided afterwards")
+        self._s.plans.setdefault(plan.plan_id, {"plan": plan.to_document(), "set_id": None, "execution": None})
+
+    def decide(self, plan: AcquisitionPlan) -> None:
+        row = self._s.plans.get(plan.plan_id)
+        if row is None:
+            raise InvariantViolation(f"no plan {plan.plan_id} to decide")
+        if plan.approval is None:
+            raise InvariantViolation("a decision records an approval or a refusal")
+        if row["plan"]["approval"] is not None:
+            raise InvariantViolation(f"plan {plan.plan_id} is already decided")
+        row["plan"] = plan.to_document()
+
+    def executed(self, plan_id: str, set_id: str, execution: PlanExecution) -> None:
+        row = self._s.plans.get(plan_id)
+        if row is None:
+            raise InvariantViolation(f"no plan {plan_id} to record an execution for")
+        approval = row["plan"]["approval"]
+        if approval is None or approval["decision"] == "refused":
+            raise InvariantViolation(f"plan {plan_id} is not approved; it cannot have been executed")
+        if row["execution"] is not None:
+            raise InvariantViolation(f"plan {plan_id} is already executed")
+        row["set_id"], row["execution"] = set_id, execution.to_document()
+
+    def get(self, plan_id: str) -> PlanRecord | None:
+        row = self._s.plans.get(plan_id)
+        return _plan_record(copy.deepcopy(row)) if row else None
+
+    def list(self) -> Sequence[PlanRecord]:
+        return [_plan_record(copy.deepcopy(r)) for _, r in sorted(self._s.plans.items())]
+
+
+def _plan_record(row: dict[str, Any]) -> PlanRecord:
+    execution = row["execution"]
+    return PlanRecord(
+        AcquisitionPlan.from_document(row["plan"]),
+        row["set_id"],
+        PlanExecution.from_document(execution) if execution else None,
+    )
+
+
 class InMemoryEventLog:
     def __init__(self, state: _State | None = None) -> None:
         self._s = state or _State()
@@ -224,6 +276,7 @@ class InMemoryUnitOfWork:
         self.events = InMemoryEventLog(state)
         self.evidence = InMemoryEvidenceGraph(state)
         self.investigations = InMemoryInvestigationRepository(state)
+        self.plans = InMemoryPlanRepository(state)
 
     def __enter__(self) -> Self:
         self._snapshot = copy.deepcopy(self._db.state)

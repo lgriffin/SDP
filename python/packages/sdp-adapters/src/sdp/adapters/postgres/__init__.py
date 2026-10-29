@@ -23,10 +23,12 @@ from sdp.kernel.domain.events import DomainEvent, event_from_document
 from sdp.kernel.domain.experiment import Experiment
 from sdp.kernel.domain.hypothesis import Hypothesis
 from sdp.kernel.domain.ids import ArtifactId
+from sdp.kernel.domain.integration import AcquisitionPlan
 from sdp.kernel.domain.investigation import Investigation, InvestigationSet
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration, Predeclaration
 from sdp.kernel.domain.provenance import RELATIONS, ProvGraph
 from sdp.kernel.ports.events import StoredEvent
+from sdp.kernel.ports.integration import PlanExecution, PlanRecord
 
 
 def _json(value: Any) -> Jsonb:
@@ -343,6 +345,71 @@ class PostgresInvestigationRepository:
         return [Investigation.from_document(r[0]) for r in rows]
 
 
+class PostgresPlanRepository:
+    """Plans as documents; the schema refuses an edited plan, a second decision or execution, and
+    deletes (ADR-020)."""
+
+    def __init__(self, conn: psycopg.Connection) -> None:
+        self._c = conn
+
+    def _row(self, plan_id: str) -> tuple[Any, ...] | None:
+        return self._c.execute(
+            "SELECT document, set_id, execution FROM acquisition_plans WHERE plan_id = %s FOR UPDATE", (plan_id,)
+        ).fetchone()
+
+    def add(self, plan: AcquisitionPlan) -> None:
+        if plan.approval is not None:
+            raise InvariantViolation("a plan is stored as drafted and decided afterwards")
+        self._c.execute(
+            "INSERT INTO acquisition_plans (plan_id, profile_hash, document) VALUES (%s, %s, %s)"
+            " ON CONFLICT (plan_id) DO NOTHING",
+            (plan.plan_id, plan.profile_hash, _json(plan.to_document())),
+        )
+
+    def decide(self, plan: AcquisitionPlan) -> None:
+        if plan.approval is None:
+            raise InvariantViolation("a decision records an approval or a refusal")
+        row = self._row(plan.plan_id)
+        if row is None:
+            raise InvariantViolation(f"no plan {plan.plan_id} to decide")
+        if row[0]["approval"] is not None:
+            raise InvariantViolation(f"plan {plan.plan_id} is already decided")
+        self._c.execute(
+            "UPDATE acquisition_plans SET document = %s, decision = %s WHERE plan_id = %s",
+            (_json(plan.to_document()), plan.approval.decision.value, plan.plan_id),
+        )
+
+    def executed(self, plan_id: str, set_id: str, execution: PlanExecution) -> None:
+        row = self._row(plan_id)
+        if row is None:
+            raise InvariantViolation(f"no plan {plan_id} to record an execution for")
+        approval = row[0]["approval"]
+        if approval is None or approval["decision"] == "refused":
+            raise InvariantViolation(f"plan {plan_id} is not approved; it cannot have been executed")
+        if row[2] is not None:
+            raise InvariantViolation(f"plan {plan_id} is already executed")
+        self._c.execute(
+            "UPDATE acquisition_plans SET set_id = %s, execution = %s WHERE plan_id = %s",
+            (set_id, _json(execution.to_document()), plan_id),
+        )
+
+    @staticmethod
+    def _record(row: tuple[Any, ...]) -> PlanRecord:
+        return PlanRecord(
+            AcquisitionPlan.from_document(row[0]), row[1], PlanExecution.from_document(row[2]) if row[2] else None
+        )
+
+    def get(self, plan_id: str) -> PlanRecord | None:
+        row = self._c.execute(
+            "SELECT document, set_id, execution FROM acquisition_plans WHERE plan_id = %s", (plan_id,)
+        ).fetchone()
+        return self._record(row) if row else None
+
+    def list(self) -> Sequence[PlanRecord]:
+        rows = self._c.execute("SELECT document, set_id, execution FROM acquisition_plans ORDER BY plan_id").fetchall()
+        return [self._record(r) for r in rows]
+
+
 @dataclass(frozen=True)
 class PostgresDatabase:
     """Composition-root handle: ``unit_of_work`` opens one connection and one transaction."""
@@ -410,6 +477,10 @@ class PostgresUnitOfWork:
     @property
     def investigations(self) -> PostgresInvestigationRepository:
         return PostgresInvestigationRepository(self._c)
+
+    @property
+    def plans(self) -> PostgresPlanRepository:
+        return PostgresPlanRepository(self._c)
 
     def commit(self) -> None:
         self._c.commit()

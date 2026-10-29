@@ -28,7 +28,7 @@ from typing import Any, Protocol
 
 from sdp.kernel.domain.archive import Box, Cone
 from sdp.kernel.domain.canonical import hash_document
-from sdp.kernel.domain.errors import CurationBlocked, InvariantViolation
+from sdp.kernel.domain.errors import CurationBlocked, IntegrityError, InvariantViolation
 from sdp.kernel.domain.ids import check_semver
 from sdp.kernel.domain.investigation import region_contains
 
@@ -433,6 +433,24 @@ class EvidenceRequirement:
             "public_only": self.public_only,
         }
 
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> EvidenceRequirement:
+        return cls(
+            requirement_id=doc["requirement_id"],
+            test_kind=doc["test_kind"],
+            product_types=frozenset(ProductType(t) for t in doc["product_types"]),
+            min_calibration_level=doc.get("min_calibration_level"),
+            missions=tuple(doc.get("missions", ())),
+            instruments=tuple(doc.get("instruments", ())),
+            epoch_min_mjd=doc.get("epoch_min_mjd"),
+            epoch_max_mjd=doc.get("epoch_max_mjd"),
+            em_min_m=doc.get("em_min_m"),
+            em_max_m=doc.get("em_max_m"),
+            operations=frozenset(Operation(o) for o in doc.get("operations", ())),
+            needs_bytes=bool(doc.get("needs_bytes", True)),
+            public_only=bool(doc.get("public_only", True)),
+        )
+
 
 @dataclass(frozen=True)
 class FieldReason:
@@ -444,6 +462,10 @@ class FieldReason:
 
     def to_document(self) -> dict[str, Any]:
         return {"field": self.field, "outcome": self.outcome.value, "reason": self.reason}
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> FieldReason:
+        return cls(doc["field"], MatchStatus(doc["outcome"]), doc["reason"])
 
 
 @dataclass(frozen=True)
@@ -468,6 +490,16 @@ class CapabilityMatch:
             "reasons": [r.to_document() for r in self.reasons],
             "descriptor_verified_on": self.descriptor_verified_on.isoformat(),
         }
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> CapabilityMatch:
+        return cls(
+            doc["source_id"],
+            doc["requirement_id"],
+            MatchStatus(doc["status"]),
+            tuple(FieldReason.from_document(r) for r in doc["reasons"]),
+            date.fromisoformat(doc["descriptor_verified_on"]),
+        )
 
 
 def _centre(region: Cone | Box) -> tuple[float, float]:
@@ -1008,6 +1040,16 @@ class AcquisitionBudget:
             "approval_threshold_bytes": self.approval_threshold_bytes,
         }
 
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> AcquisitionBudget:
+        return cls(
+            max_bytes=int(doc["max_bytes"]),
+            max_requests_per_source=int(doc["max_requests_per_source"]),
+            max_wall_seconds=float(doc["max_wall_seconds"]),
+            min_nas_headroom_bytes=int(doc["min_nas_headroom_bytes"]),
+            approval_threshold_bytes=int(doc["approval_threshold_bytes"]),
+        )
+
 
 @dataclass(frozen=True)
 class PlanItem:
@@ -1047,6 +1089,22 @@ class PlanItem:
             "test_kind": self.test_kind,
         }
 
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> PlanItem:
+        return cls(
+            item_id=doc["item_id"],
+            source_id=doc["source_id"],
+            operation=Operation(doc["operation"]),
+            target=doc["target"],
+            expected_bytes=int(doc["expected_bytes"]),
+            expected_rows=doc.get("expected_rows"),
+            calibration_level=doc.get("calibration_level"),
+            access_status=AccessStatus(doc["access_status"]),
+            licence=doc["licence"],
+            requirement_id=doc["requirement_id"],
+            test_kind=doc["test_kind"],
+        )
+
 
 @dataclass(frozen=True)
 class PlanGap:
@@ -1055,6 +1113,10 @@ class PlanGap:
 
     def to_document(self) -> dict[str, Any]:
         return {"requirement_id": self.requirement_id, "reason": self.reason}
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> PlanGap:
+        return cls(doc["requirement_id"], doc["reason"])
 
 
 @dataclass(frozen=True)
@@ -1076,6 +1138,15 @@ class PlanCost:
             "estimated_wall_seconds": self.estimated_wall_seconds,
             "nas_headroom_after_bytes": self.nas_headroom_after_bytes,
         }
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> PlanCost:
+        return cls(
+            int(doc["total_bytes"]),
+            {k: int(v) for k, v in doc["requests_per_source"].items()},
+            float(doc["estimated_wall_seconds"]),
+            doc.get("nas_headroom_after_bytes"),
+        )
 
 
 class ApprovalDecision(StrEnum):
@@ -1132,6 +1203,17 @@ class PlanApproval:
             "ledger_entry_id": self.ledger_entry_id,
             "reason": self.reason,
         }
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> PlanApproval:
+        return cls(
+            doc["plan_id"],
+            ApprovalDecision(doc["decision"]),
+            doc["actor"],
+            int(doc["threshold_bytes"]),
+            doc.get("ledger_entry_id"),
+            doc.get("reason", ""),
+        )
 
 
 @dataclass(frozen=True)
@@ -1289,6 +1371,108 @@ class AcquisitionPlan:
         doc["plan_id"] = self.plan_id
         doc["approval"] = self.approval.to_document() if self.approval else None
         return doc
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> AcquisitionPlan:
+        """The plan a document records; a document whose ``plan_id`` does not hash its intent is
+        refused, so a stored plan cannot be edited into another one."""
+        intent = doc["intent"]
+        constraints = dict(doc["constraints"])
+        budget = AcquisitionBudget.from_document(constraints.pop("budget"))
+        approval = doc.get("approval")
+        plan = cls(
+            field=intent["field"],
+            profile_hash=intent["profile_hash"],
+            planner_id=intent["planner_id"],
+            planner_version=intent["planner_version"],
+            requirements=tuple(EvidenceRequirement.from_document(r) for r in intent["requirements"]),
+            matches=tuple(CapabilityMatch.from_document(m) for m in doc["discovery"]),
+            items=tuple(PlanItem.from_document(i) for i in doc["items"]),
+            cost=PlanCost.from_document(doc["cost"]),
+            budget=budget,
+            gaps=tuple(PlanGap.from_document(g) for g in doc.get("gaps", ())),
+            constraints=constraints,
+        )
+        if doc.get("plan_id") not in (None, plan.plan_id):
+            raise IntegrityError(f"plan document names {doc['plan_id']} but hashes to {plan.plan_id}")
+        return replace(plan, approval=PlanApproval.from_document(approval)) if approval else plan
+
+
+def select_items(
+    requirements: Sequence[EvidenceRequirement],
+    matches: Sequence[CapabilityMatch],
+    candidates: Sequence[PlanItem],
+) -> tuple[tuple[PlanItem, ...], tuple[PlanGap, ...]]:
+    """The minimum product set: the candidates whose source satisfies, or partly satisfies, the
+    requirement they would serve, each acquisition once, and a gap for every requirement left
+    without one (v0.4.0 §5).
+
+    Pure and deterministic, so the harness re-derives a plan's items from the requirements,
+    matches and candidates it records (``rederive-plan``). A candidate serving several requirements
+    is planned once, under the first requirement in the plan's order; item ids are assigned after
+    sorting by source, operation and target.
+    """
+    order = {r.requirement_id: n for n, r in enumerate(requirements)}
+    status = {(m.source_id, m.requirement_id): m.status for m in matches}
+    usable = (MatchStatus.SATISFIED, MatchStatus.PARTIAL)
+    chosen: dict[tuple[str, str, str], PlanItem] = {}
+    served: set[str] = set()
+    for c in sorted(candidates, key=lambda c: (order.get(c.requirement_id, len(order)), c.source_id, c.target)):
+        if c.requirement_id not in order or status.get((c.source_id, c.requirement_id)) not in usable:
+            continue
+        served.add(c.requirement_id)
+        chosen.setdefault((c.source_id, c.operation.value, c.target), c)
+    items = tuple(replace(c, item_id=f"item-{n:03d}") for n, (_, c) in enumerate(sorted(chosen.items()), start=1))
+    gaps = []
+    for r in requirements:
+        if r.requirement_id in served:
+            continue
+        offered = sorted({c.source_id for c in candidates if c.requirement_id == r.requirement_id})
+        if not offered:
+            reason = "no source in the profile lists anything for it"
+        else:
+            reason = "no source that lists it satisfies it: " + ", ".join(
+                f"{src} ({status[(src, r.requirement_id)].value})"
+                if (src, r.requirement_id) in status
+                else f"{src} (no registered descriptor)"
+                for src in offered
+            )
+        gaps.append(PlanGap(r.requirement_id, reason))
+    return items, tuple(gaps)
+
+
+@dataclass
+class PlanGate:
+    """The executor's check on every acquisition one run makes under an approved plan (INT-015).
+
+    An acquisition the plan names is authorised and its artifact recorded against the item; one it
+    does not name is refused and the refusal kept, so the execution record says what was asked for
+    and turned away as well as what was fetched.
+    """
+
+    plan: AcquisitionPlan
+    acquired: dict[str, str] = dataclass_field(default_factory=dict)
+    refused: list[dict[str, str]] = dataclass_field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.plan.approval is None or not self.plan.approval.approves:
+            raise IntegrationRefused(f"plan {self.plan.plan_id} is not approved; nothing may be acquired under it")
+
+    def authorise(self, source_id: str, operation: Operation, target: str) -> PlanItem | None:
+        try:
+            return self.plan.authorise(source_id, operation, target)
+        except IntegrationRefused as exc:
+            self.refused.append(
+                {"source_id": source_id, "operation": operation.value, "target": target, "reason": str(exc)}
+            )
+            return None
+
+    def record(self, item: PlanItem, artifact_id: str) -> None:
+        self.acquired.setdefault(item.item_id, artifact_id)
+
+    @property
+    def unavailable(self) -> tuple[str, ...]:
+        return tuple(i.item_id for i in self.plan.items if i.item_id not in self.acquired)
 
 
 # ---------------------------------------------------------------------------------------------

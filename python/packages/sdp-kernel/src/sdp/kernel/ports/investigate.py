@@ -16,6 +16,7 @@ from typing import Any, Protocol
 import astropy.units as u
 import numpy as np
 
+from sdp.kernel.domain.integration import PlanGate
 from sdp.kernel.domain.investigation import (
     EvidenceBundle,
     FetchedProduct,
@@ -224,6 +225,8 @@ class InvestigateFieldCommand:
     actor: str = "kernel"
     set_id: str | None = None
     """Resume an existing set: completed stages are read back, not recomputed."""
+    gate: PlanGate | None = None
+    """When the run executes an approved plan, every acquisition goes through it (INT-015)."""
 
 
 @dataclass(frozen=True)

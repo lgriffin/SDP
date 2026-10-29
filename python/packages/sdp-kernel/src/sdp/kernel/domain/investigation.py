@@ -1502,6 +1502,8 @@ class InvestigationSet:
     investigation_ids: tuple[str, ...] = ()
     manifest_id: ArtifactId | None = None
     label: str = EXPLORATORY
+    plan_artifact_id: str | None = None
+    """The approved AcquisitionPlan this run executed, when it was planned (ADR-020)."""
     _events: list[ev.DomainEvent] = dataclass_field(default_factory=list, repr=False, compare=False)
 
     @property
@@ -1553,6 +1555,7 @@ class InvestigationSet:
             "investigation_ids": list(self.investigation_ids),
             "manifest_id": self.manifest_id.value if self.manifest_id else None,
             "label": self.label,
+            "plan_artifact_id": self.plan_artifact_id,
         }
 
     @classmethod
@@ -1575,4 +1578,5 @@ class InvestigationSet:
             investigation_ids=tuple(doc.get("investigation_ids", ())),
             manifest_id=ArtifactId(doc["manifest_id"]) if doc.get("manifest_id") else None,
             label=doc.get("label", EXPLORATORY),
+            plan_artifact_id=doc.get("plan_artifact_id"),
         )
