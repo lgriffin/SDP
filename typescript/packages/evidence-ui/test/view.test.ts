@@ -12,6 +12,7 @@ import {
   investigationTone,
   isSelfApproval,
   orderChecks,
+  rowCapReached,
   shortHash,
   stageTone,
   type TestResultDoc,
@@ -121,5 +122,23 @@ describe("investigation view", () => {
   it("formats rates as percentages", () => {
     expect(formatPercent(0.16333333)).toBe("16.33%");
     expect(formatPercent(0)).toBe("0%");
+  });
+});
+
+describe("row caps (#59)", () => {
+  it("names every source whose read filled its cap, across stages", () => {
+    const stages = [
+      { summary: { objects: 5000, row_cap_reached: { gaia: 5000 } } },
+      { summary: { bundles: 5000, row_cap_reached: { "2mass": 50000, gaia: 5000 } } },
+      { summary: null },
+    ];
+    expect(rowCapReached(stages)).toEqual([
+      ["2mass", 50000],
+      ["gaia", 5000],
+    ]);
+  });
+
+  it("is empty when every read fitted", () => {
+    expect(rowCapReached([{ summary: { objects: 12 } }, {}])).toEqual([]);
   });
 });

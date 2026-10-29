@@ -92,7 +92,8 @@ class AcquireDatasetUseCase:
                 uow.commit()
                 if curated is None and command.curate:
                     curated = self._curate(existing, descriptor.licence)
-                return AcquisitionResult(raw=existing, curated=curated, reused=True)
+                rows = sum(p.row_count for p in existing.acquisition.parts) if existing.acquisition else 0
+                return AcquisitionResult(raw=existing, curated=curated, reused=True, rows=rows, row_cap=q.row_cap)
             uow.commit()
 
         source = SourceRef(
@@ -151,7 +152,12 @@ class AcquireDatasetUseCase:
         if raw.status is DatasetStatus.REJECTED:
             raise IntegrityError(raw.rejection_reason or "raw artifact rejected")
         curated = self._curate(raw, descriptor.licence) if command.curate else None
-        return AcquisitionResult(raw=raw, curated=curated, reused=False)
+        if table.num_rows >= q.row_cap:
+            log.warning(
+                "acquisition reached its row cap; the region may hold more rows",
+                extra={"source": q.source_id, "row_cap": q.row_cap},
+            )
+        return AcquisitionResult(raw=raw, curated=curated, reused=False, rows=table.num_rows, row_cap=q.row_cap)
 
     def _fetch_parts(self, gateway: ArchiveGateway, handle: AcquisitionHandle) -> list[AcquisitionPart]:
         """Fetch chunk by chunk, resuming after the last stored part; verify every chunk."""

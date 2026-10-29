@@ -155,3 +155,14 @@ export function belowAlpha(result: TestResultDoc, alpha: number | undefined): bo
 export function formatPercent(rate: number): string {
   return `${formatNumber(rate * 100)}%`;
 }
+
+/** Every source whose read filled its row cap in any stage, with the cap (#59): the field held more than was read. */
+export function rowCapReached(stages: readonly { summary?: unknown }[]): [string, number][] {
+  const reached: Record<string, number> = {};
+  for (const stage of stages) {
+    const summary = stage.summary as Record<string, unknown> | null | undefined;
+    const caps = summary?.row_cap_reached;
+    if (caps && typeof caps === "object") Object.assign(reached, caps as Record<string, number>);
+  }
+  return Object.entries(reached).sort(([a], [b]) => a.localeCompare(b));
+}

@@ -45,6 +45,14 @@ class AcquisitionResult:
     raw: DatasetArtifact
     curated: DatasetArtifact | None
     reused: bool
+    #: rows the raw artifact holds, and the query's row cap
+    rows: int = 0
+    row_cap: int = 0
+
+    @property
+    def reached_row_cap(self) -> bool:
+        """The archive filled the cap, so the region may hold more rows than were read (#59)."""
+        return self.row_cap > 0 and self.rows >= self.row_cap
 
 
 @dataclass(frozen=True)

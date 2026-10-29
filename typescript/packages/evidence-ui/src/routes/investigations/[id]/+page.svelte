@@ -2,7 +2,7 @@
   import Badge from "$lib/components/Badge.svelte";
   import Journey from "$lib/components/Journey.svelte";
   import { candidateStateLabel, fieldLabel, humanTime, openCandidates, planHref, planStateLabel, setJourney } from "$lib/plain.ts";
-  import { formatNumber, formatPercent, investigationTone, shortHash, stageTone, type NullResultDoc } from "$lib/view.ts";
+  import { formatNumber, formatPercent, investigationTone, rowCapReached, shortHash, stageTone, type NullResultDoc } from "$lib/view.ts";
 
   let { data } = $props();
   const s = $derived(data.set);
@@ -17,6 +17,7 @@
     { key: "closed", label: "Closed" },
   ];
   const shown = $derived(data.show === "all" ? s.investigations : s.investigations.filter((i) => i.state === data.show));
+  const cutOff = $derived(rowCapReached(s.stages ?? []));
   const count = (key: string) => (key === "all" ? s.investigations.length : s.investigations.filter((i) => i.state === key).length);
 </script>
 
@@ -34,6 +35,14 @@
   <Badge tone="warn" label={s.label === "EXPLORATORY" ? "Exploratory" : s.label} />
   These candidates came from looking at the data, so none of them is a finding yet. Use them to decide what is worth a proper test.
 </p>
+
+{#if cutOff.length}
+  <p class="notice" role="alert" data-testid="row-cap-reached">
+    <Badge tone="warn" label="Only part of the field" />
+    {#each cutOff as [source, cap], i (source)}{i ? "; " : ""}{source} had at least {formatNumber(cap)} rows here{/each}, so
+    only part of the field was read. Choose a smaller region, or raise <code>row_cap</code> in a copy of the profile.
+  </p>
+{/if}
 
 <section aria-labelledby="candidates-h">
   <h2 id="candidates-h">Candidates, strongest first</h2>
