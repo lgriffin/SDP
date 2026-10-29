@@ -37,24 +37,27 @@ class CandidateChecks:
     min_members: int
     min_stability: float
     min_cmd_coherence: float
+    #: a group holding more than this share of the stars searched is the field itself, not a cluster
+    max_field_fraction: float
 
     @classmethod
     def from_parameters(cls, doc: Mapping[str, Any]) -> CandidateChecks:
         """Read the pass marks as written, refusing rather than coercing: a fractional member count
         must not be truncated into a different, unfrozen pass mark."""
-        missing = sorted({"min_members", "min_stability", "min_cmd_coherence"} - set(doc))
+        keys = ("min_members", "min_stability", "min_cmd_coherence", "max_field_fraction")
+        missing = sorted(set(keys) - set(doc))
         if missing:
             raise ValueError(f"candidate_checks lacks {missing}")
         members = doc["min_members"]
         if isinstance(members, bool) or not isinstance(members, int) or members < 1:
             raise ValueError(f"candidate_checks.min_members must be a whole number of at least 1, got {members!r}")
         marks: list[float] = []
-        for key in ("min_stability", "min_cmd_coherence"):
+        for key in keys[1:]:
             value = doc[key]
             if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or value < 0:
                 raise ValueError(f"candidate_checks.{key} must be a finite number of at least 0, got {value!r}")
             marks.append(float(value))
-        return cls(members, marks[0], marks[1])
+        return cls(members, marks[0], marks[1], marks[2])
 
 
 def _configs(params: Mapping[str, Any]) -> list[Configuration]:
@@ -153,6 +156,11 @@ def _classify(
         reasons.append(f"unstable across the grid: stability {c.stability:.2f} < {checks.min_stability}")
     if c.members.size < checks.min_members:
         reasons.append(f"{c.members.size} members at membership >= 0.5, fewer than {checks.min_members}")
+    if c.members.size > checks.max_field_fraction * table.num_rows:
+        reasons.append(
+            f"{c.members.size} members are more than {checks.max_field_fraction:g} of the {table.num_rows} stars "
+            "searched: the field itself, not a cluster"
+        )
     if coh is not None and coh < checks.min_cmd_coherence:
         reasons.append(
             f"colour-magnitude sequence no tighter than the field: coherence {coh:.2f} < {checks.min_cmd_coherence}"
