@@ -47,7 +47,8 @@ INTEGRATION = (
 #: the package's end-to-end protocol tests (about a minute per suite), so one job per package ran past
 #: the 180-minute limit: v0.1.0 reached 2640 of 3593 stellar mutants and 489 of 2734 relativity ones.
 #: Each shard still runs the whole test suite, so a shard's score means what the package score meant.
-#: The groups are balanced by source size; every module must appear in exactly one shard.
+#: The groups are balanced by source size; every module, subpackages included, must appear in exactly
+#: one shard, and the Mutation workflow takes its job list from ``--list``, so a new shard is scheduled.
 RELATIVITY_SHARDS = (
     ("analysis", "dossier"),
     ("fitter", "reduction"),
@@ -168,7 +169,9 @@ def check_shards() -> None:
     """Every module of a sharded package is scored by exactly one shard, so a new module is never skipped."""
     for package, shards in (("sdp_relativity", RELATIVITY_SHARDS), ("sdp_stellar", STELLAR_SHARDS)):
         src = ROOT / "packages" / package.replace("_", "-") / "src" / package
-        files = sorted(p.stem for p in src.glob("*.py") if p.stem != "__init__")
+        files = sorted(
+            p.relative_to(src).with_suffix("").as_posix() for p in src.rglob("*.py") if p.name != "__init__.py"
+        )
         listed = sorted(name for group in shards for name in group)
         if files != listed:
             raise SystemExit(f"{package} shards list {listed}, but the package has {files}")
@@ -178,9 +181,15 @@ def main(argv: list[str] | None = None) -> int:
     check_shards()
     parser = argparse.ArgumentParser(prog="tools/mutation.py")
     parser.add_argument("targets", nargs="*", default=sorted(TARGETS))
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--out", type=Path)
+    parser.add_argument("--list", action="store_true", help="print every target name as JSON, for the CI matrix")
     parser.add_argument("--children", type=int, default=4)
     args = parser.parse_args(argv)
+    if args.list:
+        print(json.dumps(sorted(TARGETS)))
+        return 0
+    if args.out is None:
+        parser.error("--out is required")
     scores: dict[str, float] = {}
     details: dict[str, dict[str, int]] = {}
     for name in args.targets:

@@ -21,26 +21,26 @@ permissions:
   contents: read
 
 jobs:
+  targets:
+    name: mutmut · targets
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.list.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+      # the matrix comes from tools/mutation.py, so every shard it defines is scheduled
+      - id: list
+        run: echo "python=$(python3 python/tools/mutation.py --list)" >> "$GITHUB_OUTPUT"
+
   python:
     name: mutmut · ${{ matrix.target }}
+    needs: targets
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        # the science packages run in module shards (tools/mutation.py explains why)
-        target:
-          - sdp-kernel-domain
-          - sdp-kernel-science
-          - sdp-kernel-application
-          - sdp-relativity-1
-          - sdp-relativity-2
-          - sdp-relativity-3
-          - sdp-relativity-4
-          - sdp-relativity-5
-          - sdp-stellar-1
-          - sdp-stellar-2
-          - sdp-stellar-3
+        target: ${{ fromJSON(needs.targets.outputs.python) }}
     defaults:
       run:
         working-directory: python
