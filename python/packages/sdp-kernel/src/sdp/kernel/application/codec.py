@@ -40,6 +40,7 @@ def encode(value: Any) -> Any:
     if isinstance(value, int) and not isinstance(value, bool):
         return value
     if isinstance(value, float):
+        value = float(value)  # np.float64 is a float whose repr() is np.float64(...)
         if math.isfinite(value) and not value.is_integer():
             return value
         return {_TAG: "float", "repr": repr(value)}

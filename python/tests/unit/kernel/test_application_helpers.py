@@ -83,3 +83,9 @@ def test_prov_subgraph_and_round_trip() -> None:
     sub = g.subgraph("experiment/e1")
     assert "sdp:raw" in sub.entities and "sdp:acq" in sub.activities and "sdp:unrelated" not in sub.entities
     assert ProvGraph.from_prov_json(g.to_prov_json()).to_prov_json() == g.to_prov_json()
+
+
+def test_codec_checkpoints_numpy_floats_as_floats() -> None:
+    for value in (np.float64(2.5), np.float64(2.0), np.float64("inf")):
+        back = codec.loads(codec.dumps({"v": value}))["v"]
+        assert type(back) is float and back == float(value)
