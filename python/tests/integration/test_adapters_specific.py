@@ -21,7 +21,7 @@ from sdp.adapters.storage.nas import NasArtifactStore
 from sdp.adapters.system import SystemEnvironmentProbe, UlidGenerator
 from sdp.adapters.telemetry.prometheus import PrometheusTextfileTracker, gpu_telemetry, write_gpu_telemetry
 from sdp.kernel.domain.canonical import sha256_id
-from sdp.kernel.domain.errors import IntegrityError
+from sdp.kernel.domain.errors import IntegrityError, InvariantViolation
 from sdp.kernel.ports.ledger import LedgerKind
 from sdp.kernel.science.plan import Backend
 from sdp.testing.fakes import FixedClock
@@ -89,6 +89,33 @@ def test_nas_put_restores_a_media_type_lost_to_an_interrupted_write(tmp_path: Pa
     media.unlink()
     assert store.put(b"half written", "application/json") == artifact
     assert store.media_type(artifact) == "application/json"
+
+
+def test_nas_logical_paths_hold_characters_windows_refuses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(nas, "_ESCAPED", frozenset('<>:"|?*\\%'))  # as on Windows, wherever this runs
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"result", "application/json")
+    task = "investigations/invset-1/tasks/run:parallax-consistency@1.0.0.json"
+    store.link(task, artifact)
+    store.link("sha256:abc/100%", artifact)  # "x:" would otherwise read as a drive on Windows
+    assert store.resolve(task) == artifact and store.resolve("sha256:abc/100%") == artifact
+    assert (tmp_path / "paths/investigations/invset-1/tasks/run%3Aparallax-consistency@1.0.0.json").is_file()
+    assert (tmp_path / "paths/sha256%3Aabc/100%25").is_file()
+
+
+def test_nas_a_backslash_cannot_climb_out_of_the_logical_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(nas, "_ESCAPED", frozenset('<>:"|?*\\%'))
+    store = NasArtifactStore(tmp_path / "nas")
+    store.link("a\\..\\..\\outside", store.put(b"x", "text/plain"))
+    assert not (tmp_path / "outside").exists()
+    assert (tmp_path / "nas/paths/a%5C..%5C..%5Coutside").is_file()
+
+
+@pytest.mark.parametrize("bad", ["", "/etc/passwd", "a/../../outside"])
+def test_nas_refuses_logical_paths_that_are_not_relative(tmp_path: Path, bad: str) -> None:
+    store = NasArtifactStore(tmp_path)
+    with pytest.raises(InvariantViolation):
+        store.link(bad, store.put(b"x", "text/plain"))
 
 
 # --- Git-signed ledger --------------------------------------------------------------------------

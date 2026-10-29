@@ -17,7 +17,7 @@ import shutil
 import stat
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from sdp.kernel.domain.canonical import sha256_id
@@ -27,6 +27,14 @@ from sdp.kernel.domain.ids import ArtifactId
 _RAW_PREFIX = "raw/"
 # Windows cannot open a directory as a file (PermissionError), and NTFS journals the rename itself.
 _CAN_FSYNC_DIRECTORIES = os.name != "nt"
+# Windows refuses these in a file name (a task id is "run:<test>@<version>"), and reads "x:" as a drive.
+# Logical paths are only ever looked up by name, so each segment is %-escaped on the way to disk there;
+# elsewhere a segment is its own file name, as stores written before this expect.
+_ESCAPED = frozenset('<>:"|?*\\%') if os.name == "nt" else frozenset()
+
+
+def _segment(name: str) -> str:
+    return "".join(f"%{ord(c):02X}" if c in _ESCAPED or ord(c) < 32 else c for c in name)
 
 
 def _atomic_write(path: Path, data: bytes, *, read_only: bool) -> None:
@@ -69,10 +77,10 @@ class NasArtifactStore:
         return self.root / "objects" / "sha256" / digest[:2] / digest[2:]
 
     def _logical(self, logical_path: str) -> Path:
-        parts = Path(logical_path).parts
-        if not parts or Path(logical_path).is_absolute() or ".." in parts:
+        parts = PurePosixPath(logical_path).parts
+        if not parts or PurePosixPath(logical_path).is_absolute() or ".." in parts:
             raise InvariantViolation(f"not a relative logical path: {logical_path!r}")
-        return self.root / "paths" / logical_path
+        return self.root.joinpath("paths", *(_segment(part) for part in parts))
 
     def put(self, data: bytes, media_type: str, *, logical_path: str | None = None) -> ArtifactId:
         artifact = ArtifactId(sha256_id(data))
