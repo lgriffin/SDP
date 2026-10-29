@@ -36,6 +36,10 @@ cp -R "$repo/contracts" "$repo/experiments" "$out/repo/"
 mkdir -p "$out/repo/python"
 cp "$repo/python/uv.lock" "$out/repo/python/uv.lock"
 
+echo "== default test profiles"
+rm -rf "$out/profiles"
+cp -R "$repo/profiles" "$out/profiles"
+
 echo "== SDP Command Prompt"
 cp -R "$here/shell" "$out/bin"
 

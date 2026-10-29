@@ -21,6 +21,11 @@ export const ui = (l: Layout): string => join(l.resources, "ui", "build", "index
 /** The repository data sdp-api reads at run time: contracts and experiments (as in the kernel image). */
 export const repoRoot = (l: Layout): string => join(l.resources, "repo");
 
+/** The default test profiles shipped with the app (the repository's profiles/ folder). */
+export const bundledProfiles = (l: Layout): string => join(l.resources, "profiles");
+/** The person's profiles folder, which the Start page lists (SDP_PROFILES_DIR). */
+export const profiles = (l: Layout): string => join(l.data, "profiles");
+
 export const pgdata = (l: Layout): string => join(l.data, "postgres");
 export const logs = (l: Layout): string => join(l.data, "logs");
 export const secrets = (l: Layout): string => join(l.data, "secrets");

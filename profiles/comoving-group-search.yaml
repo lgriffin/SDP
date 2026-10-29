@@ -1,0 +1,75 @@
+# Co-moving group search: look for stars that travel together (an open cluster, a moving group, or
+# the debris of one), using the same settings UC-01 predeclared for open-cluster recovery.
+#
+#   astrometric-coherence      -> do some stars share a motion and distance? (clustering, HDBSCAN)
+#   parallax-consistency       -> does each star's distance stand out from the field?
+#   cmd-coherence              -> do they lie on a tight sequence in colour and brightness?
+#   photometric-corroboration  -> do 2MASS infrared colours agree with Gaia's optical colour?
+#
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: comoving-group-search
+version: 1.0.0
+description: >-
+  Looks for groups of stars moving together through space, such as an undiscovered star cluster.
+  Uses Gaia motions and distances, with 2MASS infrared colours as a cross-check. Slower: allow several minutes.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:                        # UC-01's predeclared cuts (experiments/uc01-stellar-clusters)
+    - {column: ruwe, op: "<", value: 1.4}
+    - {column: phot_g_mean_mag, op: "<", value: 18.0}
+  match_radius_arcsec: 1.0
+  row_cap: 20000
+  resolve: true
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: 2mass
+    role: catalogue
+    release_label: 2mass:psc
+    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual]
+    match_radius_arcsec: 1.0           # 2MASS positions are good to ~0.1"; 1" pairs the same star safely
+
+tests:
+  - name: astrometric-coherence
+    version: 1.0.0
+    thresholds:
+      source_id: gaia
+      # The clusterer is HDBSCAN on proper motion and parallax, each scaled by its robust spread.
+      clusterer_params: {min_cluster_size: 10, min_samples: 5}
+      # UC-01's predeclared grid: a real group should survive every reasonable setting, not just one.
+      clusterer_grid:
+        - {min_cluster_size: 10, min_samples: 5}
+        - {min_cluster_size: 10, min_samples: 10}
+        - {min_cluster_size: 20, min_samples: 5}
+        - {min_cluster_size: 20, min_samples: 10}
+        - {min_cluster_size: 40, min_samples: 5}
+        - {min_cluster_size: 40, min_samples: 10}
+      inner_trials: 20                 # shuffled fields per run for the group's own p-value
+      magnitude_bins: 4                # shuffle motions only among stars of similar brightness
+  - name: parallax-consistency
+    version: 1.0.0
+    thresholds: {source_id: gaia}
+  - name: cmd-coherence
+    version: 1.0.0
+    thresholds: {source_id: gaia, degree: 2}
+  - name: photometric-corroboration
+    version: 1.0.0
+    thresholds: {source_id: gaia, ir_source_id: 2mass}
+
+ranking:
+  policy_id: stellar                   # the stellar module's ranker: membership, sequence tightness, stability
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 0.5
+
+null_fields:
+  trials: 20                           # as UC-01 (null_fields_per_region: 20)

@@ -1,0 +1,62 @@
+# Star history: a century of each star's behaviour, from the Harvard photographic plates (DASCH).
+#
+#   long-baseline-motion  -> do plate positions since ~1890 agree with where Gaia's motion puts the star?
+#   variability           -> has its brightness changed over the plates' century?
+#   parallax-consistency  -> does its distance stand out from the field?
+#
+# Plates reach only bright stars and every star costs archive requests, so this profile keeps
+# fields small: bright stars (G < 15) and at most 300 of them.
+#
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: star-history
+version: 1.0.0
+description: >-
+  Checks bright stars against a century of Harvard photographic plates: has the star moved as
+  Gaia predicts, and has its brightness changed? Best on small fields; contacts DASCH for every star.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}
+    - {column: phot_g_mean_mag, op: "<", value: 15.0}  # the plates' useful depth, and a short request list
+  match_radius_arcsec: 1.0
+  row_cap: 300
+  resolve: true
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: dasch
+    role: observations
+    release_label: dasch:DR7
+    product_types: [lightcurve, astrometry]
+    match_radius_arcsec: 3.0           # plate positions are good to roughly 1-2"; 3" finds the star, not a neighbour
+
+tests:
+  - name: long-baseline-motion
+    version: 1.0.0
+    thresholds: {source_id: gaia}
+    needs_products: [astrometry]
+  - name: variability
+    version: 1.0.0
+    thresholds: {min_points: 20}       # fewer plate measurements give a weak constancy test and no usable period
+    needs_products: [lightcurve]
+  - name: parallax-consistency
+    version: 1.0.0
+    thresholds: {source_id: gaia}
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 0.5
+
+null_fields:
+  trials: 10

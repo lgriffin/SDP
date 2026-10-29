@@ -67,7 +67,7 @@ ts:
 
 # Evidence UI against a running sdp-api (SDP_API_URL), or the fixture data with SDP_UI_FIXTURES=1
 ui:
-    pnpm --filter @sdp/evidence-ui dev
+    SDP_PROFILES_DIR="${SDP_PROFILES_DIR:-{{justfile_directory()}}/profiles}" pnpm --filter @sdp/evidence-ui dev
 
 # Playwright tests of the evidence UI (builds and serves it with fixture data)
 e2e:

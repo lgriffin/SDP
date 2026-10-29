@@ -16,7 +16,9 @@ FROM docker.io/library/node:22-bookworm-slim
 WORKDIR /opt/sdp-ui
 COPY --from=build /opt/sdp/typescript/packages/evidence-ui/build ./build
 COPY --from=build /opt/sdp/typescript/packages/evidence-ui/package.json ./package.json
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
+# The default test profiles the Start page offers; mount another folder over it to change them.
+COPY profiles/ ./profiles/
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 SDP_PROFILES_DIR=/opt/sdp-ui/profiles
 USER node
 EXPOSE 3000
 CMD ["node", "build/index.js"]
