@@ -91,3 +91,33 @@ requirements:
     traces:
       - "python/tests.relativity.test_dossier::test_the_limitations_list_every_unrecoverable_input"
       - "python/tests.relativity.test_protocol::test_the_manifest_carries_the_limitations"
+  - id: REL-009
+    pattern: event
+    text: "When the system builds the 1919 observation bundle from the transcribed 1920 tables, the system shall name every printed cell each row was built from, refuse a missing or unreadable cell by name, and mark rows verified only for a named verifier's recorded pass."
+    rationale: "The 1920 report prints plate-against-plate measures, not deflections; each derived row must lead back to its cells on the page (REL-G-01) and must not count as checked until someone checked it (REL-G-02)."
+    verification: test
+    tiers: [T3]
+    gates: [REL-G-01, REL-G-02, REL-G-04]
+    status: approved
+    traces:
+      - "python/tests.relativity.test_paper1920::test_every_instrument_is_built_and_every_row_names_its_cells"
+      - "python/tests.relativity.test_paper1920::test_the_sun_found_from_the_coefficients_gives_them_back"
+      - "python/tests.relativity.test_paper1920::test_the_1920_reduction_reproduces_the_published_deflections"
+      - "python/tests.relativity.test_paper1920::test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cells"
+      - "python/tests.relativity.test_paper1920::test_records_are_verified_only_when_someone_checked_them"
+      - "python/tests.relativity.test_paper1920::test_a_missing_or_unreadable_cell_is_refused_by_name"
+  - id: REL-010
+    pattern: ubiquitous
+    text: "The fitter shall offer the 1920 reduction's six constants per plate as a plate model, subtract known linear terms and a known rotation when the scale is fixed, and solve a rotation the plate does not record."
+    rationale: "The Sobral plates were reduced with independent x and y scales (p. 304), and differential refraction stretches one axis more than the other (p. 307), which one scale and one rotation cannot represent; orientation depends on how a plate sat in the measuring machine."
+    verification: test
+    tiers: [T6, T8]
+    gates: [REL-G-04, REL-G-08]
+    status: approved
+    traces:
+      - "python/tests.relativity.test_fitter::test_the_six_constant_model_absorbs_unequal_plate_scales"
+      - "python/tests.relativity.test_fitter::test_a_set_measured_in_one_coordinate_leaves_the_other_constants_out"
+      - "python/tests.relativity.test_fitter::test_fixed_scale_subtracts_known_terms_and_solves_an_unknown_rotation"
+      - "python/tests.relativity.test_reduction::test_the_1920_reduction_differs_by_instrument_as_the_paper_describes"
+      - "typescript/packages/relativity-fit/test/fit.test.ts::[REL-010] recovers alpha under the six-constant model when a plate's x and y scales differ"
+      - "typescript/packages/relativity-fit/test/fit.test.ts::[REL-010] subtracts known terms and solves the rotation when the plate's orientation is unknown"

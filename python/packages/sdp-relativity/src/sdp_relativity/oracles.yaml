@@ -1,4 +1,5 @@
-# Oracle registry for UC-02 (§9). Values marked to_transcribe are "as commonly reported" placeholders.
+# Oracle registry for UC-02 (§9). Values marked to_transcribe are "as commonly reported" placeholders;
+# values marked transcribed were read from the cited page and still need a recorded second pass.
 # They become usable only when transcribed from the cited page with a locator and checked by a second
 # reader; until then any gate that names them reports oracle_unverified and the verdict is INCONCLUSIVE.
 # Do not edit a value here without its locator and a verification record.
@@ -19,8 +20,9 @@ oracles:
     convention: probable_error
     source: Dyson, Eddington and Davidson 1920, Phil. Trans. A 220, 291
     doi: 10.1098/rsta.1920.0009
-    locator: null
-    status: to_transcribe
+    locator: "p. 306 (1.98 arcsec at the limb); p. 331 (probable error about 0.12 arcsec)"
+    transcriber: claude
+    status: transcribed
     verifications: []
   - oracle_id: principe-1920
     kind: published_estimate
@@ -30,8 +32,9 @@ oracles:
     convention: probable_error
     source: Dyson, Eddington and Davidson 1920, Phil. Trans. A 220, 291
     doi: 10.1098/rsta.1920.0009
-    locator: null
-    status: to_transcribe
+    locator: "p. 328, para. 37 (1.61 +- 0.30 arcsec); p. 331"
+    transcriber: claude
+    status: transcribed
     verifications: []
   - oracle_id: sobral-astro-1920
     kind: published_estimate
@@ -41,8 +44,9 @@ oracles:
     convention: null
     source: Dyson, Eddington and Davidson 1920, Phil. Trans. A 220, 291
     doi: 10.1098/rsta.1920.0009
-    locator: null
-    status: to_transcribe
+    locator: "p. 312 (0.93 arcsec at the limb); p. 331"
+    transcriber: claude
+    status: transcribed
     verifications: []
   - oracle_id: sobral-4in-1979
     kind: published_estimate

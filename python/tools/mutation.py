@@ -69,6 +69,7 @@ RELATIVITY_SHARDS = (
     ("protocol", "comparison", "constants"),
     ("observations", "synthetic", "geometry"),
     ("models", "measurement", "transcription", "oracles"),
+    ("paper1920",),
 )
 STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd"),
