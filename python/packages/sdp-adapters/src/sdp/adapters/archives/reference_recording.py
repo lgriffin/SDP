@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery, VoSource
-from sdp.adapters.archives.mast import CITATION, LICENCE, MAST_OBSCORE, MastObservationGateway
-from sdp.adapters.archives.mast_inventory import MastProductInventory, file_name
+from sdp.adapters.archives.mast import CITATION, LICENCE, MAST_OBSCORE, MastObservationGateway, file_name
+from sdp.adapters.archives.mast_inventory import MastProductInventory
 from sdp.adapters.archives.registry import REGTAP
 from sdp.adapters.archives.transport import HttpRequest, Transport
 from sdp.adapters.archives.vo import literal, run_sync, sync_request

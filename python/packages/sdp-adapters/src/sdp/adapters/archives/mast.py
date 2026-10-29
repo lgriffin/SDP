@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import math
+import posixpath
 import urllib.parse
 import zipfile
 from dataclasses import dataclass
@@ -54,6 +55,40 @@ COLUMNS = (
 )
 
 
+#: JWST lists every file of an observation as an ObsCore row of the observation's type; only the
+#: calibrated science images are what an image test reads (segmentation maps, previews and
+#: association tables are not).
+JWST_SCIENCE_IMAGES = ("_i2d.fits", "_cal.fits")
+
+
+def file_name(uri: str) -> str:
+    """The product file name from an access URL or a ``mast:`` data URI."""
+    parsed = urllib.parse.urlparse(uri)
+    query = urllib.parse.parse_qs(parsed.query)
+    path = query["uri"][0] if "uri" in query else (parsed.path if parsed.scheme != "mast" else uri)
+    return posixpath.basename(urllib.parse.unquote(path))
+
+
+def product_id(obs_id: str, access_url: str) -> str:
+    """One id per file: ObsCore lists several files under one ``obs_id``, and the planner and the
+    plan gate key acquisitions by product id."""
+    return f"{obs_id}/{file_name(access_url)}"
+
+
+def obs_id_of(product_id: str) -> str:
+    """The observation a product id names; an id from before file-level ids is the obs_id itself."""
+    return product_id.partition("/")[0]
+
+
+def _science_file(row: dict[str, object]) -> bool:
+    """FITS files only, whatever the mission; for JWST images, only the calibrated science images."""
+    if "fits" not in str(row.get("access_format") or "").lower():
+        return False
+    if str(row.get("obs_collection") or "").strip() == "JWST" and str(row.get("dataproduct_type")).strip() == "image":
+        return file_name(str(row["access_url"])).endswith(JWST_SCIENCE_IMAGES)
+    return True
+
+
 def _in(column: str, values: tuple[str, ...]) -> str:
     return f"{column} IN ({', '.join(literal(v) for v in values)})"
 
@@ -81,6 +116,13 @@ class MastObservationGateway:
             "1 = CONTAINS(POINT('ICRS', s_ra, s_dec), "
             f"CIRCLE('ICRS', {float(target.ra_deg)!r}, {float(target.dec_deg)!r}, {criteria.radius_arcsec / 3600.0!r}))",
             "access_url IS NOT NULL",
+            # The science-file filter runs in the query too, so previews and auxiliary files do not use
+            # up the TOP limit. LIKE's "_" is a wildcard, so the server keeps a superset of what
+            # _science_file accepts, and _science_file still decides.
+            "LOWER(access_format) LIKE '%fits%'",
+            "(obs_collection <> 'JWST' OR dataproduct_type <> 'image' OR "
+            + " OR ".join(f"access_url LIKE '%{suffix}'" for suffix in JWST_SCIENCE_IMAGES)
+            + ")",
         ]
         if criteria.missions:
             where.append(_in("obs_collection", criteria.missions))
@@ -103,18 +145,19 @@ class MastObservationGateway:
         records = []
         for row in table.to_pylist():
             url = str(row.get("access_url") or "").strip()
-            if not url:
+            if not url or not _science_file(row):
                 continue
+            # MAST reports access_estsize in bytes (checked live, 2026-10-29), not the kB ObsCore defines.
             size = _number(row.get("access_estsize"))
             records.append(
                 ObservationRecord(
-                    product=ProductRef(self.archive_id, str(row["obs_id"]).strip(), url),
+                    product=ProductRef(self.archive_id, product_id(str(row["obs_id"]).strip(), url), url),
                     mission=str(row["obs_collection"]).strip(),
                     instrument=str(row.get("instrument_name") or "").strip(),
                     product_type=PRODUCT_TYPES.get(str(row["dataproduct_type"]).strip(), str(row["dataproduct_type"])),
                     epoch_mjd=_number(row.get("t_min")),
                     epoch_end_mjd=_number(row.get("t_max")),
-                    size_bytes=int(size * 1024) if size is not None else None,
+                    size_bytes=int(size) if size is not None else None,
                     licence=self.licence,
                     citation=self.citation,
                 )
