@@ -129,6 +129,7 @@ class StellarClusterProtocol:
             "hyperparameter_grid": p["hyperparameter_grid"],
             "crossmatch_radius_deg": float(p["crossmatch_radius_deg"]),
             "pm_window_masyr": float(p["pm_window_masyr"]),
+            "candidate_checks": dict(p["candidate_checks"]),
             "benchmark_roles": roles,
         }
         n_configs = len(configurations(p["algorithms"], p["hyperparameter_grid"]))

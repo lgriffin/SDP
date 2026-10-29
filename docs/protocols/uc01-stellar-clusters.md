@@ -36,6 +36,10 @@ These regions, the quality cuts and the null-field tolerance are proposals for L
 
 Benchmarks are optional at definition so that a run without them still happens and STL-G-02 names what is missing.
 
+### Getting the benchmarks
+
+`sdp benchmark fetch` downloads both catalogues from VizieR's TAP service (Hunt & Reffert 2023, `J/A+A/673/A114/clusters`; Cantat-Gaudin et al. 2020, `J/A+A/640/A1/table1`), a few hundred kB each, and stores them under `benchmarks/<id>/` in the artifact store. VizieR names columns after each paper, so each benchmark column is chosen by its UCD from VizieR's own `TAP_SCHEMA` and its unit is checked (mas/yr for proper motions, deg for positions); the table records which native column filled each one (DSI-015). If VizieR's labels ever fail to pick a column, `--column name=Cluster` names it outright. The command prints the `--input benchmark:<id>=sha256:...` options for `sdp experiment define`; `sdp benchmark list` shows them again later.
+
 ## Plan
 
 Per region: `prepare` (quality cuts, with the rows each cut removed, then the feature policy), one `search` per grid point (10: HDBSCAN `min_cluster_size` × `min_samples`, DBSCAN `eps` × `min_samples`), `candidates`, `null_fields_per_region` null fields and one injection per richness × distance cell. Then `recovery` across regions and `synthesis`. Null and injection tasks take derived seeds, recorded with their results (STL-006). Only `null_fields_per_region` and `bootstrap_resamples` may be overridden by an experiment.
@@ -48,14 +52,14 @@ Quality-cut reports give each cut's failures among all input rows (`failed_by_cu
 
 The reference labelling is the first grid point. Each of its clusters is matched to its best-overlapping cluster (Jaccard) in every other labelling: stability is the mean overlap and a star's membership the mean probability. Members are stars at membership ≥ 0.5. A candidate is
 
-- **rejected** when stability < 0.5, it has fewer than 10 members, or its colour–magnitude sequence is not at least 3× tighter than random field draws of the same size;
+- **rejected** when stability < `min_stability` (0.5), it has fewer than `min_members` (10) members, or its colour–magnitude sequence is not at least `min_cmd_coherence` (3) times tighter than random field draws of the same size;
 - **inconclusive** when it has too few members with a colour, or it was cross-matched against fewer than two benchmarks (STL-005);
 - **known** when a benchmark cluster lies within 0.1 deg and 1 mas/yr;
 - **potentially new** when it passed every check, matches nothing in both benchmarks, and none of its region's null fields produced a surviving candidate (otherwise it is inconclusive, with that count as the reason).
 
 Every dossier carries its region's evidence: null fields run and with survivors, injections run and recovered.
 
-Every candidate, rejected ones included, is retained with its reasons (STL-007) and ranked by a fixed weighting of membership, CMD coherence, stability and novelty. Each dossier opens with "<id> is a candidate open cluster, not a confirmed discovery." and the statements and reasons are linted for discovery language; only the fixed hedge "not a confirmed discovery" exempts a sentence (STL-G-09). The thresholds are module constants for now (deviation D15).
+Every candidate, rejected ones included, is retained with its reasons (STL-007) and ranked by a fixed weighting of membership, CMD coherence, stability and novelty. Each dossier opens with "<id> is a candidate open cluster, not a confirmed discovery." and the statements and reasons are linted for discovery language; only the fixed hedge "not a confirmed discovery" exempts a sentence (STL-G-09). The pass marks are the predeclared `parameters.candidate_checks` (STL-008), so changing one changes the predeclaration hash.
 
 ## Null fields and injection
 
