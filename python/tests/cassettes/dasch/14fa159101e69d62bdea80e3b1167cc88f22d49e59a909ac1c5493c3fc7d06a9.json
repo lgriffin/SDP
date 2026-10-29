@@ -1,0 +1,24 @@
+{
+ "recorded_at": "2026-10-29T17:37:09.112418Z",
+ "recorder": "weekly-live-smoke",
+ "request": {
+  "body": {
+   "text": "{\"dec_deg\":24.105136,\"ra_deg\":56.871152,\"radius_arcsec\":10.0,\"refcat\":\"apass\"}"
+  },
+  "headers": {
+   "Content-Type": "application/json"
+  },
+  "method": "POST",
+  "url": "https://api.starglass.cfa.harvard.edu/public/dasch/dr7/querycat"
+ },
+ "response": {
+  "body": {
+   "text": "[\"ref_text,ref_number,gsc_bin_index,ra_deg,dec_deg,pos_epoch,stdmag,color,pm_ra_masyr,u_pm_ra_masyr,pm_dec_masyr,u_pm_dec_masyr,class,v_flag,mag_flag,num_matches,dra_asec,ddec_asec\",\"N3311013371,113311013371,118975547,56.871105,24.105239,2000.0,2.85,0.19,0,0,0,0,0,1,6,4680,0.15444528686940537,-0.37079999999747315\",\"APASS_J034729.3+240623,403472931240623,118975547,56.871977,24.106432,2000.0,100,0,0,0,0,0,0,1,0,3,-2.71099506650276,-4.66559999999987\"]"
+  },
+  "headers": {
+   "Content-Type": "application/json"
+  },
+  "sha256": "4f5d0f879d3f93698558262f3d0993c8af13136c33d38efa796d2f0ee12b9262",
+  "status": 200
+ }
+}
