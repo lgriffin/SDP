@@ -24,3 +24,27 @@ requirements:
       - "python/tests.local.test_local_index::test_the_index_has_one_row_per_frame_with_its_kind_and_exposure"
       - "python/tests.local.test_local_index::test_a_rerun_reads_only_new_or_changed_files"
       - "python/tests.local.test_local_index::test_the_commands_add_index_and_report_with_no_database"
+  - id: LOC-003
+    pattern: event
+    text: "When SDP plate-solves a local frame, the system shall accept the solution only with at least the configured number of Gaia stars matched and a fit RMS under the configured limit, and otherwise record the frame as unsolved with the reason."
+    rationale: "A doubtful sky solution would put every later measurement in the wrong place; a refusal with its reason can be fixed or retried (#71). Defaults: 12 stars, 1.5 arcsec."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_plate_solver::test_a_rotated_bayer_frame_far_from_its_object_solves_to_half_an_arcsecond"
+      - "python/tests.local.test_plate_solver::test_any_rotation_and_a_mirrored_frame_solve"
+      - "python/tests.local.test_plate_solver::test_a_stacked_colour_master_solves_from_its_luminance"
+      - "python/tests.local.test_plate_solver::test_a_frame_with_too_few_stars_is_refused_with_its_reason"
+      - "python/tests.local.test_plate_solver::test_a_wrong_scale_is_refused_not_forced"
+      - "python/tests.local.test_plate_solver::test_an_rms_over_the_limit_is_refused"
+  - id: LOC-004
+    pattern: event
+    text: "When a batch of local frames is solved, the system shall write each solution or refusal under the data folder's solutions directory at the frame's relative path, and skip on a later run every frame already solved or refused unless asked to redo it."
+    rationale: "7,745 M31 frames are solved in batches over several sittings; a rerun continues where the last one stopped, reading one Gaia cone per target (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_plate_solver::test_a_batch_writes_solutions_and_refusals_under_the_data_folder_only"
+      - "python/tests.local.test_plate_solver::test_the_command_solves_against_gaia_through_the_acquisition_cache"
