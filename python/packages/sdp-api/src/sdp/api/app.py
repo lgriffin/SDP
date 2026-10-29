@@ -8,10 +8,12 @@ confirmatory predeclaration and belong to the CLI. Triage records its actor and 
 
 from __future__ import annotations
 
+import hmac
 from collections.abc import Callable
 from typing import Any, Protocol
 
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
@@ -49,7 +51,27 @@ class _GraphQL(GraphQL[dict[str, Any], None]):
         return {"kernel": self.runtime.kernel, "request": request}
 
 
-def create_app(runtime: Runtime) -> Starlette:
+class RequireToken:
+    """With a token, every route but ``/health`` needs ``Authorization: Bearer <token>``.
+
+    The desktop app sets one (SDP_API_TOKEN), because its API listens on the person's own machine
+    where any page in their browser could otherwise send it a cross-site POST or rebind a name to
+    127.0.0.1. A browser cannot add this header cross-site without a CORS preflight, which is refused."""
+
+    def __init__(self, app: Any, token: str) -> None:
+        self.app = app
+        self.expected = f"Bearer {token}".encode()
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] == "http" and scope["path"] != "/health":
+            given = dict(scope["headers"]).get(b"authorization", b"")
+            if not hmac.compare_digest(given, self.expected):
+                await JSONResponse({"error": "missing or wrong API token"}, status_code=401)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+def create_app(runtime: Runtime, token: str | None = None) -> Starlette:
     def health(_: Request) -> Response:
         checks: dict[str, Any] = {}
         ok = True
@@ -150,7 +172,8 @@ def create_app(runtime: Runtime) -> Starlette:
             Route("/experiments/{experiment_id}/run", command(run), methods=["POST"]),
             Route("/experiments/{experiment_id}/validate", command(validate), methods=["POST"]),
             Mount("/graphql", _GraphQL(runtime)),
-        ]
+        ],
+        middleware=[Middleware(RequireToken, token=token)] if token else [],
     )
 
 

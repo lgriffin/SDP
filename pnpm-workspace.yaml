@@ -1,3 +1,10 @@
 packages:
   - "typescript/packages/*"
   - "typescript/apps/*"
+
+# Install scripts allowed to run: the embedded PostgreSQL packages restore their library symlinks
+# (the desktop app, typescript/apps/sdp-desktop). Electron's binary download is left to `pnpm start`
+# there, so that CI jobs do not fetch it; electron-builder fetches its own.
+onlyBuiltDependencies:
+  - "@embedded-postgres/linux-x64"
+  - "@embedded-postgres/windows-x64"

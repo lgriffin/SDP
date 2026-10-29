@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from sdp.api.schema import export_schema
@@ -21,10 +22,11 @@ def main() -> None:
     import uvicorn
 
     from sdp.adapters.bootstrap import build_application
-    from sdp.adapters.settings import Settings
+    from sdp.adapters.settings import Settings, secret
     from sdp.api.app import create_app
 
-    uvicorn.run(create_app(build_application(Settings.from_env())), host=args.host, port=args.port)
+    token = secret(os.environ, "SDP_API_TOKEN")
+    uvicorn.run(create_app(build_application(Settings.from_env()), token), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

@@ -113,3 +113,13 @@ def test_command_endpoints_run_and_validate(k: InMemoryKernel, client: TestClien
 
 def test_there_are_no_mutations() -> None:
     assert "type Mutation" not in export_schema()
+
+
+def test_a_token_guards_every_route_but_health(k: InMemoryKernel) -> None:
+    guarded = TestClient(create_app(k, token="s3cret"))
+    assert guarded.get("/health").status_code == 200
+    query = {"query": "{ experiments { experimentId } }"}
+    assert guarded.post("/graphql", json=query).status_code == 401
+    assert guarded.post("/graphql", json=query, headers={"Authorization": "Bearer nope"}).status_code == 401
+    assert guarded.post("/experiments/x/run", content="{}", headers={"content-type": "text/plain"}).status_code == 401
+    assert guarded.post("/graphql", json=query, headers={"Authorization": "Bearer s3cret"}).status_code == 200

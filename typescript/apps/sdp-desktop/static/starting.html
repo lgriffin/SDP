@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>SDP</title>
+<style>
+  :root { --bg: #f1f5f1; --surface: #fff; --text: #18211c; --muted: #536159; --accent: #1d6a46; --line: #d3ddd5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #101814; --surface: #17221c; --text: #e4ece6; --muted: #9cb0a3; --accent: #7cc9a0; --line: #2b3a31; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { width: min(28rem, calc(100% - 2rem)); background: var(--surface); border: 1px solid var(--line);
+         border-radius: 10px; padding: 2rem; }
+  .mark { width: 2.5rem; height: 2.5rem; }
+  .mark circle:first-child { animation: pulse 1.6s ease-in-out infinite; transform-origin: center; }
+  h1 { font-size: 1.35rem; margin: 1rem 0 0.25rem; }
+  p { margin: 0.25rem 0; color: var(--muted); }
+  #step { color: var(--text); font-weight: 600; }
+  @keyframes pulse { 50% { opacity: 0.45; } }
+  @media (prefers-reduced-motion: reduce) { .mark circle:first-child { animation: none; } }
+</style>
+</head>
+<body>
+<main aria-live="polite">
+  <svg class="mark" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent)"/><circle cx="8" cy="8" r="2" style="fill: var(--accent)"/></svg>
+  <h1>Starting SDP</h1>
+  <p id="step">Getting ready</p>
+  <p>The first start sets up your database and can take a minute or two. Later starts are quicker.</p>
+</main>
+<script>
+  window.sdpStep = (text) => { document.getElementById("step").textContent = text; };
+</script>
+</body>
+</html>
