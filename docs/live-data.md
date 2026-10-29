@@ -95,7 +95,28 @@ sdp local status astro                                  # frames by kind, target
 
 The index is `<data>/index/astro/frames.parquet`: one row per frame with its path, size, `DATE-OBS`,
 exposure (`EXPOSURE`, else `EXPTIME`), filter, object, gain, size, Bayer pattern, whether it already has
-a sky solution, and its kind (light, dark, flat, bias or stack). Plate solving the frames comes next (#71).
+a sky solution, and its kind (light, dark, flat, bias or stack).
+
+### Plate solving them
+
+SDP solves the frames itself. It needs the database, because the Gaia stars come through the normal
+acquisition (one cone per target, read once and reused for every frame of it; from the local bulk copy
+when that is complete).
+
+```
+sdp local solve astro --kind stack                  # the stacked masters first: quick
+sdp local solve astro --target M31 --limit 50       # then the subs, a target at a time
+sdp local solved astro                              # solved, refused (and why), still to do
+```
+
+For each frame it takes a rough centre from `OBJECT` (looked up in SIMBAD; a frame with an empty or UUID
+`OBJECT` borrows its folder's), the pixel scale from `FOCALLEN` and `XPIXSZ` or the source's `--scale`,
+bins a raw Bayer frame 2 x 2, finds the stars, and matches triangles of them against Gaia (G < 15 in a
+2 degree cone) whatever the frame's rotation or mirror image. A TAN fit is accepted with at least 12
+stars and an RMS under 1.5 arcsec (`--min-matches`, `--max-rms`); otherwise the frame is refused with
+its reason. Solutions go to `<data>/solutions/astro/<frame>.wcs.json`, refusals to
+`<frame>.unsolved.json`. A rerun skips both; `--resolve` redoes solved frames, `--retry-refused` the
+refused ones. The frames themselves are only read.
 
 ## Things only a person can do
 

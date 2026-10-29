@@ -809,6 +809,139 @@ def local_status(name: Annotated[str, typer.Argument(help="The source's name")])
     emit(FrameIndex(LocalSources(data).get(name), data).summary())
 
 
+#: The Gaia reference a frame is matched against: bright stars in a cone wide enough to hold a frame
+#: whose rough centre is off by about a degree
+SOLVE_GAIA_COLUMNS = ("source_id", "ra", "dec", "phot_g_mean_mag")
+
+
+def _gaia_reference(radius_deg: float, mag_limit: float) -> Any:
+    """Gaia stars around a centre, through the normal acquisition: cached, and read from the local bulk
+    copy when it is complete (#72)."""
+    import numpy as np
+
+    from sdp.adapters.local.solver import Reference
+    from sdp.kernel.application.media import PARQUET, decode_artifact
+    from sdp.kernel.domain.archive import CatalogueQuery, Cone, Filter
+    from sdp.kernel.ports.driving import AcquireDatasetCommand
+
+    runtime = state.runtime()
+
+    def reference(centre: tuple[float, float]) -> Reference:
+        query = CatalogueQuery(
+            "gaia",
+            "gaia:DR3",
+            Cone(centre[0], centre[1], radius_deg),
+            SOLVE_GAIA_COLUMNS,
+            (Filter("phot_g_mean_mag", "<", mag_limit),),
+            row_cap=200_000,
+            chunk_rows=50_000,
+        )
+        result = runtime.kernel.acquire_dataset.execute(AcquireDatasetCommand(query, curate=False))
+        warn_row_caps({"gaia": query.row_cap} if result.reached_row_cap else {})
+        table = decode_artifact(runtime.store.get(result.raw.artifact_id), PARQUET)
+
+        def column(name: str) -> Any:
+            return np.asarray(table.column(name).to_numpy(zero_copy_only=False), dtype=float)
+
+        return Reference(column("ra"), column("dec"), column("phot_g_mean_mag"), result.raw.artifact_id.value)
+
+    return reference
+
+
+def _name_resolver() -> Any:
+    use_case = state.runtime().kernel.investigate_field
+    resolver = use_case.ports.resolver if use_case is not None else None
+    if resolver is None:
+        raise DomainError("no SIMBAD resolver is wired, so OBJECT names cannot be looked up")
+
+    def centre(name: str) -> tuple[float, float] | None:
+        record = resolver.by_name(name)
+        if record is None or record.ra_deg is None or record.dec_deg is None:
+            return None
+        return float(record.ra_deg), float(record.dec_deg)
+
+    return centre
+
+
+@local_app.command("solve")
+def local_solve(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    kind: Annotated[str | None, typer.Option(help="Only this kind: stack (the masters, quick) or light")] = None,
+    target: Annotated[str | None, typer.Option(help="Only frames of this OBJECT or folder, e.g. M31")] = None,
+    limit: Annotated[int | None, typer.Option(min=1, help="At most this many frames this run")] = None,
+    resolve: Annotated[bool, typer.Option("--resolve", help="Solve again frames already solved")] = False,
+    retry_refused: Annotated[bool, typer.Option("--retry-refused", help="Try refused frames again")] = False,
+    gaia_radius: Annotated[float, typer.Option(help="Gaia cone radius around the rough centre, degrees")] = 2.0,
+    gaia_mag: Annotated[float, typer.Option(help="Faintest Gaia G magnitude matched")] = 15.0,
+    max_rms: Annotated[float, typer.Option(help="Largest accepted fit RMS, arcseconds")] = 1.5,
+    min_matches: Annotated[int, typer.Option(help="Fewest matched stars accepted")] = 12,
+) -> None:
+    """Plate-solve the source's frames with SDP's own solver. Each solution is written to
+    <data>/solutions/<source>/<frame>.wcs.json; a frame that cannot be solved surely is refused, with
+    its reason, in <frame>.unsolved.json. The frames are only read. Needs the database (for Gaia)."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.solver import SolverConfig
+    from sdp.adapters.local.solving import LocalSolver
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    if kind is not None and kind not in ("light", "stack"):
+        raise typer.BadParameter("light or stack", param_hint="--kind")
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    rows = FrameIndex(source, data).rows()
+    if not rows:
+        raise DomainError(f"the {name} index is empty; run sdp local index {name} first")
+    solver = LocalSolver(
+        source,
+        data,
+        _name_resolver(),
+        _gaia_reference(gaia_radius, gaia_mag),
+        SolverConfig(max_rms_arcsec=max_rms, min_matches=min_matches),
+    )
+    chosen = solver.select(rows, kind=kind, target=target, limit=limit, resolve=resolve, retry_refused=retry_refused)
+    started, done = time.monotonic(), [0]
+
+    def report(o: Any) -> None:
+        done[0] += 1
+        detail = f"{o.matched} stars, RMS {o.rms_arcsec:.2f} arcsec" if o.status == "solved" else o.reason
+        typer.echo(f"{done[0]}/{len(chosen)} {o.path}: {o.status}, {detail} ({o.seconds:.1f} s)", err=True)
+
+    outcomes = solver.run(chosen, rows, report)
+    run = {
+        "source": source.source_id,
+        "chosen": len(chosen),
+        "solved": sum(1 for o in outcomes if o.status == "solved"),
+        "refused": sum(1 for o in outcomes if o.status == "refused"),
+        "seconds": round(time.monotonic() - started, 1),
+        "filters": {"kind": kind, "target": target, "limit": limit, "resolve": resolve},
+        "config": solver.config.to_document(),
+        "gaia": {"radius_deg": gaia_radius, "mag_limit": gaia_mag},
+        "frames": [o.__dict__ for o in outcomes],
+    }
+    # the run itself is kept as an artifact, like every other step's record
+    record = state.runtime().store.put(json.dumps(run, sort_keys=True).encode(), "application/json")
+    emit(
+        {
+            **{k: v for k, v in run.items() if k != "frames"},
+            "run_artifact": record.value,
+            **solver.status(FrameIndex(source, data)),
+        }
+    )
+
+
+@local_app.command("solved")
+def local_solved(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
+    """How many frames are solved, refused (and why) and still to do. Needs no database."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.solving import LocalSolver
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    solver = LocalSolver(source, data, lambda _n: None, lambda _c: None)  # type: ignore[arg-type,return-value]
+    emit(solver.status(FrameIndex(source, data)))
+
+
 # --- archives -----------------------------------------------------------------------------------
 
 
