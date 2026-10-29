@@ -743,3 +743,21 @@ def test_a_verdict_refusal_names_every_unadmitted_adapter() -> None:
             ],
         )
     require_admitted([compatibility()], [("mast-observations", "1.0.0", ProductType.IMAGE)])
+
+
+@pytest.mark.req("INT-016")
+def test_a_failing_record_beside_a_passing_one_admits_nothing() -> None:
+    image = ("mast-observations", "1.0.0", ProductType.IMAGE)
+    failing = compatibility(failing=(ConformanceKind.SEMANTIC,))
+    contradiction = (
+        "a failing adapter compatibility record contradicts the passing one: mast-observations 1.0.0 for image"
+    )
+    with exactly(IntegrationRefused, f"{contradiction}; no verdict (INT-016)"):
+        require_admitted([failing, compatibility()], [image])
+    with exactly(
+        IntegrationRefused,
+        f"no passing adapter compatibility record: a 1.0.0 for cube; {contradiction}; no verdict (INT-016)",
+    ):
+        require_admitted([compatibility(), failing], [image, ("a", "1.0.0", ProductType.CUBE)])
+    other_version = compatibility(failing=(ConformanceKind.SEMANTIC,), version="0.9.0")
+    require_admitted([other_version, compatibility()], [image])

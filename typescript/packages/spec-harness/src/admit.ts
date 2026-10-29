@@ -37,12 +37,15 @@ function reasonAgainst(records: readonly CompatibilityRecord[], adapter: string,
   const versioned = version === undefined ? matching : matching.filter((r) => r.adapter_version === version);
   if (!versioned.length) return `records exist only for versions ${matching.map((r) => r.adapter_version).join(", ")}, not ${version}`;
   const reasons: string[] = [];
+  let passing = 0;
   for (const record of versioned) {
     const failing = failingKinds(record);
-    if (!failing.length) return null;
-    reasons.push(`${record.adapter_version}: ${failing.join(", ")} did not pass${record.passed ? " although the record says passed" : ""}`);
+    if (!failing.length) passing++;
+    else reasons.push(`${record.adapter_version}: ${failing.join(", ")} did not pass${record.passed ? " although the record says passed" : ""}`);
   }
-  return reasons.join("; ");
+  if (!reasons.length) return null;
+  // A failing record beside a passing one for the same version is contradictory evidence: it admits nothing.
+  return passing ? `a failing record contradicts the passing one: ${reasons.join("; ")}` : reasons.join("; ");
 }
 
 /** Every adapter version and product type a manifest's inputs used without a passing record in its
