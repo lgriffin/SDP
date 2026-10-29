@@ -7,6 +7,7 @@ import base64
 import gzip
 import io
 import json
+import math
 import zipfile
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -17,6 +18,7 @@ import pytest
 from sdp.adapters.archives.dasch import STANDARD_BAD_AFLAGS, DaschDialect, DaschGateway
 from sdp.adapters.archives.mast import PRODUCT_TYPES, MastObservationGateway, obs_id_of
 from sdp.adapters.archives.transport import CassetteTransport, HttpRequest, Transport, TransportError
+from sdp.kernel.application.investigate import observation_target
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import FetchedProduct, Field, ObservationCriteria, ProductRef
 from sdp.kernel.ports.investigate import ObservationTarget
@@ -253,6 +255,47 @@ def test_dasch_offers_the_nearest_star_inside_the_radius_as_light_curve_and_posi
     assert index.release_label == "dasch:DR7" and "querycat" in index.query_text
     only = gateway.search(TARGET, ObservationCriteria(product_types=("astrometry",), radius_arcsec=10.0))
     assert [r.product_type for r in only.records] == ["astrometry"]
+
+
+def test_dasch_follows_a_fast_moving_star_back_to_its_reference_catalogue_position() -> None:
+    # 1"/yr east: at 2000 the star sat 16" west of its Gaia 2016 position, well outside a 3" radius.
+    fast = ObservationTarget("fast", 83.8, -5.4, pm_ra_cosdec_masyr=1000.0, pm_dec_masyr=0.0, epoch_jyear=2016.0)
+    west = 12.0 / 3600.0 / math.cos(math.radians(-5.4))
+    fake = PrimedService()
+    gateway = DaschGateway(fake)
+    fake.raw(
+        gateway.querycat_request(83.8, -5.4, 3.0 + 16.0),
+        answer(
+            [
+                "ref_text,ref_number,gsc_bin_index,ra_deg,dec_deg,stdmag",
+                f"on-path,5,7,{83.8 - west},-5.4,12.0",  # 12" west, on the star's path back to 2000
+                f"off-path,6,7,{83.8 - west},{-5.4 + 6.0 / 3600.0},12.0",  # 6" north of the path
+            ]
+        ),
+        content_type="application/json",
+    )
+    criteria = ObservationCriteria(radius_arcsec=3.0)
+    assert {r.product.product_id for r in gateway.search(fast, criteria).records} == {"apass:7:5"}
+    still = ObservationTarget("still", 83.8, -5.4)
+    fake.raw(
+        gateway.querycat_request(83.8, -5.4, 3.0),
+        answer(["ref_text,ref_number,gsc_bin_index,ra_deg,dec_deg,stdmag", f"on-path,5,7,{83.8 - west},-5.4,12.0"]),
+        content_type="application/json",
+    )
+    assert gateway.search(still, criteria).records == ()  # without its motion, 12" is too far
+
+
+def test_an_observation_search_carries_the_gaia_motion_identify_read() -> None:
+    row = {"pm_ra_cosdec_masyr": 1000.0, "pm_dec_masyr": -5.0, "epoch_jyear": 2016.0}
+    moving = observation_target("obj", 83.8, -5.4, [row])
+    assert moving.moving and (moving.pm_ra_cosdec_masyr, moving.pm_dec_masyr, moving.epoch_jyear) == (
+        1000.0,
+        -5.0,
+        2016.0,
+    )
+    assert not observation_target("obj", 83.8, -5.4, []).moving
+    assert not observation_target("obj", 83.8, -5.4, [{**row, "pm_dec_masyr": None}]).moving
+    assert not observation_target("obj", 83.8, -5.4, [{**row, "epoch_jyear": float("nan")}]).moving
 
 
 def test_dasch_is_skipped_without_a_call_when_the_criteria_exclude_it() -> None:
