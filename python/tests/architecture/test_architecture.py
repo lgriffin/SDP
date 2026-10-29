@@ -110,12 +110,25 @@ def test_the_science_extra_brings_every_package_that_registers_a_plugin() -> Non
 
     packages = Path(__file__).resolve().parents[2] / "packages"
     plugins = {
-        doc["project"]["name"]
+        _dist(doc["project"]["name"])
         for doc in (tomllib.loads(p.read_text("utf-8")) for p in packages.glob("*/pyproject.toml"))
         if any(group.startswith("sdp.") for group in doc["project"].get("entry-points", {}))
     }
     assert plugins >= {"sdp-investigate", "sdp-stellar"}
     for entry in ("sdp-cli", "sdp-api"):
         project = tomllib.loads((packages / entry / "pyproject.toml").read_text("utf-8"))["project"]
-        assert set(project["optional-dependencies"]["science"]) == plugins, entry
-        assert not plugins & set(project["dependencies"]), f"{entry}: science modules stay optional"
+        assert {_dist(r) for r in project["optional-dependencies"]["science"]} == plugins, entry
+        assert not plugins & {_dist(r) for r in project["dependencies"]}, f"{entry}: science modules stay optional"
+
+
+def _dist(requirement: str) -> str:
+    """The normalised distribution name of a requirement such as ``sdp-stellar>=0.1; python_version>'3'``."""
+    import re
+
+    return re.split(r"[\s\[<>=!~;@(]", requirement.strip(), maxsplit=1)[0].lower().replace("_", "-")
+
+
+def test_requirement_names_ignore_versions_markers_and_extras() -> None:
+    assert {_dist(r) for r in ("sdp-stellar>=0.1", "SDP_Stellar[x]; python_version>'3'", "sdp-stellar")} == {
+        "sdp-stellar"
+    }
