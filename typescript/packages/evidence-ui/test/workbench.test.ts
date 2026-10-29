@@ -180,6 +180,24 @@ describe("InMemoryWorkbench background runs", () => {
     expect(await source.reproduction(set.id)).toMatchObject({ state: "failed", error: expect.stringContaining("no stages/test.json") });
   });
 
+  it("[INV-021] drafts the JWST plan only for the JWST example, and opens its set once it has run", async () => {
+    const source = new InMemoryEvidenceSource();
+    const w = new InMemoryWorkbench(source, () => "2026-10-29T09:00:00.000Z");
+    const profile = { profile_id: "jwst-image-check", archives: [{ source_id: "mast" }] };
+    const ask = (region: string, p: Record<string, unknown> = profile) =>
+      w.planInvestigation({ region, epochJyear: 2016, label: "", profile: p, seed: 0, actor: "ada" });
+    const { planId } = await ask("icrs;circle(259.323,43.1505,0.004)");
+    const p = source.data.plans.find((x) => x.id === planId)!;
+    expect(p.state).toBe("drafted");
+    expect(p.document.items.some((i) => i.source_id.endsWith("mast"))).toBe(true);
+    await w.approvePlan(planId, "ada");
+    await w.executePlan(planId, "ada");
+    source.settle(p, Date.parse("2026-10-29T09:00:03.000Z"));
+    expect(p.setId).toBe("invset-000101");
+    await expect(ask("icrs;circle(10,10,0.1)")).rejects.toThrow("one JWST field");
+    await expect(ask("icrs;circle(259.323,43.1505,0.004)", { ...profile, profile_id: "other" })).rejects.toMatchObject({ status: 409 });
+  });
+
   it("[INV-019] registers the demonstration archives", async () => {
     const source = new InMemoryEvidenceSource();
     source.data.archives = { sources: [], registration: null };

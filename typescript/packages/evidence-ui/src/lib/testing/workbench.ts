@@ -12,6 +12,8 @@ import {
   type TriageAction,
   type Workbench,
 } from "../ports.ts";
+import { EXAMPLES } from "../examples.ts";
+import { coneRegion } from "../plain.ts";
 import { type InMemoryEvidenceSource, REGISTERED_ARCHIVES } from "./fixtures.ts";
 
 const TRIAGE: Record<Exclude<TriageAction, "annotate">, { to: string; from: string[] }> = {
@@ -109,11 +111,17 @@ export class InMemoryWorkbench implements Workbench {
 
   async planInvestigation(request: InvestigateRequest): Promise<{ planId: string }> {
     this.commands.push({ command: "plan", args: [request] });
-    // A field that reads MAST gets a fresh draft of the synthetic JWST plan, so the demonstration
-    // walks the whole JWST journey: plan, approve, download, images, candidates and dossier.
+    // The JWST example gets a fresh draft of the synthetic JWST plan, so the demonstration walks the
+    // whole JWST journey: plan, approve, download, images, candidates and dossier. Any other field
+    // that reads MAST is refused, rather than answered with a plan made for a different field.
     const archives = (request.profile.archives ?? []) as { source_id?: string }[];
-    const template = this.source.data.plans.find((p) => p.setId && p.document.items.some((i) => i.source_id.endsWith("mast")));
-    if (template && archives.some((a) => a.source_id === "mast")) {
+    if (archives.some((a) => a.source_id === "mast")) {
+      const example = EXAMPLES.find((e) => e.key === "jwst-m92")!;
+      const asked = request.region === coneRegion(Number(example.ra), Number(example.dec), Number(example.radius));
+      const template = this.source.data.plans.find((p) => p.setId && p.document.items.some((i) => i.source_id.endsWith("mast")));
+      if (!asked || request.profile.profile_id !== example.profile || !template) {
+        throw new CommandRefused("The demonstration has one JWST field: choose the example \"JWST: the outskirts of M92\" as it is.", 409);
+      }
       const plan = structuredClone(template);
       const n = this.source.data.plans.length;
       plan.id = plan.document.plan_id = `sha256:${n.toString(16).padStart(8, "0")}${"d".repeat(56)}`;

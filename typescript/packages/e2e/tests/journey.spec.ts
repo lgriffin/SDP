@@ -1,11 +1,14 @@
 // The key user journey, "Investigate one JWST field from start to finish", in one browser session on
 // the demonstration server: select a field, see what MAST holds for it, approve a bounded download,
 // read the calibrated image and its checks, see Gaia's stars on it, look into an ambiguous match and
-// save the evidence and check it reproduces. The demonstration's JWST field is synthetic
-// (sdp.testing.jwst); `sdp demo jwst` runs the same journey on the real M92 field.
+// check that the evidence reproduces. The demonstration's JWST field is synthetic
+// (sdp.testing.jwst) and it keeps pictures, not files, so it has no dossier to save: saving the file
+// and re-running its tests from it are covered against a real sdp-api by
+// python/tests/api/test_api_dossier.py and the CLI round trip in tests/cli/test_cli_investigate.py.
+// `sdp demo jwst` runs the same journey on the real M92 field.
 import { expect, test } from "@playwright/test";
 
-test("[INV-021] investigates one JWST field from start to finish", async ({ page }) => {
+test("[INV-022] investigates one JWST field from start to finish", async ({ page }) => {
   // 1. Select a field: the JWST example fills in M92's outskirts and the image-check tests.
   await page.goto("/start");
   await page.getByTestId("examples").getByRole("link", { name: "JWST: the outskirts of M92" }).click();
@@ -44,9 +47,11 @@ test("[INV-021] investigates one JWST field from start to finish", async ({ page
   await page.getByTestId("notable").locator("tbody tr").filter({ hasText: "j-pair-a" }).getByRole("link", { name: "Zoom in" }).click();
   await expect(page.getByTestId("focus-matches")).toContainText("a blend of 2 Gaia stars");
 
-  // 7. Save the evidence and check that the tests give the same results from it.
+  // 7. The evidence section: the demonstration says it has no file to save, and the check reproduces.
   await page.goto("/investigations/invset-000101");
   const keep = page.getByTestId("dossier");
+  await expect(keep).toContainText("has no dossier to save");
+  await expect(keep).toContainText("sdp investigate bundle invset-000101");
   await keep.getByRole("button", { name: "Check it reproduces" }).click();
   await expect(keep.getByTestId("reproduced")).toContainText("the same 12 results", { timeout: 15_000 });
 });
