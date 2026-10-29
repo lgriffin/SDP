@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-import resource
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from sdp.kernel.application import codec
+from sdp.kernel.application.execution import process_usage
 from sdp.kernel.application.manifest import build_manifest
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.canonical import canonical_json
@@ -307,7 +307,7 @@ class RunExperimentUseCase:
                 "experiment_id": experiment_id,
                 "duration_s": time.perf_counter() - started,
                 "executed_tasks": len(sink.executed),
-                "resource_maxrss_kb": float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+                "resource_maxrss_kb": process_usage()[2],
             },
         )
         return experiment

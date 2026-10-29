@@ -255,10 +255,49 @@ jobs:
           name: traceability
           path: reports/traceability
 
+  desktop-windows:
+    name: package · Windows desktop installer (smoke-tested)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sdp/desktop compile
+      - name: Stage the UI, Python with the SDP packages, PostgreSQL 16 and the repository data
+        run: bash typescript/apps/sdp-desktop/scripts/stage.sh
+      - name: Smoke test on Windows (fresh database, migrations, sdp-api, UI home page, clean stop)
+        run: pnpm --filter @sdp/desktop smoke
+      - name: One-click installer
+        env:
+          # A code-signing certificate, when the repository has one; without it the installer is unsigned.
+          SIGNING_CERT: ${{ secrets.WINDOWS_SIGNING_CERT }}
+          SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "$SIGNING_CERT" ]; then export CSC_LINK="$SIGNING_CERT" CSC_KEY_PASSWORD="$SIGNING_PASSWORD"; else export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
+          version="$(jq -r '."."' .release-please-manifest.json)"
+          cd typescript/apps/sdp-desktop
+          pnpm exec electron-builder --config electron-builder.yml --win nsis --publish never -c.extraMetadata.version="$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdp-desktop-windows
+          path: typescript/apps/sdp-desktop/release/*.exe
+          compression-level: 0
+          retention-days: 14
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace, viewer]
+    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace, viewer, desktop-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

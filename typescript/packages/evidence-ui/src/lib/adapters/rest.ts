@@ -12,6 +12,13 @@ import {
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
+/** A fetch that adds sdp-api's bearer token (SDP_API_TOKEN, set by the desktop app) to every request. */
+export function withToken(fetchImpl: Fetch, token: string | undefined): Fetch {
+  if (!token) return fetchImpl;
+  return (input, init) =>
+    fetchImpl(input, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), authorization: `Bearer ${token}` } });
+}
+
 /** The REST base for a GraphQL endpoint: http://host:8000/graphql serves commands at http://host:8000. */
 export function commandBase(graphqlEndpoint: string): string {
   return graphqlEndpoint.replace(/\/graphql\/?$/, "");

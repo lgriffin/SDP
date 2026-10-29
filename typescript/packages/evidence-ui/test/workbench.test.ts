@@ -2,7 +2,7 @@
 // plan rules (which mirror the kernel's, so pages behave the same against either).
 import { describe, expect, it } from "vitest";
 
-import { commandBase, RestWorkbench } from "../src/lib/adapters/rest.ts";
+import { commandBase, RestWorkbench, withToken } from "../src/lib/adapters/rest.ts";
 import { CommandRefused, EvidenceUnavailable, PlannerUnavailable } from "../src/lib/ports.ts";
 import { InMemoryEvidenceSource } from "../src/lib/testing/fixtures.ts";
 import { InMemoryWorkbench } from "../src/lib/testing/workbench.ts";
@@ -117,5 +117,18 @@ describe("InMemoryWorkbench", () => {
     await expect(w.executePlan(large!.id)).rejects.toThrow("only an approved plan runs");
     expect((await w.refusePlan(large!.id, "ada", "too big for this field")).state).toBe("refused");
     expect((await source.plan(large!.id))?.document.approval?.reason).toBe("too big for this field");
+  });
+});
+
+describe("the desktop app's API token", () => {
+  it("is added to every request, keeping the request's own headers", async () => {
+    const seen: Record<string, string>[] = [];
+    const base = async (_: string, init?: RequestInit): Promise<Response> => {
+      seen.push(init?.headers as Record<string, string>);
+      return new Response("{}");
+    };
+    await withToken(base, "t0k")("http://api.test/graphql", { headers: { "content-type": "application/json" } });
+    expect(seen[0]).toEqual({ "content-type": "application/json", authorization: "Bearer t0k" });
+    expect(withToken(base, undefined)).toBe(base);
   });
 });

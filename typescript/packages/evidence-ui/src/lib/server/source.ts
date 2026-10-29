@@ -8,7 +8,7 @@ import { env } from "$env/dynamic/private";
 
 import { GraphQLEvidenceSource } from "../adapters/graphql.ts";
 import { DirectoryProfileCatalogue } from "../adapters/profiles.ts";
-import { commandBase, RestWorkbench } from "../adapters/rest.ts";
+import { commandBase, RestWorkbench, withToken } from "../adapters/rest.ts";
 import type { EvidenceSource, ProfileCatalogue, Workbench } from "../ports.ts";
 import { InMemoryEvidenceSource } from "../testing/fixtures.ts";
 import { InMemoryWorkbench } from "../testing/workbench.ts";
@@ -48,10 +48,11 @@ function demo(key: string): Runtime {
 
 function build(): Runtime {
   const endpoint = env.SDP_API_URL ?? "http://127.0.0.1:8000/graphql";
-  const evidence = new GraphQLEvidenceSource(endpoint);
+  const fetchApi = withToken(globalThis.fetch, env.SDP_API_TOKEN);
+  const evidence = new GraphQLEvidenceSource(endpoint, fetchApi);
   return {
     evidence,
-    workbench: new RestWorkbench(commandBase(endpoint)),
+    workbench: new RestWorkbench(commandBase(endpoint), fetchApi),
     profiles: new DirectoryProfileCatalogue(env.SDP_PROFILES_DIR, evidence),
     demonstration: false,
   };
