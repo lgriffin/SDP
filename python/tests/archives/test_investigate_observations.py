@@ -195,6 +195,8 @@ def test_mast_search_is_bounded_ordered_obscore_adql_with_mission_and_type_filte
     assert "obs_collection IN ('TESS', 'HST')" in text
     assert "dataproduct_type IN ('timeseries', 'image')" in text
     assert "t_min >= 50000.0" in text
+    assert "LOWER(access_format) LIKE '%fits%'" in text, "non-FITS rows must not use up the TOP limit"
+    assert "access_url LIKE '%_i2d.fits' OR access_url LIKE '%_cal.fits'" in text
     body = parse_qs(gateway.search_request(TARGET, criteria).body.decode())
     assert body["REQUEST"] == ["doQuery"] and body["LANG"] == ["ADQL"]
 

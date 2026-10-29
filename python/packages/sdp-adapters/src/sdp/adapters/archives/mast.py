@@ -116,6 +116,13 @@ class MastObservationGateway:
             "1 = CONTAINS(POINT('ICRS', s_ra, s_dec), "
             f"CIRCLE('ICRS', {float(target.ra_deg)!r}, {float(target.dec_deg)!r}, {criteria.radius_arcsec / 3600.0!r}))",
             "access_url IS NOT NULL",
+            # The science-file filter runs in the query too, so previews and auxiliary files do not use
+            # up the TOP limit. LIKE's "_" is a wildcard, so the server keeps a superset of what
+            # _science_file accepts, and _science_file still decides.
+            "LOWER(access_format) LIKE '%fits%'",
+            "(obs_collection <> 'JWST' OR dataproduct_type <> 'image' OR "
+            + " OR ".join(f"access_url LIKE '%{suffix}'" for suffix in JWST_SCIENCE_IMAGES)
+            + ")",
         ]
         if criteria.missions:
             where.append(_in("obs_collection", criteria.missions))
