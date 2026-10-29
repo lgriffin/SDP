@@ -218,6 +218,7 @@ def test_the_tracker_gets_seed_parameters_numeric_metrics_and_the_verdict_tag() 
             },
         )
     ]
+    assert all(type(v) is float for v in tracker.metrics[0][1].values())
     assert tracker.tags == [("exp-000001", {"verdict": "VERIFIED"})]
 
 
