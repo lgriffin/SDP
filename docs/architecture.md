@@ -48,7 +48,7 @@ Scientific correctness, reproducibility and testability are the three attributes
 - One NVIDIA DGX Spark (ARM64, unified memory) as the only compute host; no distributed execution in the initial release.
 - One 4 TB NAS with the allocation plan of SDD 0.2.0 §8.3; raw data are never modified in place.
 - Bounded remote queries only; no mirroring of Gaia, VizieR or MAST.
-- Apache-2.0 software; datasets under their own licences, recorded per artifact.
+- GPL-3.0 software (the repository `LICENSE`); datasets under their own licences, recorded per artifact.
 - A solo builder initially, so every automated gate must run unattended and report plainly.
 
 **Guiding principles.** Principles 1–10 of SDD 0.2.0 §1.2 stand. Four are added:

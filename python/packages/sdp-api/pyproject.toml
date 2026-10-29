@@ -3,7 +3,7 @@ name = "sdp-api"
 version = "0.1.0"
 description = "ASGI app: GraphQL queries over the evidence, a few command endpoints, and health (ADR-016)"
 requires-python = ">=3.12"
-license = { text = "See repository LICENSE" }
+license = { text = "GPL-3.0-only" }
 dependencies = ["sdp-kernel", "sdp-adapters", "strawberry-graphql>=0.240", "starlette>=0.38", "uvicorn>=0.30"]
 
 [project.scripts]
