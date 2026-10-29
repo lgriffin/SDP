@@ -120,3 +120,15 @@ requirements:
       - "python/tests.archives.test_benchmarks::test_a_column_in_another_unit_is_refused_by_name"
       - "python/tests.archives.test_benchmarks::test_a_fetched_catalogue_is_a_benchmark_the_cross_match_accepts"
       - "python/tests.cli.test_cli_benchmark::test_fetch_stores_both_catalogues_and_prints_the_input_to_define_with"
+  - id: DSI-016
+    pattern: ubiquitous
+    text: "The system shall curate a whole native table column by column with the same canonical output, exclusions and refusals as curating it row by row."
+    rationale: "Row-by-row curation of the 216 GB local Gaia copy would take days; the columnar path makes the sky sweep feasible only if it can never disagree with the audited row path."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_dialect_columnar::test_every_packaged_dialect_curates_its_golden_rows_identically"
+      - "python/tests.archives.test_dialect_columnar::test_gaia_rows_with_nulls_curate_identically_and_faster"
+      - "python/tests.archives.test_dialect_columnar::test_rows_without_an_epoch_are_excluded_and_counted_as_the_row_path_does"
+      - "python/tests.archives.test_dialect_columnar::test_a_native_table_lacking_a_column_is_refused_by_name"

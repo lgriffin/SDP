@@ -18,6 +18,7 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
+from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
@@ -138,6 +139,7 @@ for name, sub in (
     ("demo", demo_app),
     ("local", local_app),
     ("benchmark", benchmark_app),
+    ("discover", discover_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -1301,10 +1303,6 @@ def _known_clusters() -> Any:
     from sdp.adapters.settings import Settings
 
     return known_clusters(Settings.from_env())
-
-
-def _benchmark_path(benchmark_id: str, release: str) -> str:
-    return f"benchmarks/{benchmark_id}/{release.replace(':', '_')}.parquet"
 
 
 @benchmark_app.command("fetch")

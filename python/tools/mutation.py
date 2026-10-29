@@ -73,7 +73,7 @@ RELATIVITY_SHARDS = (
 STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd"),
     ("protocol", "features", "quality", "ranking"),
-    ("synthetic", "inject", "search", "membership", "dossier", "null"),
+    ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
 )
 
 #: Every suite that drives the kernel. A mutant no selected test reaches counts against the score, so a

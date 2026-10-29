@@ -1,0 +1,11 @@
+{
+  "notes": "Settings of the exploratory whole-sky sweep (STL-009). Cuts, feature policy, pass marks and the cross-match window come from the UC-01 predeclaration; these are the sweep's own. Three HDBSCAN grid points give each candidate a stability; one null field per tile gives the false-positive rate.",
+  "tile_deg": 2.0,
+  "margin_deg": 0.5,
+  "algorithms": ["sklearn-hdbscan"],
+  "hyperparameter_grid": {
+    "sklearn-hdbscan": {"min_cluster_size": [10, 20, 40], "min_samples": [10]}
+  },
+  "null_fields_per_tile": 1,
+  "seed": 2026
+}

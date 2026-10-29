@@ -52,7 +52,7 @@ Quality-cut reports give each cut's failures among all input rows (`failed_by_cu
 
 The reference labelling is the first grid point. Each of its clusters is matched to its best-overlapping cluster (Jaccard) in every other labelling: stability is the mean overlap and a star's membership the mean probability. Members are stars at membership ≥ 0.5. A candidate is
 
-- **rejected** when stability < `min_stability` (0.5), it has fewer than `min_members` (10) members, or its colour–magnitude sequence is not at least `min_cmd_coherence` (3) times tighter than random field draws of the same size;
+- **rejected** when stability < `min_stability` (0.5), it has fewer than `min_members` (10) members, its colour–magnitude sequence is not at least `min_cmd_coherence` (3) times tighter than random field draws of the same size, or it holds more than `max_field_fraction` (0.5) of the stars searched (that is the field itself, not a cluster);
 - **inconclusive** when it has too few members with a colour, or it was cross-matched against fewer than two benchmarks (STL-005);
 - **known** when a benchmark cluster lies within 0.1 deg and 1 mas/yr;
 - **potentially new** when it passed every check, matches nothing in both benchmarks, and none of its region's null fields produced a surviving candidate (otherwise it is inconclusive, with that count as the reason).
@@ -68,6 +68,23 @@ A null field permutes proper motion in RA, proper motion in Dec and parallax ind
 ## Synthetic run
 
 `python -m sdp_stellar.synthetic <dir>` writes one field per region with planted clusters (SYN-A in the Pleiades field, in both synthetic benchmarks; SYN-B in the Praesepe field, in neither; SYN-C in the h and chi Persei field, in hr23 only) and the two synthetic benchmark tables. On them, with 3 null fields per region, every gate passes: SYN-A is recovered as known, SYN-B is the one potentially new candidate, SYN-C is found but rejected as unstable across the grid (stability 0.48), and no null field yields a surviving candidate. Injections into the Pleiades field mostly merge into the field's own proper-motion clump under HDBSCAN's excess-of-mass selection; the injection curve reports that rather than hiding it.
+
+## Running it on real data
+
+`sdp discover run --signer <you>` is the confirmatory run. It freezes the predeclaration, reads the four regions from Gaia (the local bulk copy when it is complete, the archive otherwise), defines the experiment with both benchmarks from `sdp benchmark fetch`, runs it and validates the gates. `--null-fields` and `--bootstrap-resamples` lower the predeclared 20 and 1000 for a quick look; a quick look is still recorded, but it is a different run from the predeclared one.
+
+## Sweeping the sky (exploratory)
+
+The sweep looks for candidates everywhere, not only in the four regions (STL-009). It cuts the sky into tiles about 2° across: 90 declination bands of 2°, each split into as many RA steps as fit at its equator-side edge. Each tile is searched with a 0.5° rim of neighbours so a cluster on an edge is seen whole, but a tile keeps only candidates centred inside it, so nothing is counted twice. Each tile also runs one null field with a seed taken from its id. The cuts, grid and pass marks are the predeclaration's own; only the tile size, rim, grid and null-field count in `sdp_stellar/sweep.json` are the sweep's.
+
+```
+sdp discover prepare --count 2     # try two files of the local Gaia copy first
+sdp discover prepare               # all of it: keeps only stars that pass the quality cuts, by band
+sdp discover sweep --bands 40:49   # some bands; omit --bands for the whole sky
+sdp discover report                # candidates, potentially new first, and the null false-positive rate
+```
+
+`prepare` and `sweep` can be stopped and restarted; finished files and tiles are skipped. A results folder belongs to one set of settings and refuses to mix with another. Every sweep finding is labelled EXPLORATORY: the sweep was not predeclared region by region, so a potentially new candidate from it is a lead to predeclare as a region and confirm with `sdp discover run`, never a result. Whole-sky curation uses the columnar curator (DSI-016), which gives the same rows as the row-by-row one, about 40 times faster.
 
 ## Gates
 
