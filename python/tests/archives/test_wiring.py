@@ -97,5 +97,7 @@ def test_the_plan_budget_comes_from_the_environment_and_the_planner_reads_regist
         }
     )
     assert settings.plan_budget == AcquisitionBudget(2000, 3, 60.0, 0, 100)
+    floor = Settings("postgresql://x/y", tmp_path, tmp_path, tmp_path, min_free_bytes=123)
+    assert floor.plan_budget.min_nas_headroom_bytes == 123, "one headroom floor however Settings is built"
     discovery = capability_discovery(settings)
     assert discovery.sources == {} and isinstance(discovery.registry, PostgresCapabilityRegistry)

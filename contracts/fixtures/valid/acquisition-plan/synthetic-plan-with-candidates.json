@@ -1,0 +1,672 @@
+{
+  "schema_version": "1.0.0",
+  "intent": {
+    "field": {
+      "region": {
+        "shape": "cone",
+        "ra_deg": 120.0,
+        "dec_deg": -10.0,
+        "radius_deg": 0.5
+      },
+      "epoch_jyear": 2016.0,
+      "images": [],
+      "label": "synthetic field"
+    },
+    "profile_hash": "sha256:624b7df711f9d5d716ae8e4b5697f33608c234e55f9327b14ba55250820e596d",
+    "planner_id": "minimum-product-set",
+    "planner_version": "1.0.0",
+    "requirements": [
+      {
+        "requirement_id": "identify:catalogue:synthetic-gaia",
+        "test_kind": "identify",
+        "product_types": [
+          "catalogue"
+        ],
+        "min_calibration_level": null,
+        "missions": [],
+        "instruments": [],
+        "epoch_min_mjd": null,
+        "epoch_max_mjd": null,
+        "em_min_m": null,
+        "em_max_m": null,
+        "operations": [
+          "cone"
+        ],
+        "needs_bytes": false,
+        "public_only": true
+      },
+      {
+        "requirement_id": "pm-excess:catalogue:synthetic-gaia",
+        "test_kind": "pm-excess",
+        "product_types": [
+          "catalogue"
+        ],
+        "min_calibration_level": null,
+        "missions": [],
+        "instruments": [],
+        "epoch_min_mjd": null,
+        "epoch_max_mjd": null,
+        "em_min_m": null,
+        "em_max_m": null,
+        "operations": [
+          "cone"
+        ],
+        "needs_bytes": false,
+        "public_only": true
+      },
+      {
+        "requirement_id": "pm-excess:product:lightcurve",
+        "test_kind": "pm-excess",
+        "product_types": [
+          "timeseries"
+        ],
+        "min_calibration_level": null,
+        "missions": [],
+        "instruments": [],
+        "epoch_min_mjd": null,
+        "epoch_max_mjd": null,
+        "em_min_m": null,
+        "em_max_m": null,
+        "operations": [],
+        "needs_bytes": true,
+        "public_only": true
+      }
+    ]
+  },
+  "discovery": [
+    {
+      "source_id": "synthetic-2mass",
+      "requirement_id": "identify:catalogue:synthetic-gaia",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for catalogue"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-gaia",
+      "requirement_id": "identify:catalogue:synthetic-gaia",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for catalogue"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "fake-plates",
+      "requirement_id": "identify:catalogue:synthetic-gaia",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of catalogue; offers measurements, timeseries"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-2mass",
+      "requirement_id": "pm-excess:catalogue:synthetic-gaia",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for catalogue"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-gaia",
+      "requirement_id": "pm-excess:catalogue:synthetic-gaia",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for catalogue"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "fake-plates",
+      "requirement_id": "pm-excess:catalogue:synthetic-gaia",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of catalogue; offers measurements, timeseries"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "fake-plates",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "satisfied",
+          "reason": "offers timeseries"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "satisfied",
+          "reason": "supports every operation needed"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "satisfied",
+          "reason": "adapter admitted for timeseries"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-2mass",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of timeseries; offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "unsatisfied",
+          "reason": "lacks download"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    },
+    {
+      "source_id": "synthetic-gaia",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "status": "unsatisfied",
+      "reasons": [
+        {
+          "field": "product_types",
+          "outcome": "unsatisfied",
+          "reason": "needs one of timeseries; offers catalogue"
+        },
+        {
+          "field": "coverage.spatial",
+          "outcome": "satisfied",
+          "reason": "field centre is covered"
+        },
+        {
+          "field": "operations",
+          "outcome": "unsatisfied",
+          "reason": "lacks download"
+        },
+        {
+          "field": "access",
+          "outcome": "satisfied",
+          "reason": "public access"
+        },
+        {
+          "field": "adapter.conformance",
+          "outcome": "unsatisfied",
+          "reason": "no product type in common"
+        }
+      ],
+      "descriptor_verified_on": "2026-10-28"
+    }
+  ],
+  "items": [
+    {
+      "item_id": "item-001",
+      "source_id": "fake-plates",
+      "operation": "download",
+      "target": "lc-0",
+      "expected_bytes": 512,
+      "expected_rows": null,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "fixture licence",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "test_kind": "pm-excess"
+    },
+    {
+      "item_id": "item-002",
+      "source_id": "fake-plates",
+      "operation": "download",
+      "target": "lc-1",
+      "expected_bytes": 512,
+      "expected_rows": null,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "fixture licence",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "test_kind": "pm-excess"
+    },
+    {
+      "item_id": "item-003",
+      "source_id": "fake-plates",
+      "operation": "download",
+      "target": "lc-2",
+      "expected_bytes": 512,
+      "expected_rows": null,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "fixture licence",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "test_kind": "pm-excess"
+    },
+    {
+      "item_id": "item-004",
+      "source_id": "fake-plates",
+      "operation": "download",
+      "target": "lc-3",
+      "expected_bytes": 512,
+      "expected_rows": null,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "fixture licence",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "test_kind": "pm-excess"
+    },
+    {
+      "item_id": "item-005",
+      "source_id": "fake-plates",
+      "operation": "download",
+      "target": "lc-4",
+      "expected_bytes": 512,
+      "expected_rows": null,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "fixture licence",
+      "requirement_id": "pm-excess:product:lightcurve",
+      "test_kind": "pm-excess"
+    },
+    {
+      "item_id": "item-006",
+      "source_id": "synthetic-2mass",
+      "operation": "cone",
+      "target": "sha256:56a449711e61dc62395804d189959871ed58a6035829a81df8b064345460a9bd",
+      "expected_bytes": 4000000,
+      "expected_rows": 100000,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "public domain",
+      "requirement_id": "pm-excess:catalogue:synthetic-gaia",
+      "test_kind": "pm-excess"
+    },
+    {
+      "item_id": "item-007",
+      "source_id": "synthetic-gaia",
+      "operation": "cone",
+      "target": "sha256:ed331af5e6056656ebe371c05a2f969205523191ce804e7a7998e8e79fb94ebe",
+      "expected_bytes": 8000000,
+      "expected_rows": 100000,
+      "calibration_level": null,
+      "access_status": "public",
+      "licence": "CC-BY-SA-3.0 IGO",
+      "requirement_id": "identify:catalogue:synthetic-gaia",
+      "test_kind": "identify"
+    }
+  ],
+  "cost": {
+    "total_bytes": 12002560,
+    "requests_per_source": {
+      "fake-plates": 5,
+      "synthetic-2mass": 1,
+      "synthetic-gaia": 1
+    },
+    "estimated_wall_seconds": 13.003,
+    "nas_headroom_after_bytes": null
+  },
+  "constraints": {
+    "profile": {
+      "schema_version": "1.0.0",
+      "profile_id": "synthetic-comoving",
+      "version": "1.0.0",
+      "description": "T4 profile over the synthetic field",
+      "identify": {
+        "route": "catalogue",
+        "source_id": "synthetic-gaia",
+        "release_label": "gaia:DR3",
+        "columns": [
+          "source_key",
+          "ra_deg",
+          "dec_deg",
+          "epoch_jyear",
+          "parallax_mas",
+          "parallax_mas_err",
+          "pm_ra_cosdec_masyr",
+          "pm_dec_masyr",
+          "g_mag",
+          "bp_rp"
+        ],
+        "quality_cuts": [],
+        "match_radius_arcsec": 1.0,
+        "row_cap": 100000,
+        "resolve": true,
+        "resolver_radius_arcsec": 2.0
+      },
+      "archives": [
+        {
+          "source_id": "synthetic-2mass",
+          "role": "catalogue",
+          "release_label": "twomass:psc",
+          "columns": [
+            "source_key",
+            "ra_deg",
+            "dec_deg",
+            "j_mag",
+            "k_mag"
+          ],
+          "match_radius_arcsec": 1.0,
+          "missions": [],
+          "product_types": []
+        },
+        {
+          "source_id": "fake-plates",
+          "role": "observations",
+          "release_label": "dasch:DR7",
+          "columns": [],
+          "match_radius_arcsec": 2.0,
+          "missions": [],
+          "product_types": []
+        }
+      ],
+      "tests": [
+        {
+          "name": "pm-excess",
+          "version": "1.0.0",
+          "thresholds": {
+            "score": 5.0
+          },
+          "needs_products": [
+            "lightcurve"
+          ]
+        }
+      ],
+      "ranking": {
+        "policy_id": "significance",
+        "version": "1.0.0",
+        "threshold": 1.0,
+        "alpha": 0.1
+      },
+      "null_fields": {
+        "trials": 5
+      }
+    },
+    "seed": 11,
+    "candidates": [
+      {
+        "item_id": "candidate",
+        "source_id": "synthetic-gaia",
+        "operation": "cone",
+        "target": "sha256:ed331af5e6056656ebe371c05a2f969205523191ce804e7a7998e8e79fb94ebe",
+        "expected_bytes": 8000000,
+        "expected_rows": 100000,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "CC-BY-SA-3.0 IGO",
+        "requirement_id": "identify:catalogue:synthetic-gaia",
+        "test_kind": "identify"
+      },
+      {
+        "item_id": "candidate",
+        "source_id": "synthetic-2mass",
+        "operation": "cone",
+        "target": "sha256:56a449711e61dc62395804d189959871ed58a6035829a81df8b064345460a9bd",
+        "expected_bytes": 4000000,
+        "expected_rows": 100000,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "public domain",
+        "requirement_id": "pm-excess:catalogue:synthetic-gaia",
+        "test_kind": "pm-excess"
+      },
+      {
+        "item_id": "candidate",
+        "source_id": "fake-plates",
+        "operation": "download",
+        "target": "lc-0",
+        "expected_bytes": 512,
+        "expected_rows": null,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "fixture licence",
+        "requirement_id": "pm-excess:product:lightcurve",
+        "test_kind": "pm-excess"
+      },
+      {
+        "item_id": "candidate",
+        "source_id": "fake-plates",
+        "operation": "download",
+        "target": "lc-1",
+        "expected_bytes": 512,
+        "expected_rows": null,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "fixture licence",
+        "requirement_id": "pm-excess:product:lightcurve",
+        "test_kind": "pm-excess"
+      },
+      {
+        "item_id": "candidate",
+        "source_id": "fake-plates",
+        "operation": "download",
+        "target": "lc-2",
+        "expected_bytes": 512,
+        "expected_rows": null,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "fixture licence",
+        "requirement_id": "pm-excess:product:lightcurve",
+        "test_kind": "pm-excess"
+      },
+      {
+        "item_id": "candidate",
+        "source_id": "fake-plates",
+        "operation": "download",
+        "target": "lc-3",
+        "expected_bytes": 512,
+        "expected_rows": null,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "fixture licence",
+        "requirement_id": "pm-excess:product:lightcurve",
+        "test_kind": "pm-excess"
+      },
+      {
+        "item_id": "candidate",
+        "source_id": "fake-plates",
+        "operation": "download",
+        "target": "lc-4",
+        "expected_bytes": 512,
+        "expected_rows": null,
+        "calibration_level": null,
+        "access_status": "public",
+        "licence": "fixture licence",
+        "requirement_id": "pm-excess:product:lightcurve",
+        "test_kind": "pm-excess"
+      }
+    ],
+    "estimates": {
+      "unknown_size_bytes": 1000000,
+      "cell_bytes": 8,
+      "throughput_bytes_per_s": 1000000.0,
+      "seconds_per_request": 1.0
+    },
+    "budget": {
+      "max_bytes": 1000000000,
+      "max_requests_per_source": 50,
+      "max_wall_seconds": 3600.0,
+      "min_nas_headroom_bytes": 0,
+      "approval_threshold_bytes": 50000000
+    }
+  },
+  "gaps": [],
+  "plan_id": "sha256:773cae32c7726280a55d0bb13a0a99c5af186ff0f9bf82f47ae4ab7355cc5a60",
+  "approval": {
+    "plan_id": "sha256:773cae32c7726280a55d0bb13a0a99c5af186ff0f9bf82f47ae4ab7355cc5a60",
+    "decision": "auto_approved",
+    "actor": "leigh",
+    "threshold_bytes": 50000000,
+    "ledger_entry_id": null,
+    "reason": ""
+  }
+}

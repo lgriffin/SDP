@@ -64,6 +64,14 @@ describe("RestWorkbench", () => {
     await expect(w.runExperiment("e")).rejects.toBeInstanceOf(EvidenceUnavailable);
   });
 
+  it("says the planner is missing when the server has its routes but no planner wired", async () => {
+    const body = JSON.stringify({ error: "the planner is not wired on this server", type: "PlannerUnavailable" });
+    const w = new RestWorkbench("http://api.test", server(503, body).fetch);
+    await expect(w.approvePlan("p", "leigh")).rejects.toBeInstanceOf(PlannerUnavailable);
+    const down = new RestWorkbench("http://api.test", server(503, JSON.stringify({ error: "db down" })).fetch);
+    await expect(down.approvePlan("p", "leigh")).rejects.toBeInstanceOf(EvidenceUnavailable);
+  });
+
   it("reports an unreachable server", async () => {
     const w = new RestWorkbench("http://api.test", async () => {
       throw new TypeError("fetch failed");

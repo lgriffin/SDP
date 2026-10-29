@@ -1,4 +1,4 @@
-// spec-harness <command>: ears, trace, conform, rederive, admit, claims, guard, ratchet, report.
+// spec-harness <command>: ears, trace, conform, rederive, rederive-plan, admit, claims, guard, ratchet, report.
 // Paths are relative to the current directory; CI runs it from the repository root.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -8,7 +8,7 @@ import { parseArgs } from "node:util";
 import { EarsDirectory, JsonFiles, JUnitFiles, LedgerFiles, ManifestFiles, PredeclarationFiles } from "./adapters/fs.ts";
 import { renderRequirementsMarkdown } from "./ears.ts";
 import { parseNameStatus, type GateSnapshot } from "./guard.ts";
-import { admitAll, approvals, claimsAll, compileRequirements, conformAll, guardChanges, rederiveAll, runTrace } from "./harness.ts";
+import { admitAll, approvals, claimsAll, compileRequirements, conformAll, guardChanges, rederiveAll, rederivePlanAll, runTrace } from "./harness.ts";
 import { ratchet } from "./ratchet.ts";
 import { buildReleaseReport, renderReleaseReport, type Level, type TierStatus } from "./report.ts";
 import { renderTraceabilityMarkdown } from "./trace.ts";
@@ -86,6 +86,18 @@ async function rederiveCommand(argv: string[]): Promise<number> {
     for (const d of r.disagreements) console.error(`  ${d.subject}: kernel ${JSON.stringify(d.kernel)} harness ${JSON.stringify(d.harness)}`);
   }
   if (values.out) write(values.out, json(results));
+  return results.some((r) => r.state === "disagree") ? 1 : 0;
+}
+
+async function rederivePlanCommand(argv: string[]): Promise<number> {
+  const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { out: { type: "string" } } });
+  const results = await rederivePlanAll(new JsonFiles(positionals.length ? positionals : ["plans"]));
+  for (const r of results) {
+    console.log(`${r.state.padEnd(8)} ${r.planId}: ${r.itemsRederived ? "items re-derived" : "no candidates recorded; items not re-derived"} (${r.path})`);
+    for (const d of r.disagreements) console.error(`  ${d.subject}: kernel ${JSON.stringify(d.kernel)} harness ${JSON.stringify(d.harness)}`);
+  }
+  if (values.out) write(values.out, json(results));
+  console.log(`${results.length} plans, ${results.filter((r) => r.state === "disagree").length} disagreeing (INT-013)`);
   return results.some((r) => r.state === "disagree") ? 1 : 0;
 }
 
@@ -232,6 +244,7 @@ const COMMANDS: Record<string, (argv: string[]) => Promise<number>> = {
   trace: traceCommand,
   conform: conformCommand,
   rederive: rederiveCommand,
+  "rederive-plan": rederivePlanCommand,
   admit: admitCommand,
   claims: claimsCommand,
   guard: guardCommand,
