@@ -223,7 +223,7 @@ class DatasetArtifact:
                     rendered_query=acq["rendered_query"],
                     idempotency_key=acq["idempotency_key"],
                     source_release=acq["source_release"],
-                    acquired_at=datetime.fromisoformat(acq["acquired_at"].replace("Z", "+00:00")),
+                    acquired_at=datetime.fromisoformat(acq["acquired_at"]),
                     checksum=ArtifactId(acq["checksum"]),
                     byte_count=int(acq["byte_count"]),
                     parts=tuple(

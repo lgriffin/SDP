@@ -94,3 +94,17 @@ requirements:
       - "python/tests.archives.test_bulk::test_each_file_becomes_a_typed_parquet_of_the_declared_columns_with_its_record"
       - "python/tests.archives.test_bulk::test_a_rerun_skips_stored_files_and_a_bad_md5_fails_only_that_file"
       - "python/tests.archives.test_bulk::test_the_sweep_stops_at_the_disk_floor_before_downloading"
+  - id: DSI-014
+    pattern: state
+    text: "While a complete bulk copy of a source release is stored, the system shall answer that source's catalogue queries from the copy with the rows, column types, order, row cap and chunks the archive query would return, under rendered query text marked as a bulk read."
+    rationale: "Once all of Gaia is on disk, runs read fields locally with no TAP call; an incomplete copy would silently drop stars, so it is never read unless asked for, and then it is refused (#72)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_bulk_read::test_a_cone_returns_exactly_the_stars_inside_it_ordered_by_source_id"
+      - "python/tests.archives.test_bulk_read::test_a_box_is_plain_betweens_and_the_filters_apply_as_in_adql"
+      - "python/tests.archives.test_bulk_read::test_the_row_cap_and_chunks_page_as_the_archive_does"
+      - "python/tests.archives.test_bulk_read::test_an_empty_field_is_one_empty_batch_of_the_declared_columns"
+      - "python/tests.archives.test_bulk_read::test_the_query_text_is_marked_bulk_so_its_dataset_never_passes_for_an_archive_read"
+      - "python/tests.archives.test_bulk_read::test_an_incomplete_copy_is_refused_and_auto_keeps_the_archive"

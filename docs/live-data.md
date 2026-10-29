@@ -118,6 +118,21 @@ its reason. Solutions go to `<data>/solutions/astro/<frame>.wcs.json`, refusals 
 `<frame>.unsolved.json`. A rerun skips both; `--resolve` redoes solved frames, `--retry-refused` the
 refused ones. The frames themselves are only read.
 
+## Full-size JWST products on your own disk
+
+`sdp integration record` refuses a product over 35 MB, the most a committed reference product may be.
+For a local pull, give `--max-bytes` (`500MB`, `2GB`; 1 MB is 1024² bytes) and an `--out` outside
+`fixtures/`; a larger limit inside `fixtures/` is refused, so a big file is never committed by accident.
+The product is streamed to disk a megabyte at a time and is not kept in a cassette; the output gives its
+bytes, seconds and SHA-256.
+
+```
+cd python
+uv run sdp integration record --obs-id jw01538-o069_t001_nircam_clear-f277w \
+  --filename jw01538-o069_t001_nircam_clear-f277w_i2d.fits --name p177d-f277w-full \
+  --out ../reports/local-products --cassettes ../reports/cassettes --max-bytes 400MB
+```
+
 ## Things only a person can do
 
 None of these can be scripted, because each one rests on human judgement or on your own account.
@@ -156,3 +171,16 @@ sdp archive bulk --status         # files done, rows and bytes stored, free spac
 
 Run the same command again to resume: stored files are skipped and a file that failed is tried again.
 The sweep stops cleanly before a file when free space falls below `SDP_MIN_FREE_BYTES`.
+
+Once every file in ESA's list is stored, SDP reads Gaia fields from the copy instead of the archive:
+runs, investigations and `sdp archive acquire` get the same rows, in the same order, with no TAP call.
+Only the files whose sky box overlaps the field are opened. `SDP_GAIA_SOURCE` chooses:
+
+| Value | Gaia fields come from |
+|---|---|
+| `auto` (default) | the copy once it is complete, the archive until then |
+| `tap` | always the archive |
+| `bulk` | always the copy; a run is refused while any file is missing |
+
+A dataset read from the copy records its query as `BULK SELECT ...`, so it never passes for an archive
+read and is not reused for one.
