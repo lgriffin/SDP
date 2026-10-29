@@ -16,7 +16,7 @@ from sdp.kernel.domain.hypothesis import Hypothesis
 from sdp.kernel.domain.investigation import Investigation
 from sdp.kernel.domain.predeclaration import Predeclaration
 from sdp.kernel.ports.driving import FreezePredeclarationCommand
-from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationRun, TriageCommand
+from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationRun, QueryInvestigations, TriageCommand
 from sdp.testing.investigate import (
     PLANTED,
     gaia_archive,
@@ -43,12 +43,16 @@ class InvestigateWorld:
     predeclaration_hash: str | None = None
     error: Exception | None = None
 
+    @property
+    def query(self) -> QueryInvestigations:
+        assert self.k.kernel.query_investigations is not None
+        return self.k.kernel.query_investigations
+
     def nth(self, ordinal: str) -> Investigation:
         return self.run.investigations[ORDINALS[ordinal]]
 
     def stored(self, ordinal: str) -> Investigation:
-        assert self.k.kernel.query_investigations is not None
-        investigation = self.k.kernel.query_investigations.investigation(self.nth(ordinal).investigation_id)
+        investigation = self.query.investigation(self.nth(ordinal).investigation_id)
         assert investigation is not None
         return investigation
 
@@ -130,22 +134,27 @@ def _close(ctx: dict[str, Any], actor: str, ordinal: str, reason: str) -> None:
 
 @then("one open investigation exists for each planted star")
 def _one_per_star(ctx: dict[str, Any]) -> None:
-    run = world(ctx).run
-    assert sorted(i.candidate.object_key or "" for i in run.investigations) == sorted(PLANTED)
-    assert all(i.state.value == "open" for i in run.investigations)
-    assert len(world(ctx).events("InvestigationOpened")) == len(PLANTED)
+    w = world(ctx)
+    stored = w.query.investigations(w.run.investigation_set.set_id)
+    assert sorted(i.candidate.object_key or "" for i in stored) == sorted(PLANTED)
+    assert all(i.state.value == "open" for i in stored)
+    assert len(w.events("InvestigationOpened")) == len(PLANTED)
 
 
 @then("the set records {objects:d} objects examined, {tests:d} test applied and {candidates:d} candidates opened")
 def _multiplicity(ctx: dict[str, Any], objects: int, tests: int, candidates: int) -> None:
-    multiplicity = world(ctx).run.manifest["multiplicity"]
+    w = world(ctx)
+    manifest = w.query.manifest(w.run.investigation_set.set_id)
+    assert manifest is not None
+    multiplicity = manifest["multiplicity"]
     assert (multiplicity["objects_examined"], multiplicity["tests_applied"]) == (objects, tests)
     assert multiplicity["candidates_opened"] == candidates
 
 
 @then('every investigation and every test result is labelled "{label}"')
 def _labelled(ctx: dict[str, Any], label: str) -> None:
-    for investigation in world(ctx).run.investigations:
+    w = world(ctx)
+    for investigation in w.query.investigations(w.run.investigation_set.set_id):
         assert investigation.label == label and "verdict" not in investigation.to_document()
         assert investigation.test_results and all(r.label == label for r in investigation.test_results)
 
@@ -153,9 +162,8 @@ def _labelled(ctx: dict[str, Any], label: str) -> None:
 @then('every investigation dossier is labelled "{label}"')
 def _dossiers_labelled(ctx: dict[str, Any], label: str) -> None:
     w = world(ctx)
-    assert w.k.kernel.query_investigations is not None
     for investigation in w.run.investigations:
-        dossier = w.k.kernel.query_investigations.dossier(investigation.investigation_id)
+        dossier = w.query.dossier(investigation.investigation_id)
         assert dossier is not None and dossier["label"] == label
 
 
@@ -196,13 +204,11 @@ def _state_because(ctx: dict[str, Any], ordinal: str, state: str, reason: str) -
 @then("the set still holds {count:d} investigations")
 def _held(ctx: dict[str, Any], count: int) -> None:
     w = world(ctx)
-    assert w.k.kernel.query_investigations is not None
-    assert len(w.k.kernel.query_investigations.investigations(w.run.investigation_set.set_id)) == count
+    assert len(w.query.investigations(w.run.investigation_set.set_id)) == count
 
 
 @then("the first and second investigations keep their dossiers")
 def _kept(ctx: dict[str, Any]) -> None:
     w = world(ctx)
-    assert w.k.kernel.query_investigations is not None
     for ordinal in ("first", "second"):
-        assert w.k.kernel.query_investigations.dossier(w.nth(ordinal).investigation_id) is not None
+        assert w.query.dossier(w.nth(ordinal).investigation_id) is not None
