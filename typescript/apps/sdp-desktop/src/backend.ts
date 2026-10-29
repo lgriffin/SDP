@@ -23,6 +23,8 @@ export function sdpEnvironment(layout: Layout, database: Database): Record<strin
     SDP_ARTIFACT_ROOT: join(layout.data, "artifacts"),
     SDP_LEDGER_DIR: join(layout.data, "ledger"),
     SDP_REPO_ROOT: repoRoot(layout),
+    // The person's profiles, so `sdp demo jwst` in the Command Prompt finds the same ones the Start page lists.
+    SDP_PROFILES_DIR: profiles(layout),
     // As in the developer stack: a single-user workstation, where signed steps use the person's own key
     // through the SDP Command Prompt (SDP_SIGNING_KEY), and runs from the UI append unsigned entries.
     SDP_ALLOW_UNSIGNED: "1",
@@ -127,7 +129,7 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
       ORIGIN: uiUrl,
       SDP_API_URL: `${apiUrl}/graphql`,
       SDP_API_TOKEN: apiToken,
-      SDP_PROFILES_DIR: profiles(layout),
+      SDP_PROFILES_DIR: env.SDP_PROFILES_DIR,
       NODE_ENV: "production",
     });
     await import(pathToFileURL(ui(layout)).href);

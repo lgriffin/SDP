@@ -324,6 +324,11 @@ class IdentifySpec:
         )
 
 
+def check_calibration_level(level: int | None) -> None:
+    if level is not None and not 0 <= level <= 4:
+        raise InvariantViolation("an ObsCore calibration level is 0 to 4")
+
+
 @dataclass(frozen=True)
 class ArchiveSelection:
     """One archive the profile consults in Retrieve, and how."""
@@ -338,12 +343,15 @@ class ArchiveSelection:
     cutout_arcsec: float | None = None
     """Fetch a square cutout of this side around the target instead of the whole product, where the
     product supports one (INT-004). ``None`` fetches whole products."""
+    min_calibration_level: int | None = None
+    """Only products at this ObsCore ``calib_level`` or above, e.g. 3 for combined mosaics alone."""
 
     def __post_init__(self) -> None:
         if self.role is ArchiveRole.CATALOGUE and not self.columns:
             raise InvariantViolation(f"catalogue archive {self.source_id} must name its columns")
         if self.cutout_arcsec is not None and not 0 < self.cutout_arcsec <= 3600:
             raise InvariantViolation("a cutout side is more than 0 and at most 3600 arcsec")
+        check_calibration_level(self.min_calibration_level)
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -356,6 +364,7 @@ class ArchiveSelection:
             "product_types": list(self.product_types),
             # Only when set, so profiles written before cutouts keep their hash.
             **({"cutout_arcsec": self.cutout_arcsec} if self.cutout_arcsec is not None else {}),
+            **({"min_calibration_level": self.min_calibration_level} if self.min_calibration_level is not None else {}),
         }
 
     @classmethod
@@ -369,6 +378,9 @@ class ArchiveSelection:
             missions=tuple(doc.get("missions", ())),
             product_types=tuple(doc.get("product_types", ())),
             cutout_arcsec=float(doc["cutout_arcsec"]) if doc.get("cutout_arcsec") is not None else None,
+            min_calibration_level=(
+                int(doc["min_calibration_level"]) if doc.get("min_calibration_level") is not None else None
+            ),
         )
 
 
@@ -706,10 +718,13 @@ class ObservationCriteria:
     radius_arcsec: float = 5.0
     epoch_min_mjd: float | None = None
     epoch_max_mjd: float | None = None
+    min_calibration_level: int | None = None
+    """Only products at this ObsCore ``calib_level`` or above (3 is a combined mosaic); None takes any."""
 
     def __post_init__(self) -> None:
         if not (0 < self.radius_arcsec <= 3600):
             raise InvariantViolation("an observation search radius stays within a degree")
+        check_calibration_level(self.min_calibration_level)
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -718,6 +733,8 @@ class ObservationCriteria:
             "radius_arcsec": self.radius_arcsec,
             "epoch_min_mjd": self.epoch_min_mjd,
             "epoch_max_mjd": self.epoch_max_mjd,
+            # Only when set, so searches written before it keep their hash.
+            **({"min_calibration_level": self.min_calibration_level} if self.min_calibration_level is not None else {}),
         }
 
 

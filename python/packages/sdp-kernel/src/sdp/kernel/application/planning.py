@@ -323,6 +323,7 @@ class PlanInvestigationUseCase:
                     missions=selection.missions,
                     product_types=selection.product_types,
                     radius_arcsec=radius + selection.match_radius_arcsec,
+                    min_calibration_level=selection.min_calibration_level,
                 ),
             )
             side = selection.cutout_arcsec if isinstance(gateway, ProductCutouts) else None

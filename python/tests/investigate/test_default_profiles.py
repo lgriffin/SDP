@@ -16,8 +16,11 @@ import yaml
 
 from sdp.adapters.archives.dialect import load_dialects
 from sdp.adapters.archives.tap import load_sources
+from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.bootstrap import clusterers
 from sdp.adapters.compute.clustering import SklearnHdbscan
+from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
+from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.kernel.application.investigate import SIGNIFICANCE_POLICY, load_candidate_rankers
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, Stage, StageState, TestProfile
@@ -31,6 +34,7 @@ from sdp.testing.investigate import (
     synthetic_field,
     twomass_archive,
 )
+from sdp.testing.jwst import MAST, jwst_catalogue, jwst_cutting_archive, jwst_field, jwst_resolver
 from sdp.testing.wiring import build_in_memory_kernel
 from sdp_investigate import registered_tests
 from sdp_investigate.astrometry import AstrometricCoherence
@@ -40,7 +44,7 @@ pytestmark = pytest.mark.tier("T4")
 PROFILES = sorted((Path(__file__).resolve().parents[3] / "profiles").glob("*.yaml"))
 OBSERVATION_ARCHIVES = {"mast", "dasch"}
 """The ObservationArchiveGateways the production composition root wires (bootstrap.observation_gateways)."""
-SYNTHETIC = {"gaia": "synthetic-gaia", "2mass": "synthetic-2mass", "dasch": "fake-plates"}
+SYNTHETIC = {"gaia": "synthetic-gaia", "2mass": "synthetic-2mass", "dasch": "fake-plates", "mast": MAST}
 SYNTHETIC_RELEASES = {"2mass:psc": "twomass:psc"}
 
 
@@ -77,7 +81,7 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
     for archive in profile.archives:
         if archive.role is ArchiveRole.OBSERVATIONS:
             assert archive.source_id in OBSERVATION_ARCHIVES
-            assert set(archive.product_types) <= {products.LIGHTCURVE, products.ASTROMETRY}
+            assert set(archive.product_types) <= {products.LIGHTCURVE, products.ASTROMETRY, "image"}
 
     registered = {(t.name, t.version): t for t in registered_tests()}
     for selection in profile.tests:
@@ -124,15 +128,32 @@ def on_synthetic_world(profile: TestProfile) -> TestProfile:
 def test_a_default_profile_runs_end_to_end(path: Path) -> None:
     profile = on_synthetic_world(load(path))
     assert all(isinstance(a, ArchiveSelection) for a in profile.archives)
-    catalogue = synthetic_catalogue()
+    # A profile that reads JWST images runs on the synthetic JWST field, with a gateway that cuts.
+    images = any(a.source_id == MAST for a in profile.archives)
+    catalogue = jwst_catalogue() if images else synthetic_catalogue()
+    ports = investigate_ports(
+        *registered_tests(),
+        catalogue=catalogue,
+        rankers=load_candidate_rankers(),
+        **({"resolver": jwst_resolver(catalogue)} if images else {}),
+    )
+    if images:
+        ports.observation_gateways = {MAST: jwst_cutting_archive(catalogue)}
     k = build_in_memory_kernel(
         gateways={"synthetic-gaia": gaia_archive(catalogue), "synthetic-2mass": twomass_archive(catalogue)},
-        investigate=investigate_ports(*registered_tests(), catalogue=catalogue, rankers=load_candidate_rankers()),
+        investigate=ports,
     )
     use_case = k.kernel.investigate_field
     assert use_case is not None
-    use_case.ports.services = {"clusterer": SklearnHdbscan(), "clusterers": clusterers()}
-    run = use_case.execute(InvestigateFieldCommand(synthetic_field(), profile, seed=1))
+    use_case.ports.services = {
+        "clusterer": SklearnHdbscan(),
+        "clusterers": clusterers(),
+        "detector": PhotutilsDetector(),
+        "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
+        "refiner": TweakwcsRefiner(),
+    }
+    field_ = jwst_field() if images else synthetic_field()
+    run = use_case.execute(InvestigateFieldCommand(field_, profile, seed=1))
     assert all(record.state is StageState.COMPLETED for record in run.investigation_set.stages.values())
     stage = run.investigation_set.stages[Stage.TEST].artifact_id
     assert stage is not None

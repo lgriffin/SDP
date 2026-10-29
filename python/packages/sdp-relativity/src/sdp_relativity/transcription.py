@@ -19,7 +19,7 @@ _STAR_FIELDS = ("x_arcmin", "y_arcmin", "dx_arcsec", "dy_arcsec", "error_arcsec"
 
 def _effective(record: TranscribedRecord, verifications: Sequence[VerificationRecord]) -> dict[str, Any]:
     fields = dict(record.fields)
-    for v in verifications:
+    for v in sorted(verifications, key=lambda v: v.verified_at):
         if v.record_id == record.record_id and not v.matches:
             fields.update(v.corrections)
     return fields
@@ -68,8 +68,10 @@ def bundle_from_records(
         "schema": BUNDLE_SCHEMA,
         "instrument_sets": [instruments[k] for k in sorted(instruments)],
         "records": {r.record_id: r.locator for r in records},
+        # In the order they were made, so the audit reads each record's latest pass.
         "verifications": [
-            {"record_id": v.record_id, "verifier": v.verifier, "matches": v.matches} for v in verifications
+            {"record_id": v.record_id, "verifier": v.verifier, "matches": v.matches}
+            for v in sorted(verifications, key=lambda v: v.verified_at)
         ],
         "provenance": {"kind": "transcription", **dict(provenance or {})},
     }

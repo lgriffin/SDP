@@ -10,6 +10,7 @@ import pytest
 
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
+from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.application.planning import cutout_bytes
 from sdp.kernel.domain.integration import AcquisitionBudget, AcquisitionPlan, MatchStatus, Operation
@@ -28,6 +29,7 @@ from sdp.testing.jwst import (
     jwst_catalogue,
     jwst_cutting_archive,
     jwst_field,
+    jwst_i2d,
     jwst_profile,
     jwst_resolver,
 )
@@ -171,3 +173,28 @@ def test_a_gateway_that_cannot_cut_falls_back_to_whole_products_in_the_plan() ->
     plan, _ = run_slice(slice_kernel(), profile=cutout_profile(25.0))
     item = next(i for i in plan.items if i.source_id == MAST)
     assert item.operation is Operation.DOWNLOAD and item.target == PRODUCT_ID
+
+
+def aligned_profile(align: bool) -> Any:
+    profile = jwst_profile()
+    tests = tuple(replace(t, thresholds={**t.thresholds, "align_wcs": align}) for t in profile.tests)
+    return replace(profile, profile_id=f"jwst-vertical-slice-align-{align}".lower(), tests=tests)
+
+
+@pytest.mark.req("INT-020")
+def test_an_image_whose_astrometry_is_off_is_shifted_onto_gaia_before_it_is_compared() -> None:
+    catalogue = jwst_catalogue()
+    off = jwst_archive(catalogue, images=((PRODUCT_ID, jwst_i2d(catalogue, wcs_error_arcsec=(1.5, -0.8))),))
+
+    def flagged(align: bool) -> tuple[set[str], dict[str, Any]]:
+        k = slice_kernel(replace(off, fetches=[]))
+        k.kernel.investigate_field.ports.services["refiner"] = TweakwcsRefiner()  # type: ignore[union-attr]
+        _, run = run_slice(k, profile=aligned_profile(align))
+        return {key for key, r in run["results"].items() if r["p_value"] < 0.01}, run["results"]
+
+    unaligned, _ = flagged(False)
+    assert len(unaligned) > 3, "an arcsecond off, the stars have no counterparts where Gaia puts them"
+    aligned, results = flagged(True)
+    assert aligned == {VANISHED}
+    fit = next(r["details"]["alignment"] for r in results.values() if "alignment" in r["details"])
+    assert fit["matches"] >= 5 and fit["rms_arcsec"] < 0.1

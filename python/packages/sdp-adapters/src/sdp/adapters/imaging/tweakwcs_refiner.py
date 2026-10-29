@@ -47,10 +47,13 @@ class TweakwcsRefiner:
         imcat = Table({"x": [d.x for d in dets], "y": [d.y for d in dets]})
         corrector = FITSWCSCorrector(wcs, meta={"catalog": imcat, "name": "frame"})
         refcat = Table({"RA": np.asarray(reference_ra, float), "DEC": np.asarray(reference_dec, float)})
+        # The matcher works in the image's tangent plane, whose unit is the image pixel, so the
+        # radii given in arcseconds are converted at the image's own scale.
+        pixel_arcsec = float(np.mean(proj_plane_pixel_scales(wcs.celestial))) * 3600.0
         match = XYXYMatch(
-            searchrad=float(p["searchrad"]),
-            separation=float(p["separation"]),
-            tolerance=float(p["tolerance"]),
+            searchrad=float(p["searchrad"]) / pixel_arcsec,
+            separation=float(p["separation"]) / pixel_arcsec,
+            tolerance=float(p["tolerance"]) / pixel_arcsec,
             use2dhist=True,
         )
         try:

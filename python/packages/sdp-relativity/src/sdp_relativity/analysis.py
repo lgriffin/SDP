@@ -57,7 +57,10 @@ def limb_models(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: Tas
 def transcription_audit(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskContext) -> dict[str, Any]:
     """REL-G-01 and REL-G-02: every star row links to a located record with a matching second pass."""
     bundle = _bundle(ctx)
-    verified = {v.record_id for v in bundle.verifications if v.matches}
+    # A record's latest pass decides (the bundle lists passes in the order they were made), so a
+    # correction after a matching pass leaves the row unverified until it is re-checked.
+    latest = {v.record_id: v.matches for v in bundle.verifications}
+    verified = {record_id for record_id, matches in latest.items() if matches}
     unlinked: list[str] = []
     unverified: list[str] = []
     for obs in bundle.sets:

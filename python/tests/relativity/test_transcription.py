@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
-from sdp.kernel.domain.historical import TranscribedRecord, VerificationRecord
+from sdp.kernel.domain.historical import TranscribedRecord, VerificationRecord, is_verified
 from sdp_relativity.measurement import Convention
 from sdp_relativity.observations import parse_bundle
 from sdp_relativity.transcription import bundle_from_records
@@ -90,6 +90,19 @@ def test_a_correction_from_a_second_pass_supersedes_the_transcription() -> None:
     stars = {s.star_id: s for s in bundle.instrument("sobral-4in").stars}
     assert stars["11"].dx_arcsec == -0.25
     assert stars["5"].dx_arcsec == 0.31
+
+
+def test_a_correction_after_a_matching_pass_needs_a_matching_pass_of_its_own() -> None:
+    record = next(r for r in table() if r.record_id == "r2")
+    matched = VerificationRecord("r2", "leigh", AT, True)
+    corrected = VerificationRecord("r2", "leigh", AT + timedelta(hours=1), False, {"dx_arcsec": 0.31})
+    rechecked = VerificationRecord("r2", "leigh", AT + timedelta(hours=2), True)
+    assert is_verified(record, (matched,))
+    assert not is_verified(record, (corrected, matched)), "the corrected value was never re-checked"
+    assert is_verified(record, (rechecked, corrected, matched))
+    # The bundle lists passes in the order they were made, so the audit reads each record's latest.
+    bundle = bundle_from_records(table(), [corrected, matched])
+    assert [v["matches"] for v in bundle["verifications"]] == [True, False]
 
 
 def test_a_set_without_a_solar_radius_is_refused() -> None:

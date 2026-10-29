@@ -92,9 +92,16 @@ def image_epoch_jyear() -> float:
     return float(Time(IMAGE_MJD, format="mjd").jyear)
 
 
-def jwst_i2d(catalogue: pa.Table | None = None, seed: int = 5, missing: tuple[str, ...] = (VANISHED,)) -> bytes:
+def jwst_i2d(
+    catalogue: pa.Table | None = None,
+    seed: int = 5,
+    missing: tuple[str, ...] = (VANISHED,),
+    wcs_error_arcsec: tuple[float, float] = (0.0, 0.0),
+) -> bytes:
     """A NIRCam-like level-3 image: every Gaia star but those ``missing`` (``j-vanished``), moved to the
-    image epoch, as a Gaussian PSF of 3 pixels FWHM on unit noise; the header carries MJD-AVG and a TAN WCS."""
+    image epoch, as a Gaussian PSF of 3 pixels FWHM on unit noise; the header carries MJD-AVG and a TAN WCS.
+    ``wcs_error_arcsec`` (east, north) offsets the header's WCS from where the stars were drawn, as an
+    archived image's absolute astrometry can be."""
     rows = (catalogue or jwst_catalogue()).to_pylist()
     rng = np.random.default_rng(seed)
     data = rng.normal(0.0, 1.0, (IMAGE_PIXELS, IMAGE_PIXELS))
@@ -125,6 +132,9 @@ def jwst_i2d(catalogue: pa.Table | None = None, seed: int = 5, missing: tuple[st
         amplitude = 400.0 * 10 ** (-0.4 * (float(r["g_mag"]) - 16.0))
         data += amplitude * np.exp(-((xx - float(x)) ** 2 + (yy - float(y)) ** 2) / (2 * sigma**2))
     primary: dict[str, str | float] = {"TELESCOP": "JWST", "INSTRUME": "NIRCAM", "MJD-AVG": IMAGE_MJD}
+    east, north = wcs_error_arcsec
+    header["CRVAL1"] = JWST_CENTRE[0] + east / 3600 / math.cos(math.radians(JWST_CENTRE[1]))
+    header["CRVAL2"] = JWST_CENTRE[1] + north / 3600
     return fits_image(primary, header, data)
 
 

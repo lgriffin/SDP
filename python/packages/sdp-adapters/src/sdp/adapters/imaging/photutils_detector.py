@@ -20,7 +20,14 @@ from sdp.adapters.imaging import FITS_MEDIA_TYPES, header_text, wcs_from_text
 from sdp.kernel.domain.errors import DomainError
 from sdp.kernel.ports.investigate import Detection, DetectionList, ImageFrame
 
-DEFAULTS: Mapping[str, Any] = {"fwhm": 3.0, "nsigma": 5.0, "box_size": 64, "filter_size": 3, "hdu": None}
+DEFAULTS: Mapping[str, Any] = {
+    "fwhm": 3.0,
+    "nsigma": 5.0,
+    "box_size": 64,
+    "filter_size": 3,
+    "exclude_percentile": 10.0,
+    "hdu": None,
+}
 
 
 #: Header keywords for the mid-exposure time, best first; DATE-OBS is the fallback.
@@ -73,7 +80,9 @@ def read_image(frame: ImageFrame, hdu: int | None = None) -> tuple[np.ndarray, W
 @dataclass(frozen=True)
 class PhotutilsDetector:
     """Parameters (all optional): ``fwhm`` in pixels, ``nsigma`` above the background RMS,
-    ``box_size`` and ``filter_size`` of the background mesh, and ``hdu``."""
+    ``box_size`` and ``filter_size`` of the background mesh, ``exclude_percentile`` (the share of a
+    mesh box that may be masked or clipped before the box is left out: raise it for a crowded star
+    field, where stars fill more than a tenth of every box), and ``hdu``."""
 
     @property
     def detector_id(self) -> str:
@@ -92,11 +101,16 @@ class PhotutilsDetector:
             sigma_clip=SigmaClip(sigma=3.0),
             bkg_estimator=MedianBackground(),
             mask=~finite,
+            exclude_percentile=float(p["exclude_percentile"]),
         )
         subtracted = np.where(finite, data - background.background, 0.0)
         rms = float(background.background_rms_median)
         finder = DAOStarFinder(fwhm=float(p["fwhm"]), threshold=float(p["nsigma"]) * rms)
-        table = finder(subtracted, mask=~finite)
+        # photutils fills a magnitude column from every flux, and a faint source on a real image can
+        # have a negative one; that log10 is photutils' own bookkeeping, not a result SDP reads, so it
+        # is not raised under the kernel's floating-point policy.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            table = finder(subtracted, mask=~finite)
         detections: list[Detection] = []
         if table is not None:
             x = np.asarray(table["x_centroid"], dtype=float)

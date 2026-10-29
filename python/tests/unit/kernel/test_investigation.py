@@ -343,3 +343,8 @@ def test_a_cutout_side_round_trips_and_leaves_older_profiles_hashing_as_before()
     for side in (0.0, -1.0, 3601.0):
         with pytest.raises(InvariantViolation, match="cutout side"):
             replace(whole, cutout_arcsec=side)
+    assert "min_calibration_level" not in whole.to_document()
+    mosaics = replace(cut, min_calibration_level=3)
+    assert ArchiveSelection.from_document(mosaics.to_document()) == mosaics
+    with pytest.raises(InvariantViolation, match="calibration level"):
+        replace(whole, min_calibration_level=5)
