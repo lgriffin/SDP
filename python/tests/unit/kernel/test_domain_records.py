@@ -396,3 +396,27 @@ def test_prov_json_names_each_relation_and_round_trips() -> None:
     again = ProvGraph.from_prov_json(doc)
     assert again == g and again.agents == {"sdp:leigh": {}}
     assert ProvGraph.from_prov_json({}) == ProvGraph()
+
+
+def test_a_relation_is_recorded_once_even_after_a_loader_appended_it_directly() -> None:
+    g = ProvGraph()
+    g.relate("used", "a/1", "e/1")
+    g.relations["used"].append(("sdp:a/2", "sdp:e/2"))  # as the Postgres loader fills a graph
+    g.relate("used", "a/2", "e/2")
+    g.relate("used", "a/1", "e/1")
+    other = ProvGraph()
+    other.relate("used", "a/1", "e/1")
+    other.relate("used", "a/3", "e/3")
+    g.merge(other)
+    assert g.relations["used"] == [("sdp:a/1", "sdp:e/1"), ("sdp:a/2", "sdp:e/2"), ("sdp:a/3", "sdp:e/3")]
+
+
+def test_relating_scales_with_the_number_of_relations_not_its_square() -> None:
+    import time
+
+    g = ProvGraph()
+    started = time.perf_counter()
+    for i in range(50_000):  # a 190,000-star field opens tens of thousands of candidates (#67)
+        g.relate("wasDerivedFrom", f"inv/{i}", f"sha256:{i:064x}")
+    assert len(g.relations["wasDerivedFrom"]) == 50_000
+    assert time.perf_counter() - started < 5.0, "a list scan per relation took minutes here"
