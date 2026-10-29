@@ -42,6 +42,15 @@ class _Fixed:
         return ClusterLabels(labels, np.where(labels == 0, 1.0, 0.0), self.algorithm_id, params)
 
 
+class _Tail(_Fixed):
+    """A clusterer that labels the last ``k`` rows cluster 0: the rows an injection appends."""
+
+    def search(self, values: np.ndarray, params: Mapping[str, Any], seed: int) -> ClusterLabels:
+        self.calls.append((values, dict(params), seed))
+        labels = np.where(np.arange(len(values)) >= len(values) - self.k, 0, -1)
+        return ClusterLabels(labels, np.where(labels == 0, 1.0, 0.0), self.algorithm_id, params)
+
+
 class _Bare:
     """A clusterer with no backend attribute at all."""
 
@@ -335,6 +344,10 @@ def test_the_injection_task_reports_its_cell_and_recovery() -> None:
         "purity": 0.0,
     }
     assert clusterer.calls[0][2] == 4 and len(clusterer.calls[0][0]) == 80
+    found = analysis.injection(params, {"prep": _prepared(table)}, _ctx(4, clusterers={"sk": _Tail("sk", k=20)}))
+    assert (found["recovered"], found["completeness"], found["purity"]) == (True, 1.0, 1.0)
+    half = analysis.injection(params, {"prep": _prepared(table)}, _ctx(4, clusterers={"sk": _Tail("sk", k=40)}))
+    assert (half["recovered"], half["completeness"], half["purity"]) == (True, 1.0, 0.5)
 
 
 # --- recovery rates ----------------------------------------------------------------------------
