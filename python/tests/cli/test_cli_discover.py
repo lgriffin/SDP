@@ -8,6 +8,7 @@ import csv
 import dataclasses
 import json
 import math
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -226,8 +227,8 @@ def test_a_report_refuses_tiles_from_an_older_sdp(bulk: Path) -> None:
 
 
 def test_a_trial_prepare_needs_a_positive_count(bulk: Path) -> None:
-    result = runner.invoke(cli.app, ["discover", "prepare", "--count", "-1"])
-    assert result.exit_code != 0 and "--count" in result.output
+    result = runner.invoke(cli.app, ["discover", "prepare", "--count", "-1"], env={"NO_COLOR": "1", "COLUMNS": "200"})
+    assert result.exit_code == 2 and "-1 is not in the range x>=1" in re.sub(r"\x1b\[[0-9;]*m", "", result.output)
 
 
 def test_a_catalogue_stored_under_another_release_is_refused(bulk: Path) -> None:
