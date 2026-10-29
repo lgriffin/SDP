@@ -11,7 +11,7 @@ rights, no Docker, no PostgreSQL to set up. It runs the same pieces as the compo
 | Migrations | `sdp db migrate` on every start |
 | `sdp` CLI | The **SDP Command Prompt** in the Start menu, connected to the running app, for the signed steps the UI shows as commands (INV-015) |
 
-Test profiles: the defaults in the repository's `profiles/` folder are copied into `%LOCALAPPDATA%\SDP\profiles` on each start, unless a file with that name is already there, so a person's edits survive. The Start page lists that folder (`SDP_PROFILES_DIR`), and `profiles/README.md` travels with them as a guide.
+Test profiles: the defaults in the repository's `profiles/` folder are copied into `%LOCALAPPDATA%\SDP\profiles` on each start. A default the person has not edited is updated by each release; one they edited, or a file of their own with the same name, is left alone (`.shipped.json` in that folder records what was last shipped). The Start page lists that folder (`SDP_PROFILES_DIR`), and `profiles/README.md` travels with them as a guide.
 
 The person's data stays in `%LOCALAPPDATA%\SDP` (`postgres`, `artifacts`, `ledger`, `logs`, `secrets`), and uninstalling leaves it in place. If start-up fails, the app shows the error and offers to open the `logs` folder.
 

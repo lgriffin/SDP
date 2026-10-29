@@ -2,7 +2,9 @@
 #
 #   long-baseline-motion  -> do plate positions since ~1890 agree with where Gaia's motion puts the star?
 #   variability           -> has its brightness changed over the plates' century?
-#   parallax-consistency  -> does its distance stand out from the field?
+#
+# Only plate tests run, so a star with no usable plates is never a candidate here: first-look is
+# the profile for Gaia-only questions.
 #
 # Plates reach only bright stars and every star costs archive requests, so this profile keeps
 # fields small: bright stars (G < 15) and at most 300 of them.
@@ -48,15 +50,12 @@ tests:
     version: 1.0.0
     thresholds: {min_points: 20}       # fewer plate measurements give a weak constancy test and no usable period
     needs_products: [lightcurve]
-  - name: parallax-consistency
-    version: 1.0.0
-    thresholds: {source_id: gaia}
 
 ranking:
   policy_id: significance
   version: 1.0.0
   alpha: 0.01
-  threshold: 0.5
+  threshold: 0.5                       # either plate test alone is enough: motion and brightness are separate questions
 
 null_fields:
   trials: 10

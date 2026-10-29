@@ -26,7 +26,7 @@ try {
   console.log(`UI ${backend.uiUrl}: ${page.status}, ${html.length} bytes`);
   if (page.status !== 200 || !html.includes("<html")) throw new Error("the UI did not serve its home page");
   const start = await (await fetch(`${backend.uiUrl}/start`)).text();
-  for (const profile of ["first-look", "comoving-group-search", "star-history"]) {
+  for (const profile of ["first-look", "moving-group-search", "star-history"]) {
     if (!start.includes(profile)) throw new Error(`the Start page does not offer the ${profile} profile`);
   }
   console.log("Start page offers the default profiles");

@@ -1,4 +1,4 @@
-# Co-moving group search: look for stars that travel together (an open cluster, a moving group, or
+# Moving-group search: look for stars that travel together (an open cluster, a moving group, or
 # the debris of one), using the same settings UC-01 predeclared for open-cluster recovery.
 #
 #   astrometric-coherence      -> do some stars share a motion and distance? (clustering, HDBSCAN)
@@ -9,7 +9,7 @@
 # Read profiles/README.md for what each setting means and why these values were chosen.
 # Changing anything here makes a new profile: raise `version` (the run records this file's hash).
 schema_version: "1.0.0"
-profile_id: comoving-group-search
+profile_id: moving-group-search
 version: 1.0.0
 description: >-
   Looks for groups of stars moving together through space, such as an undiscovered star cluster.
@@ -27,7 +27,7 @@ identify:
     - {column: ruwe, op: "<", value: 1.4}
     - {column: phot_g_mean_mag, op: "<", value: 18.0}
   match_radius_arcsec: 1.0
-  row_cap: 20000
+  row_cap: 5000                        # the clustering reruns ~4,000 times (below); 5,000 stars keeps that to minutes
   resolve: true
   resolver_radius_arcsec: 2.0
 
@@ -53,7 +53,9 @@ tests:
         - {min_cluster_size: 20, min_samples: 10}
         - {min_cluster_size: 40, min_samples: 5}
         - {min_cluster_size: 40, min_samples: 10}
-      inner_trials: 20                 # shuffled fields per run for the group's own p-value
+      # Shuffled fields for the group's own p-value. The smallest p-value n trials can give is 1/(n+1),
+      # so 199 lets a strong group reach 0.005, below alpha (0.01); with 20 no group could ever qualify.
+      inner_trials: 199
       magnitude_bins: 4                # shuffle motions only among stars of similar brightness
   - name: parallax-consistency
     version: 1.0.0
