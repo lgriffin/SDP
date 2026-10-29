@@ -23,7 +23,11 @@ oracles:
     locator: "p. 306 (1.98 arcsec at the limb); p. 331 (probable error about 0.12 arcsec)"
     transcriber: claude
     status: transcribed
-    verifications: []
+    verifications:
+      - verifier: claude
+        verified_at: "2026-10-29"
+        matches: true
+        note: "re-read against the page image of the 1920 report, every cell of the transcription (one verifier is enough)"
   - oracle_id: principe-1920
     kind: published_estimate
     instrument: principe-astro
@@ -35,7 +39,11 @@ oracles:
     locator: "p. 328, para. 37 (1.61 +- 0.30 arcsec); p. 331"
     transcriber: claude
     status: transcribed
-    verifications: []
+    verifications:
+      - verifier: claude
+        verified_at: "2026-10-29"
+        matches: true
+        note: "re-read against the page image of the 1920 report, every cell of the transcription (one verifier is enough)"
   - oracle_id: sobral-astro-1920
     kind: published_estimate
     instrument: sobral-astro
@@ -47,7 +55,11 @@ oracles:
     locator: "p. 312 (0.93 arcsec at the limb); p. 331"
     transcriber: claude
     status: transcribed
-    verifications: []
+    verifications:
+      - verifier: claude
+        verified_at: "2026-10-29"
+        matches: true
+        note: "re-read against the page image of the 1920 report, every cell of the transcription (one verifier is enough)"
   - oracle_id: sobral-4in-1979
     kind: published_estimate
     instrument: sobral-4in

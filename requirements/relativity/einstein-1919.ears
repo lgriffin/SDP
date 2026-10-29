@@ -105,8 +105,12 @@ requirements:
       - "python/tests.relativity.test_paper1920::test_the_1920_reduction_reproduces_the_published_deflections"
       - "python/tests.relativity.test_paper1920::test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cells"
       - "python/tests.relativity.test_paper1920::test_a_record_is_verified_only_when_every_cell_it_cites_was_checked"
+      - "python/tests.relativity.test_paper1920::test_an_unchecked_plate_or_instrument_cell_withholds_every_star_fitted_with_it"
+      - "python/tests.relativity.test_paper1920::test_only_a_recorded_check_counts_never_a_note_that_merely_contains_one"
       - "python/tests.relativity.test_paper1920::test_every_expected_measurement_must_be_transcribed_and_only_a_dash_means_none"
       - "python/tests.relativity.test_paper1920::test_a_missing_or_unreadable_cell_is_refused_by_name"
+      - "python/tests.relativity.test_paper1920::test_the_1919_data_reproduces_the_published_values_and_waits_only_on_the_2020_reanalysis"
+      - "python/tests.relativity.test_paper1920::test_every_cell_of_the_committed_transcription_has_a_recorded_check"
   - id: REL-010
     pattern: ubiquitous
     text: "The fitter shall offer the 1920 reduction's six constants per plate as a plate model, subtract known linear terms and a known rotation when the scale is fixed, and solve a rotation the plate does not record."

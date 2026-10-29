@@ -37,6 +37,7 @@ GATES = [f"REL-G-0{i}" for i in range(1, 10)]
 @pytest.mark.gate("REL-G-06")
 @pytest.mark.gate("REL-G-07")
 @pytest.mark.req("NFR-002")
+@pytest.mark.usefixtures("unverified_oracles")
 def test_a_clean_synthetic_run_is_inconclusive_only_for_want_of_verified_oracles(run_uc02: RunFactory) -> None:
     run = run_uc02()
     assert run.manifest["environment"]["backend"] == "cpu"

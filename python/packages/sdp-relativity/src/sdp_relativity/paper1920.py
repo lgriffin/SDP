@@ -84,6 +84,15 @@ DASHES = ("—", "-")
 CHECK = re.compile(r"(?:checked|re-read) by (?P<who>\S+) (?P<on>\d{4}-\d{2}-\d{2})")
 
 
+def _check(text: str) -> re.Match[str] | None:
+    """The first ";"-separated entry of a check column that is wholly a recorded check, so a note such as
+    "not checked by ..." never counts."""
+    for part in text.split(";"):
+        if m := CHECK.fullmatch(part.strip()):
+            return m
+    return None
+
+
 class TranscriptionError(ValueError):
     """A cell the reduction needs is missing or unreadable."""
 
@@ -328,7 +337,8 @@ def sobral_astro(t: Transcription, sun: tuple[float, float]) -> list[Transcribed
     measured = [c for c in printed if c.value.strip() not in DASHES]
     plates = ASTRO_PLATES
     positions = _table_one(t, ASTRO_STARS)
-    coeff_y = {s: t.cell(table="p304-conditions", star_id=s, quantity="Ey").number for s in positions}
+    coeff_cells = {s: t.cell(table="p304-conditions", star_id=s, quantity="Ey") for s in positions}
+    coeff_y = {s: c.number for s, c in coeff_cells.items()}
     # Per-plate solutions of Dy = f + d x + e y + a Ey, as the paper reduced each plate (p. 310).
     residuals: list[float] = []
     dof = 0
@@ -345,7 +355,7 @@ def sobral_astro(t: Transcription, sun: tuple[float, float]) -> list[Transcribed
     records = [
         _record(
             f"{DOCUMENT_ID}/{instrument}",
-            [radius, revolution, *measured],
+            [radius, revolution, *measured, *(c for xy in positions.values() for c in xy), *coeff_cells.values()],
             {"kind": "instrument", "instrument": instrument, "solar_radius_arcmin": radius.number},
             notes=f"probable error of one measure {pe:.3f} arcsec, derived: 0.6745 x RMS of the residuals of the "
             f"per-plate solutions of the p. 311 values ({dof} degrees of freedom)",
@@ -474,10 +484,15 @@ def records(t: Transcription) -> list[TranscribedRecord]:
 def verifications(t: Transcription, records: Sequence[TranscribedRecord]) -> list[VerificationRecord]:
     """A matching second pass for each record whose every cited cell has a recorded check in the
     transcription's check column; a record with any unchecked cell stays unverified."""
-    checks = {c.key: CHECK.search(c.check) for c in t.cells}
+    checks = {c.key: _check(c.check) for c in t.cells}
+    cites = {r.record_id: list(r.fields["printed"]) for r in records}
     out = []
     for r in records:
-        found = [checks.get(k) for k in r.fields["printed"]]
+        # A star is fitted with its plate's known terms and its instrument's error, so it is verified
+        # only when the cells behind those are checked too.
+        parts = r.record_id.split("/")
+        keys = [k for n in range(len(parts), 1, -1) for k in cites.get("/".join(parts[:n]), [])]
+        found = [checks.get(k) for k in keys]
         if not found or not all(found):
             continue
         marks = [m for m in found if m is not None]

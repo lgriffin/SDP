@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import dataclasses
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,8 @@ from sdp_relativity.fitter import fit_set
 from sdp_relativity.observations import parse_bundle
 from sdp_relativity.oracles import load_registry
 from sdp_relativity.reduction import historical
+
+from .conftest import RunFactory
 
 pytestmark = pytest.mark.tier("T3")
 
@@ -107,26 +110,67 @@ def test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cel
     assert disagree == {("eclipse", "Dx", "I"), ("comparison", "Dx", "14_2a"), ("eclipse", "Dy", "VIII")}
 
 
-@pytest.mark.req("REL-009")
-def test_a_record_is_verified_only_when_every_cell_it_cites_was_checked(tmp_path: Path) -> None:
+def _with_checks(tmp_path: Path, check: Callable[[str], str]) -> Path:
+    """The committed transcription with each row's check column replaced by check(cell key)."""
     rows = list(csv.DictReader(CSV.open(newline="", encoding="utf-8")))
-    unchecked = paper1920.bundle(CSV)
-    cited = {k for r in paper1920.records(paper1920.Transcription.read(CSV)) for k in r.fields["printed"]}
-    checked = {paper1920.Cell(*(r[f] for f in FIELDS)).key for r in rows if r["check"]}
-    assert len(unchecked["verifications"]) < len(cited - checked)  # most records cite an unchecked cell
     for r in rows:
-        r["check"] = r["check"] or "re-read by claude 2026-10-30"
+        r["check"] = check(paper1920.Cell(*(r[f] for f in FIELDS)).key)
     path = tmp_path / "checked.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    everything = paper1920.bundle(path)
-    star_ids = {s["record_id"] for i in everything["instrument_sets"] for p in i["plates"] for s in p["stars"]}
-    passes = {v["record_id"]: v for v in everything["verifications"]}
-    assert star_ids <= set(passes)
-    some = passes[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"]
+    return path
+
+
+@pytest.mark.req("REL-009")
+def test_a_record_is_verified_only_when_every_cell_it_cites_was_checked(tmp_path: Path) -> None:
+    cites = {r.record_id: set(r.fields["printed"]) for r in paper1920.records(paper1920.Transcription.read(CSV))}
+    target = f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"
+    dropped = sorted(cites[target] - cites[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/4"])[0]
+    path = _with_checks(tmp_path, lambda key: "" if key == dropped else "re-read by claude 2026-10-30")
+    passes = {v["record_id"]: v for v in paper1920.bundle(path)["verifications"]}
+    assert target not in passes
+    some = passes[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/4"]
     assert some["matches"] and some["verifier"] == "claude" and some["verified_at"].startswith("2026-10-30")
+
+
+@pytest.mark.req("REL-009")
+def test_an_unchecked_plate_or_instrument_cell_withholds_every_star_fitted_with_it(tmp_path: Path) -> None:
+    cites = {r.record_id: set(r.fields["printed"]) for r in paper1920.records(paper1920.Transcription.read(CSV))}
+    plate = f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1"
+    orientation = next(k for k in cites[plate] if "theta" in k)
+    path = _with_checks(tmp_path, lambda key: "" if key == orientation else "re-read by claude 2026-10-30")
+    passes = {v["record_id"] for v in paper1920.bundle(path)["verifications"]}
+    assert not {k for k in cites if k.startswith(f"{plate}/")} & passes
+    assert f"{paper1920.DOCUMENT_ID}/principe-astro/W-D1/5" in passes
+    # The astrographic error is derived from Table I and the p. 304 coefficients as well as the p. 311 values.
+    position = next(k for k in cites[f"{paper1920.DOCUMENT_ID}/sobral-astro"] if k.startswith("I/10/"))
+    path = _with_checks(tmp_path, lambda key: "" if key == position else "re-read by claude 2026-10-30")
+    passes = {v["record_id"] for v in paper1920.bundle(path)["verifications"]}
+    assert not {k for k in passes if k.startswith(f"{paper1920.DOCUMENT_ID}/sobral-astro")}
+
+
+@pytest.mark.req("REL-009")
+def test_only_a_recorded_check_counts_never_a_note_that_merely_contains_one(tmp_path: Path) -> None:
+    for note in ("not checked by Leigh 2026-10-29", "to be re-read by claude 2026-10-29"):
+
+        def negative(key: str, note: str = note) -> str:
+            return note
+
+        path = _with_checks(tmp_path, negative)
+        assert paper1920.bundle(path)["verifications"] == []
+    both = _with_checks(tmp_path, lambda key: "checked by Leigh 2026-10-29; re-read by claude 2026-10-30")
+    assert {v["verifier"] for v in paper1920.bundle(both)["verifications"]} == {"Leigh"}
+
+
+@pytest.mark.req("REL-009")
+def test_every_cell_of_the_committed_transcription_has_a_recorded_check() -> None:
+    rows = list(csv.DictReader(CSV.open(newline="", encoding="utf-8")))
+    assert all(paper1920.CHECK.search(r["check"]) for r in rows)
+    bundle = paper1920.bundle(CSV)
+    star_ids = {s["record_id"] for i in bundle["instrument_sets"] for p in i["plates"] for s in p["stars"]}
+    assert star_ids <= {v["record_id"] for v in bundle["verifications"]}
 
 
 @pytest.mark.req("REL-009")
@@ -161,3 +205,15 @@ def test_the_sun_centre_is_the_mean_of_each_star_less_its_coefficient() -> None:
         dx, dy = x - sun[0], y - sun[1]
         coefficients[s] = (2.0 * dx / (dx * dx + dy * dy), 2.0 * dy / (dx * dx + dy * dy))
     assert np.allclose(paper1920.sun_centre(positions, coefficients, 2.0), sun)
+
+
+@pytest.mark.req("REL-009")
+@pytest.mark.gate("REL-G-04")
+@pytest.mark.tier("T8")
+def test_the_1919_data_reproduces_the_published_values_and_waits_only_on_the_2020_reanalysis(
+    run_uc02: RunFactory,
+) -> None:
+    run = run_uc02(paper1920.bundle(CSV))
+    outcomes = {g: run.outcome(g) for g in (f"REL-G-0{i}" for i in range(1, 10))}
+    assert {g for g, o in outcomes.items() if o != "pass"} == {"REL-G-07"}
+    assert outcomes["REL-G-07"] == "oracle_unverified"
