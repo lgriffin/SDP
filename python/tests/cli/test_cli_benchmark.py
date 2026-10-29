@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -19,6 +20,14 @@ from sdp.testing.wiring import InMemoryKernel, build_in_memory_kernel
 
 pytestmark = pytest.mark.tier("T4")
 runner = CliRunner()
+#: refusals are printed in a Rich box that wraps at the terminal width, which is narrow on CI runners
+WIDE = {"NO_COLOR": "1", "COLUMNS": "200"}
+
+
+def _plain(output: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", output)
+
+
 COLUMNS = {
     "name": "Name",
     "ra_deg": "RA_ICRS",
@@ -89,17 +98,17 @@ def test_fetch_one_catalogue_with_a_column_override(k: tuple[InMemoryKernel, Fak
 
 def test_a_column_override_needs_exactly_one_catalogue(k: tuple[InMemoryKernel, FakeVizier]) -> None:
     _, fake = k
-    result = runner.invoke(cli.app, ["benchmark", "fetch", "--column", "name=Cluster"])
+    result = runner.invoke(cli.app, ["benchmark", "fetch", "--column", "name=Cluster"], env=WIDE)
     assert result.exit_code != 0
-    assert "name exactly one --catalogue" in result.output
+    assert "name exactly one --catalogue" in _plain(result.output)
     assert fake.asked == []
 
 
 def test_an_unknown_catalogue_is_refused_before_any_download(k: tuple[InMemoryKernel, FakeVizier]) -> None:
     _, fake = k
-    result = runner.invoke(cli.app, ["benchmark", "fetch", "--catalogue", "mwsc"])
+    result = runner.invoke(cli.app, ["benchmark", "fetch", "--catalogue", "mwsc"], env=WIDE)
     assert result.exit_code != 0
-    assert "unknown ['mwsc']; known: ['cga20', 'hr23']" in result.output
+    assert "unknown ['mwsc']; known: ['cga20', 'hr23']" in _plain(result.output)
     assert fake.asked == []
 
 
