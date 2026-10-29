@@ -102,6 +102,10 @@ class LocalSources:
             raise LocalSourceError(f"{path} is inside SDP's data folder {self.data}; keep sources outside it")
         if scale_arcsec is not None and not 0 < scale_arcsec < 3600:
             raise LocalSourceError("--scale is arcseconds per pixel, such as 1.65")
+        existing = self.all().get(name)
+        if existing is not None and existing.path != path.resolve():
+            # its index and solutions describe the other folder's files
+            raise LocalSourceError(f"{name!r} is already {existing.path}; give this folder another name")
         source = LocalSource(name, path.resolve(), scale_arcsec, datetime.now(UTC).isoformat(timespec="seconds"))
         sources = {**self.all(), name: source}
         self.data.mkdir(parents=True, exist_ok=True)
