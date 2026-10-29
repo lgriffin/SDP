@@ -96,7 +96,7 @@ requirements:
       - "python/tests.archives.test_bulk::test_the_sweep_stops_at_the_disk_floor_before_downloading"
   - id: DSI-014
     pattern: state
-    text: "While a complete bulk copy of a source release is stored, the system shall answer that source's catalogue queries from the copy with the rows, column types, order, row cap and chunks the archive query would return, and shall mark the rendered query as a bulk read."
+    text: "While a complete bulk copy of a source release is stored, the system shall answer that source's catalogue queries from the copy with the rows, column types, order, row cap and chunks the archive query would return, under rendered query text marked as a bulk read."
     rationale: "Once all of Gaia is on disk, runs read fields locally with no TAP call; an incomplete copy would silently drop stars, so it is never read unless asked for, and then it is refused (#72)."
     verification: test
     tiers: [T3]
