@@ -110,6 +110,11 @@ demo_app = typer.Typer(
     "plan and investigate commands take, and every result is EXPLORATORY.",
     no_args_is_help=True,
 )
+local_app = typer.Typer(
+    help="Your own frames: folders SDP reads in place and never writes to (#71). Everything SDP makes "
+    "from them goes under SDP's data folder (SDP_DATA).",
+    no_args_is_help=True,
+)
 investigate_app = typer.Typer(
     help="Investigate a field: identify, retrieve, test, candidates (Investigate §1). Results are EXPLORATORY.",
     invoke_without_command=True,
@@ -127,6 +132,7 @@ for name, sub in (
     ("plan", plan_app),
     ("integration", integration_app),
     ("demo", demo_app),
+    ("local", local_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -740,6 +746,67 @@ def telemetry_gpu(directory: Annotated[Path, typer.Option(envvar="SDP_METRICS_DI
     from sdp.adapters.telemetry.prometheus import write_gpu_telemetry
 
     emit({"written": str(write_gpu_telemetry(directory))})
+
+
+# --- local sources (need no database) -------------------------------------------------------------
+
+
+@local_app.command("add")
+def local_add(
+    name: Annotated[str, typer.Argument(help="A short name, such as astro")],
+    path: Annotated[Path, typer.Argument(help="The folder, such as D:\\astrophotography")],
+    scale: Annotated[
+        float | None, typer.Option(help="Arcseconds per raw pixel, for frames whose header has no FOCALLEN")
+    ] = None,
+) -> None:
+    """Add a folder of FITS frames as a read-only source. Nothing in the folder is changed."""
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    emit({"source": {**LocalSources(data).add(name, path, scale).to_document(), "name": name}, "data": str(data)})
+
+
+@local_app.command("list")
+def local_list() -> None:
+    """The local sources added so far."""
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    emit({name: s.to_document() for name, s in LocalSources(data_dir()).all().items()})
+
+
+@local_app.command("index")
+def local_index(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
+    """Read every frame's header (never its pixels) into the source's index; a rerun reads only new or
+    changed files. Expect a few minutes per 10,000 frames on a USB drive."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    index = FrameIndex(LocalSources(data).get(name), data)
+    started = time.monotonic()
+    result = index.update(lambda count, read: typer.echo(f"{count:,} files, {read:,} headers read", err=True))
+    emit(
+        {
+            "files": result.files,
+            "headers_read": result.read,
+            "unchanged": result.reused,
+            "removed": result.removed,
+            "unreadable": result.unreadable,
+            "seconds": round(time.monotonic() - started, 1),
+            "index": str(result.path),
+            **{k: v for k, v in index.summary().items() if k in ("by_kind", "with_wcs")},
+        }
+    )
+
+
+@local_app.command("status")
+def local_status(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
+    """What the index holds: frames by kind, targets with frame counts and exposure hours."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    emit(FrameIndex(LocalSources(data).get(name), data).summary())
 
 
 # --- archives -----------------------------------------------------------------------------------

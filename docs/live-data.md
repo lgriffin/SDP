@@ -81,6 +81,21 @@ uv run python tools/stress_pull.py fields.csv --parallel 3  # three at once
 every declared column). The report lands in `reports/stress/<date>-<time>.csv` with rows, bytes,
 seconds, peak memory (when `psutil` is installed) and the error text of any run that failed.
 
+## Your own frames
+
+`sdp local` reads a folder of your own FITS frames in place and never writes to it. Everything SDP makes
+from it goes under SDP's data folder (`SDP_DATA`, else `SDP_DESKTOP_DATA`, else the folder holding
+`SDP_ARTIFACT_ROOT`), which may not lie inside the source. None of this needs the database.
+
+```
+sdp local add astro D:\astrophotography --scale 1.65   # arcsec per pixel of the Vespera Pro
+sdp local index astro                                   # headers only; reruns read only what changed
+sdp local status astro                                  # frames by kind, targets, exposure hours
+```
+
+The index is `<data>/index/astro/frames.parquet`: one row per frame with its path, size, `DATE-OBS`,
+exposure (`EXPOSURE`, else `EXPTIME`), filter, object, gain, size, Bayer pattern, whether it already has
+a sky solution, and its kind (light, dark, flat, bias or stack). Plate solving the frames comes next (#71).
 
 ## Full-size JWST products on your own disk
 

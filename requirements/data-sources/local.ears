@@ -1,0 +1,26 @@
+# requirements/data-sources/local.ears
+capability: Local folder sources (a person's own frames)
+owner: data-sources
+requirements:
+  - id: LOC-001
+    pattern: ubiquitous
+    text: "The system shall open a local source's files for reading only, and write everything it derives from them under SDP's data folder, which never lies inside a source."
+    rationale: "The frames are the person's originals (575 GB on D:\\astrophotography); a tool that could write there could lose them (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_local_index::test_nothing_is_ever_written_under_the_source"
+      - "python/tests.local.test_local_index::test_a_source_and_the_data_folder_never_hold_each_other"
+  - id: LOC-002
+    pattern: event
+    text: "When a local source is indexed, the system shall read each new or changed frame's primary header up to its END card, never its pixels, into one index row per frame."
+    rationale: "21,000 frames of 25 MB each are read in minutes when only their header blocks are read; a rerun reads only what changed (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_local_index::test_only_the_header_is_read_never_the_pixels"
+      - "python/tests.local.test_local_index::test_the_index_has_one_row_per_frame_with_its_kind_and_exposure"
+      - "python/tests.local.test_local_index::test_a_rerun_reads_only_new_or_changed_files"
+      - "python/tests.local.test_local_index::test_the_commands_add_index_and_report_with_no_database"
