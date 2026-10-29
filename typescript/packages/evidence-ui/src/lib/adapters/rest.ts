@@ -56,7 +56,9 @@ export class RestWorkbench implements Workbench {
     }
     if (response.ok && parsed) return parsed;
     // An unknown route answers in plain text; a refused command answers in JSON with its reason.
-    if (planner && (response.status === 404 || response.status === 405) && !parsed?.error) {
+    // A server that has the routes but no planner wired says so with a 503 typed PlannerUnavailable.
+    const unwired = response.status === 503 && parsed?.type === "PlannerUnavailable";
+    if (planner && (unwired || ((response.status === 404 || response.status === 405) && !parsed?.error))) {
       throw new PlannerUnavailable("this server does not offer the planner yet");
     }
     if (response.status >= 400 && response.status < 500 && parsed?.error) {

@@ -144,6 +144,40 @@ def create_app(runtime: Runtime) -> Starlette:
             }
         )
 
+    def unwired() -> Response:
+        return JSONResponse(
+            {"error": "the planner is not wired on this server", "type": "PlannerUnavailable"}, status_code=503
+        )
+
+    def json_object(body: Any) -> dict[str, Any]:
+        if not isinstance(body, dict):
+            raise TypeError("the request body is a JSON object")
+        return body
+
+    def actor_of(body: dict[str, Any], default: str | None = None) -> str:
+        actor = body.get("actor", default)
+        if not isinstance(actor, str) or not actor.strip():
+            raise ValueError("actor is a non-blank string")
+        return actor.strip()
+
+    def budget_of(body: dict[str, Any]) -> AcquisitionBudget:
+        """The server's budget, or a request's own when it is no looser on any limit: a caller may
+        tighten the operator's SDP_PLAN_* limits, never relax them (INT-014, DSI-010)."""
+        server: AcquisitionBudget = getattr(runtime, "budget", DEFAULT_BUDGET)
+        if "budget" not in body:
+            return server
+        asked = AcquisitionBudget.from_document(json_object(body["budget"]))
+        looser = [
+            name
+            for name in ("max_bytes", "max_requests_per_source", "max_wall_seconds", "approval_threshold_bytes")
+            if getattr(asked, name) > getattr(server, name)
+        ]
+        if asked.min_nas_headroom_bytes < server.min_nas_headroom_bytes:
+            looser.append("min_nas_headroom_bytes")
+        if looser:
+            raise ValueError(f"the budget may only tighten the server's limits; looser: {', '.join(looser)}")
+        return asked
+
     def refused(exc: Exception) -> Response:
         if isinstance(exc, KeyError):
             return JSONResponse({"error": str(exc.args[0]) if exc.args else "not found"}, status_code=404)
@@ -152,15 +186,14 @@ def create_app(runtime: Runtime) -> Starlette:
     async def plan(request: Request) -> Response:
         use_case = runtime.kernel.plan_investigation
         if use_case is None:
-            return JSONResponse({"error": "the planner is not wired on this server"}, status_code=503)
+            return unwired()
         try:
-            body = await request.json()
-            budget = body.get("budget")
+            body = json_object(await request.json())
             command = PlanInvestigationCommand(
                 field_from(body),
                 TestProfile.from_document(body["profile"]),
-                AcquisitionBudget.from_document(budget) if budget else getattr(runtime, "budget", DEFAULT_BUDGET),
-                actor=str(body.get("actor", "viewer")),
+                budget_of(body),
+                actor=actor_of(body, "viewer"),
                 seed=int(body.get("seed", 0)),
             )
         except (KeyError, TypeError, ValueError, DomainError) as exc:
@@ -181,12 +214,12 @@ def create_app(runtime: Runtime) -> Starlette:
     async def decide(request: Request) -> Response:
         use_case = runtime.kernel.approve_plan
         if use_case is None:
-            return JSONResponse({"error": "the planner is not wired on this server"}, status_code=503)
+            return unwired()
         plan_id = request.path_params["plan_id"]
         refusing = request.url.path.endswith("/refuse")
         try:
-            body = await request.json()
-            actor = str(body["actor"])
+            body = json_object(await request.json())
+            actor = actor_of(body)
             reason = str(body.get("reason", "")).strip() if refusing else None
         except (KeyError, TypeError, ValueError) as exc:
             return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
@@ -209,11 +242,11 @@ def create_app(runtime: Runtime) -> Starlette:
     async def execute(request: Request) -> Response:
         use_case = runtime.kernel.execute_plan
         if use_case is None:
-            return JSONResponse({"error": "the planner is not wired on this server"}, status_code=503)
+            return unwired()
         plan_id = request.path_params["plan_id"]
         try:
-            body = await request.json() if await request.body() else {}
-            actor = str(body.get("actor", "viewer"))
+            body = json_object(await request.json()) if await request.body() else {}
+            actor = actor_of(body, "viewer")
         except (TypeError, ValueError, AttributeError) as exc:
             return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
         try:

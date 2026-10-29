@@ -374,6 +374,11 @@ class ApprovePlanUseCase:
                 raise IntegrationRefused(f"no ledger entry {command.ledger_entry_id} (INT-014)")
         elif plan.requires_signed_approval and not command.refuse_reason:
             entry = self.ledger.find(plan.plan_id, kind="approval")
+        if entry is not None:
+            # The entry must verify: signed by a key the ledger trusts for its signer (INT-014).
+            problems = [p for p in self.ledger.verify() if p.startswith(f"{entry.entry_id}:")]
+            if problems:
+                raise IntegrationRefused(f"ledger entry {entry.entry_id} does not verify: {'; '.join(problems)}")
         decided = plan.decide(actor=command.actor, ledger_entry=entry, refuse_reason=command.refuse_reason)
         assert decided.approval is not None
         approval = decided.approval
