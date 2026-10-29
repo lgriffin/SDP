@@ -22,7 +22,7 @@ from datetime import date
 from pathlib import Path
 
 from sdp.adapters.archives.registry import REGTAP, bounding_cone
-from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
+from sdp.adapters.archives.transport import CassetteMissing, HttpRequest, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
 from sdp.adapters.archives.votable import TapQueryError
@@ -272,7 +272,11 @@ class VoCapabilityDiscovery:
         for obscore_type in OBSCORE_PRODUCT_TYPES:
             try:
                 probe = run_sync(self.transport, self.product_type_probe(source, obscore_type), f"{obscore_type} probe")
+            except CassetteMissing:
+                raise  # a replay without the recorded probe is a broken recording, not an absent type
             except (TransportError, TapQueryError) as exc:
+                # A present type answers at once; a probe that fails had to search for a type the
+                # collection most likely lacks, so the type is left out (INT-002 strips unproven claims).
                 log.warning("product type probe failed", extra={"type": obscore_type, "error": str(exc)})
                 continue
             if probe.num_rows:

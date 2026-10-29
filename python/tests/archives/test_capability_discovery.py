@@ -21,7 +21,7 @@ from sdp.adapters.archives.capabilities import (
     load_descriptors,
     parse_capabilities,
 )
-from sdp.adapters.archives.transport import CassetteTransport, Transport
+from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport, Transport
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.contracts import validate
 from sdp.kernel.domain.archive import Cone
@@ -179,6 +179,18 @@ def test_a_scan_the_service_reports_as_a_tap_error_also_falls_back_to_probes() -
     for obscore_type in ("image", "spectrum", "cube", "timeseries", "measurements"):
         fake.table(discovery.product_type_probe(source, obscore_type), {"dataproduct_type": [obscore_type]})
     assert ProductType.TIMESERIES in discovery.describe(source.source_id).product_types
+
+
+def test_a_missing_probe_cassette_is_an_error_not_an_absent_type() -> None:
+    fake = PrimedService()
+    source = replace(SOURCE, collections=("JWST",), rights_column=None)
+    discovery = VoCapabilityDiscovery(
+        fake, InMemoryCapabilityRegistry(), {source.source_id: source}, today=lambda: TODAY
+    )
+    primed(fake, discovery, source)
+    fake.raw(discovery.products_request(source), b"<html>504</html>", status=504)
+    with pytest.raises(CassetteMissing):
+        discovery.describe(source.source_id)
 
 
 @pytest.mark.req("INT-004")
