@@ -152,7 +152,19 @@ def test_a_large_archive_is_scanned_by_collection_and_its_extent_falls_back_to_t
     fake.raw(discovery.extent_request(source), b"<html>504 Gateway Time-out</html>", status=504)
     products = discovery.products_request(source).body.decode()
     assert "obs_collection+IN+%28%27JWST%27%29" in products and "data_rights" not in products
+    fake.raw(discovery.products_request(source), b"<html>504 Gateway Time-out</html>", status=504)
+    fake.table(
+        discovery.products_sample_request(source),
+        {
+            "dataproduct_type": ["image", "image", "spectrum"],
+            "obs_collection": ["JWST", "JWST", "JWST"],
+            "instrument_name": ["NIRCAM/IMAGE", "NIRCAM/IMAGE", "NIRSPEC/MSA"],
+            "calib_level": [3, 2, 3],
+        },
+    )
     d = discovery.describe(source.source_id)
+    assert d.product_types == {ProductType.IMAGE, ProductType.SPECTRUM}, "a timed-out scan falls back to a sample"
+    assert d.instruments == ("NIRCAM/IMAGE", "NIRSPEC/MSA") and d.calibration_levels == {2, 3}
     assert d.coverage.t_min_mjd == 40000.0, "the registry's coverage stands in for the timed-out extent"
     assert d.access is AccessStatus.PUBLIC, "without a rights column, access is read per product"
 

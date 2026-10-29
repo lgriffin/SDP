@@ -46,6 +46,9 @@ from sdp.kernel.ports.investigate import ServiceRecord
 
 log = logging.getLogger("sdp.adapters.capabilities")
 
+#: Rows read when a service cannot answer the DISTINCT products scan in time.
+SAMPLE_ROWS = 50_000
+
 MAX_CAPABILITIES_BYTES = 4 * 1024**2
 H_C_J_M = 6.62607015e-34 * 299792458.0
 """Planck's constant times the speed of light: RegTAP gives spectral extent as photon energy in J."""
@@ -215,13 +218,25 @@ class VoCapabilityDiscovery:
     def capabilities_request(self, source: VoSource) -> HttpRequest:
         return HttpRequest("GET", f"{source.obscore_url}/capabilities")
 
-    def products_request(self, source: VoSource) -> HttpRequest:
+    def _product_columns(self, source: VoSource) -> str:
         columns = ["dataproduct_type", "obs_collection", "instrument_name"]
         if source.rights_column:
             columns.append(source.rights_column)
         columns.append("calib_level")
-        adql = f"SELECT DISTINCT {', '.join(columns)} FROM {source.obscore_table}{source.collection_filter()}"
+        return ", ".join(columns)
+
+    def products_request(self, source: VoSource) -> HttpRequest:
+        adql = (
+            f"SELECT DISTINCT {self._product_columns(source)} FROM {source.obscore_table}{source.collection_filter()}"
+        )
         return sync_request(source.obscore_url, adql, 100000)
+
+    def products_sample_request(self, source: VoSource) -> HttpRequest:
+        adql = (
+            f"SELECT TOP {SAMPLE_ROWS} {self._product_columns(source)} "
+            f"FROM {source.obscore_table}{source.collection_filter()}"
+        )
+        return sync_request(source.obscore_url, adql, SAMPLE_ROWS)
 
     def extent_request(self, source: VoSource) -> HttpRequest:
         adql = (
@@ -262,7 +277,19 @@ class VoCapabilityDiscovery:
         if response.status != 200:
             raise TransportError(f"VOSI capabilities of {source.source_id}: HTTP {response.status}", response.status)
         vosi = parse_capabilities(response.body)
-        rows = run_sync(self.transport, self.products_request(source), f"ObsCore products of {source.source_id}")
+        try:
+            rows = run_sync(self.transport, self.products_request(source), f"ObsCore products of {source.source_id}")
+        except TransportError as exc:
+            # A DISTINCT over a large archive can time out (MAST answers 504 even for JWST alone). A
+            # sample of rows can only under-claim, and every claim still needs a passing conformance
+            # suite before the harness keeps it (INT-002), so the sample is a safe stand-in.
+            log.warning(
+                "ObsCore products scan unavailable; reading a sample",
+                extra={"source": source.source_id, "error": str(exc)},
+            )
+            rows = run_sync(
+                self.transport, self.products_sample_request(source), f"ObsCore product sample of {source.source_id}"
+            )
         products = rows.to_pylist()
         try:
             extent = run_sync(self.transport, self.extent_request(source), f"ObsCore extent of {source.source_id}")
