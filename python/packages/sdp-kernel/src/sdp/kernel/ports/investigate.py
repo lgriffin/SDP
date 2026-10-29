@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import astropy.units as u
 import numpy as np
@@ -68,6 +68,24 @@ class ObservationArchiveGateway(Protocol):
     def cutout(self, field: Field, size: u.Quantity) -> FetchedProduct:
         """A cutout of the field (astrocut for MAST, the DR7 cutout endpoint for DASCH)."""
         ...
+
+
+@runtime_checkable
+class ProductCutouts(Protocol):
+    """A gateway that can cut one listed product down to a square around a position (INT-004).
+
+    Optional: Retrieve fetches whole products from a gateway without it. The cutout's product id names
+    the product it was cut from, so its ``obs_id`` and file stay readable.
+    """
+
+    def cutout_product(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> FetchedProduct:
+        """The product's pixels within ``side_arcsec`` of the position, as a FITS file of their own."""
+        ...
+
+
+def cutout_product_id(product_id: str, ra_deg: float, dec_deg: float, side_arcsec: float) -> str:
+    """The id of a cutout: the product it comes from, then where and how big."""
+    return f"{product_id}@cutout({ra_deg:.6f},{dec_deg:.6f},{side_arcsec:g}arcsec)"
 
 
 @dataclass(frozen=True)

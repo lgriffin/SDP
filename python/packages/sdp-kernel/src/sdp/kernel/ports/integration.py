@@ -19,6 +19,7 @@ from sdp.kernel.domain.integration import (
     AcquisitionPlan,
     AdapterCompatibilityRecord,
     CapabilityMatch,
+    CutoutSupport,
     EvidenceRequirement,
     ProductMetadata,
     SemanticValidationReport,
@@ -116,6 +117,8 @@ class ProductRows:
     links: tuple[Mapping[str, Any], ...] = ()
     rendered_query: str = ""
     """Every request that produced the rows, so the envelope's provenance can be replayed."""
+    cutout: CutoutSupport | None = None
+    """How the product can be cut out, read for this product (INT-004); ``None`` when not read."""
 
 
 class ProductInventory(Protocol):

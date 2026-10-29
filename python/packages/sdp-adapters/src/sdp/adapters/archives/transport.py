@@ -35,12 +35,15 @@ class HttpRequest:
     headers: Mapping[str, str] = field(default_factory=dict)
 
     def key(self) -> str:
-        """Stable across runs: headers other than the content type do not change the answer."""
+        """Stable across runs: headers other than the content type and a byte range do not change the
+        answer. A request without a range keys as it always has, so existing recordings still match."""
         h = hashlib.sha256()
         for part in (self.method.upper(), self.url, self.headers.get("Content-Type", "")):
             h.update(part.encode())
             h.update(b"\0")
         h.update(self.body)
+        if self.headers.get("Range"):
+            h.update(b"\0range\0" + self.headers["Range"].encode())
         return h.hexdigest()
 
 

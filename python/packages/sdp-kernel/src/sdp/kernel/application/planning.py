@@ -19,13 +19,14 @@ from sdp.kernel.application.investigate import (
     InvestigateFieldUseCase,
     InvestigatePorts,
     catalogue_query,
+    field_search_cone,
     identify_query,
     query_operation,
     query_target,
 )
 from sdp.kernel.application.media import JSON
 from sdp.kernel.domain import events as ev
-from sdp.kernel.domain.archive import Box, Cone
+from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.canonical import canonical_json
 from sdp.kernel.domain.errors import IntegrityError, InvariantViolation
 from sdp.kernel.domain.integration import (
@@ -52,7 +53,7 @@ from sdp.kernel.ports.integration import (
     PlanInvestigationCommand,
     PlanRecord,
 )
-from sdp.kernel.ports.investigate import InvestigateFieldCommand, ObservationTarget
+from sdp.kernel.ports.investigate import InvestigateFieldCommand, ObservationTarget, ProductCutouts, cutout_product_id
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.repositories import UnitOfWork
 from sdp.kernel.ports.storage import ArtifactStore
@@ -67,6 +68,10 @@ PRODUCT_KINDS = {LIGHTCURVE: ProductType.TIMESERIES, ASTROMETRY: ProductType.MEA
 
 #: Estimates where a source publishes nothing better; each is recorded in the plan's constraints.
 UNKNOWN_SIZE_BYTES = 1_000_000
+#: The finest pixel a cutout is sized for (NIRCam short wavelength, 0.031 arcsec), so a planned cutout
+#: never under-states what it stores: a square of this many pixels a side, at 4 bytes a pixel, plus headers.
+CUTOUT_PIXEL_ARCSEC = 0.031
+CUTOUT_HEADER_BYTES = 2 * 28_800
 CELL_BYTES = 8
 THROUGHPUT_BYTES_PER_S = 1_000_000.0
 SECONDS_PER_REQUEST = 1.0
@@ -156,14 +161,10 @@ def derive_requirements(
     return tuple(out.values())
 
 
-def _field_radius_arcsec(field_: Field) -> float:
-    region = field_.query_region()
-    if isinstance(region, Cone):
-        return region.radius_deg * 3600.0
-    assert isinstance(region, Box)
-    _, dec = region.centre
-    width = (region.ra_max_deg - region.ra_min_deg) * math.cos(math.radians(dec))
-    return math.hypot(width, region.dec_max_deg - region.dec_min_deg) / 2 * 3600.0
+def cutout_bytes(side_arcsec: float) -> int:
+    """What a cutout of this side is planned to store (an upper bound for a 32-bit image)."""
+    pixels = math.ceil(side_arcsec / CUTOUT_PIXEL_ARCSEC) + 1
+    return pixels * pixels * 4 + CUTOUT_HEADER_BYTES
 
 
 @dataclass
@@ -315,16 +316,16 @@ class PlanInvestigationUseCase:
             gateway = self.ports.observation_gateways.get(selection.source_id)
             if gateway is None:
                 raise InvariantViolation(f"no ObservationArchiveGateway for {selection.source_id!r} (INV-004)")
-            region = field_.query_region()
-            ra, dec = (region.ra_deg, region.dec_deg) if isinstance(region, Cone) else region.centre
+            ra, dec, radius = field_search_cone(field_)
             index = gateway.search(
                 ObservationTarget("field", ra, dec),
                 ObservationCriteria(
                     missions=selection.missions,
                     product_types=selection.product_types,
-                    radius_arcsec=_field_radius_arcsec(field_) + selection.match_radius_arcsec,
+                    radius_arcsec=radius + selection.match_radius_arcsec,
                 ),
             )
+            side = selection.cutout_arcsec if isinstance(gateway, ProductCutouts) else None
             for record in index.records:
                 served_as = product_kind(record.product_type)
                 for need in product_needs:
@@ -335,12 +336,23 @@ class PlanInvestigationUseCase:
                     derived = need.requirement_id.partition(":product:")[2]
                     if derived and derived != record.product_type:
                         continue
+                    size = record.size_bytes if record.size_bytes is not None else UNKNOWN_SIZE_BYTES
                     out.append(
                         candidate(
                             selection.source_id,
+                            Operation.CUTOUT,
+                            cutout_product_id(record.product.product_id, ra, dec, side),
+                            min(size, cutout_bytes(side)),
+                            None,
+                            record.licence,
+                            need,
+                        )
+                        if side is not None
+                        else candidate(
+                            selection.source_id,
                             Operation.DOWNLOAD,
                             record.product.product_id,
-                            record.size_bytes if record.size_bytes is not None else UNKNOWN_SIZE_BYTES,
+                            size,
                             None,
                             record.licence,
                             need,

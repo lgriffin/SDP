@@ -3,6 +3,7 @@ plan, approve, execute, identify, associate, resolve and dossier, with its defin
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.kernel.application.media import JSON, decode_artifact
+from sdp.kernel.application.planning import cutout_bytes
 from sdp.kernel.domain.integration import AcquisitionBudget, AcquisitionPlan, MatchStatus, Operation
 from sdp.kernel.domain.investigation import Stage
 from sdp.kernel.ports.integration import ApprovePlanCommand, ExecutePlanCommand, PlanInvestigationCommand
@@ -21,8 +23,10 @@ from sdp.testing.jwst import (
     PAIR_A,
     PRODUCT_ID,
     VANISHED,
+    CuttingArchive,
     jwst_archive,
     jwst_catalogue,
+    jwst_cutting_archive,
     jwst_field,
     jwst_profile,
     jwst_resolver,
@@ -34,10 +38,10 @@ pytestmark = pytest.mark.tier("T4")
 BUDGET = AcquisitionBudget(500_000_000, 10, 600.0, 0, 50_000_000)
 
 
-def slice_kernel() -> InMemoryKernel:
+def slice_kernel(archive: Any = None) -> InMemoryKernel:
     catalogue = jwst_catalogue()
     ports = investigate_ports(ImageCounterpart(), catalogue=catalogue, resolver=jwst_resolver(catalogue))
-    ports.observation_gateways = {MAST: jwst_archive(catalogue)}
+    ports.observation_gateways = {MAST: archive if archive is not None else jwst_archive(catalogue)}
     ports.services = {
         "detector": PhotutilsDetector(),
         "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
@@ -49,11 +53,21 @@ def slice_kernel() -> InMemoryKernel:
     )
 
 
-def run_slice(k: InMemoryKernel, plan: AcquisitionPlan | None = None) -> tuple[AcquisitionPlan, dict[str, Any]]:
+def cutout_profile(side_arcsec: float = 25.0) -> Any:
+    profile = jwst_profile()
+    archives = tuple(replace(a, cutout_arcsec=side_arcsec) for a in profile.archives)
+    return replace(profile, profile_id="jwst-vertical-slice-cutouts", archives=archives)
+
+
+def run_slice(
+    k: InMemoryKernel, plan: AcquisitionPlan | None = None, profile: Any = None
+) -> tuple[AcquisitionPlan, dict[str, Any]]:
     kernel = k.kernel
     assert kernel.plan_investigation and kernel.approve_plan and kernel.execute_plan
     if plan is None:
-        plan = kernel.plan_investigation.execute(PlanInvestigationCommand(jwst_field(), jwst_profile(), BUDGET, seed=1))
+        plan = kernel.plan_investigation.execute(
+            PlanInvestigationCommand(jwst_field(), profile or jwst_profile(), BUDGET, seed=1)
+        )
     else:
         with k.db.unit_of_work() as uow:
             uow.plans.add(plan)
@@ -135,3 +149,25 @@ def test_the_run_reproduces_from_the_plan_artifact_alone(first: tuple[Acquisitio
     again_plan, again = run_slice(k, AcquisitionPlan.from_document(plan.to_document() | {"approval": None}))
     assert again_plan.plan_id == plan.plan_id
     assert again["results"] == run["results"]
+
+
+@pytest.mark.req("INT-004")
+@pytest.mark.req("INT-015")
+def test_a_cutout_profile_plans_and_cuts_one_product_for_the_whole_field() -> None:
+    archive: CuttingArchive = jwst_cutting_archive()
+    plan, run = run_slice(slice_kernel(archive), profile=cutout_profile(25.0))
+    item = next(i for i in plan.items if i.source_id == MAST)
+    assert item.operation is Operation.CUTOUT
+    assert item.target.startswith(PRODUCT_ID + "@cutout(") and item.target.endswith(",25arcsec)")
+    assert item.expected_bytes <= cutout_bytes(25.0)
+    assert archive.cuts == [item.target] and archive.fetches == [PRODUCT_ID]
+    assert archive.searches == 2, "one field-wide search to plan and one to retrieve, never one per star"
+    assert run["refused"] == [[]], "Retrieve cut exactly the product the plan names"
+    flagged = {key for key, r in run["results"].items() if r["p_value"] < 0.01}
+    assert flagged == {VANISHED}
+
+
+def test_a_gateway_that_cannot_cut_falls_back_to_whole_products_in_the_plan() -> None:
+    plan, _ = run_slice(slice_kernel(), profile=cutout_profile(25.0))
+    item = next(i for i in plan.items if i.source_id == MAST)
+    assert item.operation is Operation.DOWNLOAD and item.target == PRODUCT_ID

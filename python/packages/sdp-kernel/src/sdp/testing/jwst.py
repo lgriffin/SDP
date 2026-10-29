@@ -10,6 +10,7 @@ the MAST-shaped archive that serves it. The world is planted so the slice exerci
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pyarrow as pa
@@ -20,6 +21,7 @@ from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import (
     ArchiveRole,
     ArchiveSelection,
+    FetchedProduct,
     Field,
     IdentifyRoute,
     IdentifySpec,
@@ -31,6 +33,7 @@ from sdp.kernel.domain.investigation import (
     TestProfile,
     TestSelection,
 )
+from sdp.kernel.ports.investigate import cutout_product_id
 from sdp.testing.fakes.investigate import FakeObservationArchive, FixtureResolver, PlacedRecord
 from sdp.testing.investigate import CANONICAL_COLUMNS
 
@@ -189,6 +192,26 @@ def jwst_archive(
         for product_id, image in images
     )
     return FakeObservationArchive(MAST, "mast:caom", records=records, products=dict(images))
+
+
+@dataclass
+class CuttingArchive(FakeObservationArchive):
+    """A MAST-shaped archive that also cuts products (``ProductCutouts``). The synthetic image is
+    already smaller than any cutout the slice asks for, so a cutout is the whole image under its
+    cutout id; ``cuts`` records each one asked for."""
+
+    cuts: list[str] = field(default_factory=list)
+
+    def cutout_product(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> FetchedProduct:
+        cut = cutout_product_id(product.product_id, ra_deg, dec_deg, side_arcsec)
+        self.cuts.append(cut)
+        got = self.fetch(product)
+        return replace(got, product=replace(product, product_id=cut))
+
+
+def jwst_cutting_archive(catalogue: pa.Table | None = None) -> CuttingArchive:
+    whole = jwst_archive(catalogue)
+    return CuttingArchive(whole.archive_id, whole.release_label, records=whole.records, products=whole.products)
 
 
 def jwst_resolver(catalogue: pa.Table | None = None) -> FixtureResolver:
