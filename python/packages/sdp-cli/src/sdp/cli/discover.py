@@ -13,6 +13,7 @@ Two ways in, one pipeline:
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import time
@@ -87,15 +88,15 @@ def _benchmark_path(benchmark_id: str, release: str) -> str:
     return f"benchmarks/{benchmark_id}/{release.replace(':', '_')}.parquet"
 
 
-def _load_benchmarks(store: Any, labels: list[str]) -> tuple[list[Any], list[str]]:
-    """The stored benchmark catalogues the settings name, and the ones missing."""
+def _load_benchmarks(store: Any, labels: list[str]) -> tuple[list[Any], list[str], dict[str, str]]:
+    """The stored benchmark catalogues the settings name, the ones missing, and the artifact each was read from."""
     import io
 
     import pyarrow.parquet as pq
 
     from sdp_stellar.benchmark import benchmark_from
 
-    found, missing = [], []
+    found, missing, artifacts = [], [], {}
     for label in labels:
         benchmark_id = label.split(":", 1)[0]
         artifact = store.resolve(_benchmark_path(benchmark_id, label))
@@ -109,7 +110,8 @@ def _load_benchmarks(store: Any, labels: list[str]) -> tuple[list[Any], list[str
                 f"the stored {benchmark_id} catalogue is release {release or 'unknown'!r}, not {label!r}; run `sdp benchmark fetch` again"
             )
         found.append(benchmark_from(benchmark_id, table))
-    return found, missing
+        artifacts[benchmark_id] = str(artifact)
+    return found, missing, artifacts
 
 
 # --- prepare: the cut catalogue ------------------------------------------------------------------
@@ -295,7 +297,8 @@ def _band_table(catalogue: Path, bands: list[int]) -> Any:
     for band in bands:
         folder = catalogue / f"band={band:03d}"
         for path in sorted(folder.glob("*.parquet")) if folder.is_dir() else []:
-            parts.append(pq.read_table(path))
+            if (catalogue / "_done" / f"{path.stem}.json").exists():  # a file whose prepare finished
+                parts.append(pq.read_table(path))
     if not parts:
         return None
     return pa.concat_tables(parts)
@@ -368,18 +371,23 @@ def discover_sweep(
     prepared = json.loads((catalogue / "_settings.json").read_text("utf-8"))
     if prepared != {"quality_cuts": settings["quality_cuts"], "tile_deg": float(settings["tile_deg"])}:
         raise DomainError("the prepared catalogue used other cuts or tiles than this SDP version; prepare it again")
-    benchmarks, missing = _load_benchmarks(artifact_store(_artifact_root()), list(settings["benchmarks"]))
-    if missing and not without_benchmarks:
-        raise DomainError(
-            f"no stored {missing}; run `sdp benchmark fetch` first (or pass --without-benchmarks: then nothing is called potentially new)"
-        )
-    if without_benchmarks:
-        benchmarks = []
+    benchmarks: list[Any] = []
+    used: dict[str, str] = {}
+    if not without_benchmarks:
+        benchmarks, missing, used = _load_benchmarks(artifact_store(_artifact_root()), list(settings["benchmarks"]))
+        if missing:
+            raise DomainError(
+                f"no stored {missing}; run `sdp benchmark fetch` first (or pass --without-benchmarks: then nothing is called potentially new)"
+            )
     # Tiles are only comparable when searched over the same prepared files with the same catalogues.
-    prepared_files = len(list((catalogue / "_done").glob("*.json"))) if (catalogue / "_done").is_dir() else 0
+    done = sorted(p.stem for p in (catalogue / "_done").glob("*.json")) if (catalogue / "_done").is_dir() else []
     _settings_guard(
         folder / "tiles" / "_settings.json",
-        {**settings, "benchmarks_used": sorted(b.benchmark_id for b in benchmarks), "prepared_files": prepared_files},
+        {
+            **settings,
+            "benchmarks_used": used,
+            "prepared_files": hashlib.sha256("\n".join(done).encode()).hexdigest(),
+        },
         "sweep",
     )
     out = folder / "tiles"
@@ -448,6 +456,8 @@ def discover_report(
     if not tiles:
         raise DomainError(f"no swept tiles in {folder / 'tiles'}; run `sdp discover sweep` first")
     results = [json.loads(p.read_text("utf-8")) for p in tiles]
+    if any("owned_stars" not in r for r in results):
+        raise DomainError(f"{folder / 'tiles'} holds tiles from an older SDP; delete that folder and sweep again")
     rows = candidate_rows(results)
     path = folder / "candidates.csv"
     fields = list(rows[0]) if rows else ["candidate_id", "status"]

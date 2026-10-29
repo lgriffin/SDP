@@ -191,12 +191,38 @@ def test_tiles_are_not_reused_once_the_catalogue_or_the_benchmarks_change(bulk: 
     invoke("discover", "prepare", "--workers", "1", "--count", "1")
     invoke("discover", "sweep", "--bands", "54", "--without-benchmarks", "--workers", "1")
     tiles = bulk / "data" / "sweep" / "gaia-dr3" / "tiles"
-    assert json.loads((tiles / "_settings.json").read_text("utf-8"))["benchmarks_used"] == []  # stored, not used
+    assert json.loads((tiles / "_settings.json").read_text("utf-8"))["benchmarks_used"] == {}  # stored, not used
     result = runner.invoke(cli.app, ["discover", "sweep", "--bands", "54", "--workers", "1"])
     assert result.exit_code != 0 and "was made with other sweep settings" in str(result.exception)
     invoke("discover", "prepare", "--workers", "1")
     result = runner.invoke(cli.app, ["discover", "sweep", "--bands", "54", "--without-benchmarks", "--workers", "1"])
     assert result.exit_code != 0 and "was made with other sweep settings" in str(result.exception)
+
+
+def test_a_band_reads_only_files_whose_prepare_finished(bulk: Path) -> None:
+    invoke("discover", "prepare", "--workers", "1")
+    catalogue = bulk / "data" / "sweep" / "gaia-dr3" / "catalogue"
+    marker = sorted((catalogue / "_done").glob("*.json"))[0]
+    bands = sorted(int(b.name.removeprefix("band=")) for b in catalogue.glob("band=*"))
+    before = discover._band_table(catalogue, bands).num_rows
+    marker.unlink()  # as if that file's prepare stopped after writing its bands
+    after = discover._band_table(catalogue, bands)
+    assert after is None or after.num_rows < before
+
+
+def test_a_report_refuses_tiles_from_an_older_sdp(bulk: Path) -> None:
+    tiles = bulk / "data" / "sweep" / "gaia-dr3" / "tiles"
+    tiles.mkdir(parents=True)
+    old = {
+        "candidates": [],
+        "null_fields": 1,
+        "null_fields_with_survivors": 0,
+        "cuts": {"kept_rows": 5},
+        "skipped": None,
+    }
+    (tiles / "b054-t0000.json").write_text(json.dumps(old), "utf-8")
+    result = runner.invoke(cli.app, ["discover", "report"])
+    assert result.exit_code != 0 and "holds tiles from an older SDP" in str(result.exception)
 
 
 def test_a_trial_prepare_needs_a_positive_count(bulk: Path) -> None:
@@ -211,6 +237,8 @@ def test_a_catalogue_stored_under_another_release_is_refused(bulk: Path) -> None
     store.link(discover._benchmark_path("cga20", "cga20:v1"), store.put(parquet(stale), PARQUET))
     with pytest.raises(DomainError, match=r"the stored cga20 catalogue is release 'cga20:v0', not 'cga20:v1'"):
         discover._load_benchmarks(store, ["hr23:v1.0", "cga20:v1"])
+    invoke("discover", "prepare", "--workers", "1", "--count", "1")
+    invoke("discover", "sweep", "--bands", "54", "--without-benchmarks", "--workers", "1")  # never read
 
 
 def test_bands_out_of_range_are_refused(bulk: Path) -> None:
