@@ -24,6 +24,8 @@ from sdp.kernel.domain.errors import ImmutableArtifact, IntegrityError, Invarian
 from sdp.kernel.domain.ids import ArtifactId
 
 _RAW_PREFIX = "raw/"
+# Windows cannot open a directory as a file (PermissionError), and NTFS journals the rename itself.
+_CAN_FSYNC_DIRECTORIES = os.name != "nt"
 
 
 def _atomic_write(path: Path, data: bytes, *, read_only: bool) -> None:
@@ -40,7 +42,13 @@ def _atomic_write(path: Path, data: bytes, *, read_only: bool) -> None:
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
-    dir_fd = os.open(path.parent, os.O_RDONLY)
+    _fsync_directory(path.parent)
+
+
+def _fsync_directory(directory: Path) -> None:
+    if not _CAN_FSYNC_DIRECTORIES:
+        return
+    dir_fd = os.open(directory, os.O_RDONLY)
     try:
         os.fsync(dir_fd)
     finally:
@@ -70,7 +78,9 @@ class NasArtifactStore:
         target = self._object(artifact)
         if not target.exists():
             _atomic_write(target, data, read_only=True)
-            _atomic_write(target.with_name(target.name + ".media"), media_type.encode(), read_only=True)
+        media = target.with_name(target.name + ".media")
+        if not media.exists():  # also heals an object whose write stopped before its media type
+            _atomic_write(media, media_type.encode(), read_only=True)
         if logical_path is not None:
             self.link(logical_path, artifact)
         return artifact
