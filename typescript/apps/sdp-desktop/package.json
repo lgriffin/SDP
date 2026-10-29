@@ -1,0 +1,34 @@
+{
+  "name": "@sdp/desktop",
+  "productName": "SDP",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SDP for Windows: the evidence UI in a desktop window, with sdp-api and PostgreSQL bundled and started for you",
+  "author": "SDP",
+  "main": "dist/main.js",
+  "scripts": {
+    "compile": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "stage": "bash scripts/stage.sh",
+    "smoke": "node dist/smoke.js",
+    "start": "node node_modules/electron/install.js && pnpm compile && electron .",
+    "dist": "pnpm compile && electron-builder --config electron-builder.yml"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "electron": "44.9.3",
+    "electron-builder": "26.17.0",
+    "typescript": "5.8.3",
+    "vitest": "2.1.8"
+  },
+  "optionalDependencies": {
+    "@embedded-postgres/linux-x64": "16.14.0-beta.17",
+    "@embedded-postgres/windows-x64": "16.14.0-beta.17"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lgriffin/SDP"
+  }
+}

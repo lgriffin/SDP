@@ -1,0 +1,44 @@
+# electron-builder: a per-user NSIS installer for Windows (no administrator rights, one click), with
+# resources/sdp (from scripts/stage.sh) beside the app rather than inside its asar archive.
+appId: org.sdp.desktop
+productName: SDP
+executableName: SDP
+copyright: SDP contributors
+directories:
+  output: release
+  buildResources: installer
+files:
+  - dist/**
+  - static/**
+  - package.json
+  # The PostgreSQL packages are staged into resources/sdp; nothing from node_modules runs at run time.
+  - "!node_modules/**"
+  - "!**/*.map"
+extraResources:
+  - from: resources/sdp
+    to: sdp
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: installer/icon.png
+  # Signed only when CSC_LINK and CSC_KEY_PASSWORD (a code-signing certificate) are set in CI.
+  signAndEditExecutable: true
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  runAfterFinish: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: SDP
+  # The data folder (%LOCALAPPDATA%\SDP) holds the person's database and records; uninstalling keeps it.
+  deleteAppDataOnUninstall: false
+  include: installer/installer.nsh
+  artifactName: SDP-Setup-${version}.${ext}
+linux:
+  # For the smoke test and development only; the shipped build is Windows.
+  target: dir
+  icon: installer/icon.png
+compression: normal
+publish: null

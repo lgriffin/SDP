@@ -197,6 +197,11 @@ jobs:
           path: reports/sbom
           merge-multiple: true
         continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdp-desktop-windows
+          path: reports/desktop
+        continue-on-error: true
       - name: Quadlet units pinned by digest
         if: env.PUBLISH == 'true'
         run: |
@@ -228,5 +233,5 @@ jobs:
           cd reports
           tar czf quadlet-pinned.tar.gz quadlet 2>/dev/null || true
           files=(release/release-report.md release/release-report.json)
-          for f in sbom/*.json quadlet-pinned.tar.gz; do [ -f "$f" ] && files+=("$f"); done
+          for f in sbom/*.json quadlet-pinned.tar.gz desktop/*.exe; do [ -f "$f" ] && files+=("$f"); done
           gh release upload "$VERSION" "${files[@]}" --clobber

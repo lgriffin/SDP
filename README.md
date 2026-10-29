@@ -16,7 +16,7 @@ Two programmes run on the kernel:
 | `ledger/` | Signed predeclaration and approval entries (§15) |
 | `docs/` | Architecture, ADRs, C4 views, protocols, spike report |
 | `python/` | uv workspace: kernel, contracts, adapters, science modules, CLI, API |
-| `typescript/` | pnpm workspace: generated contracts, spec harness, evidence UI, e2e |
+| `typescript/` | pnpm workspace: generated contracts, spec harness, evidence UI, e2e, and the Windows desktop app (`typescript/apps/sdp-desktop`) |
 | `experiments/` | Predeclarations and run manifests by protocol |
 | `infrastructure/` | Quadlet units, developer compose stack, Grafana |
 
