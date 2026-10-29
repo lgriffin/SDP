@@ -51,9 +51,12 @@ INTEGRATION = (
 #: Each shard still runs the whole test suite, so a shard's score means what the package score meant.
 #: The groups are balanced by source size; every module, subpackages included, must appear in exactly
 #: one shard, and the Mutation workflow takes its job list from ``--list``, so a new shard is scheduled.
+#: ``analysis`` stands alone: most of its mutants make the protocol suite hang until mutmut's timeout,
+#: and on v0.2.0 the analysis-and-dossier shard reached 595 of 755 mutants (405 of them timeouts) in
+#: 180 minutes, so the job limit is 300 minutes as well.
 RELATIVITY_SHARDS = (
-    ("analysis", "dossier"),
-    ("fitter", "reduction"),
+    ("analysis",),
+    ("dossier", "fitter", "reduction"),
     ("protocol", "comparison", "constants"),
     ("observations", "synthetic", "geometry"),
     ("models", "measurement", "transcription", "oracles"),
@@ -152,7 +155,7 @@ def setup_cfg(target: Target) -> str:
         f"pytest_add_cli_args_test_selection =\n    {tests}\n"
         "also_copy =\n    tests\n    pytest.ini\n"
         # mutmut's default stops a hanging mutant at 30x its tests' CPU time, about five minutes for
-        # these suites; 10x still separates a hang from a slow pass and keeps timeouts affordable
+        # these suites; 5x still separates a hang from a slow pass and keeps timeouts affordable
         "timeout_multiplier = 5\n"
         + (f"do_not_mutate =\n    {skip}\n" if (skip := "\n    ".join(target.do_not_mutate)) else "")
     )
