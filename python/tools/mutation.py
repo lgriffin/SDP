@@ -128,6 +128,7 @@ TARGETS = {
         Target("sdp-kernel-investigation", "sdp-kernel", INVESTIGATION, KERNEL_TESTS),
         Target("sdp-kernel-investigate", "sdp-kernel", INVESTIGATE, KERNEL_TESTS),
         Target("sdp-kernel-planning", "sdp-kernel", PLANNING, KERNEL_TESTS),
+        Target("sdp-kernel-ports", "sdp-kernel", ("src/sdp/kernel/ports/*",), KERNEL_TESTS),
         *(
             Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
             for i, group in enumerate(RELATIVITY_SHARDS, 1)
@@ -245,14 +246,13 @@ def check_shards() -> None:
             raise SystemExit(f"{package} shards list {listed}, but the package has {files}")
     kernel = ROOT / "packages" / "sdp-kernel"
     targets = [t for t in TARGETS.values() if t.package == "sdp-kernel"]
-    for layer in ("domain", "science", "application"):
-        for path in sorted((kernel / "src" / "sdp" / "kernel" / layer).glob("*.py")):
-            if path.name == "__init__.py":
-                continue
-            name = path.relative_to(kernel).as_posix()
-            scoring = [t.name for t in targets if _mutates(t, name)]
-            if len(scoring) != 1:
-                raise SystemExit(f"{name} is scored by {scoring or 'no target'}; every kernel module needs exactly one")
+    for path in sorted((kernel / "src" / "sdp" / "kernel").rglob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        name = path.relative_to(kernel).as_posix()
+        scoring = [t.name for t in targets if _mutates(t, name)]
+        if len(scoring) != 1:
+            raise SystemExit(f"{name} is scored by {scoring or 'no target'}; every kernel module needs exactly one")
 
 
 def _mutates(target: Target, path: str) -> bool:
