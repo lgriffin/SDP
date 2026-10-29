@@ -25,7 +25,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -130,7 +130,7 @@ def solving_image(data: np.ndarray, bayer: str | None) -> tuple[np.ndarray, int]
     return image, 1
 
 
-def read_frame(path: Path) -> tuple[np.ndarray, dict[str, Any]]:
+def read_frame(path: Path | BinaryIO) -> tuple[np.ndarray, dict[str, Any]]:
     """The primary image and header, read-only (the file is never opened for writing)."""
     from astropy.io import fits
 

@@ -25,7 +25,7 @@ import astropy.units as u
 import numpy as np
 
 from sdp.adapters.local.index import FrameIndex
-from sdp.adapters.local.solver import project, read_frame, solving_image
+from sdp.adapters.local.solver import Unsolved, project, read_frame, solving_image
 from sdp.adapters.local.solving import SOLVED, LocalSolver
 from sdp.adapters.local.sources import LocalSource
 from sdp.kernel.domain.investigation import (
@@ -96,9 +96,11 @@ def canonical_image(
     header: Mapping[str, Any],
     *,
     origin: tuple[int, int] = (0, 0),
+    date_obs: str | None = None,
 ) -> bytes:
     """A FITS image of ``data`` (a raw frame or a cut of one starting at raw pixel ``origin``, 0-based),
-    reduced as for solving, with the frame's solution moved onto its pixels."""
+    reduced as for solving, with the frame's solution moved onto its pixels. ``date_obs`` is the
+    indexed date, which also covers a header that spells it DATE_OBS."""
     from astropy.io import fits
 
     image, binning = solving_image(data, bayer)
@@ -117,9 +119,10 @@ def canonical_image(
     for key in ("DATE-OBS", "OBJECT", "FILTER", "EXPOSURE", "EXPTIME", "GAIN"):
         if header.get(key) not in (None, ""):
             out[key] = header[key]
-    mjd = _mjd(str(header["DATE-OBS"])) if header.get("DATE-OBS") else None
+    date = date_obs or header.get("DATE-OBS")
+    mjd = _mjd(str(date)) if date else None
     if mjd is not None:
-        out["MJD-OBS"] = mjd
+        out["DATE-OBS"], out["MJD-OBS"] = str(date), mjd
     out["SDPBIN"] = (binning, "raw pixels per side of each pixel here")
     buffer = io.BytesIO()
     fits.PrimaryHDU(np.asarray(image, dtype=np.float32), header=out).writeto(buffer)
@@ -211,10 +214,22 @@ class LocalImageGateway:
             self.citation,
         )
 
+    def _path(self, product: ProductRef) -> Path:
+        """A solved frame's file, refused when it resolves outside the source (a link elsewhere)."""
+        self._frame(product)
+        path = (self.source.path / PurePosixPath(product.product_id)).resolve()
+        if not path.is_relative_to(self.source.path.resolve()):
+            raise LookupError(f"{product.product_id} lies outside {self.source.path}")
+        return path
+
     def fetch(self, product: ProductRef) -> FetchedProduct:
         """The frame's bytes as they are on disk (read-only)."""
-        path = self.source.path / PurePosixPath(product.product_id)
-        return FetchedProduct(product, path.read_bytes(), FITS, self.release_label, LICENCE, self.citation, product.uri)
+        path = self._path(product)
+        try:
+            body = path.read_bytes()
+        except OSError as exc:  # moved or deleted since it was indexed: skip this frame, not the run
+            raise LookupError(f"{product.product_id} could not be read: {exc}") from exc
+        return FetchedProduct(product, body, FITS, self.release_label, LICENCE, self.citation, product.uri)
 
     def cutout_product(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> FetchedProduct:
         frame = self._frame(product)
@@ -234,10 +249,13 @@ class LocalImageGateway:
         y1 = min(height, (int(cy - 1 + half) // 2 + 1) * 2)
         if x1 - x0 < 16 or y1 - y0 < 16:
             raise ValueError(f"({ra_deg:.5f}, {dec_deg:.5f}) is off {product.product_id}")
-        data, header = read_frame(self.source.path / PurePosixPath(product.product_id))
+        try:
+            data, header = read_frame(self._path(product))
+        except (OSError, Unsolved) as exc:
+            raise LookupError(f"{product.product_id} could not be read: {exc}") from exc
         cut = data[..., y0:y1, x0:x1]
         bayer = frame.row["bayer"] if frame.row["kind"] != "stack" else None
-        body = canonical_image(cut, bayer, wcs, header, origin=(x0, y0))
+        body = canonical_image(cut, bayer, wcs, header, origin=(x0, y0), date_obs=frame.row["date_obs"])
         ref = replace(product, product_id=cutout_product_id(product.product_id, ra_deg, dec_deg, side_arcsec))
         return FetchedProduct(ref, body, FITS, self.release_label, LICENCE, self.citation, product.uri)
 
@@ -261,10 +279,9 @@ class LocalFrameDialect:
             frame = self.gateway._frame(raw.product)
         except LookupError:
             return None
-        from astropy.io import fits
-
-        with fits.open(io.BytesIO(raw.data), memmap=False) as hdus:
-            hdu = next(h for h in hdus if h.data is not None)
-            data, header = np.asarray(hdu.data, dtype=np.float32), dict(hdu.header)
+        try:
+            data, header = read_frame(io.BytesIO(raw.data))
+        except (OSError, Unsolved):
+            return None
         bayer = frame.row["bayer"] if frame.row["kind"] != "stack" else None
-        return CuratedProduct(canonical_image(data, bayer, frame.wcs, header), FITS)
+        return CuratedProduct(canonical_image(data, bayer, frame.wcs, header, date_obs=frame.row["date_obs"]), FITS)

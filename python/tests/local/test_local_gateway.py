@@ -3,7 +3,9 @@ them (#71). Synthetic frames with planted stars at a known WCS; nothing is read 
 
 from __future__ import annotations
 
+import io
 import os
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,6 +16,7 @@ import yaml
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.bootstrap import local_image_gateways
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector, read_image
+from sdp.adapters.local.fits_header import read_header
 from sdp.adapters.local.gateway import LocalFrameDialect, LocalImageGateway
 from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.settings import Settings
@@ -31,7 +34,8 @@ from sdp.testing.investigate import CANONICAL_COLUMNS, gaia_archive, investigate
 from sdp.testing.wiring import build_in_memory_kernel
 from sdp_investigate.imaging import ImageCounterpart
 
-from .synthetic import LocalWorld, Truth, local_world, write_solution
+from .fits_files import fits_bytes
+from .synthetic import LOCAL_DATE, LocalWorld, Truth, local_world, write_solution
 
 pytestmark = pytest.mark.tier("T3")
 PROFILE = Path(__file__).resolve().parents[3] / "profiles" / "my-frames.yaml"
@@ -156,6 +160,63 @@ def test_the_dialect_curates_a_whole_solved_frame_and_leaves_the_rest(world: Loc
     assert dialect.curate("image", replace(whole, product=elsewhere, read_from=elsewhere.uri)) is None
 
 
+def rebuilt_stack(w: LocalWorld) -> None:
+    """The stack rewritten as some software saves it: an empty primary dated DATE_OBS, a 1-D extension,
+    then the image; indexed and solved again."""
+    path = w.source.path / STACK
+    raw = path.read_bytes()
+    head = (raw.index(b"END" + b" " * 77) // 2880 + 1) * 2880
+    size = 600
+    image = {
+        "XTENSION": "IMAGE", "BITPIX": -32, "NAXIS": 3, "NAXIS1": size, "NAXIS2": size, "NAXIS3": 3,
+        "PCOUNT": 0, "GCOUNT": 1,
+    }  # fmt: skip
+    one_d = {"XTENSION": "IMAGE", "BITPIX": 16, "NAXIS": 1, "NAXIS1": 8, "PCOUNT": 0, "GCOUNT": 1}
+    primary = {"SIMPLE": True, "BITPIX": 8, "NAXIS": 0, "EXTEND": True, "OBJECT": "M31", "STACKCNT": 120}
+    primary["DATE_OBS"] = LOCAL_DATE
+    data = raw[head : head + size * size * 3 * 4]
+    path.write_bytes(fits_bytes(primary) + fits_bytes(one_d, bytes(16)) + fits_bytes(image, data))
+    FrameIndex(w.source, w.data).update()
+    write_solution(w.data, w.source, STACK, w.stack, size, size)
+
+
+@pytest.mark.req("LOC-005")
+def test_a_frame_dated_date_obs_behind_other_extensions_is_still_cut_and_dated(tmp_path: Path) -> None:
+    w = local_world(tmp_path, size=600)
+    rebuilt_stack(w)
+    g = LocalImageGateway(w.source, w.data)
+    cut = g.cutout_product(ref(w, STACK), *w.centre, 600.0)
+    whole = LocalFrameDialect(g).curate("image", g.fetch(ref(w, STACK)))
+    assert whole is not None
+    for body in (cut.data, whole.data):
+        header = read_header(io.BytesIO(body))
+        assert header["DATE-OBS"] == LOCAL_DATE and header["MJD-OBS"] == pytest.approx(60932.917396, abs=1e-6)
+        data, _ = read_image(ImageFrame("x", body, "application/fits"))
+        assert data.ndim == 2 and min(data.shape) > 300
+
+
+@pytest.mark.req("LOC-005")
+def test_a_frame_gone_or_linked_outside_the_source_is_skipped_not_fatal(tmp_path: Path) -> None:
+    w = local_world(tmp_path, size=600)
+    g = LocalImageGateway(w.source, w.data)
+    outside = tmp_path / "elsewhere.fits"
+    outside.write_bytes((w.source.path / LIGHT).read_bytes())
+    (w.source.path / LIGHT).unlink()
+    reads: list[Callable[[], object]] = [
+        lambda: g.fetch(ref(w, LIGHT)),
+        lambda: g.cutout_product(ref(w, LIGHT), *w.centre, 600.0),
+    ]
+    for read in reads:
+        with pytest.raises(LookupError, match="could not be read"):
+            read()
+    (w.source.path / LIGHT).symlink_to(outside)
+    for read in reads:
+        with pytest.raises(LookupError, match="outside"):
+            read()
+    with pytest.raises(LookupError, match="not a solved frame"):
+        g.fetch(ref(w, "../elsewhere.fits"))
+
+
 @pytest.mark.req("LOC-005")
 def test_bootstrap_offers_each_indexed_local_source(world: LocalWorld, monkeypatch: pytest.MonkeyPatch) -> None:
     settings = Settings.from_env({"SDP_ARTIFACT_ROOT": str(world.data / "artifacts"), "SDP_DATABASE_URL": "x"})
@@ -165,6 +226,11 @@ def test_bootstrap_offers_each_indexed_local_source(world: LocalWorld, monkeypat
     assert set(local_image_gateways(settings)) == {"local:astro"}
     monkeypatch.setenv("SDP_DATA", str(world.data.parent / "empty"))
     assert local_image_gateways(settings) == {}
+    broken = world.data.parent / "broken"
+    broken.mkdir(exist_ok=True)
+    (broken / "local-sources.yaml").write_text("sources: [astro\n", "utf-8")
+    monkeypatch.setenv("SDP_DATA", str(broken))
+    assert local_image_gateways(settings) == {}, "a broken registry leaves the other archives running"
 
 
 def my_frames_profile() -> TestProfile:

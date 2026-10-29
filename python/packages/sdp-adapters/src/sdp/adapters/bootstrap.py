@@ -182,10 +182,10 @@ def local_image_gateways(settings: Settings) -> dict[str, LocalImageGateway]:
         data = settings.artifact_root.parent
     try:
         sources = LocalSources(data).all()
-    except (OSError, ValueError) as exc:  # an unreadable registry never stops the archives' runs
+        return {s.source_id: LocalImageGateway(s, data) for s in sources.values() if FrameIndex(s, data).path.exists()}
+    except Exception as exc:  # an unreadable or hand-broken registry never stops the archives' runs
         getLogger("sdp.adapters.bootstrap").warning("local sources not read", extra={"error": str(exc)})
         return {}
-    return {s.source_id: LocalImageGateway(s, data) for s in sources.values() if FrameIndex(s, data).path.exists()}
 
 
 #: The adapter name and version MAST products are admitted under (INT-016): a compatibility record
