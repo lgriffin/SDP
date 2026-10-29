@@ -23,4 +23,16 @@ describe("[TST-004] mutation-score ratchet", () => {
     expect(result.ok).toBe(false);
     expect(result.missing).toEqual(["kernel"]);
   });
+
+  it("[TST-004] lists packages below the 90 goal, lowest first, without failing", () => {
+    const result = ratchet({ kernel: 95, stellar: 70, harness: 89.9, ui: 70 }, {});
+    expect(result.ok).toBe(true);
+    expect(result.belowGoal).toEqual([
+      { pkg: "stellar", score: 70 },
+      { pkg: "ui", score: 70 },
+      { pkg: "harness", score: 89.9 },
+    ]);
+    expect(ratchet({ kernel: 90 }, {}).belowGoal).toEqual([]);
+    expect(ratchet({ kernel: 80 }, {}, 75).belowGoal).toEqual([]);
+  });
 });

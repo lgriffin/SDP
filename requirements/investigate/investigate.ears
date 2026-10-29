@@ -21,7 +21,7 @@ requirements:
     traces: []
   - id: INV-003
     pattern: ubiquitous
-    text: "Every identified object shall carry an identification record naming the method, the image or catalogue it came from, and the matched Gaia source key or null."
+    text: "The identification service shall give every identified object an identification record naming the method, the image or catalogue it came from, and the matched Gaia source key or null."
     rationale: "Every object says how it was found; an unmatched detection is flagged, not dropped."
     verification: test
     tiers: [T1]
@@ -37,7 +37,7 @@ requirements:
     traces: []
   - id: INV-005
     pattern: ubiquitous
-    text: "Every retrieved row set and product shall be registered as a DatasetArtifact with source release, licence and citation before any test reads it."
+    text: "The kernel shall register every retrieved row set and product as a DatasetArtifact with source release, licence and citation before any test reads it."
     rationale: "Tests read registered evidence only, so a result is reproducible from the artifacts alone. A product a dialect curates is registered as the curated child of its raw parent, naming the dialect and its version; its first line stamps both, so equal rows from two raw products stay two artifacts with their own lineage. A product offered as two types is fetched and registered once."
     verification: test
     tiers: [T3, T4]
@@ -45,7 +45,7 @@ requirements:
     traces: []
   - id: INV-006
     pattern: ubiquitous
-    text: "Every test in a profile shall be a registered TaskKind with a CPU reference implementation and a declared null model."
+    text: "The kernel shall run only tests that are registered TaskKinds with a CPU reference implementation and a declared null model."
     rationale: "Nothing outside the registry runs, and every test has an empirical false-positive rate."
     verification: test
     tiers: [T1]
@@ -61,7 +61,7 @@ requirements:
     traces: []
   - id: INV-008
     pattern: ubiquitous
-    text: "Investigation results shall be labelled EXPLORATORY and shall not carry a Verdict."
+    text: "The kernel shall label every investigation result EXPLORATORY and give it no Verdict."
     rationale: "Investigate is how candidates are found, never how a claim is verified."
     verification: test
     tiers: [T1]
@@ -77,7 +77,7 @@ requirements:
     traces: []
   - id: INV-010
     pattern: ubiquitous
-    text: "Parked and closed investigations shall be retained with their dossiers and reasons."
+    text: "The kernel shall retain parked and closed investigations with their dossiers and reasons."
     rationale: "The set is as much evidence as the candidates."
     verification: test
     tiers: [T4]
@@ -93,7 +93,7 @@ requirements:
     traces: []
   - id: INV-012
     pattern: ubiquitous
-    text: "The field viewer plugin shall contain no analysis logic or archive calls; it shall call InvestigateField and render its results."
+    text: "The field viewer plugin shall render the results of InvestigateField and contain no analysis logic or archive calls."
     rationale: "The Imviz plugin is a driving adapter; heavy work stays in the kernel's runner."
     verification: test
     tiers: [T0, T4]

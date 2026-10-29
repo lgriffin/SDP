@@ -35,7 +35,7 @@ class PositionHistory:
 
 
 def _rows(data: bytes, columns: tuple[str, ...]) -> list[dict[str, float]]:
-    lines = [line for line in data.decode("utf-8").splitlines() if not line.startswith("#")]
+    lines = [line for line in data.decode().splitlines() if not line.startswith("#")]
     reader = csv.DictReader(lines)
     missing = [c for c in columns if c not in (reader.fieldnames or [])]
     if missing:

@@ -6,7 +6,7 @@ owner: integration
 requirements:
   - id: INT-001
     pattern: ubiquitous
-    text: "Every registered source shall have a SourceCapabilityDescriptor with a verification date, read from the IVOA registry and VOSI where the source publishes them."
+    text: "The capability registry shall hold a SourceCapabilityDescriptor with a verification date for every registered source, read from the IVOA registry and VOSI when the source publishes them."
     rationale: "Read, not invent: the registry already describes most sources (ADR-017). A large archive is scanned only over the collections SDP uses, and where its own extent query times out the registry's coverage stands in. Registry queries are plain ADQL (joins, no scalar subqueries) against GAVO's RegTAP host. When the DISTINCT products scan times out, each product type is proven per collection by a TOP 1 probe, a failed probe is an error rather than absence, access is proprietary unless a public product is probed, and instruments and calibration levels stay unpublished (partial, never unsatisfied)."
     verification: test
     tiers: [T3, T11]
@@ -38,7 +38,7 @@ requirements:
     traces: []
   - id: INT-005
     pattern: ubiquitous
-    text: "Every ingested product shall keep its original bytes as an immutable raw artifact with a SHA-256 of the bytes actually read."
+    text: "The kernel shall keep the original bytes of every ingested product as an immutable raw artifact with a SHA-256 of the bytes actually read."
     rationale: "Curation never rewrites the raw file (ADR-018), and a binary curated form is never stamped. A reference product is refused before it is written when it is too large to commit."
     verification: test
     tiers: [T3, T5]
@@ -46,7 +46,7 @@ requirements:
     traces: []
   - id: INT-006
     pattern: ubiquitous
-    text: "Every product envelope shall carry frame, epoch, time scale, units, calibration level, uncertainty and quality presence, access status, rights, citation and relationships."
+    text: "The product normalizer shall give every product envelope its frame, epoch, time scale, units, calibration level, uncertainty and quality presence, access status, rights, citation and relationships."
     rationale: "Scientific meaning is part of the envelope, not implied. A product that cannot be enveloped (not in the archive's inventory, or unreadable) stays raw evidence and is never curated; envelopes apply only to the missions their dialect reads."
     verification: test
     tiers: [T5s]
@@ -70,7 +70,7 @@ requirements:
     traces: []
   - id: INT-009
     pattern: ubiquitous
-    text: "The association service shall retain every candidate association with its posterior, prior and evidence, and shall not select a nearest neighbour on its own."
+    text: "The association service shall retain every candidate association with its posterior, prior and evidence, rather than select a nearest neighbour on its own."
     rationale: "Nearest-neighbour matching silently asserts identity (ADR-019). Candidates are selected by true angular separation, so a source near the antipode is never one."
     verification: test
     tiers: [T1, T8]
@@ -78,7 +78,7 @@ requirements:
     traces: []
   - id: INT-010
     pattern: ubiquitous
-    text: "Associations shall be computed at a common epoch using propagated astrometry with grown covariance."
+    text: "The association service shall compare detections at a common epoch, using propagated astrometry with grown covariance."
     rationale: "A 1950s plate and a 2023 detection are compared at one epoch or not at all."
     verification: test
     tiers: [T1, T2]
@@ -126,7 +126,7 @@ requirements:
     traces: []
   - id: INT-016
     pattern: unwanted
-    text: "If a manifest names an adapter without a passing AdapterCompatibilityRecord for a product type the experiment used, then the kernel shall not issue a verdict and the harness shall block publication."
+    text: "If a manifest names an adapter without a passing AdapterCompatibilityRecord for a product type the experiment used, then the platform shall withhold the verdict and block publication."
     rationale: "Admission to a gate is checked, not asserted (ADR-021). It is checked per adapter version, so a record for an older version never admits a newer one, and an input naming only part of adapter, version and product type is unadmitted. A reference record is verified when one named person has checked it against the documentation: SDP is a single-user app (decided 2026-10-29)."
     verification: test
     tiers: [T1, harness]

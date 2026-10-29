@@ -4,7 +4,7 @@ owner: data-sources
 requirements:
   - id: DSI-005
     pattern: ubiquitous
-    text: "Curated datasets shall carry dialect id, dialect version and the raw parent artifact id."
+    text: "The curation service shall record dialect id, dialect version and the raw parent artifact id on every curated dataset."
     rationale: "Curated data must cite the raw bytes and mapping they came from."
     verification: test
     tiers: [T3]

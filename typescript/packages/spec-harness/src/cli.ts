@@ -1,15 +1,16 @@
-// spec-harness <command>: ears, trace, conform, rederive, rederive-plan, admit, claims, guard, ratchet, report.
+// spec-harness <command>: ears, bdd, trace, conform, rederive, rederive-plan, admit, claims, guard, ratchet, report.
 // Paths are relative to the current directory; CI runs it from the repository root.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { EarsDirectory, JsonFiles, JUnitFiles, LedgerFiles, ManifestFiles, PredeclarationFiles } from "./adapters/fs.ts";
+import { checkFeatures } from "./bdd.ts";
+import { EarsDirectory, FeatureDirectory, JsonFiles, JUnitFiles, LedgerFiles, ManifestFiles, PredeclarationFiles } from "./adapters/fs.ts";
 import { renderRequirementsMarkdown } from "./ears.ts";
 import { parseNameStatus, type GateSnapshot } from "./guard.ts";
 import { admitAll, approvals, claimsAll, compileRequirements, conformAll, guardChanges, rederiveAll, rederivePlanAll, runTrace } from "./harness.ts";
-import { ratchet } from "./ratchet.ts";
+import { GOAL, ratchet } from "./ratchet.ts";
 import { buildReleaseReport, renderReleaseReport, type Level, type TierStatus } from "./report.ts";
 import { renderTraceabilityMarkdown } from "./trace.ts";
 
@@ -30,6 +31,19 @@ async function ears(argv: string[]): Promise<number> {
   }
   console.log(`${compiled.requirements.length} requirements compiled, ${compiled.problems.length} problems`);
   return compiled.problems.length ? 1 : 0;
+}
+
+async function bdd(argv: string[]): Promise<number> {
+  const { values } = parseArgs({
+    args: argv,
+    options: { root: { type: "string", default: "requirements" }, features: { type: "string", default: "python/tests/bdd/features" } },
+  });
+  const compiled = await compileRequirements(new EarsDirectory(values.root));
+  const report = checkFeatures(await new FeatureDirectory(values.features).featureFiles(), compiled.requirements);
+  for (const p of report.problems) console.error(`FAIL ${p.source}:${p.line}: ${p.message}`);
+  const scenarios = Object.values(report.coverage).reduce((a, b) => a + b, 0);
+  console.log(`${report.rules.length} rules bind ${Object.keys(report.coverage).length} requirements through ${scenarios} scenarios, ${report.problems.length} problems`);
+  return report.problems.length ? 1 : 0;
 }
 
 async function traceCommand(argv: string[]): Promise<number> {
@@ -175,13 +189,19 @@ async function guardCommand(argv: string[]): Promise<number> {
 async function ratchetCommand(argv: string[]): Promise<number> {
   const { values } = parseArgs({
     args: argv,
-    options: { scores: { type: "string" }, "high-water": { type: "string", default: "mutation/high-water.json" }, update: { type: "boolean", default: false } },
+    options: {
+      scores: { type: "string" },
+      "high-water": { type: "string", default: "mutation/high-water.json" },
+      update: { type: "boolean", default: false },
+      goal: { type: "string", default: String(GOAL) },
+    },
   });
   if (!values.scores) throw new Error("--scores <file> is required");
   const scores = JSON.parse(fs.readFileSync(values.scores, "utf8")) as Record<string, number>;
   const highWaterFile = values["high-water"];
   const highWater = fs.existsSync(highWaterFile) ? (JSON.parse(fs.readFileSync(highWaterFile, "utf8")) as Record<string, number>) : {};
-  const result = ratchet(scores, highWater);
+  const result = ratchet(scores, highWater, Number(values.goal));
+  for (const b of result.belowGoal) console.log(`BELOW GOAL ${b.pkg}: ${b.score} < ${values.goal}`);
   for (const v of result.violations) console.error(`FAIL ${v.pkg}: ${v.score} is below high-water ${v.highWater} minus 2`);
   for (const m of result.missing) console.error(`FAIL ${m}: no mutation score in this run`);
   if (result.ok && values.update) write(highWaterFile, json(result.highWater));
@@ -245,6 +265,7 @@ async function reportCommand(argv: string[]): Promise<number> {
 
 const COMMANDS: Record<string, (argv: string[]) => Promise<number>> = {
   ears,
+  bdd,
   trace: traceCommand,
   conform: conformCommand,
   rederive: rederiveCommand,

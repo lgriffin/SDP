@@ -19,6 +19,8 @@ dev = [
   "datamodel-code-generator==0.87.0",
   "httpx>=0.27",
   "mutmut>=3.8.1",
+  "gherkin-official>=29",
+  "parse>=1.20",
 ]
 
 [tool.uv.workspace]
@@ -85,7 +87,7 @@ plugins = []
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["astropy.*", "scipy.*", "photutils.*", "tweakwcs.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "jsonschema.*", "referencing.*", "sklearn.*", "cuml.*"]
+module = ["astropy.*", "scipy.*", "photutils.*", "tweakwcs.*", "yaml.*", "pyarrow.*", "hypothesis.*", "pytest_archon.*", "parse", "jsonschema.*", "referencing.*", "sklearn.*", "cuml.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]

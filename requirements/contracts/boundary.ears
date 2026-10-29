@@ -4,7 +4,7 @@ owner: contracts
 requirements:
   - id: CTR-001
     pattern: ubiquitous
-    text: "Every boundary type shall be defined once under contracts/schemas and generated into both languages."
+    text: "The contracts toolchain shall define every boundary type once under contracts/schemas and generate it into both languages."
     rationale: "Neither language hand-writes a boundary type (ADR-003)."
     verification: test
     tiers: [T6]
@@ -14,7 +14,7 @@ requirements:
       - "typescript/packages/contracts/test/contracts.test.ts::[CTR-001] has a generated schema for every contract"
   - id: CTR-002
     pattern: unwanted
-    text: "If committed generated code differs from a fresh generation, then CI shall fail."
+    text: "If committed generated code differs from a fresh generation, then the CI pipeline shall fail."
     rationale: "A schema edit without regeneration must not merge."
     verification: test
     tiers: [T6]
@@ -24,7 +24,7 @@ requirements:
       - "typescript/packages/contracts/test/contracts.test.ts::[CTR-002] matches a fresh generation byte for byte"
   - id: CTR-003
     pattern: ubiquitous
-    text: "Both languages shall accept every fixture under fixtures/valid and reject every fixture under fixtures/invalid at the expected error path."
+    text: "The contracts toolchain shall, in both languages, accept every fixture under fixtures/valid and reject every fixture under fixtures/invalid at the expected error path."
     rationale: "Golden fixtures pin agreement between the two toolchains."
     verification: test
     tiers: [T6]
@@ -36,7 +36,7 @@ requirements:
       - "typescript/packages/contracts/test/contracts.test.ts::[CTR-003] rejects invalid fixtures at the expected path"
   - id: CTR-004
     pattern: ubiquitous
-    text: "An evidence manifest shall carry schema_version, and the harness shall read the current and the previous major version."
+    text: "The harness shall read every evidence manifest by its schema_version and accept the current and the previous major version."
     rationale: "Manifests outlive releases; the harness reads one major back."
     verification: test
     tiers: [T6]
@@ -58,7 +58,7 @@ requirements:
       - "typescript/packages/contracts/test/graphql.test.ts::[CTR-005] were generated from the committed schema.graphql"
   - id: CTR-006
     pattern: ubiquitous
-    text: "Every domain-to-DTO mapper shall round-trip its type."
+    text: "The contracts package shall round-trip every domain type through its DTO mapper without loss."
     rationale: "Mappers are the only bridge between domain and DTO types."
     verification: test
     tiers: [T2]
