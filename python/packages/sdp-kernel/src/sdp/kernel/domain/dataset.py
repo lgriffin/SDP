@@ -18,6 +18,15 @@ SCHEMA_VERSION_WITH_PRODUCT = "1.2.0"
 exact metadata and re-registration still compares equal (KRN-014)."""
 
 ADMITTABLE_PRODUCT_TYPES = frozenset({"image", "spectrum", "cube", "timeseries", "measurements", "catalogue"})
+#: Canonical product types a test reads, by the ObsCore type an adapter is admitted for when it serves
+#: them: a light curve is a time series, a position history a set of measurements.
+ADMITTED_AS = {"lightcurve": "timeseries", "astrometry": "measurements"}
+
+
+def admission_type(product_type: str) -> str | None:
+    """The product type an adapter serving ``product_type`` is admitted for; None when none is."""
+    kind = ADMITTED_AS.get(product_type, product_type)
+    return kind if kind in ADMITTABLE_PRODUCT_TYPES else None
 
 
 class ArtifactKind(StrEnum):

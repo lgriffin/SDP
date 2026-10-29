@@ -179,3 +179,11 @@ requirements:
       - "python/tests.archives.test_reference_recording::test_over_the_cap_with_the_flag_streams_outside_fixtures_and_keeps_no_product_cassette"
       - "python/tests.archives.test_reference_recording::test_a_large_pull_into_fixtures_is_refused_before_anything_is_fetched"
       - "python/tests.archives.test_reference_recording::test_a_stream_that_passes_its_limit_is_stopped_and_removed"
+  - id: INT-022
+    pattern: event
+    text: "When a product is served as a VOTable through DataLink, the envelope validator shall hold its envelope to the same rules as a FITS product's, taking each column's role from its UCD."
+    rationale: "Observatory independence (Leigh, 2026-10-29): Gaia DR3 serves epoch photometry and BP/RP spectra as DataLink products rather than TAP tables. The VOTable's tables are read into the structure FITS HDUs give, its TIMESYS states the time scale (TCB for Gaia), and a stat.error or meta.code.status column the file has must be listed in the envelope, as an ERR or DQ extension must. Epoch photometry is calibration level 2 and curates to the canonical lightcurve (G band, photometry and variability rejections dropped, MJD from the barycentric TCB transit time); a mean BP/RP spectrum is level 3 and is read as served."
+    verification: test
+    tiers: [T3, T4, T5]
+    status: approved
+    traces: []

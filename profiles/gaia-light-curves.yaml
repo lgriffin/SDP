@@ -1,0 +1,57 @@
+# Gaia light curves: has a star's brightness changed over Gaia's three years of scans?
+#
+# Gaia measured every star dozens of times between 2014 and 2017. For about 11 million stars, most of
+# them variable, the archive publishes each measurement as a light curve (Gaia "epoch photometry"). It
+# serves them through DataLink, Gaia's way of handing out data products that are not table rows.
+#
+#   variability -> do the brightness measurements scatter more than their error bars allow?
+#
+# Only stars Gaia published a light curve for are tested; the others are listed and skipped.
+# Try it on the Pleiades: region "icrs;circle(56.5349,23.3473,0.05)" holds the known variable star
+# Gaia DR3 64971933089093760 (checked live 2026-10-29: 27 measurements, a period near 106 days).
+#
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: gaia-light-curves
+version: 1.0.0
+description: >-
+  Gaia's own light curves, from its 2014-2017 scans of the sky: flags stars whose brightness changed
+  more than their measurement errors allow. Only stars Gaia published a light curve for are tested.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: true                        # SIMBAD says which stars are already known variables
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: gaia-datalink
+    role: observations
+    release_label: gaia:DR3
+    product_types: [lightcurve]
+    match_radius_arcsec: 1.0           # the light curve belongs to the Gaia star itself, so it sits at its position
+
+tests:
+  - name: variability
+    version: 1.0.0
+    thresholds: {min_points: 10}       # Gaia DR3 has 20 to 70 G-band measurements per star; 10 keeps sparse ones out
+    needs_products: [lightcurve]
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0                       # one test, so a star is a candidate only when it is significant
+
+null_fields:
+  trials: 10

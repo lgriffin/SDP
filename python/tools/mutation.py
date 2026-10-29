@@ -76,6 +76,16 @@ STELLAR_SHARDS = (
     ("synthetic", "inject", "search", "membership", "dossier", "null"),
 )
 
+#: The Gaia DataLink adapters (INT-022): the shared DR3 facts, the gateway and inventory, the VOTable
+#: reader and the Gaia dialect, scored on the suites that drive them with real recorded products.
+DATALINK_ADAPTERS = (
+    "src/sdp/adapters/gaia_dr3.py",
+    "src/sdp/adapters/products/votable.py",
+    "src/sdp/adapters/products/gaia.py",
+    "src/sdp/adapters/archives/gaia_datalink.py",
+)
+DATALINK_TESTS = ("tests/products", "tests/archives")
+
 #: Every suite that drives the kernel. A mutant no selected test reaches counts against the score, so a
 #: kernel target selects every suite that exercises its modules: on v0.1.0 the science target ran only
 #: the unit and property suites and scored 12.65%, because the investigation, product and planner
@@ -129,6 +139,7 @@ TARGETS = {
         Target("sdp-kernel-investigate", "sdp-kernel", INVESTIGATE, KERNEL_TESTS),
         Target("sdp-kernel-planning", "sdp-kernel", PLANNING, KERNEL_TESTS),
         Target("sdp-kernel-ports", "sdp-kernel", ("src/sdp/kernel/ports/*",), KERNEL_TESTS),
+        Target("sdp-adapters-datalink", "sdp-adapters", DATALINK_ADAPTERS, DATALINK_TESTS),
         *(
             Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
             for i, group in enumerate(RELATIVITY_SHARDS, 1)

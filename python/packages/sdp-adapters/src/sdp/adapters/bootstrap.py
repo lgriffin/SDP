@@ -17,6 +17,7 @@ from sdp.adapters.archives.bulk import BulkCatalogueGateway
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
 from sdp.adapters.archives.dialect import YamlDialectCurator
+from sdp.adapters.archives.gaia_datalink import GaiaDataLinkGateway, GaiaDataLinkInventory
 from sdp.adapters.archives.mast import MastObservationGateway
 from sdp.adapters.archives.mast_inventory import MastProductInventory
 from sdp.adapters.archives.simbad import SimbadResolver
@@ -42,7 +43,7 @@ from sdp.adapters.local.sources import LocalSourceError, LocalSources, data_dir
 from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
 from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
-from sdp.adapters.products import EnvelopeValidator, JwstDialect
+from sdp.adapters.products import EnvelopeValidator, GaiaDataLinkDialect, JwstDialect
 from sdp.adapters.publication.zenodo import ZenodoPublisher, creators_from
 from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
@@ -183,11 +184,15 @@ def clusterers() -> dict[str, Any]:
     return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan())}
 
 
-def observation_gateways(settings: Settings, mast: Transport | None = None) -> dict[str, ObservationArchiveGateway]:
-    """MAST (every mission, through ObsCore) and DASCH, each on its own polite transport (Investigate §4)."""
+def observation_gateways(
+    settings: Settings, mast: Transport | None = None, gaia: Transport | None = None
+) -> dict[str, ObservationArchiveGateway]:
+    """MAST (every mission, through ObsCore), DASCH and Gaia's DataLink products, each on its own
+    polite transport (Investigate §4)."""
     return {
         "mast": MastObservationGateway(mast or archive_transport(settings, "mast", 1.0)),
         "dasch": DaschGateway(archive_transport(settings, "dasch", 1.0)),
+        "gaia-datalink": GaiaDataLinkGateway(gaia or archive_transport(settings, "gaia-datalink", 1.0)),
     }
 
 
@@ -210,14 +215,21 @@ def local_image_gateways(settings: Settings) -> dict[str, LocalImageGateway]:
 #: The adapter name and version MAST products are admitted under (INT-016): a compatibility record
 #: for ``mast-observations`` at this version and the product type admits them.
 MAST_ADAPTER = ("mast-observations", "1.0.0")
+#: The adapter Gaia's DataLink products (epoch photometry, BP/RP spectra) are admitted under.
+GAIA_DATALINK_ADAPTER = ("gaia-datalink", "1.0.0")
 
 
-def product_envelopes(mast: Transport) -> dict[str, ProductEnvelopes]:
-    """JWST products from MAST are normalised by the JWST dialect, validated, and curated only when
-    both pass (Integration v0.4.0 §3); MAST's other missions keep the ordinary product path. The
-    inventory shares the MAST gateway's polite transport."""
+def product_envelopes(mast: Transport, gaia: Transport) -> dict[str, ProductEnvelopes]:
+    """JWST products from MAST and Gaia's DataLink products are normalised by their dialects,
+    validated by the same validator, and curated only when both pass (Integration v0.4.0 §3); MAST's
+    other missions keep the ordinary product path. Each inventory shares its gateway's polite
+    transport."""
     adapter, version = MAST_ADAPTER
+    gaia_adapter, gaia_version = GAIA_DATALINK_ADAPTER
     return {
+        "gaia-datalink": ProductEnvelopes(
+            gaia_adapter, gaia_version, GaiaDataLinkDialect(), EnvelopeValidator(), GaiaDataLinkInventory(gaia)
+        ),
         "mast": ProductEnvelopes(
             adapter,
             version,
@@ -225,25 +237,27 @@ def product_envelopes(mast: Transport) -> dict[str, ProductEnvelopes]:
             EnvelopeValidator(),
             MastProductInventory(mast),
             missions=frozenset({"JWST"}),
-        )
+        ),
     }
 
 
 def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> InvestigatePorts:
     """Investigate wired to the ecosystem adapters (Investigate §7): the tests installed under the
-    ``sdp.investigation_tests`` entry point, SIMBAD, MAST (JWST products enveloped) and DASCH with the
+    ``sdp.investigation_tests`` entry point, SIMBAD, MAST (JWST products enveloped), Gaia's DataLink
+    products (enveloped) and DASCH with the
     DASCH product dialect, the person's own solved frames (``local:<name>``),
     photutils and tweakwcs, and the installed candidate rankers (the stellar module's under the
     ``stellar`` policy). The ``clusterer`` a structure test uses is UC-01's CPU reference HDBSCAN
     unless ``services`` names another."""
     mast = archive_transport(settings, "mast", 1.0)
+    gaia = archive_transport(settings, "gaia-datalink", 1.0)
     detector = PhotutilsDetector()
     refiner = TweakwcsRefiner()
     local = local_image_gateways(settings)
     return InvestigatePorts(
         tests=load_investigation_tests(),
         cross_match=cross_match(settings),
-        observation_gateways={**observation_gateways(settings, mast), **local},
+        observation_gateways={**observation_gateways(settings, mast, gaia), **local},
         detector=detector,
         refiner=refiner,
         resolver=SimbadResolver(simbad_transport(settings)),
@@ -257,7 +271,7 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
         },
         product_dialects={"dasch": DaschDialect(), **{k: LocalFrameDialect(g) for k, g in local.items()}},
         rankers=load_candidate_rankers(),
-        product_envelopes=product_envelopes(mast),
+        product_envelopes=product_envelopes(mast, gaia),
     )
 
 

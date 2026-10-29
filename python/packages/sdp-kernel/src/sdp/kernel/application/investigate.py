@@ -26,12 +26,12 @@ from sdp.kernel.domain import events as ev
 from sdp.kernel.domain.archive import CatalogueQuery, Cone, idempotency_key
 from sdp.kernel.domain.canonical import canonical_json, hash_document
 from sdp.kernel.domain.dataset import (
-    ADMITTABLE_PRODUCT_TYPES,
     AcquisitionRecord,
     DatasetArtifact,
     DatasetStatus,
     DialectRef,
     ProductUse,
+    admission_type,
 )
 from sdp.kernel.domain.errors import (
     CurationBlocked,
@@ -1037,14 +1037,10 @@ class InvestigateFieldUseCase:
                 uses: dict[ProductRef, ProductUse] = {}
                 if envelopes is not None:
                     for record in index.records:
-                        if (
-                            record.product_type in needed
-                            and record.product_type in ADMITTABLE_PRODUCT_TYPES
-                            and envelopes.covers(record.mission)
-                        ):
+                        admitted = admission_type(record.product_type)
+                        if record.product_type in needed and admitted is not None and envelopes.covers(record.mission):
                             uses.setdefault(
-                                record.product,
-                                ProductUse(envelopes.adapter, envelopes.adapter_version, record.product_type),
+                                record.product, ProductUse(envelopes.adapter, envelopes.adapter_version, admitted)
                             )
                 for record in index.records:
                     if record.product_type not in needed:

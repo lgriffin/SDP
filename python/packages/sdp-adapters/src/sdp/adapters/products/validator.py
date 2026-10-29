@@ -2,7 +2,9 @@
 
 Each check is one ``SemanticCheck`` named after the envelope field it protects, so a failure names
 the field (INT-006, INT-007). The validator re-reads the raw bytes itself; it trusts neither the
-dialect nor the archive's metadata rows.
+dialect nor the archive's metadata rows. A science product is FITS or a VOTable: a VOTable's tables
+are read into the same structure as FITS HDUs, and its UCDs say which columns are errors and quality
+flags, so both formats are held to the same rules.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from dataclasses import dataclass
 import astropy.units as u
 
 from sdp.adapters.products.fits import FITS_MEDIA_TYPES, HduInfo, effective_media_type, merged_header, read_hdus
+from sdp.adapters.products.votable import VOTABLE_MEDIA_TYPES, read_tables
 from sdp.kernel.domain.integration import (
     NON_SCIENCE,
     AccessStatus,
@@ -33,6 +36,8 @@ KEYWORD_FIELDS = {
     "DETECTOR": ("detector", None),
 }
 WCS_TYPES = frozenset({ProductType.IMAGE, ProductType.CUBE})
+#: The first UCD word of a column that must be listed in the envelope when the product has it.
+LISTED_UCDS = {"stat.error": "error", "meta.code.status": "quality", "meta.code.qual": "quality"}
 
 
 def _same(a: object, b: object) -> bool:
@@ -83,8 +88,18 @@ class EnvelopeValidator:
         check("access_status", metadata.access_status is AccessStatus.PUBLIC, metadata.access_status.value)
         check("rights.citation", bool(metadata.rights.citation and metadata.rights.licence), metadata.rights.citation)
 
+        if metadata.media_type in VOTABLE_MEDIA_TYPES:
+            try:
+                tables = read_tables(data)
+            except ValueError as exc:
+                check("format", False, str(exc))
+                return self._report(metadata, checks)
+            check("format", True, f"VOTable with {len(tables)} table(s)")
+            self._units(metadata, check)
+            self._columns(metadata, tables, check)
+            return self._report(metadata, checks)
         if metadata.media_type not in FITS_TYPES:
-            check("format", metadata.product_type in NON_SCIENCE, f"{metadata.media_type} is not FITS")
+            check("format", metadata.product_type in NON_SCIENCE, f"{metadata.media_type} is not FITS or a VOTable")
             return self._report(metadata, checks)
         try:
             hdus = read_hdus(data)
@@ -112,6 +127,13 @@ class EnvelopeValidator:
         if curated_type not in FITS_TYPES:
             ok = metadata.product_type not in (ProductType.IMAGE, ProductType.SPECTRUM, ProductType.CUBE)
             checks.append(SemanticCheck("format", ok, f"curated as {curated_type}"))
+            if metadata.has_uncertainty:
+                # A table keeps its uncertainty as a column named ``*_err`` (the canonical products').
+                header = curated.data.split(b"\n", 1)[0].decode("utf-8", "replace").split(",")
+                kept = any(c.strip().endswith("_err") for c in header)
+                checks.append(
+                    SemanticCheck("uncertainty", kept, "kept" if kept else "the raw product's uncertainty is lost")
+                )
             return self._report(metadata, checks)
         raw_hdus = {h.name: h for h in read_hdus(product.data)}
         cur = read_hdus(curated.data)
@@ -192,6 +214,35 @@ class EnvelopeValidator:
         if metadata.product_type in (ProductType.IMAGE, ProductType.CUBE, ProductType.SPECTRUM):
             # Presence is recorded and absence is recorded as absence; neither fails (v0.4.0 §3).
             check("uncertainty", True, "present" if metadata.has_uncertainty else "absent, recorded as absent")
+
+    def _columns(
+        self, metadata: ProductMetadata, tables: tuple[HduInfo, ...], check: Callable[[str, bool, str], None]
+    ) -> None:
+        """Every column the envelope names is in the file, and every error or quality column the file
+        has is in the envelope (the VOTable form of the FITS extension rule)."""
+        by_name = {t.name: t for t in tables}
+        listed = {e.name for e in metadata.extensions}
+        for ext in metadata.extensions:
+            name, _, column = ext.name.partition(":")
+            t = by_name.get(name)
+            ok = t is not None and column in t.columns
+            check(f"extensions.{ext.name}", ok, "present" if ok else "named in the envelope but absent from the file")
+        for t in tables:
+            for column in t.columns:
+                role = LISTED_UCDS.get(t.column_ucds.get(column, "").split(";")[0])
+                if role is not None:
+                    name = f"{t.name}:{column}"
+                    check(
+                        f"extensions.{name}",
+                        name in listed,
+                        "recorded" if name in listed else f"{role} column in the file, missing from the envelope",
+                    )
+        check(
+            "has_wcs",
+            not metadata.has_wcs,
+            "a table carries no WCS" if not metadata.has_wcs else "envelope claims a WCS",
+        )
+        check("uncertainty", True, "present" if metadata.has_uncertainty else "absent, recorded as absent")
 
     def _report(self, metadata: ProductMetadata, checks: list[SemanticCheck]) -> SemanticValidationReport:
         return SemanticValidationReport(

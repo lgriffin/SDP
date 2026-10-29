@@ -3,7 +3,8 @@
 The planner matches a field only against registered descriptors, so a fresh database plans nothing
 until this has run once (``sdp integration register``). MAST is read from the VO: its registry
 record, VOSI capabilities and ObsCore. The catalogue sources SDP ships (Gaia, 2MASS, Pan-STARRS)
-are described by hand from their packaged source files, as native TAP services without ObsCore.
+are described by hand from their packaged source files, as native TAP services without ObsCore, and
+so are Gaia's DataLink products (epoch photometry and BP/RP spectra), which no registry record lists.
 No descriptor claims an admitted adapter: conformance comes only from compatibility records, so
 their evidence feeds exploratory runs and no verdict until one is admitted (INT-016).
 """
@@ -17,6 +18,8 @@ from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.reference_recording import Unregistered, mast_ivoid, mast_source
 from sdp.adapters.archives.tap import TapSource, load_sources
 from sdp.adapters.archives.transport import Transport
+from sdp.adapters.gaia_dr3 import ACKNOWLEDGEMENT, DATALINK, DR3_SPAN_MJD, GAIA_BAND_M, GAIA_TAP, LICENCE
+from sdp.adapters.gaia_dr3 import CITATION as GAIA_CITATION
 from sdp.kernel.domain.integration import (
     AdapterInfo,
     Coverage,
@@ -31,6 +34,8 @@ from sdp.kernel.ports.integration import CapabilityRegistry
 
 #: The adapter that serves every packaged catalogue source, at the version its descriptors name.
 TAP_ADAPTER = ("tap-archive", "1.0.0")
+#: The adapter that serves Gaia's DataLink products (bootstrap admits its products under the same name).
+GAIA_DATALINK = ("gaia-datalink", "1.0.0")
 
 
 def catalogue_descriptor(source: TapSource, today: date) -> SourceCapabilityDescriptor:
@@ -54,6 +59,34 @@ def catalogue_descriptor(source: TapSource, today: date) -> SourceCapabilityDesc
     )
 
 
+def gaia_datalink_descriptor(today: date) -> SourceCapabilityDescriptor:
+    """Gaia DR3's DataLink products: sources found by a TAP cone, their light curves and spectra
+    downloaded through DataLink. All sky, over DR3's span and the Gaia passbands."""
+    name, version = GAIA_DATALINK
+    return SourceCapabilityDescriptor(
+        source_id="gaia-datalink",
+        title="Gaia DR3 DataLink products (epoch photometry, BP/RP spectra)",
+        publisher="ESA/Gaia/DPAC",
+        verified_on=today,
+        origin="hand-written",
+        protocols=(ProtocolEndpoint("TAP", "1.1", GAIA_TAP), ProtocolEndpoint("DataLink", "1.0", DATALINK)),
+        product_types=frozenset({ProductType.TIMESERIES, ProductType.SPECTRUM}),
+        coverage=Coverage(
+            all_sky=True,
+            t_min_mjd=DR3_SPAN_MJD[0],
+            t_max_mjd=DR3_SPAN_MJD[1],
+            em_min_m=GAIA_BAND_M[0],
+            em_max_m=GAIA_BAND_M[1],
+        ),
+        operations=frozenset({Operation.CONE, Operation.DOWNLOAD}),
+        instruments=("Astro", "BP", "RP"),
+        calibration_levels=frozenset({2, 3}),
+        limits=ServiceLimits(max_rows=2000, requests_per_second=1.0),
+        rights=Rights(LICENCE, GAIA_CITATION, ACKNOWLEDGEMENT),
+        adapter=AdapterInfo(name, version),
+    )
+
+
 def register_defaults(
     registry: CapabilityRegistry,
     transport_for: Callable[[str], Transport],
@@ -62,13 +95,17 @@ def register_defaults(
     today: Callable[[], date] = date.today,
     mast: bool = True,
 ) -> list[SourceCapabilityDescriptor]:
-    """Register MAST (read from the VO) and every packaged catalogue source; returns what was
+    """Register MAST (read from the VO), every packaged catalogue source and Gaia's DataLink
+    products; returns what was
     registered. A newer descriptor supersedes the one before it and none is deleted (INT-018)."""
     registered = []
     for source in (sources if sources is not None else load_sources()).values():
         descriptor = catalogue_descriptor(source, today())
         registry.put(descriptor)
         registered.append(descriptor)
+    datalink = gaia_datalink_descriptor(today())
+    registry.put(datalink)
+    registered.append(datalink)
     if mast:
         transport = transport_for("mast")
         discovery = VoCapabilityDiscovery(transport, Unregistered(), {"mast": mast_source(mast_ivoid(transport))})
