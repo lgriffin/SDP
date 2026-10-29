@@ -30,6 +30,8 @@ import { fixture } from "./helpers.ts";
 
 let root = "";
 const at = (...parts: string[]) => path.join(root, ...parts);
+/** A path under the scratch root, with forward slashes whatever the platform. */
+const rel = (file: string) => path.relative(root, file).split(path.sep).join("/");
 const write = (rel: string, text: string) => {
   fs.mkdirSync(path.dirname(at(rel)), { recursive: true });
   fs.writeFileSync(at(rel), text);
@@ -77,7 +79,7 @@ afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 describe("[TST-003] the filesystem walk", () => {
   it("[TST-003] lists accepted files in name order, skipping node_modules and dot entries", async () => {
     const files = await walk(at("tree"), (f) => f.endsWith(".txt"));
-    expect(files.map((f) => path.relative(root, f))).toEqual(["tree/a/c.txt", "tree/b.txt"]);
+    expect(files.map((f) => rel(f))).toEqual(["tree/a/c.txt", "tree/b.txt"]);
   });
 
   it("[TST-003] a missing target holds nothing, and a file target is accepted or not by itself", async () => {
@@ -131,7 +133,7 @@ describe("[TST-003] TestReportSource", () => {
 describe("[TST-003] ManifestSource and DocumentSource", () => {
   it("[TST-003] manifest files are every manifest.json in a directory, or a file named directly", async () => {
     const real = await new ManifestFiles([at("runs"), at("runs/r1/other.json")]).manifests();
-    expect(real.map((m) => [path.relative(root, m.path), m.document])).toEqual([
+    expect(real.map((m) => [rel(m.path), m.document])).toEqual([
       ["runs/r1/manifest.json", { n: 1 }],
       ["runs/r2/manifest.json", { n: 2 }],
       ["runs/r1/other.json", { n: 0 }],
@@ -142,7 +144,7 @@ describe("[TST-003] ManifestSource and DocumentSource", () => {
 
   it("[TST-003] JSON files are every .json under the targets", async () => {
     const docs = await new JsonFiles([at("docs"), at("missing")]).documents();
-    expect(docs.map((d) => [path.relative(root, d.path), d.document])).toEqual([
+    expect(docs.map((d) => [rel(d.path), d.document])).toEqual([
       ["docs/a.json", { n: 1 }],
       ["docs/b.json", { n: 2 }],
     ]);
@@ -152,7 +154,7 @@ describe("[TST-003] ManifestSource and DocumentSource", () => {
 describe("[TST-003] PredeclarationSource", () => {
   it("[TST-003] the fake and the files both return each predeclaration.json", async () => {
     const real = await new PredeclarationFiles(at("pre")).predeclarations();
-    expect(real.map((p) => [path.relative(root, p.path), p.document])).toEqual([["pre/x/predeclaration.json", { predeclaration_id: "pre-x" }]]);
+    expect(real.map((p) => [rel(p.path), p.document])).toEqual([["pre/x/predeclaration.json", { predeclaration_id: "pre-x" }]]);
     expect(await new InMemoryPredeclarations(real).predeclarations()).toEqual(real);
     expect(await new InMemoryPredeclarations().predeclarations()).toEqual([]);
   });

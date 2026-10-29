@@ -237,7 +237,7 @@ describe("[TST-006] the rendered report", () => {
         claimedLevels: [1],
         traceability: { ...emptyTrace, summary: { ...emptyTrace.summary, covered: 4, failing: 3, untested: 2, draft: 1 } },
         rederivations: [
-          rederivation({ experimentId: "exp-1", kernelVerdict: null, harnessVerdict: "INCONCLUSIVE", state: "unvalidated" }),
+          rederivation({ experimentId: "exp-1", kernelVerdict: null, harnessVerdict: "INCONCLUSIVE", state: "unvalidated", publishable: false }),
           rederivation({
             experimentId: "exp-2",
             state: "disagree",

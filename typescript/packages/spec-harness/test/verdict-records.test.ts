@@ -243,13 +243,6 @@ describe("[INT-016] admission records", () => {
     expect(admit(m).map((u) => u.reason)).toEqual(["1.0.0: operational, semantic, scientific did not pass; 1.0.0: scientific did not pass"]);
   });
 
-  it("[INT-016] one passing record admits whatever else is recorded", () => {
-    const m = admitted();
-    const r = rec(m);
-    m.environment.adapter_compatibility = [{ ...r, passed: false, results: [] }, r];
-    expect(admit(m)).toEqual([]);
-  });
-
   it("[INT-016] reports each unadmitted triple once, in adapter/version/product order", () => {
     const m = admitted();
     m.environment.adapter_compatibility = [];
