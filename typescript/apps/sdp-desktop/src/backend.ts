@@ -2,11 +2,11 @@
 // evidence UI's Node server. The Electron main process and the smoke test both call startBackend.
 import type { ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { type Layout, logs, python, repoRoot, runtime, ui } from "./layout.ts";
+import { bundledProfiles, type Layout, logs, profiles, python, repoRoot, runtime, ui } from "./layout.ts";
 import { type Database, startDatabase, stopDatabase } from "./postgres.ts";
 import { choosePort, openLog, run, start, waitForHttp } from "./process.ts";
 
@@ -39,6 +39,25 @@ export function commandPromptEnvironment(env: Record<string, string>): string {
   return ["@echo off", "rem Written by SDP Desktop on each start. Do not edit.", ...lines, ""].join("\r\n");
 }
 
+/** Copy the shipped default profiles (and their guide) into the person's profiles folder. A file
+ * already there is left alone, so edits survive; a new default version arrives under its own name. */
+export async function seedProfiles(from: string, to: string): Promise<string[]> {
+  await mkdir(to, { recursive: true });
+  let names: string[];
+  try {
+    names = (await readdir(from)).filter((n) => /\.(ya?ml|md)$/.test(n));
+  } catch {
+    return [];
+  }
+  const present = new Set(await readdir(to));
+  const copied = [];
+  for (const name of names.filter((n) => !present.has(n)).sort()) {
+    await copyFile(join(from, name), join(to, name));
+    copied.push(name);
+  }
+  return copied;
+}
+
 export interface Backend {
   uiUrl: string;
   apiUrl: string;
@@ -50,8 +69,9 @@ export interface Backend {
 export type Progress = (step: string) => void;
 
 export async function startBackend(layout: Layout, progress: Progress = () => {}): Promise<Backend> {
-  // Test profiles the person adds (YAML, as for the Imviz plugin) appear on the Start page.
-  for (const dir of ["logs", "artifacts", "ledger", "profiles"]) await mkdir(join(layout.data, dir), { recursive: true });
+  for (const dir of ["logs", "artifacts", "ledger"]) await mkdir(join(layout.data, dir), { recursive: true });
+  // The Start page lists this folder: the shipped defaults plus any profile the person adds.
+  await seedProfiles(bundledProfiles(layout), profiles(layout));
 
   progress("Starting the database");
   const database = await startDatabase(layout);
@@ -107,7 +127,7 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
       ORIGIN: uiUrl,
       SDP_API_URL: `${apiUrl}/graphql`,
       SDP_API_TOKEN: apiToken,
-      SDP_PROFILES_DIR: join(layout.data, "profiles"),
+      SDP_PROFILES_DIR: profiles(layout),
       NODE_ENV: "production",
     });
     await import(pathToFileURL(ui(layout)).href);

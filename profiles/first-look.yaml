@@ -1,0 +1,51 @@
+# First look: the quickest profile, and the one to learn on.
+#
+# It asks two questions of every well-measured star in the field, using Gaia alone:
+#   1. Is this star's distance (parallax) unusual for the field?           -> parallax-consistency
+#   2. Does it sit where the field's stars sit in colour and brightness?   -> cmd-coherence
+# No other archive is contacted, so a run takes seconds to a few minutes.
+#
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: first-look
+version: 1.0.0
+description: >-
+  Quick and Gaia-only. Flags stars whose distance or colour stands out from the rest of the field.
+  A good first run on any patch of sky, and the easiest to read.
+
+identify:
+  route: catalogue                     # start from the Gaia catalogue, not from an image
+  source_id: gaia
+  release_label: gaia:DR3
+  # Every column the Gaia DR3 source declares; the Gaia dialect needs all of them to build canonical rows.
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}              # well-behaved single-star astrometry (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: "<", value: 18.0}  # bright enough for good parallaxes (as UC-01)
+  match_radius_arcsec: 1.0
+  row_cap: 5000                        # keeps a first run small; widen it once you know the field
+  resolve: true                        # ask SIMBAD what each star already is
+  resolver_radius_arcsec: 2.0
+
+archives: []
+
+tests:
+  - name: parallax-consistency
+    version: 1.0.0
+    thresholds: {source_id: gaia}
+  - name: cmd-coherence
+    version: 1.0.0
+    thresholds: {source_id: gaia, degree: 2}   # a gentle curve for the field's main sequence
+
+ranking:
+  policy_id: significance              # score = share of a star's tests that came out significant
+  version: 1.0.0
+  alpha: 0.01                          # "significant" means p < 0.01
+  threshold: 0.5                       # open an investigation when at least half its tests are significant
+
+null_fields:
+  trials: 10                           # shuffled copies of the field, to see how often chance alone flags a star

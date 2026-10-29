@@ -18,6 +18,7 @@ Two programmes run on the kernel:
 | `python/` | uv workspace: kernel, contracts, adapters, science modules, CLI, API |
 | `typescript/` | pnpm workspace: generated contracts, spec harness, evidence UI, e2e, and the Windows desktop app (`typescript/apps/sdp-desktop`) |
 | `experiments/` | Predeclarations and run manifests by protocol |
+| `profiles/` | Default Investigate test profiles, with a plain-language guide to every setting |
 | `infrastructure/` | Quadlet units, developer compose stack, Grafana |
 
 ## Developer loop

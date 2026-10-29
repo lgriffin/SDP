@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { commandPromptEnvironment, DESKTOP_MIN_FREE_BYTES, sdpEnvironment } from "../src/backend.ts";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { commandPromptEnvironment, DESKTOP_MIN_FREE_BYTES, sdpEnvironment, seedProfiles } from "../src/backend.ts";
 import { defaultDataDir, postgresBin, python } from "../src/layout.ts";
 import { databaseUrl, portFromPid } from "../src/postgres.ts";
 import { choosePort, portIsFree } from "../src/process.ts";
@@ -61,5 +65,22 @@ describe("ports", () => {
     const chosen = await choosePort(taken);
     expect(chosen).not.toBe(taken);
     await new Promise((r) => server.close(r));
+  });
+});
+
+describe("default profiles", () => {
+  it("are copied into the person's folder without overwriting a profile already there", async () => {
+    const from = await mkdtemp(join(tmpdir(), "bundled-"));
+    const to = await mkdtemp(join(tmpdir(), "mine-"));
+    await writeFile(join(from, "first-look.yaml"), "shipped");
+    await writeFile(join(from, "star-history.yaml"), "shipped");
+    await writeFile(join(from, "README.md"), "guide");
+    await writeFile(join(from, "notes.txt"), "not a profile");
+    await writeFile(join(to, "first-look.yaml"), "edited by the person");
+
+    expect(await seedProfiles(from, to)).toEqual(["README.md", "star-history.yaml"]);
+    expect(await readFile(join(to, "first-look.yaml"), "utf8")).toBe("edited by the person");
+    expect((await readdir(to)).sort()).toEqual(["README.md", "first-look.yaml", "star-history.yaml"]);
+    expect(await seedProfiles(join(from, "missing"), to)).toEqual([]);
   });
 });
