@@ -154,8 +154,11 @@ class BulkSweep:
     # -- the sweep ----------------------------------------------------------------------------
 
     def files(self) -> list[BulkFile]:
+        """The publisher's file list, kept in the store too: a reader can then tell a complete copy."""
         with self.opener(self.base_url + MD5SUM) as response:
-            return parse_md5sum(response.read().decode("utf-8"))
+            text = response.read()
+        self.store.put(text, "text/plain", logical_path=f"{self.prefix}/{MD5SUM}")
+        return parse_md5sum(text.decode("utf-8"))
 
     def status(self, files: Sequence[BulkFile]) -> dict[str, Any]:
         done = [f for f in files if self.store.resolve(self.parquet_path(f)) is not None]
