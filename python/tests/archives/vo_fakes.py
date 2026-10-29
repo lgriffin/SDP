@@ -18,6 +18,8 @@ VOTABLE = {"Content-Type": "application/x-votable+xml"}
 class PrimedService:
     responses: dict[str, HttpResponse] = field(default_factory=dict)
     calls: int = 0
+    #: the key of every request sent, in order
+    sent: list[str] = field(default_factory=list)
 
     def table(self, request: HttpRequest, rows: dict[str, object]) -> None:
         table = pa.table(rows)
@@ -29,6 +31,7 @@ class PrimedService:
 
     def send(self, request: HttpRequest) -> HttpResponse:
         self.calls += 1
+        self.sent.append(request.key())
         if request.key() not in self.responses:
             raise CassetteMissing(f"fake service was not primed for {request.method} {request.url}")
         return self.responses[request.key()]

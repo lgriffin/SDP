@@ -20,7 +20,7 @@ import logging
 import threading
 import time
 import urllib.request
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -29,10 +29,13 @@ from typing import IO, Any
 
 import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
 
-from sdp.kernel.domain.archive import SourceDescriptor
+from sdp.adapters.archives import adql
+from sdp.kernel.application.acquisition import CHECKSUM_METADATA_KEY, batch_checksum
+from sdp.kernel.domain.archive import AcquisitionHandle, Box, CatalogueQuery, Cone, SourceDescriptor, idempotency_key
 from sdp.kernel.domain.errors import StorageExhausted
 from sdp.kernel.ports.storage import ArtifactStore
 
@@ -312,3 +315,160 @@ def select_files(files: Sequence[BulkFile], first: int | None, count: int | None
     """Files ``first`` .. ``first + count`` in name order (both optional): for a trial run or a share of the sky."""
     start = first or 0
     return list(files[start : start + count] if count is not None else files[start:])
+
+
+# -- reading the copy back ------------------------------------------------------------------------
+
+
+def _spans(lo: float, hi: float) -> list[tuple[float, float]]:
+    """An RA interval as pieces inside [0, 360]; ``lo`` above ``hi`` means it runs across 0/360."""
+    return [(lo, hi)] if lo <= hi else [(lo, 360.0), (0.0, hi)]
+
+
+def _region_box(region: Cone | Box) -> tuple[tuple[float, float] | None, float, float]:
+    """The RA interval (None for every RA, else folded into [0, 360) and possibly wrapping) and Dec
+    limits of a box holding the region."""
+    if isinstance(region, Cone):
+        ra, dec_min, dec_max = adql.cone_bounds(region)
+    else:
+        ra, dec_min, dec_max = (region.ra_min_deg, region.ra_max_deg), region.dec_min_deg, region.dec_max_deg
+    if ra is None or ra[1] - ra[0] >= 360.0:
+        return None, dec_min, dec_max
+    return (ra[0] % 360.0, ra[1] % 360.0), dec_min, dec_max
+
+
+def _overlaps(bounds: dict[str, float], box: tuple[tuple[float, float] | None, float, float]) -> bool:
+    """Whether a file's sky box can hold a star of the region's box."""
+    ra, dec_lo, dec_hi = box
+    if bounds["dec_max"] < dec_lo or bounds["dec_min"] > dec_hi:
+        return False
+    if ra is None:
+        return True
+    return any(
+        a_lo <= b_hi and b_lo <= a_hi
+        for a_lo, a_hi in _spans(bounds["ra_min"], bounds["ra_max"])
+        for b_lo, b_hi in _spans(*ra)
+    )
+
+
+_ARROW_OPS: dict[str, Callable[[Any, Any], Any]] = {
+    "<": pc.less,
+    "<=": pc.less_equal,
+    ">": pc.greater,
+    ">=": pc.greater_equal,
+    "=": pc.equal,
+    "!=": pc.not_equal,
+}
+
+
+def _mask(table: pa.Table, q: CatalogueQuery, ra_col: str, dec_col: str) -> pa.ChunkedArray:
+    """The rows the TAP query would return: inside the region and passing every filter."""
+    ra = np.asarray(table.column(ra_col).to_numpy(zero_copy_only=False), dtype=float)
+    dec = np.asarray(table.column(dec_col).to_numpy(zero_copy_only=False), dtype=float)
+    region = q.region
+    if isinstance(region, Cone):
+        # haversine separation, as CONTAINS(POINT, CIRCLE) measures it
+        r1, d1 = np.radians(ra), np.radians(dec)
+        r2, d2 = np.radians(region.ra_deg), np.radians(region.dec_deg)
+        a = np.sin((d1 - d2) / 2) ** 2 + np.cos(d1) * np.cos(d2) * np.sin((r1 - r2) / 2) ** 2
+        inside = np.degrees(2 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))) <= region.radius_deg
+    else:  # plain BETWEENs, as the ADQL box is: no RA wrap
+        inside = (ra >= region.ra_min_deg) & (ra <= region.ra_max_deg)
+        inside &= (dec >= region.dec_min_deg) & (dec <= region.dec_max_deg)
+    mask = pa.chunked_array([pa.array(inside)])
+    for f in q.filters:
+        column = table.column(f.column)
+        test = pc.is_valid(column) if f.op == "is_not_null" else _ARROW_OPS[f.op](column, f.value)
+        mask = pc.and_kleene(mask, pc.fill_null(test, False))
+    return mask
+
+
+@dataclass
+class BulkCatalogueGateway:
+    """ArchiveGateway over a complete bulk copy (``BulkSweep``): the same descriptor, queries and batches
+    as the TAP gateway, read from the artifact store with no network call (#72, DSI-014)."""
+
+    store: ArtifactStore
+    descriptor: SourceDescriptor
+    ra_column: str = "ra"
+    dec_column: str = "dec"
+    key_column: str = "source_id"
+
+    @property
+    def prefix(self) -> str:
+        return f"bulk/{self.descriptor.source_id}/{self.descriptor.release_label.replace(':', '_')}"
+
+    def files(self) -> list[BulkFile]:
+        listing = self.store.resolve(f"{self.prefix}/{MD5SUM}")
+        return parse_md5sum(self.store.get(listing).decode("utf-8")) if listing is not None else []
+
+    def missing(self) -> list[BulkFile]:
+        """Files of the publisher's list not stored yet; a copy with any missing is not read."""
+        return [f for f in self.files() if self.store.resolve(f"{self.prefix}/{f.stem}.parquet") is None]
+
+    def complete(self) -> bool:
+        return bool(self.files()) and not self.missing()
+
+    def describe(self, source_id: str) -> SourceDescriptor:
+        if source_id != self.descriptor.source_id:
+            raise KeyError(f"unknown source {source_id!r}; configured: [{self.descriptor.source_id!r}]")
+        return self.descriptor
+
+    def query(self, q: CatalogueQuery) -> AcquisitionHandle:
+        if q.release_label != self.descriptor.release_label:
+            raise ValueError(f"{q.source_id} serves {self.descriptor.release_label}, not {q.release_label}")
+        unknown = set(q.columns) - set(self.descriptor.column_names())
+        if unknown:
+            raise ValueError(f"{q.source_id}: columns {sorted(unknown)} are not in the declared column list")
+        # the same text as the TAP gateway, marked: a bulk read is never mistaken for an archive call
+        rendered = "BULK " + adql.render(
+            q,
+            table=self.descriptor.table,
+            ra=self.ra_column,
+            dec=self.dec_column,
+            order_by=q.order_by or self.key_column,
+            top=q.row_cap,
+        )
+        return AcquisitionHandle(q, rendered, idempotency_key(rendered, q.release_label, q.columns), self.descriptor)
+
+    def _read(self, q: CatalogueQuery) -> pa.Table:
+        missing = self.missing()
+        if not self.files() or missing:
+            raise ValueError(
+                f"the bulk copy of {self.descriptor.release_label} is incomplete ({len(missing)} files missing); "
+                "finish `sdp archive bulk` first"
+            )
+        box = _region_box(q.region)
+        needed = sorted({*q.columns, self.ra_column, self.dec_column, self.key_column, *(f.column for f in q.filters)})
+        parts: list[pa.Table] = []
+        for f in self.files():
+            record = self.store.resolve(f"{self.prefix}/{f.stem}.json")
+            bounds = json.loads(self.store.get(record)).get("bounds") if record is not None else None
+            if record is not None and (bounds is None or not _overlaps(bounds, box)):
+                continue  # an empty file, or one wholly outside the region
+            artifact = self.store.resolve(f"{self.prefix}/{f.stem}.parquet")
+            assert artifact is not None
+            table = pq.read_table(pa.BufferReader(self.store.get(artifact)), columns=needed)
+            kept = table.filter(_mask(table, q, self.ra_column, self.dec_column))
+            if kept.num_rows:
+                parts.append(kept)
+        if not parts:
+            types = {c.name: ARROW_TYPES.get(c.datatype, pa.string()) for c in self.descriptor.columns}
+            return pa.schema([(c, types[c]) for c in q.columns]).empty_table()
+        whole = pa.concat_tables(parts).sort_by(q.order_by or self.key_column)
+        return whole.slice(0, q.row_cap).select(list(q.columns))
+
+    def fetch(self, handle: AcquisitionHandle) -> Iterator[pa.RecordBatch]:
+        q = handle.query
+        whole = self._read(q)
+        part = handle.resume_from_part
+        while part * q.chunk_rows < q.row_cap:
+            chunk = whole.slice(part * q.chunk_rows, q.chunk_rows).combine_chunks()
+            batches = chunk.to_batches()
+            batch = batches[0] if batches else pa.RecordBatch.from_pylist([], schema=chunk.schema)
+            if batch.num_rows == 0 and part > handle.resume_from_part:
+                return
+            yield batch.replace_schema_metadata({CHECKSUM_METADATA_KEY: batch_checksum(batch).encode()})
+            if batch.num_rows < q.chunk_rows:
+                return
+            part += 1

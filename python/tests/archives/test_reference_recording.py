@@ -3,9 +3,13 @@ loader reads once a person has filled the reference record (Stage A, D35)."""
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import IO
 
 import pytest
 
@@ -13,11 +17,13 @@ from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.mast import MAST_OBSCORE
 from sdp.adapters.archives.mast_inventory import MastProductInventory
 from sdp.adapters.archives.reference_recording import (
+    MAX_PRODUCT_BYTES,
     REFERENCE_FIELDS,
     ProductTooLarge,
     describe_mast,
     ivoid_request,
     mast_source,
+    parse_size,
     record_product,
 )
 from sdp.adapters.archives.transport import HttpRequest
@@ -120,3 +126,87 @@ def test_a_product_too_large_to_commit_is_refused_before_anything_is_written(tmp
     with pytest.raises(ProductTooLarge, match="over the 100-byte limit"):
         record_product(fake, OBS_ID, NAME, tmp_path / "big", max_bytes=100)
     assert not (tmp_path / "big").exists()
+
+
+# -- local pulls over the committed-product cap (#61) -----------------------------------------------
+
+
+def opener_of(data: bytes, opened: list[str]) -> Callable[[str], IO[bytes]]:
+    def opener(url: str) -> IO[bytes]:
+        opened.append(url)
+        return io.BytesIO(data)
+
+    return opener
+
+
+@pytest.mark.req("INT-021")
+@pytest.mark.parametrize(
+    ("text", "size"),
+    [("35MB", 35 * 1024**2), ("500MB", 500 * 1024**2), ("2GB", 2 * 1024**3), ("2.5 gb", int(2.5 * 1024**3)),
+     ("4096", 4096), ("10K", 10 * 1024)],
+)  # fmt: skip
+def test_sizes_are_read_like_500mb_or_2gb(text: str, size: int) -> None:
+    assert parse_size(text) == size
+
+
+@pytest.mark.req("INT-021")
+def test_a_bad_size_is_refused_with_an_example() -> None:
+    with pytest.raises(ValueError, match="like 500MB"):
+        parse_size("lots")
+
+
+@pytest.mark.req("INT-021")
+def test_under_the_cap_the_product_is_fetched_through_the_cassette_transport(tmp_path: Path) -> None:
+    fake = PrimedService()
+    prime_mast(fake, DATA)
+    opened: list[str] = []
+    recorded = record_product(fake, OBS_ID, NAME, tmp_path / "small", opener=opener_of(b"never", opened))
+    assert not recorded.streamed and opened == []
+    assert recorded.sha256 == "sha256:" + hashlib.sha256(DATA).hexdigest()
+    assert (tmp_path / "small" / NAME).read_bytes() == DATA
+
+
+@pytest.mark.req("INT-021")
+def test_over_the_default_cap_without_the_flag_is_refused(tmp_path: Path) -> None:
+    fake = PrimedService()
+    big = DATA * (MAX_PRODUCT_BYTES // len(DATA) + 1)
+    prime_mast(fake, big)
+    with pytest.raises(ProductTooLarge, match="--max-bytes and an --out outside fixtures/"):
+        record_product(fake, OBS_ID, NAME, tmp_path / "big")
+    assert not (tmp_path / "big").exists()
+
+
+@pytest.mark.req("INT-021")
+def test_over_the_cap_with_the_flag_streams_outside_fixtures_and_keeps_no_product_cassette(tmp_path: Path) -> None:
+    fake = PrimedService()
+    prime_mast(fake, DATA)
+    big = b"\x01" * (3 * 1024**2 + 17)  # spans several 1 MB reads
+    opened: list[str] = []
+    out = tmp_path / "reports" / "local-products" / "full"
+    recorded = record_product(fake, OBS_ID, NAME, out, max_bytes=parse_size("400MB"), opener=opener_of(big, opened))
+    assert opened == [URL] and recorded.streamed and recorded.size_bytes == len(big)
+    assert (out / NAME).read_bytes() == big and not (out / f"{NAME}.part").exists()
+    assert recorded.sha256 == "sha256:" + hashlib.sha256(big).hexdigest()
+    assert json.loads((out / "inventory.json").read_text())["productFilename"] == NAME
+    assert HttpRequest("GET", URL).key() not in fake.sent, "the product itself is never sent through the cassettes"
+
+
+@pytest.mark.req("INT-021")
+def test_a_large_pull_into_fixtures_is_refused_before_anything_is_fetched(tmp_path: Path) -> None:
+    fake = PrimedService()
+    prime_mast(fake, DATA)
+    target = tmp_path / "fixtures" / "reference-products" / "full"
+    with pytest.raises(ProductTooLarge, match="choose an --out outside fixtures/"):
+        record_product(fake, OBS_ID, NAME, target, max_bytes=parse_size("400MB"))
+    assert not target.exists() and fake.sent == []
+
+
+@pytest.mark.req("INT-021")
+def test_a_stream_that_passes_its_limit_is_stopped_and_removed(tmp_path: Path) -> None:
+    fake = PrimedService()
+    prime_mast(fake, DATA)
+    out = tmp_path / "local"
+    limit = MAX_PRODUCT_BYTES + 1
+    with pytest.raises(ProductTooLarge, match="passed"):
+        record_product(fake, OBS_ID, NAME, out, max_bytes=limit, opener=opener_of(b"\0" * (limit + 1), []))
+    assert not (out / NAME).exists() and not (out / f"{NAME}.part").exists()

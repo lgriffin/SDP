@@ -164,3 +164,18 @@ requirements:
     tiers: [T4]
     status: approved
     traces: []
+  - id: INT-021
+    pattern: event
+    text: "When a product recording is given a size limit above the committed reference-product cap, the system shall write the product only to a folder outside fixtures/, streamed to disk and stopped at the limit."
+    rationale: "Full-size JWST mosaics (287 MB for jw01538-o069_t001_nircam_clear-f277w_i2d.fits) are for local testing; they must never be committed by accident, and must not be held in memory or kept in a cassette (#61)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_reference_recording::test_sizes_are_read_like_500mb_or_2gb"
+      - "python/tests.archives.test_reference_recording::test_a_bad_size_is_refused_with_an_example"
+      - "python/tests.archives.test_reference_recording::test_under_the_cap_the_product_is_fetched_through_the_cassette_transport"
+      - "python/tests.archives.test_reference_recording::test_over_the_default_cap_without_the_flag_is_refused"
+      - "python/tests.archives.test_reference_recording::test_over_the_cap_with_the_flag_streams_outside_fixtures_and_keeps_no_product_cassette"
+      - "python/tests.archives.test_reference_recording::test_a_large_pull_into_fixtures_is_refused_before_anything_is_fetched"
+      - "python/tests.archives.test_reference_recording::test_a_stream_that_passes_its_limit_is_stopped_and_removed"

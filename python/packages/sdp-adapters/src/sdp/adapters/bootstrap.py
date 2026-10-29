@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sdp.adapters.archives.bulk import BulkCatalogueGateway
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
 from sdp.adapters.archives.dialect import YamlDialectCurator
@@ -49,6 +50,7 @@ from sdp.kernel.ports.evidence import ExperimentTracker
 from sdp.kernel.ports.investigate import ObservationArchiveGateway
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher, DoiRecord
+from sdp.kernel.ports.storage import ArtifactStore
 
 
 class NotConfigured(RuntimeError):
@@ -122,12 +124,18 @@ def archive_transport(settings: Settings, name: str, min_seconds_between_calls: 
     return CassetteTransport(directory, "record", inner=live)
 
 
-def archive_gateways(settings: Settings) -> dict[str, ArchiveGateway]:
-    """One TAP gateway per packaged source, each with its own rate limit (§8)."""
+def archive_gateways(settings: Settings, store: ArtifactStore | None = None) -> dict[str, ArchiveGateway]:
+    """One TAP gateway per packaged source, each with its own rate limit (§8). Gaia is read from the
+    store's bulk copy instead when ``SDP_GAIA_SOURCE`` is bulk, or auto and the copy is complete (#72)."""
     gateways: dict[str, ArchiveGateway] = {}
     for source_id, source in load_sources().items():
         transport = archive_transport(settings, source_id, source.descriptor.min_seconds_between_calls)
         gateways[source_id] = TapArchiveAdapter({source_id: source}, transport, parser=IsolatedVotableParser())
+    if store is not None and settings.gaia_source != "tap":
+        gaia = load_sources()["gaia"]
+        bulk = BulkCatalogueGateway(store, gaia.descriptor, gaia.ra_column, gaia.dec_column, gaia.key_column)
+        if settings.gaia_source == "bulk" or bulk.complete():
+            gateways["gaia"] = bulk
     return gateways
 
 
@@ -248,7 +256,7 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         tracker=tracker,
         publisher=overrides.publisher or publisher(settings),
         curator=overrides.curator or YamlDialectCurator.packaged(),
-        gateways={**archive_gateways(settings), **overrides.gateways},
+        gateways={**archive_gateways(settings, store), **overrides.gateways},
         services={"clusterers": clusterers(), **overrides.services},
         min_free_bytes=settings.min_free_bytes,
         investigate=overrides.investigate or investigate_ports(settings, overrides.services),

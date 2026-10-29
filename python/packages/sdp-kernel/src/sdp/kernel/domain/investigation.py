@@ -75,7 +75,7 @@ class Polygon:
         for ra, dec in self.vertices:
             if not (0 <= ra < 360 and -90 <= dec <= 90):
                 raise InvariantViolation(f"polygon vertex out of range: ({ra}, {dec})")
-        if self.bounding_cone().radius_deg > 10:
+        if self._radius_deg() > 10:
             raise InvariantViolation("polygon wider than a 10 degree cone; fields must stay bounded")
 
     def _plane(self) -> tuple[float, float, list[tuple[float, float]]]:
@@ -91,10 +91,14 @@ class Polygon:
         dec0 = sum(d for _, d in self.vertices) / len(self.vertices)
         return ra0, dec0, [_tangent(ra, dec, ra0, dec0) for ra, dec in self.vertices]
 
+    def _radius_deg(self) -> float:
+        """The cone radius that covers every vertex, padded so the vertices fall inside it."""
+        ra0, dec0, _ = self._plane()
+        return max(max(_separation_deg(ra0, dec0, ra, dec) for ra, dec in self.vertices) * 1.0001, 1e-6)
+
     def bounding_cone(self) -> Cone:
         ra0, dec0, _ = self._plane()
-        radius = max(_separation_deg(ra0, dec0, ra, dec) for ra, dec in self.vertices)
-        return Cone(ra0, dec0, min(10.0, max(radius * 1.0001, 1e-6)))
+        return Cone(ra0, dec0, self._radius_deg())
 
     def contains(self, ra: float, dec: float) -> bool:
         ra0, dec0, poly = self._plane()
