@@ -76,6 +76,13 @@ describe("[TST-008] strict EARS form", () => {
     );
   });
 
+  it("[TST-008] rejects a named system that is not the subject of the main clause", () => {
+    for (const text of ["Logs written by the kernel shall be structured.", "If the kernel is ready, then publication shall be blocked."])
+      expect(messages(text, text.startsWith("If") ? "unwanted" : "ubiquitous")).toContain(
+        'text does not name the system that shall act ("the <system> shall ...")',
+      );
+  });
+
   it.each(["should", "may", "appropriate", "as needed", "and/or", "robust", "TBD"])("[TST-008] rejects vague wording: %s", (word) => {
     expect(messages(`The kernel shall retry ${word} on failure.`)).toContain(`text uses vague or optional wording "${word}"`);
   });

@@ -72,6 +72,7 @@ export function checkFeatures(files: readonly FeatureFile[], requirements: reado
   const rules: BddRule[] = [];
   const problems: BddProblem[] = [];
   const coverage: Record<string, number> = {};
+  if (files.length === 0) problems.push({ source: "", line: 0, message: "no .feature files, so no Rule verifies anything" });
   for (const file of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
     const parsed = parseFeature(file);
     const problem = (line: number, message: string): void => {

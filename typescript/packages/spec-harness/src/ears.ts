@@ -15,8 +15,14 @@ export type Pattern = keyof typeof PATTERNS;
 
 /** One requirement, one obligation: the text says `shall` exactly once (TST-008). */
 const SHALL = /\bshall\b/g;
-/** The obligation has a named system as its subject: "the harness shall", "The kernel shall". */
-const NAMED_SYSTEM = /\b[Tt]he [A-Za-z0-9][\w./'-]*(?: [\w./'-]+){0,5},? shall\b/;
+/** The main clause has a named system as its subject: "the harness shall", "The kernel shall". */
+const NAMED_SYSTEM = /^(?:then )?[Tt]he [A-Za-z0-9][\w./'-]*(?: [\w./'-]+){0,5}$/;
+
+/** The subject of the main clause: the words between its last comma (or `then`) and `shall`. */
+function subject(text: string): string {
+  const before = text.slice(0, text.search(/\bshall\b/));
+  return before.slice(before.lastIndexOf(",") + 1).trim();
+}
 /** Words that make a requirement untestable or optional (INCOSE GtWR R7, R8). */
 export const VAGUE =
   /\b(should|may|might|could|appropriate(?:ly)?|adequate(?:ly)?|sufficient(?:ly)?|reasonable|robust|efficient(?:ly)?|flexible|user-friendly|quickly|as needed|if possible|where possible|and\/or|etc|TBD)\b/i;
@@ -26,7 +32,7 @@ export function styleProblems(text: string): string[] {
   const problems: string[] = [];
   const shalls = text.match(SHALL)?.length ?? 0;
   if (shalls !== 1) problems.push(`text says shall ${shalls} times; a requirement states exactly one obligation`);
-  if (!NAMED_SYSTEM.test(text)) problems.push('text does not name the system that shall act ("the <system> shall ...")');
+  if (shalls > 0 && !NAMED_SYSTEM.test(subject(text))) problems.push('text does not name the system that shall act ("the <system> shall ...")');
   const vague = VAGUE.exec(text);
   if (vague) problems.push(`text uses vague or optional wording "${vague[0]}"`);
   return problems;

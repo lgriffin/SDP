@@ -39,11 +39,12 @@ async function bdd(argv: string[]): Promise<number> {
     options: { root: { type: "string", default: "requirements" }, features: { type: "string", default: "python/tests/bdd/features" } },
   });
   const compiled = await compileRequirements(new EarsDirectory(values.root));
+  for (const p of compiled.problems) console.error(`FAIL ${p.source}${p.id ? ` ${p.id}` : ""}: ${p.message}`);
   const report = checkFeatures(await new FeatureDirectory(values.features).featureFiles(), compiled.requirements);
-  for (const p of report.problems) console.error(`FAIL ${p.source}:${p.line}: ${p.message}`);
+  for (const p of report.problems) console.error(`FAIL ${p.source || values.features}:${p.line}: ${p.message}`);
   const scenarios = Object.values(report.coverage).reduce((a, b) => a + b, 0);
   console.log(`${report.rules.length} rules bind ${Object.keys(report.coverage).length} requirements through ${scenarios} scenarios, ${report.problems.length} problems`);
-  return report.problems.length ? 1 : 0;
+  return compiled.problems.length || report.problems.length ? 1 : 0;
 }
 
 async function traceCommand(argv: string[]): Promise<number> {

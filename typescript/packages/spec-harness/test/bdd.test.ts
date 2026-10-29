@@ -67,6 +67,11 @@ describe("[TST-010] Gherkin Rules bound to requirements", () => {
     ]);
   });
 
+  it("[TST-010] rejects an empty or missing feature tree", async () => {
+    expect(checkFeatures([], []).problems).toEqual([{ source: "", line: 0, message: "no .feature files, so no Rule verifies anything" }]);
+    expect(await new FeatureDirectory(`${repo}/no-such-features`).featureFiles()).toEqual([]);
+  });
+
   it("[TST-010] rejects a file with no Feature and ignores commented-out lines", () => {
     expect(messages("# Rule: KRN-999: nothing\n  Rule: KRN-900: The kernel shall work.\n    Scenario: one\n")).toEqual([
       "no Feature: line",

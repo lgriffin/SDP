@@ -346,9 +346,10 @@ Coverage says a line ran. Mutation says a test would notice if the line were wro
 
 ```bash
 just mutation sdp-kernel-science --keep /tmp/mut          # score one target and keep the run
+PY="$PWD/python"                                          # run from the repository root
 cd /tmp/mut/sdp-kernel-science/work
-uv run --project ../../../../python mutmut results        # every mutant that is not killed
-uv run --project ../../../../python mutmut show <mutant>  # the diff of one
+uv run --project "$PY" mutmut results                     # every mutant that is not killed
+uv run --project "$PY" mutmut show <mutant>               # the diff of one
 ```
 
 For each survivor, in order of preference:
