@@ -235,6 +235,19 @@ class FixtureResolver:
 
 
 @dataclass(frozen=True)
+class FieldFixtureResolver(FixtureResolver):
+    """The fixture resolver as a FieldResolver: one call for the whole field, each call's size kept (#65)."""
+
+    field_calls: list[int] = field(default_factory=list)
+
+    def resolve_positions(
+        self, positions: Sequence[tuple[float, float]], radius_arcsec: float
+    ) -> list[ResolverRecord | None]:
+        self.field_calls.append(len(positions))
+        return [self.by_position(ra, dec, radius_arcsec) for ra, dec in positions]
+
+
+@dataclass(frozen=True)
 class StaticSourceRegistry:
     """Fixed services with an all-sky footprint: the SourceRegistry fake."""
 

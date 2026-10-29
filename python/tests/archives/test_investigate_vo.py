@@ -9,6 +9,7 @@ from urllib.parse import parse_qs
 import pyarrow as pa
 import pytest
 
+from sdp.adapters.archives import simbad
 from sdp.adapters.archives.registry import RegTapRegistry, bounding_cone
 from sdp.adapters.archives.simbad import SimbadResolver, parse_sesame
 from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport, Transport, TransportError
@@ -186,3 +187,81 @@ def test_a_box_field_is_searched_by_its_bounding_cone() -> None:
 def test_replay_never_falls_back_to_the_network(tmp_path: Path) -> None:
     with pytest.raises(CassetteMissing):
         SimbadResolver(CassetteTransport(tmp_path, "replay")).by_name(NAME)
+
+
+# -- a whole field at once (#65) -------------------------------------------------------------------
+
+FIELD_STARS = [(150.0, 2.0), (150.01, 2.0), (150.02, 2.01)]
+
+
+def simbad_rows(*objects: tuple[int, str, float, float]) -> dict[str, object]:
+    return {
+        "oid": pa.array([o[0] for o in objects], pa.int64()),
+        "main_id": [o[1] for o in objects],
+        "ra": [o[2] for o in objects],
+        "dec": [o[3] for o in objects],
+        "otype": ["*"] * len(objects),
+    }
+
+
+@pytest.mark.req("INV-016")
+def test_a_field_is_resolved_from_one_box_query_nearest_first_then_lower_oid() -> None:
+    fake = PrimedService()
+    resolver = SimbadResolver(fake)
+    (box,) = simbad._boxes(simbad._cover(FIELD_STARS, 2.0))
+    fake.table(
+        resolver.box_request(*box),
+        simbad_rows(
+            (9, "Near A", 150.0, 2.0 + 0.5 / 3600),
+            (8, "Far A", 150.0, 2.0 + 1.5 / 3600),
+            (5, "Tie low", 150.01 + 1.0 / 3600, 2.0),
+            (6, "Tie high", 150.01 - 1.0 / 3600, 2.0),
+            (4, "Outside", 150.02, 2.01 + 3.0 / 3600),
+        ),
+    )
+    fake.table(
+        resolver.bibcodes_request([5, 9]),
+        {"oidref": pa.array([5, 9, 9], pa.int64()), "bibcode": ["2001X", "1999B", "1998A"]},
+    )
+    near, tie, none = resolver.resolve_positions(FIELD_STARS, 2.0)
+    assert near is not None and near.main_id == "Near A" and near.bibcodes == ("1998A", "1999B")
+    assert near.separation_arcsec == pytest.approx(0.5, abs=1e-6)
+    assert tie is not None and tie.main_id == "Tie low" and tie.bibcodes == ("2001X",)
+    assert none is None
+    assert fake.calls == 2
+
+
+@pytest.mark.req("INV-016")
+def test_a_full_page_splits_the_box_in_four() -> None:
+    fake = PrimedService()
+    resolver = SimbadResolver(fake, field_rows=2)
+    (box,) = simbad._boxes(simbad._cover(FIELD_STARS[:1], 2.0))
+    ra_min, ra_max, dec_min, dec_max = box
+    fake.table(resolver.box_request(*box), simbad_rows((1, "a", 150.0, 2.0), (2, "b", 150.0, 2.0)))
+    ra_mid, dec_mid = (ra_min + ra_max) / 2, (dec_min + dec_max) / 2
+    quarters = [
+        (ra_min, ra_mid, dec_min, dec_mid),
+        (ra_mid, ra_max, dec_min, dec_mid),
+        (ra_min, ra_mid, dec_mid, dec_max),
+        (ra_mid, ra_max, dec_mid, dec_max),
+    ]
+    for i, quarter in enumerate(quarters):
+        rows = simbad_rows((10 + i, f"q{i}", (quarter[0] + quarter[1]) / 2, (quarter[2] + quarter[3]) / 2))
+        fake.table(resolver.box_request(*quarter), rows if i == 3 else simbad_rows())
+    fake.table(
+        resolver.bibcodes_request([13]), {"oidref": pa.array([], pa.int64()), "bibcode": pa.array([], pa.string())}
+    )
+    (record,) = resolver.resolve_positions(FIELD_STARS[:1], 2.0)
+    assert record is not None and record.main_id == "q3"
+
+
+def test_a_field_across_ra_zero_asks_both_sides() -> None:
+    boxes = simbad._boxes(simbad._cover([(359.999, 0.0), (0.001, 0.0)], 2.0))
+    assert len(boxes) == 2
+    assert boxes[0][1] == 360.0 and boxes[1][0] == 0.0
+
+
+def test_no_positions_ask_nothing() -> None:
+    fake = PrimedService()
+    assert SimbadResolver(fake).resolve_positions([], 2.0) == []
+    assert fake.calls == 0

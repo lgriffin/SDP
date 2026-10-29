@@ -178,6 +178,19 @@ class ObjectResolver(Protocol):
     def by_name(self, name: str) -> ResolverRecord | None: ...
 
 
+@runtime_checkable
+class FieldResolver(Protocol):
+    """An ObjectResolver that can resolve a whole field of positions at once (#65).
+
+    Optional: Identify asks ``by_position`` star by star of a resolver without it. Each answer is what
+    ``by_position`` would give for that position and radius.
+    """
+
+    def resolve_positions(
+        self, positions: Sequence[tuple[float, float]], radius_arcsec: float
+    ) -> Sequence[ResolverRecord | None]: ...
+
+
 @dataclass(frozen=True)
 class ServiceRecord:
     """A VO service that covers a field: the registry's "find" (pyvo)."""
