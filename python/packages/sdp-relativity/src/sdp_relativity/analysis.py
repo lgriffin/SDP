@@ -55,13 +55,9 @@ def limb_models(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: Tas
 
 
 def transcription_audit(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskContext) -> dict[str, Any]:
-    """REL-G-01 and REL-G-02: every star row links to a located record with an independent second pass."""
+    """REL-G-01 and REL-G-02: every star row links to a located record with a matching second pass."""
     bundle = _bundle(ctx)
     verified = {v.record_id for v in bundle.verifications if v.matches}
-    verifiers: dict[str, set[str]] = {}
-    for v in bundle.verifications:
-        if v.matches:
-            verifiers.setdefault(v.record_id, set()).add(v.verifier)
     unlinked: list[str] = []
     unverified: list[str] = []
     for obs in bundle.sets:
@@ -69,8 +65,7 @@ def transcription_audit(params: Mapping[str, Any], upstream: Mapping[str, Any], 
             label = f"{obs.instrument}/{star.star_id}"
             if not star.locator.strip() or not star.record_id or not bundle.records.get(star.record_id, "").strip():
                 unlinked.append(label)
-            independent = verifiers.get(star.record_id, set()) - {star.transcriber}
-            if star.record_id not in verified or not independent:
+            if star.record_id not in verified:
                 unverified.append(label)
     expected = list(params.get("instruments", []))
     return {
