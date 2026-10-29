@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from sdp.adapters.archives.mast_inventory import InventoryMissing, MastProductInventory, file_name
+from sdp.adapters.archives.mast import file_name
+from sdp.adapters.archives.mast_inventory import InventoryMissing, MastProductInventory
 from sdp.adapters.archives.transport import CassetteTransport, TransportError
 from sdp.kernel.domain.investigation import ProductRef
 

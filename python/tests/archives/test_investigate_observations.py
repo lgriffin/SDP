@@ -15,7 +15,7 @@ import astropy.units as u
 import pytest
 
 from sdp.adapters.archives.dasch import STANDARD_BAD_AFLAGS, DaschDialect, DaschGateway
-from sdp.adapters.archives.mast import PRODUCT_TYPES, MastObservationGateway
+from sdp.adapters.archives.mast import PRODUCT_TYPES, MastObservationGateway, obs_id_of
 from sdp.adapters.archives.transport import CassetteTransport, HttpRequest, Transport, TransportError
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import FetchedProduct, Field, ObservationCriteria, ProductRef
@@ -211,7 +211,8 @@ def test_mast_records_carry_epochs_sizes_and_no_cloud_uri() -> None:
         58468.3,
         58490.0,
     )
-    assert first.size_bytes == 2000 * 1024 and first.product.cloud_uri is None
+    assert first.size_bytes == 2000, "MAST reports access_estsize in bytes"
+    assert first.product.product_id == "tess-s0006-0001/lc-6.fits" and first.product.cloud_uri is None
     assert index.reach_back_mjd == 58468.3
     fetched = gateway.fetch(first.product)
     assert fetched.media_type == "application/fits" and fetched.data == FITS
@@ -313,3 +314,32 @@ def test_the_dialect_drops_non_detections_and_bad_flags_and_falls_back_to_the_de
 
 def test_the_dialect_declares_what_it_does_not_curate() -> None:
     assert DaschDialect().curate("image", raw_lightcurve()) is None
+
+
+def test_jwst_lists_one_product_per_science_file_and_drops_auxiliary_files() -> None:
+    fake = PrimedService()
+    gateway = MastObservationGateway(fake)
+    obs = "jw01074-o104_t002_nircam_clear-f200w-sub160"
+    base = "https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/"
+    files = [
+        (f"{obs}_i2d.fits", "application/fits", 9354240.0),
+        (f"{obs}_segm.fits", "application/fits", 1442880.0),
+        (f"{obs}_cat.ecsv", "text/plain", 25867.0),
+        (f"{obs}_i2d.jpg", "image/jpeg", 47348.0),
+    ]
+    table = {
+        "obs_id": [obs] * 4,
+        "obs_collection": ["JWST"] * 4,
+        "instrument_name": ["NIRCAM/IMAGE"] * 4,
+        "dataproduct_type": ["image"] * 4,
+        "t_min": [59671.4] * 4,
+        "t_max": [59671.5] * 4,
+        "access_url": [base + f for f, _, _ in files],
+        "access_format": [m for _, m, _ in files],
+        "access_estsize": [b for _, _, b in files],
+    }
+    fake.table(gateway.search_request(TARGET, MAST_CRITERIA), table)
+    [record] = gateway.search(TARGET, MAST_CRITERIA).records
+    assert record.product.product_id == f"{obs}/{obs}_i2d.fits"
+    assert record.size_bytes == 9354240
+    assert obs_id_of(record.product.product_id) == obs and obs_id_of(obs) == obs

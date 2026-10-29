@@ -14,13 +14,12 @@ its type, calibration level, rights and size) come from MAST's product inventory
 from __future__ import annotations
 
 import json
-import posixpath
 import urllib.parse
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sdp.adapters.archives.mast import MAST_OBSCORE
+from sdp.adapters.archives.mast import MAST_OBSCORE, file_name, obs_id_of
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
@@ -78,14 +77,6 @@ def _rows(transport: Transport, request: HttpRequest, what: str) -> list[dict[st
     return [dict(r) for r in data if isinstance(r, dict)]
 
 
-def file_name(uri: str) -> str:
-    """The product file name from an access URL or a ``mast:`` data URI."""
-    parsed = urllib.parse.urlparse(uri)
-    query = urllib.parse.parse_qs(parsed.query)
-    path = query["uri"][0] if "uri" in query else (parsed.path if parsed.scheme != "mast" else uri)
-    return posixpath.basename(urllib.parse.unquote(path))
-
-
 @dataclass
 class MastProductInventory:
     """``ProductInventory`` for MAST products a ``MastObservationGateway`` fetched."""
@@ -99,7 +90,7 @@ class MastProductInventory:
     def obscore_request(self, product: ProductRef) -> HttpRequest:
         adql = (
             f"SELECT TOP 1 {', '.join(OBSCORE_COLUMNS)} FROM ivoa.obscore "
-            f"WHERE obs_id = {literal(product.product_id)} AND access_url = {literal(product.uri)}"
+            f"WHERE obs_id = {literal(obs_id_of(product.product_id))} AND access_url = {literal(product.uri)}"
         )
         return sync_request(self.service_url, adql, 1)
 
@@ -129,12 +120,13 @@ class MastProductInventory:
 
     def rows(self, product: ProductRef) -> ProductRows:
         obscore = run_sync(self.transport, self.obscore_request(product), "MAST ObsCore row").to_pylist()
-        observations = _rows(self.transport, self.observation_request(product.product_id), "MAST observation id")
+        obs_id = obs_id_of(product.product_id)
+        observations = _rows(self.transport, self.observation_request(obs_id), "MAST observation id")
         obsids = sorted({str(r["obsid"]) for r in observations if r.get("obsid") is not None})
         if not obsids:
-            raise InventoryMissing(f"MAST has no CAOM observation with obs_id {product.product_id}")
+            raise InventoryMissing(f"MAST has no CAOM observation with obs_id {obs_id}")
         wanted = file_name(product.uri)
-        rendered = [self.obscore_request(product), self.observation_request(product.product_id)]
+        rendered = [self.obscore_request(product), self.observation_request(obs_id)]
         for obsid in obsids:
             # Page until the file is found or a short page says the inventory has run out.
             for page in range(1, self.max_pages + 1):
@@ -153,7 +145,7 @@ class MastProductInventory:
                         )
                 if len(page_rows) < self.page_size:
                     break
-        raise InventoryMissing(f"MAST lists no product named {wanted} in observation {product.product_id}")
+        raise InventoryMissing(f"MAST lists no product named {wanted} in observation {obs_id}")
 
 
 def render(requests: Sequence[HttpRequest]) -> str:
