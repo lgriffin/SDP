@@ -14,6 +14,7 @@ recorded high-water marks.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import shutil
 import subprocess
@@ -43,6 +44,14 @@ INTEGRATION = (
     "src/sdp/kernel/domain/integration.py",
     "src/sdp/kernel/science/association.py",
 )
+
+#: The largest kernel modules are carved into targets of their own, each a CI job: on the first seeding
+#: run the domain and application jobs were still running after 135 of their 180 minutes, because most
+#: kernel suites cover those modules and each surviving mutant runs minutes of tests. A carved module is
+#: left out of its layer's target, so every kernel module is still scored by exactly one target.
+INVESTIGATION = ("src/sdp/kernel/domain/investigation.py",)
+INVESTIGATE = ("src/sdp/kernel/application/investigate.py",)
+PLANNING = ("src/sdp/kernel/application/planning.py", "src/sdp/kernel/application/acquisition.py")
 
 
 #: The science packages are scored in shards of modules, each a CI job of its own. Every mutant runs
@@ -99,7 +108,7 @@ TARGETS = {
             "sdp-kernel",
             ("src/sdp/kernel/domain/*",),
             KERNEL_TESTS,
-            INTEGRATION,
+            (*INTEGRATION, *INVESTIGATION),
         ),
         Target(
             "sdp-kernel-science",
@@ -113,8 +122,13 @@ TARGETS = {
             "sdp-kernel",
             ("src/sdp/kernel/application/*",),
             KERNEL_TESTS,
+            (*INVESTIGATE, *PLANNING),
         ),
         Target("sdp-kernel-integration", "sdp-kernel", INTEGRATION, KERNEL_TESTS),
+        Target("sdp-kernel-investigation", "sdp-kernel", INVESTIGATION, KERNEL_TESTS),
+        Target("sdp-kernel-investigate", "sdp-kernel", INVESTIGATE, KERNEL_TESTS),
+        Target("sdp-kernel-planning", "sdp-kernel", PLANNING, KERNEL_TESTS),
+        Target("sdp-kernel-ports", "sdp-kernel", ("src/sdp/kernel/ports/*",), KERNEL_TESTS),
         *(
             Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
             for i, group in enumerate(RELATIVITY_SHARDS, 1)
@@ -220,7 +234,8 @@ def fixture(children: int) -> int:
 
 
 def check_shards() -> None:
-    """Every module of a sharded package is scored by exactly one shard, so a new module is never skipped."""
+    """Every module of a sharded package, and every kernel module, is scored by exactly one target, so a
+    new module is never skipped and a carved one never scored twice."""
     for package, shards in (("sdp_relativity", RELATIVITY_SHARDS), ("sdp_stellar", STELLAR_SHARDS)):
         src = ROOT / "packages" / package.replace("_", "-") / "src" / package
         files = sorted(
@@ -229,6 +244,19 @@ def check_shards() -> None:
         listed = sorted(name for group in shards for name in group)
         if files != listed:
             raise SystemExit(f"{package} shards list {listed}, but the package has {files}")
+    kernel = ROOT / "packages" / "sdp-kernel"
+    targets = [t for t in TARGETS.values() if t.package == "sdp-kernel"]
+    for path in sorted((kernel / "src" / "sdp" / "kernel").rglob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        name = path.relative_to(kernel).as_posix()
+        scoring = [t.name for t in targets if _mutates(t, name)]
+        if len(scoring) != 1:
+            raise SystemExit(f"{name} is scored by {scoring or 'no target'}; every kernel module needs exactly one")
+
+
+def _mutates(target: Target, path: str) -> bool:
+    return any(fnmatch.fnmatch(path, p) for p in target.only_mutate) and path not in target.do_not_mutate
 
 
 def main(argv: list[str] | None = None) -> int:

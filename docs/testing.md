@@ -314,15 +314,19 @@ Coverage says a line ran. Mutation says a test would notice if the line were wro
 
 | Target | Mutates | Tests selected |
 |---|---|---|
-| `sdp-kernel-domain` | `sdp/kernel/domain/*` minus the integration cores | `KERNEL_TESTS` |
+| `sdp-kernel-domain` | `sdp/kernel/domain/*` minus the integration cores and `investigation` | `KERNEL_TESTS` |
+| `sdp-kernel-investigation` | `sdp/kernel/domain/investigation.py` | `KERNEL_TESTS` |
 | `sdp-kernel-science` | `sdp/kernel/science/*` minus association | `KERNEL_TESTS` |
-| `sdp-kernel-application` | `sdp/kernel/application/*` | `KERNEL_TESTS` |
+| `sdp-kernel-application` | `sdp/kernel/application/*` minus `investigate`, `planning` and `acquisition` | `KERNEL_TESTS` |
+| `sdp-kernel-investigate` | `sdp/kernel/application/investigate.py` | `KERNEL_TESTS` |
+| `sdp-kernel-planning` | `sdp/kernel/application/planning.py` and `acquisition.py` | `KERNEL_TESTS` |
 | `sdp-kernel-integration` | association, the product envelope and integration domain | `KERNEL_TESTS` |
+| `sdp-kernel-ports` | `sdp/kernel/ports/*`: the commands, results and records the ports exchange | `KERNEL_TESTS` |
 | `sdp-relativity-1..5` | `sdp_relativity` in five module shards | `tests/relativity` |
 | `sdp-stellar-1..3` | `sdp_stellar` in three module shards | `tests/stellar` |
 | `@sdp/spec-harness`, `@sdp/relativity-fit` | `src/**` | the package's vitest suite |
 
-`KERNEL_TESTS` is every suite that drives the kernel: unit, property, use case, contract, investigate, association, products, archives and BDD. mutmut runs only the tests that cover each mutant, so a wider selection costs one baseline run. The Mutation workflow builds its matrix from `tools/mutation.py --list`, and `check_shards()` fails if a science module is in no shard or two.
+`KERNEL_TESTS` is every suite that drives the kernel: unit, property, use case, contract, investigate, association, products, archives and BDD. mutmut runs only the tests that cover each mutant, so a wider selection costs one baseline run. The Mutation workflow builds its matrix from `tools/mutation.py --list`, and `check_shards()` fails if a science module, or any module under `sdp/kernel`, is scored by no target or by two. The three largest kernel modules have targets of their own because the domain and application jobs were still running after two and a quarter hours of the first seeding run, against a 180-minute limit: most kernel suites cover them, so each surviving mutant runs minutes of tests.
 
 ### The goal and the ratchet
 
