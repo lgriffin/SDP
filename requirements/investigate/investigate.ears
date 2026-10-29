@@ -135,7 +135,7 @@ requirements:
       - "python/tests.archives.test_investigate_vo::test_a_field_is_resolved_from_one_box_query_nearest_first_then_lower_oid"
   - id: INV-017
     pattern: event
-    text: "When an acquisition or an Investigate stage completes, the system shall report the bytes it added to the artifact store, counting an artifact that was already stored as zero, and an acquisition shall also report its archive requests and rows."
+    text: "When an acquisition or an Investigate stage completes, the system shall report the bytes it added to the artifact store, counting an artifact that was already stored as zero, together with an acquisition's archive requests and rows."
     rationale: "A stress run needs to know what each pull cost in disk and calls without measuring it by hand (#60)."
     verification: test
     tiers: [T3, T4]
