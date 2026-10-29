@@ -27,6 +27,11 @@ from sdp.kernel.domain.investigation import ResolverRecord
 
 SIMBAD_TAP = "https://simbad.cds.unistra.fr/simbad/sim-tap"
 SESAME = "https://cds.unistra.fr/cgi-bin/nph-sesame/-ox/S"
+#: CDS's official copies at Harvard, tried in order when Strasbourg gives no answer at all
+MIRRORS: dict[str, tuple[str, ...]] = {
+    SIMBAD_TAP: ("https://simbad.harvard.edu/simbad/sim-tap",),
+    SESAME: ("https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-ox/S",),
+}
 LICENCE = "SIMBAD: acknowledge use per the CDS conditions of use (https://cds.unistra.fr/conditions-of-use/)"
 CITATION = "Wenger et al. 2000, A&AS 143, 9 (SIMBAD)"
 
@@ -68,9 +73,10 @@ class SimbadResolver:
 
     def bibcode_request(self, main_id: str) -> HttpRequest:
         adql = (
-            f"SELECT TOP {self.max_bibcodes} r.bibcode FROM has_ref AS h "
+            # ORDER BY names aliases: the Harvard mirror's ADQL parser refuses qualified columns there
+            f"SELECT TOP {self.max_bibcodes} r.bibcode AS bibcode FROM has_ref AS h "
             "JOIN ref AS r ON h.oidbibref = r.oidbib JOIN basic AS b ON h.oidref = b.oid "
-            f"WHERE b.main_id = {literal(main_id)} ORDER BY r.bibcode"
+            f"WHERE b.main_id = {literal(main_id)} ORDER BY bibcode"
         )
         return sync_request(self.tap_url, adql, self.max_bibcodes)
 
@@ -83,8 +89,8 @@ class SimbadResolver:
 
     def bibcodes_request(self, oids: Sequence[int]) -> HttpRequest:
         adql_text = (
-            "SELECT h.oidref, r.bibcode FROM has_ref AS h JOIN ref AS r ON h.oidbibref = r.oidbib "
-            f"WHERE h.oidref IN ({', '.join(str(int(o)) for o in oids)}) ORDER BY h.oidref, r.bibcode"
+            "SELECT h.oidref AS oidref, r.bibcode AS bibcode FROM has_ref AS h JOIN ref AS r ON h.oidbibref = r.oidbib "
+            f"WHERE h.oidref IN ({', '.join(str(int(o)) for o in oids)}) ORDER BY oidref, bibcode"
         )
         return sync_request(self.tap_url, adql_text, 2_000_000)
 
