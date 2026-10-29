@@ -43,6 +43,29 @@ INTEGRATION = (
 )
 
 
+#: The science packages are scored in shards of modules, each a CI job of its own. Every mutant runs
+#: the package's end-to-end protocol tests (about a minute per suite), so one job per package ran past
+#: the 180-minute limit: v0.1.0 reached 2640 of 3593 stellar mutants and 489 of 2734 relativity ones.
+#: Each shard still runs the whole test suite, so a shard's score means what the package score meant.
+#: The groups are balanced by source size; every module must appear in exactly one shard.
+RELATIVITY_SHARDS = (
+    ("analysis", "dossier"),
+    ("fitter", "reduction"),
+    ("protocol", "comparison", "constants"),
+    ("observations", "synthetic", "geometry"),
+    ("models", "measurement", "transcription", "oracles"),
+)
+STELLAR_SHARDS = (
+    ("analysis", "benchmark", "cmd"),
+    ("protocol", "features", "quality", "ranking"),
+    ("synthetic", "inject", "search", "membership", "dossier", "null"),
+)
+
+
+def modules(package: str, names: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(f"src/{package}/{name}.py" for name in names)
+
+
 TARGETS = {
     t.name: t
     for t in (
@@ -66,8 +89,14 @@ TARGETS = {
             ("src/sdp/kernel/application/*",),
             ("tests/unit/kernel", "tests/usecase", "tests/contract"),
         ),
-        Target("sdp-relativity", "sdp-relativity", ("src/sdp_relativity/*",), ("tests/relativity",)),
-        Target("sdp-stellar", "sdp-stellar", ("src/sdp_stellar/*",), ("tests/stellar",)),
+        *(
+            Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
+            for i, group in enumerate(RELATIVITY_SHARDS, 1)
+        ),
+        *(
+            Target(f"sdp-stellar-{i}", "sdp-stellar", modules("sdp_stellar", group), ("tests/stellar",))
+            for i, group in enumerate(STELLAR_SHARDS, 1)
+        ),
     )
 }
 
@@ -96,6 +125,9 @@ def setup_cfg(target: Target) -> str:
         f"only_mutate =\n    {only}\n"
         f"pytest_add_cli_args_test_selection =\n    {tests}\n"
         "also_copy =\n    tests\n    pytest.ini\n"
+        # mutmut's default stops a hanging mutant at 30x its tests' CPU time, about five minutes for
+        # these suites; 10x still separates a hang from a slow pass and keeps timeouts affordable
+        "timeout_multiplier = 5\n"
         + (f"do_not_mutate =\n    {skip}\n" if (skip := "\n    ".join(target.do_not_mutate)) else "")
     )
 
@@ -132,7 +164,18 @@ def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
     return score(stats), stats
 
 
+def check_shards() -> None:
+    """Every module of a sharded package is scored by exactly one shard, so a new module is never skipped."""
+    for package, shards in (("sdp_relativity", RELATIVITY_SHARDS), ("sdp_stellar", STELLAR_SHARDS)):
+        src = ROOT / "packages" / package.replace("_", "-") / "src" / package
+        files = sorted(p.stem for p in src.glob("*.py") if p.stem != "__init__")
+        listed = sorted(name for group in shards for name in group)
+        if files != listed:
+            raise SystemExit(f"{package} shards list {listed}, but the package has {files}")
+
+
 def main(argv: list[str] | None = None) -> int:
+    check_shards()
     parser = argparse.ArgumentParser(prog="tools/mutation.py")
     parser.add_argument("targets", nargs="*", default=sorted(TARGETS))
     parser.add_argument("--out", type=Path, required=True)

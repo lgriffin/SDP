@@ -28,7 +28,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [sdp-kernel-domain, sdp-kernel-science, sdp-kernel-application, sdp-relativity, sdp-stellar]
+        # the science packages run in module shards (tools/mutation.py explains why)
+        target:
+          - sdp-kernel-domain
+          - sdp-kernel-science
+          - sdp-kernel-application
+          - sdp-relativity-1
+          - sdp-relativity-2
+          - sdp-relativity-3
+          - sdp-relativity-4
+          - sdp-relativity-5
+          - sdp-stellar-1
+          - sdp-stellar-2
+          - sdp-stellar-3
     defaults:
       run:
         working-directory: python
