@@ -99,6 +99,19 @@ describe("[INT-016] the harness checks adapter admission before accepting a verd
     }
   });
 
+  it("[INT-016] a failing record beside a passing one for the same version admits nothing", () => {
+    const m = clone(admitted());
+    const rec = records(m)[0];
+    if (!rec) throw new Error("fixture has no record");
+    const failing = { ...rec, results: rec.results.map((x) => (x.kind === "semantic" ? { ...x, passed: false } : x)) };
+    m.environment.adapter_compatibility = [rec, failing, { ...failing, adapter_version: "0.9.0" }];
+    expect(admit(m).map((u) => u.reason)).toEqual([
+      "a failing record contradicts the passing one: 1.0.0: semantic did not pass although the record says passed",
+    ]);
+    m.environment.adapter_compatibility = [rec, { ...failing, adapter_version: "0.9.0" }];
+    expect(admit(m)).toEqual([]);
+  });
+
   it("[INT-016] a record for another product type does not admit this one", () => {
     const m = clone(admitted());
     const input = m.inputs[0];
