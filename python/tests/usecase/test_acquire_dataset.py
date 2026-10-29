@@ -153,3 +153,20 @@ def test_reads_verify_sha256() -> None:
     k.store.corrupt(raw.artifact_id)
     with pytest.raises(IntegrityError):
         k.store.get(raw.artifact_id)
+
+
+@pytest.mark.tier("T3")
+@pytest.mark.req("DSI-012")
+def test_an_acquisition_that_fills_its_row_cap_says_so() -> None:
+    archive = FakeArchive(FAKE_GAIA, fixture_catalogue())
+    k = kernel_with(archive)
+    roomy = replace(QUERY, row_cap=100_000, chunk_rows=50)
+    whole = k.kernel.acquire_dataset.execute(AcquireDatasetCommand(roomy))
+    assert 0 < whole.rows < roomy.row_cap and not whole.reached_row_cap
+
+    capped = replace(QUERY, row_cap=whole.rows - 1, chunk_rows=50)
+    cut = k.kernel.acquire_dataset.execute(AcquireDatasetCommand(capped))
+    assert cut.rows == capped.row_cap and cut.reached_row_cap
+
+    again = k.kernel.acquire_dataset.execute(AcquireDatasetCommand(capped))
+    assert again.reused and again.rows == capped.row_cap and again.reached_row_cap

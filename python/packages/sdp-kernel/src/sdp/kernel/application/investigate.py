@@ -137,6 +137,9 @@ def identify_query(field_: Field, profile: TestProfile) -> CatalogueQuery:
     )
 
 
+#: The stage summary key naming each source whose read filled its row cap, with the cap (#59)
+ROW_CAP_REACHED = "row_cap_reached"
+
 CATALOGUE_ROWS = 50_000
 """The most rows Retrieve reads from a catalogue archive, in a single call."""
 
@@ -499,8 +502,15 @@ class InvestigateFieldUseCase:
         return item is not None, item
 
     def _catalogue_table(
-        self, investigation_set: InvestigationSet, query: CatalogueQuery, *, required: bool
+        self,
+        investigation_set: InvestigationSet,
+        query: CatalogueQuery,
+        *,
+        required: bool,
+        cut_off: dict[str, int] | None = None,
     ) -> tuple[pa.Table, DatasetArtifact] | None:
+        """Acquire one catalogue query. A read that fills its row cap is noted in ``cut_off`` (source id to
+        cap): the region may hold more rows than were read, and the stage summary says so (#59)."""
         allowed, item = self._authorise(query.source_id, query_operation(query), query_target(query))
         if not allowed:
             if required:
@@ -511,6 +521,8 @@ class InvestigateFieldUseCase:
             log.warning("catalogue query refused by the plan", extra={"source": query.source_id})
             return None
         result = self.acquire.execute(AcquireDatasetCommand(query))
+        if cut_off is not None and result.reached_row_cap:
+            cut_off[query.source_id] = query.row_cap
         artifact = result.curated or result.raw
         if artifact.status is DatasetStatus.REJECTED:
             raise IntegrityError(f"{query.source_id} acquisition was rejected: {artifact.rejection_reason}")
@@ -531,8 +543,9 @@ class InvestigateFieldUseCase:
             return restored
         spec = investigation_set.profile.identify
         field_ = investigation_set.field
+        cut_off: dict[str, int] = {}
         identified = self._catalogue_table(
-            investigation_set, identify_query(field_, investigation_set.profile), required=True
+            investigation_set, identify_query(field_, investigation_set.profile), required=True, cut_off=cut_off
         )
         assert identified is not None
         gaia, gaia_artifact = identified
@@ -560,6 +573,7 @@ class InvestigateFieldUseCase:
             unmatched=sum(1 for o in objects if o.unmatched),
             resolved=sum(1 for o in objects if o.resolver_record is not None),
             route=spec.route.value,
+            **({ROW_CAP_REACHED: cut_off} if cut_off else {}),
         )
         return object_set
 
@@ -861,8 +875,9 @@ class InvestigateFieldUseCase:
         releases: dict[str, set[str]] = {k: set() for k in keys}
 
         identify = profile.identify
+        cut_off: dict[str, int] = {}
         identified = self._catalogue_table(
-            investigation_set, identify_query(investigation_set.field, profile), required=True
+            investigation_set, identify_query(investigation_set.field, profile), required=True, cut_off=cut_off
         )
         assert identified is not None
         gaia, gaia_artifact = identified
@@ -880,7 +895,7 @@ class InvestigateFieldUseCase:
             if selection.role is not ArchiveRole.CATALOGUE:
                 continue
             read = self._catalogue_table(
-                investigation_set, catalogue_query(investigation_set.field, selection), required=False
+                investigation_set, catalogue_query(investigation_set.field, selection), required=False, cut_off=cut_off
             )
             if read is None:
                 continue
@@ -1062,6 +1077,7 @@ class InvestigateFieldUseCase:
             bundles=len(bundles),
             observation_indices=sum(len(v) for v in indices.values()),
             products=sum(len(v) for v in products.values()),
+            **({ROW_CAP_REACHED: cut_off} if cut_off else {}),
         )
         return bundles
 

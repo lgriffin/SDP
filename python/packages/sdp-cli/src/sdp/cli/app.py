@@ -17,7 +17,7 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
-from sdp.kernel.application.investigate import QueryInvestigationsUseCase
+from sdp.kernel.application.investigate import ROW_CAP_REACHED, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
 from sdp.kernel.domain.errors import DomainError
@@ -372,7 +372,25 @@ def _set_summary(s: InvestigationSet) -> dict[str, Any]:
         "investigations": len(s.investigation_ids),
         "manifest_id": s.manifest_id.value if s.manifest_id else None,
         "label": s.label,
+        "row_cap_reached": row_cap_reached(s),
     }
+
+
+def row_cap_reached(s: InvestigationSet) -> dict[str, int]:
+    """Every source whose read filled its row cap in any stage, with the cap (#59)."""
+    reached: dict[str, int] = {}
+    for record in s.stages.values():
+        reached.update(record.summary.get(ROW_CAP_REACHED, {}))
+    return reached
+
+
+def warn_row_caps(reached: dict[str, int]) -> None:
+    for source, cap in sorted(reached.items()):
+        typer.echo(
+            f"warning: {source} had at least {cap:,} rows here, so only part of the field was read; "
+            "choose a smaller region or raise row_cap",
+            err=True,
+        )
 
 
 def _investigation_summary(i: Investigation) -> dict[str, Any]:
@@ -420,6 +438,7 @@ def investigate(
             "candidates": [_investigation_summary(i) for i in run.investigations],
         }
     )
+    warn_row_caps(row_cap_reached(run.investigation_set))
 
 
 def _query() -> QueryInvestigationsUseCase:
@@ -632,7 +651,11 @@ def plan_execute(plan_id: str, actor: Annotated[str, typer.Option()] = "cli") ->
     if use_case is None:
         raise DomainError("Investigate is not wired: no observation archive or cross-match adapters are configured")
     execution = use_case.execute(ExecutePlanCommand(plan_id, actor))
-    emit({**_plan_summary(_plan_record(plan_id)), "execution": execution.to_document()})
+    summary = _plan_summary(_plan_record(plan_id))
+    executed = _query().set(summary["set_id"]) if summary["set_id"] else None
+    reached = row_cap_reached(executed) if executed is not None else {}
+    emit({**summary, "execution": execution.to_document(), "row_cap_reached": reached})
+    warn_row_caps(reached)
 
 
 # --- database and telemetry (need only settings) ------------------------------------------------
@@ -716,9 +739,13 @@ def archive_acquire(
             "raw": result.raw.artifact_id.value,
             "curated": result.curated.artifact_id.value if result.curated else None,
             "reused": result.reused,
+            "rows": result.rows,
+            "row_cap_reached": result.reached_row_cap,
             "query": result.raw.source_ref.query_text,
         }
     )
+    if result.reached_row_cap:
+        warn_row_caps({source: row_cap})
 
 
 @archive_app.command("smoke")

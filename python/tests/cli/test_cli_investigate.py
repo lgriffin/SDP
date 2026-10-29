@@ -123,3 +123,16 @@ def test_without_investigate_ports_the_run_is_refused_but_queries_work(profile: 
         assert invoke("investigate", "sets") == []
     finally:
         cli.use_runtime(cli._production_runtime)
+
+
+@pytest.mark.req("DSI-012")
+def test_a_run_that_fills_its_row_cap_warns_and_names_the_source(k: InMemoryKernel, tmp_path: Path) -> None:
+    doc = synthetic_profile().to_document()
+    doc["identify"]["row_cap"] = 20
+    capped = tmp_path / "capped.yaml"
+    capped.write_text(yaml.safe_dump(doc, sort_keys=False))
+    result = runner.invoke(cli.app, ["investigate", "--region", REGION, "--profile", str(capped)])
+    assert result.exit_code == 0, result.output
+    source = doc["identify"]["source_id"]
+    assert json.loads(result.stdout)["row_cap_reached"] == {source: 20}
+    assert f"warning: {source} had at least 20 rows here" in result.stderr

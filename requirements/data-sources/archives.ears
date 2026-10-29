@@ -73,3 +73,13 @@ requirements:
     traces:
       - "python/tests.archives.test_tap::test_a_wide_cone_puts_a_bounding_box_in_front_of_contains"
       - "python/tests.archives.test_tap::test_the_bounding_box_always_holds_the_whole_circle"
+  - id: DSI-012
+    pattern: event
+    text: "When a catalogue read returns as many rows as its row cap, the system shall report the source and cap with the acquisition and in the summary of every Investigate stage that read it."
+    rationale: "A query is TOP row_cap in key order, so a capped read keeps one patch of the field and drops the rest; the scientist must know (#59)."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.usecase.test_acquire_dataset::test_an_acquisition_that_fills_its_row_cap_says_so"
+      - "python/tests.usecase.test_investigate::test_a_stage_whose_read_filled_its_row_cap_names_the_source"

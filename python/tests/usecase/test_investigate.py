@@ -461,3 +461,16 @@ def test_an_empty_field_opens_nothing_but_still_records_the_set() -> None:
     candidates = run.investigation_set.stages[Stage.CANDIDATES].artifact_id
     assert candidates is not None
     assert decode_artifact(world.k.store.get(candidates), JSON) == {"investigations": []}
+
+
+@pytest.mark.req("DSI-012")
+def test_a_stage_whose_read_filled_its_row_cap_names_the_source(world: World) -> None:
+    roomy = world.run()
+    assert all("row_cap_reached" not in r.summary for r in roomy.investigation_set.stages.values())
+
+    profile = synthetic_profile()
+    capped = replace(profile, identify=replace(profile.identify, row_cap=20), version="1.0.1")
+    run = world.run(profile=capped)
+    identify = run.investigation_set.stages[Stage.IDENTIFY].summary
+    assert identify["row_cap_reached"] == {profile.identify.source_id: 20}
+    assert run.investigation_set.stages[Stage.RETRIEVE].summary["row_cap_reached"][profile.identify.source_id] == 20
