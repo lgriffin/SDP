@@ -94,13 +94,29 @@ class EnvelopeValidator:
         check("access_status", metadata.access_status is AccessStatus.PUBLIC, metadata.access_status.value)
         check("rights.citation", bool(metadata.rights.citation and metadata.rights.licence), metadata.rights.citation)
 
-        if metadata.media_type in VOTABLE_MEDIA_TYPES:
+        if metadata.media_type in VOTABLE_MEDIA_TYPES and (
+            metadata.media_type == VOTABLE_MEDIA_TYPES[0] or metadata.product_type not in NON_SCIENCE
+        ):
+            # generic XML is read as a VOTable only for science; a preview or auxiliary XML keeps its pass
             try:
                 tables = read_tables(data)
             except ValueError as exc:
                 check("format", False, str(exc))
                 return self._report(metadata, checks)
             check("format", True, f"VOTable with {len(tables)} table(s)")
+            for timesys in sorted({str(t.header["TIMESYS"]) for t in tables if "TIMESYS" in t.header}):
+                check(
+                    "time_scale.timesys",
+                    _same(timesys, metadata.time_scale),
+                    f"TIMESYS={timesys}, envelope {metadata.time_scale}",
+                )
+            collection = product.obscore_row.get("obs_collection")
+            if collection not in (None, ""):
+                check(
+                    "mission.obscore",
+                    _same(collection, metadata.mission),
+                    f"obs_collection={collection}, envelope {metadata.mission}",
+                )
             self._units(metadata, check)
             self._columns(metadata, tables, check)
             return self._report(metadata, checks)
@@ -134,9 +150,13 @@ class EnvelopeValidator:
             ok = metadata.product_type not in (ProductType.IMAGE, ProductType.SPECTRUM, ProductType.CUBE)
             checks.append(SemanticCheck("format", ok, f"curated as {curated_type}"))
             if metadata.has_uncertainty:
-                # A table keeps its uncertainty as a column named ``*_err`` (the canonical products').
-                header = curated.data.split(b"\n", 1)[0].decode("utf-8", "replace").split(",")
-                kept = any(c.strip().endswith("_err") for c in header)
+                # A table keeps its uncertainty as a column named ``*_err`` (the canonical products'); a
+                # time series is curated to the canonical light curve, whose reader needs ``mag_err``.
+                header = {c.strip() for c in curated.data.split(b"\n", 1)[0].decode("utf-8", "replace").split(",")}
+                if metadata.product_type is ProductType.TIMESERIES:
+                    kept = {"mjd", "mag", "mag_err"} <= header
+                else:
+                    kept = any(c.endswith("_err") for c in header)
                 checks.append(
                     SemanticCheck("uncertainty", kept, "kept" if kept else "the raw product's uncertainty is lost")
                 )
@@ -227,7 +247,7 @@ class EnvelopeValidator:
         """Every column the envelope names is in the file, and every error or quality column the file
         has is in the envelope (the VOTable form of the FITS extension rule)."""
         by_name = {t.name: t for t in tables}
-        listed = {e.name for e in metadata.extensions}
+        listed = {e.name: e.role for e in metadata.extensions}
         for ext in metadata.extensions:
             name, _, column = ext.name.partition(":")
             t = by_name.get(name)
@@ -238,11 +258,13 @@ class EnvelopeValidator:
                 role = LISTED_UCDS.get(t.column_ucds.get(column, "").split(";")[0])
                 if role is not None:
                     name = f"{t.name}:{column}"
-                    check(
-                        f"extensions.{name}",
-                        name in listed,
-                        "recorded" if name in listed else f"{role} column in the file, missing from the envelope",
-                    )
+                    if name not in listed:
+                        detail = f"{role} column in the file, missing from the envelope"
+                    elif listed[name] != role:
+                        detail = f"{role} column recorded as {listed[name]}"
+                    else:
+                        detail = "recorded"
+                    check(f"extensions.{name}", detail == "recorded", detail)
         check(
             "has_wcs",
             not metadata.has_wcs,
