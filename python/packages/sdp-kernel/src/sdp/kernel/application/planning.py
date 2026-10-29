@@ -132,9 +132,14 @@ def derive_requirements(
             for need in declared:
                 add(need)
             continue
+        catalogues = [name.partition(":")[2] for name in test.inputs if name.startswith("catalogue:")]
         for name in test.inputs:
             kind, _, source = name.partition(":")
             if kind == "catalogue" and source:
+                # A test names its primary catalogue generically ("gaia"); the profile says which
+                # source serves it through the test's ``source_id`` threshold.
+                if source == catalogues[0] and selection.thresholds.get("source_id"):
+                    source = str(selection.thresholds["source_id"])
                 add(
                     EvidenceRequirement(
                         f"{test.name}:catalogue:{source}",
@@ -274,6 +279,22 @@ class PlanInvestigationUseCase:
         catalogue_needs = [
             r for r in requirements[1:] if ProductType.CATALOGUE in r.product_types and not r.needs_bytes
         ]
+        # Identify's own query serves a test that reads the identify catalogue: the bundles carry
+        # its rows, so the plan names the one query under both requirements and fetches it once.
+        identify_suffix = f":catalogue:{identify.source_id}"
+        for need in catalogue_needs:
+            if need.requirement_id.endswith(identify_suffix):
+                out.append(
+                    candidate(
+                        identify.source_id,
+                        query_operation(query),
+                        query_target(query),
+                        identify.row_cap * len(identify.columns) * CELL_BYTES,
+                        identify.row_cap,
+                        self._licence(identify.source_id),
+                        need,
+                    )
+                )
         product_needs = [r for r in requirements if r.needs_bytes]
         for selection in profile.archives:
             if selection.role is ArchiveRole.CATALOGUE:

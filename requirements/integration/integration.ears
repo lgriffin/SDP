@@ -156,3 +156,11 @@ requirements:
     tiers: [T4]
     status: approved
     traces: []
+  - id: INT-020
+    pattern: event
+    text: "When an investigation profile reads image products, the image-counterpart test shall detect sources on each image, associate them with the field's Gaia sources propagated to the image epoch by both association methods, and flag a Gaia source with no counterpart or one displaced beyond its combined covariance."
+    rationale: "The JWST vertical slice adds no science algorithm (v0.4.0 §7): detection is the detector service, association is ADR-019's two methods, and every retained hypothesis, including a blended detection's competing members, reaches the dossier with its posteriors."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []

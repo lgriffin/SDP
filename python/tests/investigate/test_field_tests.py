@@ -125,7 +125,7 @@ def test_every_test_is_registered_through_the_entry_point_with_a_cpu_reference_a
 @pytest.mark.req("INV-007")
 def test_the_survey_runs_every_test_and_records_every_null(survey: Survey) -> None:
     s = survey.run.investigation_set
-    assert {n.test_name for n in s.null_results} == {t.name for t in registered_tests()}
+    assert {n.test_name for n in s.null_results} == {t.name for t in full_profile().tests}
     assert survey.run.manifest["multiplicity"]["tests_applied"] == 6
     assert survey.run.manifest["multiplicity"]["comparisons"] == 60 * 6
 

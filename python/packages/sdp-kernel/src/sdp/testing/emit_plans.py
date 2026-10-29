@@ -3,7 +3,8 @@
     python -m sdp.testing.emit_plans <out-dir>
 
 writes ``<out>/<name>.json`` for an automatically approved plan, one approved above the threshold
-by a signed ledger entry, a refused one, and a drafted one with gaps. ``spec-harness rederive-plan``
+by a signed ledger entry, a refused one, a drafted one with gaps, and the JWST vertical slice's
+plan (v0.4.0 §7) with the image test installed under the ``sdp.investigation_tests`` entry point. ``spec-harness rederive-plan``
 then recomputes each plan's id, its minimum product set and gaps from the candidates it records,
 its cost and its approval, and fails on any disagreement.
 """
@@ -13,9 +14,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from sdp.kernel.application.investigate import load_investigation_tests
 from sdp.kernel.domain.canonical import canonical_json
 from sdp.kernel.domain.integration import AcquisitionBudget, AcquisitionPlan
 from sdp.kernel.ports.integration import ApprovePlanCommand, PlanInvestigationCommand
+from sdp.testing.integration import gaia_descriptor, mast_descriptor
 from sdp.testing.investigate import (
     ProperMotionExcessTest,
     gaia_archive,
@@ -28,6 +31,7 @@ from sdp.testing.investigate import (
     synthetic_profile,
     twomass_archive,
 )
+from sdp.testing.jwst import GAIA, MAST, jwst_archive, jwst_catalogue, jwst_field, jwst_profile
 from sdp.testing.wiring import InMemoryKernel, build_in_memory_kernel
 
 LIGHTCURVES = ("lightcurve",)
@@ -59,6 +63,22 @@ def _decide(k: InMemoryKernel, plan: AcquisitionPlan, **kw: object) -> Acquisiti
     return k.kernel.approve_plan.execute(ApprovePlanCommand(plan.plan_id, "leigh", **kw))  # type: ignore[arg-type]
 
 
+def _jwst_slice() -> AcquisitionPlan:
+    catalogue = jwst_catalogue()
+    ports = investigate_ports(load_investigation_tests().get("image-counterpart", "1.0.0"), catalogue=catalogue)
+    ports.observation_gateways = {MAST: jwst_archive(catalogue)}
+    k = build_in_memory_kernel(
+        gateways={GAIA: gaia_archive(catalogue)},
+        investigate=ports,
+        discovery=planning_discovery(mast_descriptor(), gaia_descriptor()),
+    )
+    assert k.kernel.plan_investigation is not None
+    plan = k.kernel.plan_investigation.execute(
+        PlanInvestigationCommand(jwst_field(), jwst_profile(), AcquisitionBudget(500_000_000, 10, 600.0, 0, 50_000_000))
+    )
+    return _decide(k, plan)
+
+
 def emit(out: Path) -> list[Path]:
     plans: dict[str, AcquisitionPlan] = {}
     k = _kernel()
@@ -71,6 +91,7 @@ def emit(out: Path) -> list[Path]:
     plans["refused"] = _decide(k, _plan(k), refuse_reason="not this field")
     gaia, _, _ = planning_descriptors()
     plans["drafted-with-gaps"] = _plan(_kernel(gaia))
+    plans["jwst-slice"] = _jwst_slice()
     out.mkdir(parents=True, exist_ok=True)
     written = []
     for name, plan in plans.items():
