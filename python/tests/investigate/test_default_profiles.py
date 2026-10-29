@@ -163,7 +163,7 @@ def test_a_default_profile_runs_end_to_end(path: Path) -> None:
         *registered_tests(),
         catalogue=catalogue,
         rankers=load_candidate_rankers(),
-        **({"resolver": jwst_resolver(catalogue)} if images else {}),
+        resolver=jwst_resolver(catalogue) if images else None,
     )
     if images:
         ports.observation_gateways = {MAST: jwst_cutting_archive(catalogue)}

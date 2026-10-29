@@ -188,7 +188,9 @@ def test_an_image_whose_astrometry_is_off_is_shifted_onto_gaia_before_it_is_comp
 
     def flagged(align: bool) -> tuple[set[str], dict[str, Any]]:
         k = slice_kernel(replace(off, fetches=[]))
-        k.kernel.investigate_field.ports.services["refiner"] = TweakwcsRefiner()  # type: ignore[union-attr]
+        use_case = k.kernel.investigate_field
+        assert use_case is not None
+        use_case.ports.services = {**use_case.ports.services, "refiner": TweakwcsRefiner()}
         _, run = run_slice(k, profile=aligned_profile(align))
         return {key for key, r in run["results"].items() if r["p_value"] < 0.01}, run["results"]
 
