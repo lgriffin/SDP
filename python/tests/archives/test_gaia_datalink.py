@@ -586,3 +586,49 @@ def test_links_and_params_read_as_plain_python_without_warnings() -> None:
     assert type(table.header["source_id"]) is int and type(table.header["TIMEORIGIN"]) is float
     assert not {"TIMESYS", "TIMEREFPOS", "TIMEORIGIN"} & set(listing.header)
     assert "ACCESS_URL" in listing.columns and listing.shape == (5,)
+
+
+def test_an_envelope_contradicting_the_products_time_system_or_mission_fails() -> None:
+    meta, product = envelope("EPOCH_PHOTOMETRY")
+    wrong = replace(meta, time_scale="UTC", mission="TESS")
+    failed = {c.field: c.detail for c in EnvelopeValidator().validate(wrong, product).checks if not c.passed}
+    assert failed == {
+        "time_scale.timesys": "TIMESYS=TCB, envelope UTC",
+        "mission.obscore": "obs_collection=GAIA, envelope TESS",
+    }
+    passed = {c.field: c.detail for c in EnvelopeValidator().validate(meta, product).checks}
+    assert passed["time_scale.timesys"] == "TIMESYS=TCB, envelope TCB"
+
+
+def test_an_error_column_recorded_under_another_role_fails() -> None:
+    meta, product = envelope("EPOCH_PHOTOMETRY")
+    relabelled = tuple(
+        replace(e, role="data") if e.name == "TABLE0:G_TRANSIT_FLUX_ERROR" else e for e in meta.extensions
+    )
+    report = EnvelopeValidator().validate(replace(meta, extensions=relabelled), product)
+    failed = {c.field: c.detail for c in report.checks if not c.passed}
+    assert failed == {"extensions.TABLE0:G_TRANSIT_FLUX_ERROR": "error column recorded as data"}
+
+
+def test_a_curated_light_curve_needs_the_canonical_magnitude_error() -> None:
+    meta, product = envelope("EPOCH_PHOTOMETRY")
+    other = CuratedProduct(b"mjd,mag,other_err\n57000.0,13.2,0.01\n", "text/csv")
+    failed = {
+        c.field: c.detail for c in EnvelopeValidator().validate_curation(meta, product, other).checks if not c.passed
+    }
+    assert failed == {"uncertainty": "the raw product's uncertainty is lost"}
+    spectrum, raw_spectrum = envelope("XP_SAMPLED")
+    table = CuratedProduct(b"wl, flux , flux_err\n", "text/csv")
+    checks = {c.field: c.passed for c in EnvelopeValidator().validate_curation(spectrum, raw_spectrum, table).checks}
+    assert checks["uncertainty"] is True
+
+
+def test_a_generic_xml_preview_is_not_read_as_a_votable() -> None:
+    meta, product = envelope("XP_SAMPLED")
+    preview = replace(meta, media_type="text/xml", product_type=ProductType.PREVIEW)
+    broken = replace(product, fetched=replace(product.fetched, data=b"<preview/>"))
+    formats = {c.field: c for c in EnvelopeValidator().validate(preview, broken).checks}
+    assert formats["format"].passed and formats["format"].detail == "text/xml is not FITS or a VOTable"
+    science = replace(meta, media_type="text/xml")
+    checks = {c.field: c for c in EnvelopeValidator().validate(science, product).checks}
+    assert checks["format"].detail == "VOTable with 1 table(s)"
