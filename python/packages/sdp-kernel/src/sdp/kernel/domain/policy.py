@@ -50,8 +50,9 @@ class NumericalPolicy:
         b = np.asarray(expected)
         if a.shape != b.shape:
             return False
-        if self.determinism is DeterminismClass.BITWISE or a.dtype.kind not in "fc":
-            return bool(np.array_equal(a, b, equal_nan=a.dtype.kind in "fc"))
+        inexact = bool(np.issubdtype(a.dtype, np.inexact))
+        if self.determinism is DeterminismClass.BITWISE or not inexact:
+            return bool(np.array_equal(a, b, equal_nan=inexact))
         return bool(np.allclose(a, b, rtol=self.rtol, atol=self.atol, equal_nan=True))
 
     def to_document(self) -> dict[str, Any]:

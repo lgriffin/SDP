@@ -36,7 +36,8 @@ jobs:
     name: mutmut · ${{ matrix.target }}
     needs: targets
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # the relativity analysis shard alone runs past three hours (tools/mutation.py, RELATIVITY_SHARDS)
+    timeout-minutes: 300
     strategy:
       fail-fast: false
       matrix:

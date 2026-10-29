@@ -37,6 +37,8 @@ class Settings:
     #: live (the archives, politely), replay (committed cassettes only) or record (live, writing cassettes)
     archive_mode: str = "live"
     cassette_dir: Path | None = None
+    #: where Gaia fields are read: auto (the bulk copy once complete, else the archive), tap or bulk (#72)
+    gaia_source: str = "auto"
     #: Zenodo: the token never appears in a repr, a log or a manifest; the sandbox is the default service
     zenodo_token: str | None = field(default=None, repr=False)
     zenodo_url: str = "https://sandbox.zenodo.org"
@@ -82,6 +84,7 @@ class Settings:
             log_level=env.get("SDP_LOG_LEVEL", "INFO"),
             archive_mode=archive_mode(env.get("SDP_ARCHIVE_MODE", "live")),
             cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
+            gaia_source=gaia_source(env.get("SDP_GAIA_SOURCE", "auto")),
             zenodo_token=secret(env, "SDP_ZENODO_TOKEN"),
             zenodo_url=env.get("SDP_ZENODO_URL", "https://sandbox.zenodo.org"),
             zenodo_creators=env.get("SDP_ZENODO_CREATORS", ""),
@@ -115,4 +118,13 @@ ARCHIVE_MODES = ("live", "replay", "record")
 def archive_mode(value: str) -> str:
     if value not in ARCHIVE_MODES:
         raise SettingsError(f"SDP_ARCHIVE_MODE must be one of {', '.join(ARCHIVE_MODES)}, got {value!r}")
+    return value
+
+
+GAIA_SOURCES = ("auto", "tap", "bulk")
+
+
+def gaia_source(value: str) -> str:
+    if value not in GAIA_SOURCES:
+        raise SettingsError(f"SDP_GAIA_SOURCE must be one of {', '.join(GAIA_SOURCES)}, got {value!r}")
     return value
