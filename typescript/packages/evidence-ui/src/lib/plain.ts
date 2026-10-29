@@ -1,6 +1,6 @@
 // Plain-language view logic for scientists: what a state means, where a piece of work is on its path,
 // the one next step, and the geometry of the gate ruler. Pure, and unit-tested without a browser.
-import type { ExperimentSummary, GateCheck, Investigation, InvestigationSetSummary, Plan, PlanState } from "./ports.ts";
+import type { ExperimentSummary, FieldStar, GateCheck, Investigation, InvestigationSetSummary, Plan, PlanState } from "./ports.ts";
 import type { Tone } from "./view.ts";
 
 const PROGRAMMES: Record<string, string> = {
@@ -428,4 +428,69 @@ export function outcomeLabel(outcome: string): string {
 
 export function outcomeTone(outcome: string): Tone {
   return outcome === "pass" ? "good" : outcome === "fail" ? "bad" : "warn";
+}
+
+// --- images of a field (INV-020) ---------------------------------------------------------------------
+
+const CHECK_NAMES: Record<string, string> = {
+  checksum: "The bytes match their checksum",
+  size_bytes: "Size",
+  product_type: "Kind of product",
+  frame: "Sky coordinate frame",
+  time_scale: "Time scale",
+  calibration_level: "Calibration level",
+  access_status: "Public data",
+  "rights.citation": "Citation and licence",
+  format: "Readable FITS file",
+  mission: "Telescope named in the header",
+  "mission.obscore": "Telescope agrees with the archive",
+  instrument: "Instrument named in the header",
+  "instrument.obscore": "Instrument agrees with the archive",
+  detector: "Detector",
+  filter_or_grating: "Filter",
+  units: "Pixel units",
+  "extensions.SCI": "Science pixels present",
+  has_wcs: "Sky coordinates (WCS)",
+  uncertainty: "Uncertainty array",
+  quality: "Quality mask",
+};
+
+/** A validator check in words; an unknown check keeps its field name. */
+export function checkName(field: string): string {
+  return CHECK_NAMES[field] ?? field;
+}
+
+/** "NIRCam F090W" from an image's envelope summary; the product id when it says nothing. */
+export function imageTitle(summary: Record<string, unknown>, fallback: string): string {
+  const instrument = String(summary.instrument ?? "").replace(/^NIRCAM$/, "NIRCam").replace(/^NIRISS$/, "NIRISS").replace(/^MIRI$/, "MIRI");
+  const filter = String(summary.filter_or_grating ?? "");
+  const words = [instrument, filter].filter(Boolean).join(" ");
+  return words || fallback.split("/").pop() || fallback;
+}
+
+/** The date an image was taken, from its envelope's start time in MJD; null when it gives none. */
+export function observedOn(summary: Record<string, unknown>): string | null {
+  const mjd = (summary.time as { start_mjd?: number } | undefined)?.start_mjd;
+  if (typeof mjd !== "number") return null;
+  return new Date((mjd - 40587) * 86_400_000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+export type StarStatus = "missing" | "displaced" | "ambiguous" | "matched";
+
+/** What the image says about a Gaia star: gone, off its predicted place, matched two ways, or where expected. */
+export function starStatus(star: Pick<FieldStar, "flagged" | "ambiguous" | "counterpart_px">): StarStatus {
+  if (star.flagged) return star.counterpart_px ? "displaced" : "missing";
+  return star.ambiguous ? "ambiguous" : "matched";
+}
+
+export const STAR_WORDS: Record<StarStatus, string> = {
+  missing: "Not on the image",
+  displaced: "Off its predicted place",
+  ambiguous: "Ambiguous match",
+  matched: "Where expected",
+};
+
+/** A product id's last part, e.g. the file name, without a cutout's suffix. */
+export function productFile(productId: string): string {
+  return (productId.split("/").pop() ?? productId).replace(/@cutout\(.*\)$/, "");
 }

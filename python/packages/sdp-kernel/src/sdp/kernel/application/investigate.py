@@ -21,6 +21,7 @@ import astropy.units as u
 import pyarrow as pa
 
 from sdp.kernel.application.acquisition import AcquireDatasetUseCase
+from sdp.kernel.application.field_images import field_images
 from sdp.kernel.application.media import JSON, PARQUET, decode_artifact
 from sdp.kernel.domain import events as ev
 from sdp.kernel.domain.archive import CatalogueQuery, Cone, idempotency_key
@@ -1450,6 +1451,11 @@ class QueryInvestigationsUseCase:
     def investigation(self, investigation_id: str) -> Investigation | None:
         with self.uow() as uow:
             return uow.investigations.get(investigation_id)
+
+    def images(self, set_id: str) -> list[dict[str, Any]]:
+        """Each image the set read, its envelope's checks and the Gaia stars on it (INV-020)."""
+        found = self.set(set_id)
+        return field_images(self.store, found, self.investigations(set_id)) if found else []
 
     def manifest(self, set_id: str) -> dict[str, Any] | None:
         found = self.store.resolve(set_path(set_id, "manifest.json"))

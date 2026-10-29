@@ -143,3 +143,41 @@ def test_the_epoch_comes_from_the_extension_the_pixels_come_from() -> None:
     frame = ImageFrame("a", buffer.getvalue(), "application/fits")
     assert header_epoch_mjd(*image_headers(frame)) == 59000.0
     assert header_epoch_mjd(*image_headers(frame, 2)) == 59500.0
+
+
+@pytest.mark.req("INV-020")
+def test_each_star_carries_where_it_and_its_counterpart_fall_on_each_image(results: dict[str, dict[str, Any]]) -> None:
+    import math
+
+    from astropy.wcs import WCS
+
+    from sdp.testing.jwst import IMAGE_PIXELS, JWST_CENTRE, PIXEL_ARCSEC
+
+    wcs = WCS(
+        {
+            "NAXIS": 2,
+            "CTYPE1": "RA---TAN",
+            "CTYPE2": "DEC--TAN",
+            "CRVAL1": JWST_CENTRE[0],
+            "CRVAL2": JWST_CENTRE[1],
+            "CRPIX1": (IMAGE_PIXELS + 1) / 2,
+            "CRPIX2": (IMAGE_PIXELS + 1) / 2,
+            "CDELT1": -PIXEL_ARCSEC / 3600,
+            "CDELT2": PIXEL_ARCSEC / 3600,
+        }
+    )
+    dt = image_epoch_jyear() - 2016.0
+    for row in jwst_catalogue().to_pylist():
+        r = results[row["source_key"]]
+        [on] = r["details"]["per_image"]
+        assert on["image"] == r["details"]["image"] and on["ambiguous"] == r["details"]["ambiguous"]
+        cosd = math.cos(math.radians(row["dec_deg"]))
+        ra = row["ra_deg"] + row["pm_ra_cosdec_masyr"] * dt / 3.6e6 / cosd
+        dec = row["dec_deg"] + row["pm_dec_masyr"] * dt / 3.6e6
+        x, y = wcs.world_to_pixel_values(ra, dec)
+        assert on["predicted_px"] == pytest.approx([float(x), float(y)], abs=0.05), row["source_key"]
+        if row["source_key"] == VANISHED:
+            assert on["counterpart_px"] is None and on["d2"] is None
+        else:
+            assert on["counterpart_px"] == pytest.approx(on["predicted_px"], abs=1.0)
+            assert on["d2"] == pytest.approx(r["statistic"])

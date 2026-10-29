@@ -12,10 +12,12 @@ import type {
   InvestigationSet,
   InvestigationSetSummary,
   ArchivesStatus,
+  ArtifactBytes,
   LedgerEntry,
   Plan,
 } from "../ports.ts";
 import data from "./fixtures.json" with { type: "json" };
+import jwst from "./jwst.json" with { type: "json" };
 import plans from "./plans.json" with { type: "json" };
 
 export interface FixtureData {
@@ -29,6 +31,8 @@ export interface FixtureData {
   investigation: Record<string, Investigation>;
   plans: Plan[];
   archives: ArchivesStatus;
+  /** Pictures of the fixture images, base64 PNG by artifact id (scripts/jwst-fixtures.py). */
+  previews: Record<string, string>;
 }
 
 /** What a server that has registered its archives lists: the packaged catalogues and MAST. */
@@ -44,7 +48,16 @@ export const REGISTERED_ARCHIVES: ArchivesStatus = {
 /** How long a demonstration plan's background run takes before it reads as finished. */
 export const DEMO_RUN_MS = 2500;
 
-export const FIXTURES = { ...data, plans, archives: REGISTERED_ARCHIVES } as unknown as FixtureData;
+// jwst.json is the synthetic JWST field, planned and executed through the planner, with its image.
+export const FIXTURES = {
+  ...data,
+  investigationSets: [...data.investigationSets, ...jwst.investigationSets],
+  investigationSet: { ...data.investigationSet, ...jwst.investigationSet },
+  investigation: { ...data.investigation, ...jwst.investigation },
+  plans: [...plans, ...jwst.plans],
+  archives: REGISTERED_ARCHIVES,
+  previews: jwst.previews,
+} as unknown as FixtureData;
 
 export class InMemoryEvidenceSource implements EvidenceSource {
   readonly data: FixtureData;
@@ -97,6 +110,15 @@ export class InMemoryEvidenceSource implements EvidenceSource {
 
   async archives(): Promise<ArchivesStatus | null> {
     return this.data.archives;
+  }
+
+  async artifact(_artifactId: string): Promise<ArtifactBytes | null> {
+    return null; // the demonstration keeps pictures, not the files themselves
+  }
+
+  async preview(artifactId: string): Promise<ArtifactBytes | null> {
+    const b64 = this.data.previews[artifactId];
+    return b64 ? { body: new Uint8Array(Buffer.from(b64, "base64")), mediaType: "image/png" } : null;
   }
 
   /** A demonstration run finishes a moment after it starts, so the page shows it running first. */

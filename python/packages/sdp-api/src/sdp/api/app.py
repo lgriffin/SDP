@@ -14,6 +14,7 @@ already written. Triage and refusals record their actor and reason like the CLI.
 from __future__ import annotations
 
 import hmac
+import threading
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -24,11 +25,13 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from strawberry.asgi import GraphQL
 
-from sdp.api.jobs import REGISTER_JOB, Jobs, plan_job
+from sdp.adapters.products.preview import preview_png
+from sdp.api.jobs import REGISTER_JOB, RUNNING, Jobs, plan_job
 from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, plan_view
 from sdp.kernel.domain.errors import DomainError
+from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.integration import AcquisitionBudget
 from sdp.kernel.domain.investigation import Field, TestProfile, parse_region
 from sdp.kernel.ports.integration import ApprovePlanCommand, ExecutePlanCommand, PlanInvestigationCommand
@@ -36,6 +39,9 @@ from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationR
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.storage import ArtifactStore
 
+BUSY = "another field run is going on this server; it reads archives for minutes, so start this when it finishes"
+#: Artifacts are content-addressed, so an answer for one never changes.
+IMMUTABLE = {"cache-control": "private, max-age=31536000, immutable"}
 UNSIGNED_TRIAGE = frozenset({"park", "reopen", "close", "annotate"})
 """Triage the UI may send. Promotion is left to the CLI (INV-009)."""
 
@@ -94,6 +100,15 @@ def create_app(
     runtime: Runtime, token: str | None = None, *, archives: Archives | None = None, jobs: Jobs | None = None
 ) -> Starlette:
     work = jobs if jobs is not None else Jobs()
+    # One InvestigateField at a time: its use case holds the running plan's gate on the instance, so a
+    # second run alongside a background download could replace or clear that gate mid-run (INV-018).
+    runs = threading.Lock()
+
+    def busy() -> Response:
+        return JSONResponse(
+            {"error": BUSY, "type": "RunInProgress"},
+            status_code=409,
+        )
 
     def health(_: Request) -> Response:
         checks: dict[str, Any] = {}
@@ -148,10 +163,14 @@ def create_app(
             )
         except (KeyError, TypeError, ValueError, DomainError) as exc:
             return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
+        if not runs.acquire(blocking=False):
+            return busy()
         try:
             run = use_case.execute(command)
         except DomainError as exc:
             return JSONResponse({"error": str(exc), "type": type(exc).__name__}, status_code=409)
+        finally:
+            runs.release()
         return JSONResponse(run_summary(run))
 
     async def triage(request: Request) -> Response:
@@ -296,11 +315,18 @@ def create_app(
         except (TypeError, ValueError, AttributeError) as exc:
             return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
         command = ExecutePlanCommand(plan_id, actor)
+        current = work.get(plan_job(plan_id))
+        if current is not None and current.state == RUNNING:
+            return JSONResponse(job_view(plan_id))  # already downloading: nothing new starts
         if not background:
+            if not runs.acquire(blocking=False):
+                return busy()
             try:
                 use_case.execute(command)
             except (KeyError, DomainError) as exc:
                 return refused(exc)
+            finally:
+                runs.release()
             return JSONResponse(job_view(plan_id))
         try:
             state = view(plan_id)["state"]
@@ -308,9 +334,47 @@ def create_app(
             return refused(exc)
         if state not in ("approved", "auto_approved"):
             return JSONResponse({"error": f"plan {plan_id} is {state}; only an approved plan runs"}, status_code=409)
+        if not runs.acquire(blocking=False):
+            return busy()
+
+        def run_plan() -> None:
+            try:
+                use_case.execute(command)
+            finally:
+                runs.release()
+
         # The run reads archives for minutes, so it answers now and the UI reads the job's state (INV-018).
-        _, started = work.start(plan_job(plan_id), lambda: use_case.execute(command))
+        _, started = work.start(plan_job(plan_id), run_plan)
+        if not started:
+            runs.release()
         return JSONResponse(job_view(plan_id), status_code=202 if started else 200)
+
+    def artifact_of(request: Request) -> ArtifactId | Response:
+        try:
+            artifact = ArtifactId(request.path_params["artifact_id"])
+        except (DomainError, ValueError) as exc:
+            return JSONResponse({"error": f"bad artifact id: {exc}"}, status_code=400)
+        if not runtime.store.exists(artifact):
+            return JSONResponse({"error": f"no artifact {artifact.value}"}, status_code=404)
+        return artifact
+
+    def artifact(request: Request) -> Response:
+        """An artifact's bytes, as stored: a FITS cutout, an envelope, a stage document (INV-020)."""
+        found = artifact_of(request)
+        if isinstance(found, Response):
+            return found
+        return Response(runtime.store.get(found), media_type=runtime.store.media_type(found), headers=IMMUTABLE)
+
+    def preview(request: Request) -> Response:
+        """A FITS image drawn north up for the eye; the overlay comes from the set's ``images`` (INV-020)."""
+        found = artifact_of(request)
+        if isinstance(found, Response):
+            return found
+        try:
+            picture = preview_png(runtime.store.get(found))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=415)
+        return Response(picture, media_type="image/png", headers=IMMUTABLE)
 
     def archive_sources(_: Request) -> Response:
         if archives is None:
@@ -335,6 +399,8 @@ def create_app(
             Route("/plans/{plan_id}/refuse", decide, methods=["POST"]),
             Route("/plans/{plan_id}/execute", execute, methods=["POST"]),
             Route("/archives", archive_sources),
+            Route("/artifacts/{artifact_id}", artifact),
+            Route("/artifacts/{artifact_id}/preview.png", preview),
             Route("/archives/register", register_archives, methods=["POST"]),
             Route("/investigations", investigate, methods=["POST"]),
             Route("/investigations/{investigation_id}/triage", triage, methods=["POST"]),

@@ -13,8 +13,9 @@
   const description = $derived(data.profiles.find((p) => p.key === profileKey)?.description ?? "");
   let radiusText = $state<string | null>(null);
   $effect(() => {
-    void data.example?.key; // an example's radius replaces whatever was typed
+    void data.example?.key; // an example's radius and tests replace whatever was typed or chosen
     radiusText = null;
+    chosen = "";
   });
   const radius = $derived(Number(radiusText ?? v("radius", "0.5")));
   // Small fields are easier to judge in arcseconds: a NIRCam detector is about 60 arcsec across.

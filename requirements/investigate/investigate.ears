@@ -160,3 +160,11 @@ requirements:
     tiers: [T4]
     status: approved
     traces: []
+  - id: INV-020
+    pattern: event
+    text: "When a field investigation has read images, the API shall list each image with its envelope's validation checks and every Gaia star the image-counterpart test placed on it, with the star's predicted and matched pixels, its chance probability and whether the match was ambiguous, and serve the image north up as a picture."
+    rationale: "The scientist checks a JWST field by eye: Gaia's stars drawn where their motion puts them on the calibrated image, flagged and ambiguous ones first, beside the checks the FITS file passed (INT-019). The test records the pixels in the aligned frame, so the viewer needs no WCS and draws nothing the test did not compute; the picture is an asinh stretch and is never read by a test."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []

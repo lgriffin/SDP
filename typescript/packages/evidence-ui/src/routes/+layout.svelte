@@ -121,7 +121,7 @@
     color: var(--on-accent);
     cursor: pointer;
     text-decoration: none;
-    min-height: 2.6rem;
+    min-height: 2.75rem; /* 44 px, the WCAG 2.2 tap target */
   }
   :global(.button:hover), :global(button:hover) { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--on-accent); }
   :global(button.secondary), :global(.button.secondary) { background: var(--surface); color: var(--accent); }
@@ -136,7 +136,7 @@
     border: 1px solid color-mix(in srgb, var(--muted) 55%, var(--line));
     border-radius: 8px;
     padding: 0.5rem 0.65rem;
-    min-height: 2.6rem;
+    min-height: 2.75rem; /* 44 px, the WCAG 2.2 tap target */
     max-width: 100%;
   }
   :global(textarea) { width: 100%; min-height: 4.5rem; }
