@@ -1,0 +1,24 @@
+{
+ "recorded_at": "2026-10-29T00:16:04.221970Z",
+ "recorder": "integration-recording",
+ "request": {
+  "body": {
+   "text": "REQUEST=doQuery&LANG=ADQL&FORMAT=votable&MAXREC=10&QUERY=SELECT+DISTINCT+i.ivoid+FROM+rr.interface+AS+i+WHERE+i.access_url+%3D+%27https%3A%2F%2Fmast.stsci.edu%2Fvo-tap%2Fapi%2Fv0.1%2Fcaom%27+OR+i.access_url+%3D+%27https%3A%2F%2Fmast.stsci.edu%2Fvo-tap%2Fapi%2Fv0.1%2Fcaom%2F%27"
+  },
+  "headers": {
+   "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "method": "POST",
+  "url": "https://dc.g-vo.org/tap/sync"
+ },
+ "response": {
+  "body": {
+   "text": "<?xml version='1.0' encoding='utf-8'?>\n<VOTABLE version=\"1.5\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.3 http://vo.ari.uni-heidelberg.de/docs/schemata/VOTable.xsd\"><DESCRIPTION>\nTables containing the information in the IVOA Registry.  To query\nthese tables, use `our TAP service`_.\n\nFor more information and example queries, see the\n`RegTAP specification`_.\n\n.. _our TAP service: /__system__/tap/run/info\n.. _RegTAP specification: http://www.ivoa.net/documents/RegTAP/</DESCRIPTION><RESOURCE type=\"results\" utype=\"ivo://ivoa.net/std/regtap#1.2\"><INFO name=\"sql_query\" value=\"SELECT DISTINCT i.ivoid FROM rr.interface AS i WHERE i.access_url = 'https://mast.stsci.edu/vo-tap/api/v0.1/caom' OR i.access_url = 'https://mast.stsci.edu/vo-tap/api/v0.1/caom/' LIMIT 10\">ADQL query translated to local SQL (for debugging)</INFO><INFO name=\"query\" value=\"SELECT DISTINCT i.ivoid FROM rr.interface AS i WHERE i.access_url = 'https://mast.stsci.edu/vo-tap/api/v0.1/caom' OR i.access_url = 'https://mast.stsci.edu/vo-tap/api/v0.1/caom/'\">Original ADQL query</INFO><INFO name=\"QUERY_STATUS\" value=\"OK\">Query successful</INFO><INFO name=\"server_software\" value=\"DaCHS/2.13.3 twistedWeb/24.11.0\">Software that produced this VOTable</INFO><INFO name=\"server\" value=\"http://dc.g-vo.org\">Base URI of the server</INFO><INFO name=\"citation\" ucd=\"\" value=\"http://dc.g-vo.org/tableinfo/rr.interface#ti-citing\">Advice on citing this resource</INFO><INFO name=\"citation\" ucd=\"\" value=\"http://dc.g-vo.org/__system__/tap/run/howtocite\">Advice on citing this resource</INFO><INFO name=\"ivoid\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/rr/q/nmah\">Originating VO resource</INFO><INFO name=\"ivoid\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/rr/q/harvtrig\">Originating VO resource</INFO><INFO name=\"ivoid\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/rr/q/create\">Originating VO resource</INFO><INFO name=\"ivoid_service\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/tap\">Originating VO service</INFO><INFO name=\"ivoid\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/rr/q/nmah\">Originating VO resource</INFO><INFO name=\"ivoid\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/rr/q/harvtrig\">Originating VO resource</INFO><INFO name=\"ivoid\" ucd=\"meta.ref.ivoid\" value=\"ivo://org.gavo.dc/rr/q/create\">Originating VO resource</INFO><INFO name=\"publisher\" value=\"The GAVO DC team\">Data centre that has delivered the data</INFO><INFO name=\"request_date\" ucd=\"time.creation\" value=\"2026-10-29T00:16:04Z\"></INFO><INFO name=\"contact\" ucd=\"meta.email\" value=\"gavo@ari.uni-heidelberg.de\">Contact option</INFO><INFO name=\"reference_url\" ucd=\"meta.ref.url\" value=\"http://dc.g-vo.org/tableinfo/rr.interface\">More information on the data Source</INFO><INFO name=\"reference_url\" ucd=\"meta.ref.url\" value=\"http://dc.g-vo.org/__system__/tap/run/info\">More information on the data Source</INFO><INFO name=\"creator\" ucd=\"meta.bib.author\" value=\"GAVO Data Centre\">Name of a person or entity that produced a contributing resource</INFO><TABLE name=\"interface\" utype=\"xpath:/capability/interface/\"><DESCRIPTION> Information on access modes of a capability.</DESCRIPTION><FIELD ID=\"ivoid\" arraysize=\"*\" datatype=\"char\" name=\"ivoid\" utype=\"xpath:/identifier\"><DESCRIPTION>The parent resource.</DESCRIPTION></FIELD><DATA><BINARY><STREAM encoding=\"base64\">AAAAH2l2bzovL2FyY2hpdmUuc3RzY2kuZWR1L2Nhb210YXAAAAAoaXZvOi8vYXJjaGl2ZS5zdHNjaS5lZHUvY2F0YWxvZ3Mvb2JzY29yZQAAACxpdm86Ly9hcmNoaXZlLnN0c2NpLmVkdS9jYXRhbG9ncy9vYnNwb2ludGluZwAAACZpdm86Ly9hcmNoaXZlLnN0c2NpLmVkdS9pbWFnZXMvb2JzY29yZQ==</STREAM></BINARY></DATA></TABLE></RESOURCE></VOTABLE>"
+  },
+  "headers": {
+   "Content-Type": "application/x-votable+xml"
+  },
+  "sha256": "43e946e698a4d0e9d5c4494afddd6b756358acff189edbc113c81bd0428cb727",
+  "status": 200
+ }
+}

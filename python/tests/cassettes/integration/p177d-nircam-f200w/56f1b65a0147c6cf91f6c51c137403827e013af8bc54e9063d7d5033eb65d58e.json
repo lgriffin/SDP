@@ -1,0 +1,24 @@
+{
+ "recorded_at": "2026-10-29T00:22:04.974395Z",
+ "recorder": "integration-recording",
+ "request": {
+  "body": {
+   "text": "REQUEST=doQuery&LANG=ADQL&FORMAT=votable&MAXREC=1&QUERY=SELECT+MIN%28t_min%29+AS+t_min%2C+MAX%28t_max%29+AS+t_max%2C+MIN%28em_min%29+AS+em_min%2C+MAX%28em_max%29+AS+em_max+FROM+ivoa.obscore+WHERE+obs_collection+IN+%28%27JWST%27%29"
+  },
+  "headers": {
+   "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "method": "POST",
+  "url": "https://mast.stsci.edu/vo-tap/api/v0.1/caom/sync"
+ },
+ "response": {
+  "body": {
+   "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!-- Produced with MAST VOTable encoder version 1.0 -->\n<VOTABLE version=\"1.4\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3\">\n<RESOURCE type=\"results\">\n<INFO name=\"QUERY_STATUS\" value=\"OK\"/>\n<INFO name=\"QUERY\" value=\"SELECT MIN(t_min) AS t_min, MAX(t_max) AS t_max, MIN(em_min) AS em_min, MAX(em_max) AS em_max FROM ivoa.obscore WHERE obs_collection IN ('JWST')\"/>\n<TABLE>\n<FIELD name=\"t_min\" datatype=\"double\">\n<DESCRIPTION>t_min</DESCRIPTION></FIELD>\n<FIELD name=\"t_max\" datatype=\"double\">\n<DESCRIPTION>t_max</DESCRIPTION></FIELD>\n<FIELD name=\"em_min\" datatype=\"double\">\n<DESCRIPTION>em_min</DESCRIPTION></FIELD>\n<FIELD name=\"em_max\" datatype=\"double\">\n<DESCRIPTION>em_max</DESCRIPTION></FIELD>\n<DATA>\n<TABLEDATA>\n<TR><TD>59607.59978474537</TD><TD>61335.45808057871</TD><TD>5e-07</TD><TD>2.79e-05</TD></TR>\n</TABLEDATA>\n</DATA>\n</TABLE>\n<INFO name=\"QUERY_STATUS\" value=\"OVERFLOW\"/>\n</RESOURCE>\n</VOTABLE>\n"
+  },
+  "headers": {
+   "Content-Type": "text/xml; charset=utf-8"
+  },
+  "sha256": "d2e5b67f026036d7c2b2bc30d89f268f8755a6dd279f4f58d3c1db0df988078f",
+  "status": 200
+ }
+}

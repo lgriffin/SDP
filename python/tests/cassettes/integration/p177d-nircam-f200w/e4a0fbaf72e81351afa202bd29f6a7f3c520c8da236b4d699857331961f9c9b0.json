@@ -1,0 +1,24 @@
+{
+ "recorded_at": "2026-10-29T00:22:07.353629Z",
+ "recorder": "integration-recording",
+ "request": {
+  "body": {
+   "text": "request=%7B%22format%22%3A%22json%22%2C%22page%22%3A1%2C%22pagesize%22%3A10%2C%22params%22%3A%7B%22columns%22%3A%22obsid%2Cobs_id%22%2C%22filters%22%3A%5B%7B%22paramName%22%3A%22obs_id%22%2C%22values%22%3A%5B%22jw01074-o104_t002_nircam_clear-f200w-sub160%22%5D%7D%5D%7D%2C%22service%22%3A%22Mast.Caom.Filtered%22%7D"
+  },
+  "headers": {
+   "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "method": "POST",
+  "url": "https://mast.stsci.edu/api/v0/invoke"
+ },
+ "response": {
+  "body": {
+   "text": "{\"status\" : \"COMPLETE\",\"msg\" : \"\",\"data\":[{\"obsid\":76107299,\"obs_id\":\"jw01074-o104_t002_nircam_clear-f200w-sub160\"}],\"fields\":[{\"name\":\"obsid\",\"type\":\"string\"},{\"name\":\"obs_id\",\"type\":\"string\"}],\"paging\":{\"page\":1,\"pageSize\":10,\"pagesFiltered\":1,\"rows\":1,\"rowsFiltered\":1,\"rowsTotal\":1}}"
+  },
+  "headers": {
+   "Content-Type": "application/json; charset=utf-8"
+  },
+  "sha256": "f7f5f7a61e30e0cd9bfa1601452e4929089ad77185f5931bb9a134ed8858b3f5",
+  "status": 200
+ }
+}

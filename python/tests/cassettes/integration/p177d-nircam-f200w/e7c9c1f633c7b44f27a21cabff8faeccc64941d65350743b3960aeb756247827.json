@@ -1,0 +1,22 @@
+{
+ "recorded_at": "2026-10-29T00:16:05.731276Z",
+ "recorder": "integration-recording",
+ "request": {
+  "body": {
+   "text": ""
+  },
+  "headers": {},
+  "method": "GET",
+  "url": "https://mast.stsci.edu/vo-tap/api/v0.1/caom/capabilities"
+ },
+ "response": {
+  "body": {
+   "text": "<vosi:capabilities xmlns:vosi=\"http://www.ivoa.net/xml/VOSICapabilities/v1.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:vs=\"http://www.ivoa.net/xml/VODataService/v1.1\" xmlns:vr=\"http://www.ivoa.net/xml/VOResource/v1.0\" xmlns:vm=\"http://www.ivoa.net/xml/VOMetadata/v0.1\"><capability xmlns=\"\" xmlns:tr=\"http://www.ivoa.net/xml/TAPRegExt/v1.0\" standardID=\"ivo://ivoa.net/std/TAP\" xsi:type=\"tr:TableAccess\"><interface version=\"1.1\" role=\"std\" xsi:type=\"vs:ParamHTTP\"><accessURL use=\"full\">https://mast.stsci.edu/vo-tap/api/v0.1/caom</accessURL></interface><dataModel ivo-id=\"ivo://ivoa.net/std/ObsCore#core-1.1\">ObsCore-1.1</dataModel><language><name>ADQL</name><version ivo-id=\"ivo://ivoa.net/std/ADQL#v2.1\">2.1</version><description>ADQL-2.1</description><languageFeatures type=\"ivo://ivoa.net/std/TAPRegExt#features-adqlgeo\"><feature><form>CONTAINS</form></feature><feature><form>INTERSECTS</form></feature><feature><form>POINT</form></feature><feature><form>CIRCLE</form></feature><feature><form>BOX</form></feature><feature><form>POLYGON</form></feature></languageFeatures><languageFeatures type=\"ivo://ivoa.net/std/TAPRegExt#features-udf\"><feature><form>fnAstron_ComputeScale(cd11 float, cd12 float) -&gt; float</form></feature></languageFeatures><languageFeatures type=\"ivo://edu.stsci.archive/std/exts#features-adql-bitwise\"><feature><form>BIT_AND</form><description>The ampersand (&amp;) operator performs a bitwise AND operation on two integer operands </description></feature><feature><form>BIT_OR</form><description>The vertical bar (|) operator performs a bitwise OR operation on two integer operands.</description></feature><feature><form>BIT_XOR</form><description>The circumflex (^) operator performs a bitwise XOR (exclusive or) operation on two integer operands.</description></feature><feature><form>BIT_NOT</form><description>The tilde (~) operator performs a bitwise NOT operation on an integer operand.</description></feature></languageFeatures></language><outputFormat><mime>application/json</mime><alias>json</alias></outputFormat><outputFormat><mime>text/csv;header=present</mime><alias>csv</alias></outputFormat><outputFormat><mime>application/xml</mime><alias>xml</alias></outputFormat><outputFormat ivo-id=\"ivo://ivoa.net/std/TAPRegExt#output-votable-td\"><mime>application/x-votable+xml</mime><alias>votable</alias></outputFormat><outputLimit><default unit=\"row\">100000</default><hard unit=\"row\">100000</hard></outputLimit></capability><capability xmlns=\"\" xmlns:tr=\"http://www.ivoa.net/xml/TAPRegExt/v1.0\" standardID=\"ivo://ivoa.net/std/VOSI#capabilities\"><interface role=\"std\" xsi:type=\"vs:ParamHTTP\"><accessURL use=\"full\">https://mast.stsci.edu/vo-tap/api/v0.1/caom/capabilities</accessURL></interface></capability><capability xmlns=\"\" xmlns:tr=\"http://www.ivoa.net/xml/TAPRegExt/v1.0\" standardID=\"ivo://ivoa.net/std/VOSI#availability\"><interface role=\"std\" xsi:type=\"vs:ParamHTTP\"><accessURL use=\"full\">https://mast.stsci.edu/vo-tap/api/v0.1/caom/availability</accessURL></interface></capability><capability xmlns=\"\" xmlns:tr=\"http://www.ivoa.net/xml/TAPRegExt/v1.0\" standardID=\"ivo://ivoa.net/std/VOSI#tables\"><interface version=\"1.1\" role=\"std\" xsi:type=\"vs:ParamHTTP\"><accessURL use=\"full\">https://mast.stsci.edu/vo-tap/api/v0.1/caom/tables</accessURL></interface></capability><capability xmlns=\"\" xmlns:tr=\"http://www.ivoa.net/xml/TAPRegExt/v1.0\" standardID=\"ivo://ivoa.net/std/DALI#examples\"><interface xsi:type=\"vr:WebBrowser\"><accessURL use=\"full\">https://mast.stsci.edu/vo-tap/api/v0.1/caom/examples</accessURL></interface></capability></vosi:capabilities>"
+  },
+  "headers": {
+   "Content-Type": "text/xml; charset=utf-8"
+  },
+  "sha256": "c4aac2c796f48fcf1ad8b8aa2715aa8b8964ce422db6f94af073b31fe3e63217",
+  "status": 200
+ }
+}

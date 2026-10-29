@@ -1,0 +1,24 @@
+{
+ "recorded_at": "2026-10-29T00:22:05.338067Z",
+ "recorder": "integration-recording",
+ "request": {
+  "body": {
+   "text": "REQUEST=doQuery&LANG=ADQL&FORMAT=votable&MAXREC=100&QUERY=SELECT+access_url+FROM+ivoa.obscore+WHERE+obs_id+%3D+%27jw01074-o104_t002_nircam_clear-f200w-sub160%27"
+  },
+  "headers": {
+   "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "method": "POST",
+  "url": "https://mast.stsci.edu/vo-tap/api/v0.1/caom/sync"
+ },
+ "response": {
+  "body": {
+   "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!-- Produced with MAST VOTable encoder version 1.0 -->\n<VOTABLE version=\"1.4\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3\">\n<RESOURCE type=\"results\">\n<INFO name=\"QUERY_STATUS\" value=\"OK\"/>\n<INFO name=\"QUERY\" value=\"SELECT access_url FROM ivoa.obscore WHERE obs_id = 'jw01074-o104_t002_nircam_clear-f200w-sub160'\"/>\n<TABLE>\n<FIELD name=\"access_url\" datatype=\"char\" arraysize=\"*\" unit=\"n.n\" ucd=\"meta.ref.url\">\n<DESCRIPTION>url to download the data</DESCRIPTION></FIELD>\n<DATA>\n<TABLEDATA>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074-o104_t002_nircam_clear-f200w-sub160_i2d.fits</TD></TR>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074-o104_t002_nircam_clear-f200w-sub160_cat.ecsv</TD></TR>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074-o104_t002_nircam_clear-f200w-sub160_segm.fits</TD></TR>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074_20261003t095318_pool.csv</TD></TR>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074-o104_20261003t095318_image3_00002_asn.json</TD></TR>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074-o104_t002_nircam_clear-f200w-sub160_i2d.jpg</TD></TR>\n<TR><TD>https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:JWST/product/jw01074-o104_t002_nircam_clear-f200w-sub160_i2d_thumb.jpg</TD></TR>\n</TABLEDATA>\n</DATA>\n</TABLE>\n<INFO name=\"QUERY_STATUS\" value=\"OVERFLOW\"/>\n</RESOURCE>\n</VOTABLE>\n"
+  },
+  "headers": {
+   "Content-Type": "text/xml; charset=utf-8"
+  },
+  "sha256": "27f6f9f248d75e3b5c2a785b78a4c116aac40b82db429f76c97b1367ca59159c",
+  "status": 200
+ }
+}

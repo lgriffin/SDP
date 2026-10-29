@@ -1,0 +1,20 @@
+{
+  "product_id": "jw01074-o104_t002_nircam_clear-f200w-sub160_i2d.fits",
+  "product_type": null,
+  "mission": null,
+  "instrument": null,
+  "detector": null,
+  "filter_or_grating": null,
+  "frame": null,
+  "time_scale": null,
+  "time_start_mjd": null,
+  "time_end_mjd": null,
+  "units": null,
+  "calibration_level": null,
+  "extensions": null,
+  "has_wcs": null,
+  "progenitors": null,
+  "documentation": "",
+  "status": "to_verify",
+  "verified_by": []
+}

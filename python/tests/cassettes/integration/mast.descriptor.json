@@ -1,0 +1,95 @@
+{
+  "access": "public",
+  "adapter": null,
+  "calibration_levels": [
+    1,
+    2,
+    3
+  ],
+  "coverage": {
+    "all_sky": null,
+    "em_max_m": 2.79e-05,
+    "em_min_m": 5e-07,
+    "regions": [],
+    "t_max_mjd": 61335.45808057871,
+    "t_min_mjd": 59607.59978474537
+  },
+  "cutout_support": {
+    "cube": "none",
+    "image": "none",
+    "measurements": "none",
+    "spectrum": "none",
+    "timeseries": "none"
+  },
+  "data_models": [
+    "ObsCore-1.1"
+  ],
+  "instruments": [
+    "FGS",
+    "FGS/FGS1",
+    "FGS/FGS2",
+    "MIRI/CORON",
+    "MIRI/IFU",
+    "MIRI/IMAGE",
+    "MIRI/SLIT",
+    "MIRI/SLITLESS",
+    "MIRI/TARGACQ",
+    "NIRCAM/CORON",
+    "NIRCAM/GRISM",
+    "NIRCAM/IMAGE",
+    "NIRCAM/TARGACQ",
+    "NIRISS/AMI",
+    "NIRISS/IMAGE",
+    "NIRISS/SOSS",
+    "NIRISS/WFSS",
+    "NIRSPEC",
+    "NIRSPEC/IFU",
+    "NIRSPEC/IMAGE",
+    "NIRSPEC/MSA",
+    "NIRSPEC/SLIT"
+  ],
+  "ivoid": "ivo://archive.stsci.edu/caomtap",
+  "limits": {
+    "max_concurrent": null,
+    "max_rows": 100000,
+    "page_size": 100000,
+    "requests_per_second": null,
+    "throughput_bytes_per_s": null,
+    "upload": false
+  },
+  "missions": [
+    "JWST"
+  ],
+  "operations": [
+    "cone",
+    "criteria",
+    "download",
+    "product_listing",
+    "region"
+  ],
+  "origin": "registry",
+  "product_types": [
+    "cube",
+    "image",
+    "measurements",
+    "spectrum",
+    "timeseries"
+  ],
+  "protocols": [
+    {
+      "base_url": "https://mast.stsci.edu/vo-tap/api/v0.1/caom",
+      "standard": "TAP",
+      "version": "1.1"
+    }
+  ],
+  "publisher": "Space Telescope Science Institute Archive",
+  "rights": {
+    "acknowledgement": "",
+    "citation": "Data from the Mikulski Archive for Space Telescopes (MAST), STScI; cite each mission's own reference",
+    "licence": "MAST data are public after any exclusive-access period; see https://archive.stsci.edu/publishing/data-use"
+  },
+  "schema_version": "1.0.0",
+  "source_id": "mast",
+  "title": "MAST STScI CAOM and ObsCore TAP service",
+  "verified_on": "2026-10-29"
+}
