@@ -324,9 +324,9 @@ class IdentifySpec:
         )
 
 
-def check_calibration_level(level: int | None) -> None:
-    if level is not None and not 0 <= level <= 4:
-        raise InvariantViolation("an ObsCore calibration level is 0 to 4")
+def check_calibration_level(level: object) -> None:
+    if level is not None and (isinstance(level, bool) or not isinstance(level, int) or not 0 <= level <= 4):
+        raise InvariantViolation(f"an ObsCore calibration level is a whole number 0 to 4, not {level!r}")
 
 
 @dataclass(frozen=True)
@@ -378,9 +378,7 @@ class ArchiveSelection:
             missions=tuple(doc.get("missions", ())),
             product_types=tuple(doc.get("product_types", ())),
             cutout_arcsec=float(doc["cutout_arcsec"]) if doc.get("cutout_arcsec") is not None else None,
-            min_calibration_level=(
-                int(doc["min_calibration_level"]) if doc.get("min_calibration_level") is not None else None
-            ),
+            min_calibration_level=doc.get("min_calibration_level"),  # validated, never rounded
         )
 
 

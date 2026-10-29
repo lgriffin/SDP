@@ -585,6 +585,11 @@ def plan_show(plan_id: str) -> None:
 def plan_approve(plan_id: str, actor: Annotated[str, typer.Option(help="Principal in allowed_signers")]) -> None:
     """Approve a plan. Below its budget threshold the approval is automatic and recorded; above it,
     this signs a ledger approval of the plan id as ``actor`` first (INT-014)."""
+    _approve(plan_id, actor)
+    emit(_plan_summary(_plan_record(plan_id)))
+
+
+def _approve(plan_id: str, actor: str) -> None:
     runtime = state.runtime()
     use_case = runtime.kernel.approve_plan
     assert use_case is not None
@@ -617,7 +622,6 @@ def plan_approve(plan_id: str, actor: Annotated[str, typer.Option(help="Principa
                 raise DomainError(f"cannot sign the approval of {plan_id}: {exc}") from exc
         entry_id = signed.entry_id
     use_case.execute(ApprovePlanCommand(plan_id, actor, ledger_entry_id=entry_id))
-    emit(_plan_summary(_plan_record(plan_id)))
 
 
 @plan_app.command("refuse")
@@ -848,9 +852,10 @@ def demo_jwst(
 ) -> None:
     """Gaia against JWST on a real field, live: register sources, plan, approve, execute, summarise.
 
-    Defaults to the core of the globular cluster M92 and the jwst-image-check profile, which cuts
-    40-arcsec squares out of JWST's NIRCam mosaics, so a run reads about 200 MB and stores about
-    30 MB. It takes 10 to 20 minutes, mostly waiting for MAST.
+    Defaults to a patch of the globular cluster M92's outskirts and the jwst-image-check profile,
+    which cuts 40-arcsec squares out of JWST's NIRCam mosaics, so a run reads and stores about
+    40 MB. It takes 10 to 20 minutes, mostly waiting for MAST. Running it again picks up the same
+    plan where it stopped, or shows its results if it already finished.
     """
     from sdp.adapters.archives.transport import TransportError
 
@@ -892,10 +897,22 @@ def _demo_run(path: Path, region: str, label: str, actor: str, register: bool) -
         _say(f"    gap: {gap.requirement_id}: {gap.reason}")
     if plan.gaps:
         raise DomainError(f"plan {plan.plan_id} has gaps, so nothing was fetched; see `sdp plan show {plan.plan_id}`")
-    _say(f"3/4 Approving plan {plan.plan_id[:19]}... ({plan.cost.total_bytes / 1e6:.0f} MB planned)")
-    plan_approve(plan.plan_id, actor)
-    _say("4/4 Executing: Gaia stars, then JWST cutouts, then the image-counterpart test (10-20 min)...")
-    execution = kernel.execute_plan.execute(ExecutePlanCommand(plan.plan_id, actor))
+    # The plan id hashes the plan, so a rerun of the same demo meets the same plan: approve it only
+    # once, and execute it only if an earlier attempt did not finish.
+    record = _plan_record(plan.plan_id)
+    if record.plan.approval is None:
+        _say(f"3/4 Approving plan {plan.plan_id[:19]}... ({plan.cost.total_bytes / 1e6:.0f} MB planned)")
+        _approve(plan.plan_id, actor)
+    elif not record.plan.approval.approves:
+        raise DomainError(f"plan {plan.plan_id} was refused, so it is never executed; see `sdp plan show`")
+    else:
+        _say(f"3/4 Plan {plan.plan_id[:19]}... was approved on an earlier run.")
+    if record.execution is None:
+        _say("4/4 Executing: Gaia stars, then JWST cutouts, then the image-counterpart test (10-20 min)...")
+        execution = kernel.execute_plan.execute(ExecutePlanCommand(plan.plan_id, actor))
+    else:
+        _say("4/4 This plan already ran; showing its results.")
+        execution = record.execution
     record = _plan_record(plan.plan_id)
     found = sorted(_query().investigations(record.set_id), key=lambda i: -i.rank.score) if record.set_id else []
     _say(

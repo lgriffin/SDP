@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from sdp.kernel.domain.historical import TranscribedRecord, VerificationRecord, is_verified
+from sdp.kernel.science.plan import TaskContext
+from sdp_relativity.analysis import transcription_audit
 from sdp_relativity.measurement import Convention
 from sdp_relativity.observations import parse_bundle
 from sdp_relativity.transcription import bundle_from_records
@@ -100,9 +102,19 @@ def test_a_correction_after_a_matching_pass_needs_a_matching_pass_of_its_own() -
     assert is_verified(record, (matched,))
     assert not is_verified(record, (corrected, matched)), "the corrected value was never re-checked"
     assert is_verified(record, (rechecked, corrected, matched))
-    # The bundle lists passes in the order they were made, so the audit reads each record's latest.
+    # The bundle carries each pass's time, so the audit reads each record's latest in any order.
     bundle = bundle_from_records(table(), [corrected, matched])
     assert [v["matches"] for v in bundle["verifications"]] == [True, False]
+    reordered = {**bundle, "verifications": bundle["verifications"][::-1]}
+    assert "sobral-4in/5" in transcription_audit({}, {}, cast(TaskContext, _Inputs(reordered)))["unverified"]
+
+
+class _Inputs:
+    def __init__(self, bundle: dict[str, Any]) -> None:
+        self.bundle = bundle
+
+    def service(self, name: str) -> dict[str, Any]:
+        return {"observations": self.bundle}
 
 
 def test_a_set_without_a_solar_radius_is_refused() -> None:

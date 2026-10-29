@@ -70,7 +70,12 @@ def bundle_from_records(
         "records": {r.record_id: r.locator for r in records},
         # In the order they were made, so the audit reads each record's latest pass.
         "verifications": [
-            {"record_id": v.record_id, "verifier": v.verifier, "matches": v.matches}
+            {
+                "record_id": v.record_id,
+                "verifier": v.verifier,
+                "matches": v.matches,
+                "verified_at": v.verified_at.isoformat(),
+            }
             for v in sorted(verifications, key=lambda v: v.verified_at)
         ],
         "provenance": {"kind": "transcription", **dict(provenance or {})},

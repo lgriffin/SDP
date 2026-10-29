@@ -307,6 +307,8 @@ def test_dasch_is_skipped_without_a_call_when_the_criteria_exclude_it() -> None:
     gateway = DaschGateway(fake)
     index = gateway.search(TARGET, ObservationCriteria(missions=("TESS",)))
     assert index.records == () and fake.calls == 0
+    floored = gateway.search(TARGET, ObservationCriteria(min_calibration_level=3))
+    assert floored.records == () and fake.calls == 0, "DASCH states no calibration level to meet a floor"
 
 
 def test_dasch_api_errors_raise() -> None:
