@@ -12,7 +12,7 @@ requirements:
     traces: []
   - id: NFR-002
     pattern: ubiquitous
-    text: "Every scientific tier shall pass on CPU-only execution."
+    text: "The platform shall pass every scientific tier on CPU-only execution."
     rationale: "GPU results are never required for a gate (ADR-007)."
     verification: test
     tiers: [T8]
@@ -33,7 +33,7 @@ requirements:
       - "python/tests.usecase.test_acquire_dataset::test_reads_verify_sha256"
   - id: NFR-004
     pattern: ubiquitous
-    text: "Released experiments shall reproduce from pinned environments and accessible inputs in a fresh container."
+    text: "The platform shall reproduce every released experiment from pinned environments and accessible inputs in a fresh container."
     rationale: "Reproducibility level 1 for every release."
     verification: test
     tiers: [T9]
@@ -44,7 +44,7 @@ requirements:
       - "python/tests.reproduction.test_reproduce::test_a_changed_finding_or_verdict_is_named"
   - id: NFR-005
     pattern: ubiquitous
-    text: "Logs shall be structured and carry experiment id, task id, duration, resource usage and failure reason."
+    text: "The kernel shall write structured logs that carry experiment id, task id, duration, resource usage and failure reason."
     rationale: "Unattended runs must report plainly."
     verification: test
     tiers: [T5]
@@ -53,7 +53,7 @@ requirements:
       - "python/tests.usecase.test_run_experiment::test_logs_carry_experiment_task_duration_resources_and_failure"
   - id: NFR-006
     pattern: ubiquitous
-    text: "Domain and science code shall not depend on infrastructure implementations."
+    text: "The kernel shall keep domain and science code free of dependencies on infrastructure implementations."
     rationale: "Hexagonal dependency rule (§4)."
     verification: test
     tiers: [T0]
@@ -64,7 +64,7 @@ requirements:
       - "python/tests.architecture.test_architecture::test_import_linter_contracts_are_kept"
   - id: NFR-007
     pattern: ubiquitous
-    text: "Schema migrations shall be versioned and tested one step forward and one step back."
+    text: "The persistence layer shall version every schema migration and test it one step forward and one step back."
     rationale: "Metadata outlives code versions."
     verification: test
     tiers: [T5]
@@ -75,7 +75,7 @@ requirements:
       - "python/tests.integration.test_migrations::test_upgrade_is_idempotent_and_records_versions"
   - id: NFR-008
     pattern: ubiquitous
-    text: "Nondeterminism that prevents bitwise reproduction shall be documented per TaskKind."
+    text: "The kernel shall document, per TaskKind, any nondeterminism that prevents bitwise reproduction."
     rationale: "Nondeterminism is documented, not hidden."
     verification: inspection
     tiers: [T0]
@@ -86,7 +86,7 @@ requirements:
       - "python/tests.relativity.test_protocol.TestEinstein1919Protocol::test_nondeterminism_is_documented_for_every_non_bitwise_task_kind"
   - id: NFR-009
     pattern: ubiquitous
-    text: "Credentials shall live outside Git, containers shall not run as root, and downloads shall be validated before parsing."
+    text: "The platform shall keep credentials outside Git, run containers as a non-root user, and validate downloads before parsing."
     rationale: "Least privilege and untrusted-data handling (§15)."
     verification: test
     tiers: [T0, T5]
@@ -100,7 +100,7 @@ requirements:
       - "python/tests.archives.test_untrusted::test_the_child_runs_under_the_configured_address_space_limit"
   - id: NFR-010
     pattern: ubiquitous
-    text: "Run metrics and GPU telemetry shall be exported for Grafana."
+    text: "The platform shall export run metrics and GPU telemetry for Grafana."
     rationale: "Operability of multi-hour runs (§2)."
     verification: test
     tiers: [T5]

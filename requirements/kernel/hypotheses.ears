@@ -4,7 +4,7 @@ owner: kernel
 requirements:
   - id: KRN-001
     pattern: ubiquitous
-    text: "The kernel shall register versioned hypotheses, and an edit shall create a new version while retaining every prior version."
+    text: "The kernel shall register versioned hypotheses and record every edit as a new version that retains every prior version."
     rationale: "Hypotheses evolve; a verdict must point at the exact version it tested."
     verification: test
     tiers: [T1]

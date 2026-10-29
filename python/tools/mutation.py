@@ -32,10 +32,12 @@ class Target:
     only_mutate: tuple[str, ...]
     tests: tuple[str, ...]
     do_not_mutate: tuple[str, ...] = ()
+    #: the directory holding ``src`` and the tests, relative to ``python/``; packages/<package> by default
+    root: str = ""
 
 
-#: The v0.4.0 integration cores (association, the acquisition planner, the product model) are scored
-#: by the integration work's own mutation targets, so the main train leaves them out.
+#: The v0.4.0 integration cores (association and the product model) are scored as a target of their
+#: own, so the domain and science targets leave them out.
 INTEGRATION = (
     "src/sdp/kernel/domain/association.py",
     "src/sdp/kernel/domain/integration.py",
@@ -62,6 +64,25 @@ STELLAR_SHARDS = (
     ("synthetic", "inject", "search", "membership", "dossier", "null"),
 )
 
+#: Every suite that drives the kernel. A mutant no selected test reaches counts against the score, so a
+#: kernel target selects every suite that exercises its modules: on v0.1.0 the science target ran only
+#: the unit and property suites and scored 12.65%, because the investigation, product and planner
+#: modules are exercised from the use-case, investigate, archive and product suites. mutmut runs only
+#: the tests that cover a mutant, so a wider selection costs one baseline run, not one run per mutant.
+KERNEL_TESTS = (
+    "tests/unit/kernel",
+    "tests/property",
+    "tests/usecase",
+    "tests/contract",
+    "tests/investigate",
+    "tests/association",
+    "tests/products",
+    "tests/archives",
+    "tests/bdd",
+)
+#: Directories the selected tests read but that hold no tests of their own.
+DATA = ("tests/cassettes",)
+
 
 def modules(package: str, names: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(f"src/{package}/{name}.py" for name in names)
@@ -74,22 +95,23 @@ TARGETS = {
             "sdp-kernel-domain",
             "sdp-kernel",
             ("src/sdp/kernel/domain/*",),
-            ("tests/unit/kernel", "tests/property"),
+            KERNEL_TESTS,
             INTEGRATION,
         ),
         Target(
             "sdp-kernel-science",
             "sdp-kernel",
             ("src/sdp/kernel/science/*",),
-            ("tests/unit/kernel", "tests/property"),
+            KERNEL_TESTS,
             INTEGRATION,
         ),
         Target(
             "sdp-kernel-application",
             "sdp-kernel",
             ("src/sdp/kernel/application/*",),
-            ("tests/unit/kernel", "tests/usecase", "tests/contract"),
+            KERNEL_TESTS,
         ),
+        Target("sdp-kernel-integration", "sdp-kernel", INTEGRATION, KERNEL_TESTS),
         *(
             Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
             for i, group in enumerate(RELATIVITY_SHARDS, 1)
@@ -101,7 +123,10 @@ TARGETS = {
     )
 }
 
-SHARED = ("contracts", "typescript", "experiments", "requirements")
+#: The known-weak fixture (TST-009), run by ``--fixture`` and never scored.
+FIXTURE = Target("mutation-fixture", "", ("src/weak/*",), ("tests",), root="tools/mutation_fixture")
+
+SHARED = ("contracts", "typescript", "experiments", "requirements", "fixtures", "profiles", "capabilities", "docs")
 
 PYTEST_INI = """[pytest]
 addopts = -x -q -p no:cacheprovider --import-mode=importlib -m "not integration and not live and not gpu and not slow"
@@ -141,8 +166,13 @@ def score(stats: dict[str, int]) -> float:
     return round(100.0 * detected / reached, 2)
 
 
-def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
-    with tempfile.TemporaryDirectory(prefix=f"mutmut-{target.name}-") as tmp:
+def run(target: Target, children: int, keep: Path | None = None) -> tuple[float, dict[str, int]]:
+    with tempfile.TemporaryDirectory(prefix=f"mutmut-{target.name}-") as scratch:
+        # --keep leaves the run behind, so `mutmut results` and `mutmut show <mutant>` can be read there
+        tmp = str(keep / target.name) if keep else scratch
+        if keep:
+            shutil.rmtree(tmp, ignore_errors=True)
+            Path(tmp).mkdir(parents=True)
         work = Path(tmp) / "work"
         work.mkdir()
         # tests find repository files relative to themselves; whether they run from work/tests or
@@ -150,11 +180,12 @@ def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
         for where in (Path(tmp), work):
             for shared in SHARED:
                 (where / shared).symlink_to(ROOT.parent / shared)
-        shutil.copytree(ROOT / "packages" / target.package / "src", work / "src")
-        (work / "tests").mkdir()
+        root = ROOT / (target.root or f"packages/{target.package}")
+        shutil.copytree(root / "src", work / "src")
+        tests_root = root if target.root else ROOT
+        for path in (*target.tests, *(() if target.root else DATA)):
+            shutil.copytree(tests_root / path, work / path, ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copy2(ROOT / "tests" / "conftest.py", work / "tests" / "conftest.py")
-        for path in target.tests:
-            shutil.copytree(ROOT / path, work / path, ignore=shutil.ignore_patterns("__pycache__"))
         (work / "pytest.ini").write_text(PYTEST_INI)
         (work / "setup.cfg").write_text(setup_cfg(target))
         # mutmut's output streams straight into the job log, so a failed baseline is visible as it
@@ -163,6 +194,26 @@ def run(target: Target, children: int) -> tuple[float, dict[str, int]]:
         subprocess.run([sys.executable, "-m", "mutmut", "export-cicd-stats"], cwd=work, check=True)
         stats = json.loads((work / "mutants" / "mutmut-cicd-stats.json").read_text())
     return score(stats), stats
+
+
+def fixture_problems(stats: dict[str, int]) -> list[str]:
+    """What is wrong with a fixture run: it must lose a mutant to a test and leave one alive (TST-009)."""
+    problems = []
+    if not stats.get("killed", 0) + stats.get("timeout", 0):
+        problems.append("no fixture mutant was killed: the run cannot detect a fault")
+    if not stats.get("survived", 0) + stats.get("no_tests", 0):
+        problems.append("no fixture mutant survived: the run cannot show a weak test")
+    return problems
+
+
+def fixture(children: int) -> int:
+    """Prove the pipeline can go red on the known-weak fixture before any score is trusted."""
+    percent, stats = run(FIXTURE, children)
+    print(f"mutation fixture: {percent}% {stats}", flush=True)
+    problems = fixture_problems(stats)
+    for problem in problems:
+        print(f"FAIL {problem}", file=sys.stderr)
+    return 1 if problems else 0
 
 
 def check_shards() -> None:
@@ -184,7 +235,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--list", action="store_true", help="print every target name as JSON, for the CI matrix")
     parser.add_argument("--children", type=int, default=4)
+    parser.add_argument("--keep", type=Path, help="keep each target's mutmut directory under this path")
+    parser.add_argument("--fixture", action="store_true", help="run the known-weak fixture and check it (TST-009)")
     args = parser.parse_args(argv)
+    if args.fixture:
+        return fixture(args.children)
     if args.list:
         print(json.dumps(sorted(TARGETS)))
         return 0
@@ -193,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     scores: dict[str, float] = {}
     details: dict[str, dict[str, int]] = {}
     for name in args.targets:
-        scores[f"python/{name}"], details[name] = run(TARGETS[name], args.children)
+        scores[f"python/{name}"], details[name] = run(TARGETS[name], args.children, args.keep)
         print(f"{name}: {scores[f'python/{name}']}% {details[name]}", flush=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n")

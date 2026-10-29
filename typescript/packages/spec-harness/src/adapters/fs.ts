@@ -2,6 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import type { FeatureFile } from "../bdd.ts";
 import type { EarsFile } from "../ears.ts";
 import { parseJUnit, type TestResult } from "../junit.ts";
 import type {
@@ -28,6 +29,17 @@ export async function walk(target: string, accept: (file: string) => boolean): P
 }
 
 const readJson = async (file: string): Promise<Located> => ({ path: file, document: JSON.parse(await fs.readFile(file, "utf8")) });
+
+export class FeatureDirectory {
+  readonly root: string;
+  constructor(root: string) {
+    this.root = root;
+  }
+  async featureFiles(): Promise<FeatureFile[]> {
+    const files = await walk(this.root, (f) => f.endsWith(".feature"));
+    return Promise.all(files.map(async (f) => ({ path: path.relative(process.cwd(), f), text: await fs.readFile(f, "utf8") })));
+  }
+}
 
 export class EarsDirectory implements RequirementSource {
   readonly root: string;

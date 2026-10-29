@@ -12,6 +12,31 @@ export const PATTERNS = {
 } as const;
 
 export type Pattern = keyof typeof PATTERNS;
+
+/** One requirement, one obligation: the text says `shall` exactly once (TST-008). */
+const SHALL = /\bshall\b/g;
+/** The main clause has a named system as its subject: "the harness shall", "The kernel shall". */
+const NAMED_SYSTEM = /^(?:then )?[Tt]he [A-Za-z0-9][\w./'-]*(?: [\w./'-]+){0,5}$/;
+
+/** The subject of the main clause: the words between its last comma (or `then`) and `shall`. */
+function subject(text: string): string {
+  const before = text.slice(0, text.search(/\bshall\b/));
+  return before.slice(before.lastIndexOf(",") + 1).trim();
+}
+/** Words that make a requirement untestable or optional (INCOSE GtWR R7, R8). */
+export const VAGUE =
+  /\b(should|may|might|could|appropriate(?:ly)?|adequate(?:ly)?|sufficient(?:ly)?|reasonable|robust|efficient(?:ly)?|flexible|user-friendly|quickly|as needed|if possible|where possible|and\/or|etc|TBD)\b/i;
+
+/** The style problems of one requirement text, beyond its pattern template (TST-008). */
+export function styleProblems(text: string): string[] {
+  const problems: string[] = [];
+  const shalls = text.match(SHALL)?.length ?? 0;
+  if (shalls !== 1) problems.push(`text says shall ${shalls} times; a requirement states exactly one obligation`);
+  if (shalls > 0 && !NAMED_SYSTEM.test(subject(text))) problems.push('text does not name the system that shall act ("the <system> shall ...")');
+  const vague = VAGUE.exec(text);
+  if (vague) problems.push(`text uses vague or optional wording "${vague[0]}"`);
+  return problems;
+}
 export type Status = "draft" | "approved" | "retired";
 export type Verification = "test" | "analysis" | "inspection" | "demonstration";
 
@@ -87,6 +112,7 @@ export function compileEars(files: readonly EarsFile[]): CompiledRequirements {
       const text = String(raw.text ?? "");
       if (!(pattern in PATTERNS)) problem(`unknown pattern ${pattern}`);
       else if (!PATTERNS[pattern].test(text)) problem(`text does not follow the ${pattern} EARS template`);
+      for (const message of styleProblems(text)) problem(message);
       const status = String(raw.status ?? "") as Status;
       if (!STATUSES.includes(status)) problem(`unknown status ${status}`);
       const verification = String(raw.verification ?? "") as Verification;

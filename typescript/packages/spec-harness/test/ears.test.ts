@@ -48,3 +48,46 @@ describe("[TST-001] .ears compiler", () => {
     expect(messages).toContain("does not look like ABC-123");
   });
 });
+
+describe("[TST-008] strict EARS form", () => {
+  const messages = (text: string, pattern = "ubiquitous"): string[] =>
+    compileEars([file(req({ pattern, text }))]).problems.map((p) => p.message);
+
+  it("[TST-008] accepts one obligation of a named system in each pattern", () => {
+    expect(messages("The kernel shall sign every ledger entry.")).toEqual([]);
+    expect(messages("When a run starts, the runner shall checkpoint each task.", "event")).toEqual([]);
+    expect(messages("While a set is frozen, the kernel shall refuse edits.", "state")).toEqual([]);
+    expect(messages("If a hash differs, then the harness shall block publication.", "unwanted")).toEqual([]);
+    expect(messages("Where a GPU is present, the executor shall record its model.", "optional")).toEqual([]);
+    expect(messages("The contracts toolchain shall, in both languages, accept every valid fixture.")).toEqual([]);
+  });
+
+  it("[TST-008] rejects a requirement with two obligations or none", () => {
+    expect(messages("The kernel shall sign entries, and the harness shall verify them.")).toContain(
+      "text says shall 2 times; a requirement states exactly one obligation",
+    );
+    expect(messages("The kernel signs entries.")).toContain("text says shall 0 times; a requirement states exactly one obligation");
+  });
+
+  it("[TST-008] rejects passive text that names no system", () => {
+    expect(messages("Logs shall be structured.")).toContain('text does not name the system that shall act ("the <system> shall ...")');
+    expect(messages("If a hash differs, then publication shall be blocked.", "unwanted")).toContain(
+      'text does not name the system that shall act ("the <system> shall ...")',
+    );
+  });
+
+  it("[TST-008] rejects a named system that is not the subject of the main clause", () => {
+    for (const text of ["Logs written by the kernel shall be structured.", "If the kernel is ready, then publication shall be blocked."])
+      expect(messages(text, text.startsWith("If") ? "unwanted" : "ubiquitous")).toContain(
+        'text does not name the system that shall act ("the <system> shall ...")',
+      );
+  });
+
+  it.each(["should", "may", "appropriate", "as needed", "and/or", "robust", "TBD"])("[TST-008] rejects vague wording: %s", (word) => {
+    expect(messages(`The kernel shall retry ${word} on failure.`)).toContain(`text uses vague or optional wording "${word}"`);
+  });
+
+  it("[TST-008] does not mistake words that only contain a vague word", () => {
+    expect(messages("The kernel shall record the maybe_flag column and its etcetera field.")).toEqual([]);
+  });
+});

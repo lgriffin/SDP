@@ -14,7 +14,7 @@ requirements:
       - "python/tests.stellar.test_components::test_every_predeclared_region_carries_its_reason_and_an_empty_one_is_refused"
   - id: STL-002
     pattern: ubiquitous
-    text: "Feature-space transformations shall be versioned policies, and raw five-axis Euclidean clustering shall not feed a gate."
+    text: "The stellar module shall apply feature-space transformations as versioned policies and keep raw five-axis Euclidean clustering out of every gate."
     rationale: "Five raw Euclidean axes mix incommensurate units."
     verification: test
     tiers: [T1]
@@ -25,7 +25,7 @@ requirements:
       - "python/tests.stellar.test_components::test_a_small_rigid_rotation_of_the_field_leaves_memberships_unchanged"
   - id: STL-003
     pattern: ubiquitous
-    text: "Quality cuts shall be configuration recorded in the manifest."
+    text: "The stellar module shall take quality cuts from configuration recorded in the manifest."
     rationale: "Quality cuts change results; they are configuration, not code."
     verification: test
     tiers: [T4]
@@ -46,7 +46,7 @@ requirements:
       - "python/tests.stellar.test_protocol::test_gpu_results_reach_the_gates_only_after_agreement"
   - id: STL-005
     pattern: ubiquitous
-    text: "A candidate shall be cross-matched against two benchmarks before it is labelled potentially new."
+    text: "The stellar module shall cross-match a candidate against two benchmarks before it labels the candidate potentially new."
     rationale: "A candidate that matches a known cluster is not new."
     verification: test
     tiers: []
@@ -56,7 +56,7 @@ requirements:
       - "python/tests.stellar.test_protocol::test_without_a_second_benchmark_nothing_is_called_potentially_new"
   - id: STL-006
     pattern: ubiquitous
-    text: "Null-field and injection tests shall run per region with recorded seeds."
+    text: "The stellar module shall run null-field and injection tests per region with recorded seeds."
     rationale: "False-positive and completeness estimates need reproducible seeds."
     verification: test
     tiers: [T8]
@@ -68,7 +68,7 @@ requirements:
       - "python/tests.stellar.test_protocol::test_the_same_seed_reproduces_the_findings"
   - id: STL-007
     pattern: ubiquitous
-    text: "Rejected and inconclusive candidates shall be retained with failure reasons."
+    text: "The stellar module shall retain rejected and inconclusive candidates with their failure reasons."
     rationale: "Negative results are evidence."
     verification: test
     tiers: []

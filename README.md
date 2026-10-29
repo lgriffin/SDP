@@ -29,4 +29,6 @@ just gate       # merge stage against real PostgreSQL
 just reproduce  # clean-room reproduction of a bundle
 ```
 
+How the platform is tested, from EARS requirements and Gherkin Rules to mutation scores, is in [docs/testing.md](docs/testing.md); the architecture's C4 views are in [docs/c4](docs/c4/README.md).
+
 See [docs/implementation-status.md](docs/implementation-status.md) for what is built, what is waiting on hardware or on human transcription, and how the code maps to each section of the specification.

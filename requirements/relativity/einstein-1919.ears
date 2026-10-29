@@ -4,7 +4,7 @@ owner: relativity
 requirements:
   - id: REL-001
     pattern: ubiquitous
-    text: "Every transcribed measurement shall carry an uncertainty convention and a page or table locator."
+    text: "The transcription module shall give every transcribed measurement an uncertainty convention and a page or table locator."
     rationale: "Transcription errors and convention confusion are the main integrity risks of UC-02. A row counts as verified after a recorded, matching second pass against the same locator; SDP is a single-user app, so the transcriber may make that pass (decided 2026-10-29)."
     verification: test
     tiers: [T1]
@@ -26,7 +26,7 @@ requirements:
       - "python/tests.relativity.test_measurement::test_the_conversion_is_explicit_and_named"
   - id: REL-003
     pattern: ubiquitous
-    text: "Deflection models shall take physical constants from a recorded CODATA version."
+    text: "The relativity module shall take the physical constants of every deflection model from a recorded CODATA version."
     rationale: "The module never hard-codes 1.75 arcsec."
     verification: test
     tiers: [T1]
@@ -36,7 +36,7 @@ requirements:
       - "python/tests.relativity.test_models::test_limb_values_come_from_recorded_constants"
   - id: REL-004
     pattern: ubiquitous
-    text: "The module shall fit each instrument set separately, and pooling shall require a PoolingJustification."
+    text: "The relativity module shall fit each instrument set separately and pool them only under a PoolingJustification."
     rationale: "The instruments disagree; pooling hides that."
     verification: test
     tiers: [T1]
@@ -82,7 +82,7 @@ requirements:
       - "typescript/packages/relativity-fit/test/fit.test.ts::[REL-007] agrees with the Python reference fitter on every instrument and scenario"
   - id: REL-008
     pattern: ubiquitous
-    text: "The dossier shall list unrecoverable inputs and shall not describe a table-based reanalysis as a plate remeasurement."
+    text: "The dossier shall list unrecoverable inputs and describe a table-based reanalysis as a reanalysis, never as a plate remeasurement."
     rationale: "A table-based reanalysis is not a plate remeasurement."
     verification: test
     tiers: []

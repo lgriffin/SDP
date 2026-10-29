@@ -18,7 +18,7 @@ from typing import Any, Protocol
 from sdp.kernel.domain.errors import InvariantViolation, PlanInvalid
 from sdp.kernel.domain.investigation import EvidenceBundle, NullFieldResult, TestResult, TestSelection
 from sdp.kernel.domain.policy import NumericalPolicy
-from sdp.kernel.science.plan import Backend, TaskContext, TaskKindRegistry
+from sdp.kernel.science.plan import TaskContext, TaskKindRegistry
 
 
 class InvestigationTest(Protocol):
@@ -145,8 +145,10 @@ class InvestigationTestRegistry:
 
     def validate(self, selections: Sequence[TestSelection]) -> list[InvestigationTest]:
         """Every selected test is registered with a declared null model (INV-006)."""
-        tests = [self.get(s.name, s.version) for s in selections]
-        for s, t in zip(selections, tests, strict=True):
+        tests = []
+        for s in selections:
+            t = self.get(s.name, s.version)
+            tests.append(t)
             missing = sorted(set(s.needs_products) - set(t.needs_products))
             if missing:
                 raise PlanInvalid(f"profile asks {s.key} for products {missing} the test does not declare")
@@ -162,8 +164,9 @@ class InvestigationTestRegistry:
         """Each test's run and null as CPU TaskKinds over JSON-ready bundles."""
         registry = TaskKindRegistry()
         for test in self._tests.values():
-            registry.register(task_kind(test.name, test.version), _RunTask(test), Backend.CPU)
-            registry.register(null_task_kind(test.name, test.version), _NullTask(test), Backend.CPU)
+            # registered at the default backend, the CPU reference (ADR-007)
+            registry.register(task_kind(test.name, test.version), _RunTask(test))
+            registry.register(null_task_kind(test.name, test.version), _NullTask(test))
         return registry
 
 
