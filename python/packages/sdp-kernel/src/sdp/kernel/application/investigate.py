@@ -1082,7 +1082,10 @@ class InvestigateFieldUseCase:
             raise PlanInvalid(f"{SIGNIFICANCE_POLICY!r} is the kernel's own ranking policy; a ranker cannot replace it")
         rankers: dict[str, CandidateRanker] = {SIGNIFICANCE_POLICY: SignificanceRanker(), **self.ports.rankers}
         if policy.policy_id not in rankers:
-            raise PlanInvalid(f"no ranker for ranking policy {policy.policy_id!r}; registered: {sorted(rankers)}")
+            raise PlanInvalid(
+                f"no ranker for ranking policy {policy.policy_id!r}; registered: {sorted(rankers)} "
+                "(science-module rankers come with the science extra, e.g. sdp-cli[science])"
+            )
         return rankers[policy.policy_id]
 
     def _candidates(

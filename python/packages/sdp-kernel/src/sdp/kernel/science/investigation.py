@@ -135,7 +135,10 @@ class InvestigationTestRegistry:
         try:
             return self._tests[f"{name}@{version}"]
         except KeyError:
-            raise PlanInvalid(f"test {name}@{version} is not registered; nothing outside the registry runs") from None
+            raise PlanInvalid(
+                f"test {name}@{version} is not registered; nothing outside the registry runs "
+                "(the field tests come with the science extra, e.g. sdp-cli[science])"
+            ) from None
 
     def keys(self) -> tuple[str, ...]:
         return tuple(sorted(self._tests))

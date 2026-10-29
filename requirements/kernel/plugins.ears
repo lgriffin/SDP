@@ -5,7 +5,7 @@ requirements:
   - id: KRN-011
     pattern: ubiquitous
     text: "The kernel shall invoke science modules only through the ScientificProtocol port."
-    rationale: "The kernel never imports science modules (ADR-001)."
+    rationale: "The kernel never imports science modules (ADR-001). They are found by entry point, and the CLI and API carry them as the optional science extra, so the kernel installs and runs without them."
     verification: test
     tiers: [T0]
     status: approved

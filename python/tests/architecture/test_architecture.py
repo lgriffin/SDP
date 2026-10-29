@@ -102,3 +102,20 @@ def test_driving_adapters_reach_infrastructure_only_through_bootstrap() -> None:
             )
             .check(package)
         )
+
+
+@pytest.mark.req("KRN-011")
+def test_the_science_extra_brings_every_package_that_registers_a_plugin() -> None:
+    import tomllib
+
+    packages = Path(__file__).resolve().parents[2] / "packages"
+    plugins = {
+        doc["project"]["name"]
+        for doc in (tomllib.loads(p.read_text("utf-8")) for p in packages.glob("*/pyproject.toml"))
+        if any(group.startswith("sdp.") for group in doc["project"].get("entry-points", {}))
+    }
+    assert plugins >= {"sdp-investigate", "sdp-stellar"}
+    for entry in ("sdp-cli", "sdp-api"):
+        project = tomllib.loads((packages / entry / "pyproject.toml").read_text("utf-8"))["project"]
+        assert set(project["optional-dependencies"]["science"]) == plugins, entry
+        assert not plugins & set(project["dependencies"]), f"{entry}: science modules stay optional"

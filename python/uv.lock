@@ -2268,14 +2268,25 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.optional-dependencies]
+science = [
+    { name = "sdp-investigate" },
+    { name = "sdp-relativity" },
+    { name = "sdp-stellar" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "sdp-adapters", editable = "packages/sdp-adapters" },
+    { name = "sdp-investigate", marker = "extra == 'science'", editable = "packages/sdp-investigate" },
     { name = "sdp-kernel", editable = "packages/sdp-kernel" },
+    { name = "sdp-relativity", marker = "extra == 'science'", editable = "packages/sdp-relativity" },
+    { name = "sdp-stellar", marker = "extra == 'science'", editable = "packages/sdp-stellar" },
     { name = "starlette", specifier = ">=0.38" },
     { name = "strawberry-graphql", specifier = ">=0.240" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
+provides-extras = ["science"]
 
 [[package]]
 name = "sdp-cli"
@@ -2288,13 +2299,24 @@ dependencies = [
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+science = [
+    { name = "sdp-investigate" },
+    { name = "sdp-relativity" },
+    { name = "sdp-stellar" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sdp-adapters", editable = "packages/sdp-adapters" },
+    { name = "sdp-investigate", marker = "extra == 'science'", editable = "packages/sdp-investigate" },
     { name = "sdp-kernel", editable = "packages/sdp-kernel" },
+    { name = "sdp-relativity", marker = "extra == 'science'", editable = "packages/sdp-relativity" },
+    { name = "sdp-stellar", marker = "extra == 'science'", editable = "packages/sdp-stellar" },
     { name = "typer", specifier = ">=0.12" },
 ]
+provides-extras = ["science"]
 
 [[package]]
 name = "sdp-contracts"
