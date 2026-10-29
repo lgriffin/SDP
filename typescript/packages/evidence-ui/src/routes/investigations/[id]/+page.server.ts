@@ -1,9 +1,10 @@
 import { error } from "@sveltejs/kit";
 
-import { evidence } from "$lib/server/source.ts";
+import { attempt } from "$lib/server/actions.ts";
+import { demonstration, evidence, workbench } from "$lib/server/source.ts";
 import { PlannerUnavailable, type Plan } from "$lib/ports.ts";
 
-import type { PageServerLoad } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 
 const SHOW = ["open", "parked", "closed", "promoted", "all"] as const;
 
@@ -19,5 +20,10 @@ export const load: PageServerLoad = async ({ params, url }) => {
   }
   const asked = url.searchParams.get("show") ?? "all";
   const show = (SHOW as readonly string[]).includes(asked) ? asked : "all";
-  return { set, plan, show };
+  // The demonstration keeps pictures of its images, not the files a dossier is made of.
+  return { set, plan, show, downloads: !demonstration(), reproduction: await source.reproduction(set.id) };
+};
+
+export const actions: Actions = {
+  reproduce: async ({ params }) => attempt(async () => ({ started: (await workbench().reproduceSet(params.id)).state })),
 };

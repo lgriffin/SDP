@@ -139,8 +139,25 @@ export interface EvidenceSource {
   archives(): Promise<ArchivesStatus | null>;
   /** A stored artifact's bytes, e.g. a FITS cutout; null when there is none. */
   artifact(artifactId: string): Promise<ArtifactBytes | null>;
-  /** A FITS image drawn north up as a PNG (INV-020); null when there is none. */
+  /** A FITS image drawn as a PNG, pixel y upward (INV-020); null when there is none. */
   preview(artifactId: string): Promise<ArtifactBytes | null>;
+  /** The set's evidence dossier, one RO-Crate zip (INV-021); null when there is no such set or file. */
+  dossier(setId: string): Promise<ArtifactBytes | null>;
+  /** The last check that the set reproduces from its dossier; null when none was started (INV-022). */
+  reproduction(setId: string): Promise<ReproductionRun | null>;
+}
+
+/** The Test stage re-run from a set's dossier alone and compared with what it records (INV-022). */
+export interface Reproduction {
+  ok: boolean;
+  results_compared: number;
+  seed: number;
+  differences: string[];
+}
+
+/** A reproduction runs for minutes with images, so it is a job; ``result`` arrives when it finishes. */
+export interface ReproductionRun extends JobRun {
+  result?: Reproduction | null;
 }
 
 export type TriageAction = "park" | "reopen" | "close" | "annotate";
@@ -167,6 +184,8 @@ export interface Workbench {
   executePlan(planId: string, actor: string): Promise<{ state: PlanState; run: JobRun | null }>;
   /** Starts reading what each archive offers; takes minutes the first time (INV-019). */
   registerArchives(): Promise<ArchivesStatus>;
+  /** Starts saving the set's dossier and re-running its tests from it alone (INV-022); answers at once. */
+  reproduceSet(setId: string): Promise<ReproductionRun>;
 }
 
 export interface ProfileOption {

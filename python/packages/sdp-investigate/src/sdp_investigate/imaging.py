@@ -306,6 +306,7 @@ class ImageCounterpart(FieldTest):
                     "counterpart_px": r["counterpart_px"],
                     "d2": d if d is not None and math.isfinite(d) else None,
                     "ambiguous": r["ambiguous"],
+                    "counterparts": r["counterparts"],
                 }
                 for d, r in results
             ]

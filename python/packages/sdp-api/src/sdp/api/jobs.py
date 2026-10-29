@@ -27,6 +27,10 @@ def plan_job(plan_id: str) -> str:
     return f"plan:{plan_id}"
 
 
+def reproduce_job(set_id: str) -> str:
+    return f"reproduce:{set_id}"
+
+
 @dataclass
 class Job:
     key: str
@@ -34,14 +38,17 @@ class Job:
     state: str = RUNNING
     finished_at: datetime | None = None
     error: str | None = None
+    result: Any = None
+    """What the work returned, for a job whose answer the UI shows (a reproduction's report)."""
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        doc = {
             "state": self.state,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "error": self.error,
         }
+        return doc if self.result is None else {**doc, "result": self.result}
 
 
 def _thread(work: Callable[[], None]) -> None:
@@ -76,14 +83,14 @@ class Jobs:
 
         def run() -> None:
             try:
-                work()
+                result = work()
             except Exception as exc:  # the job reports every failure; nothing is left to raise to
                 log.exception("job failed", extra={"job": key})
                 with self._lock:
                     job.state, job.error = FAILED, f"{type(exc).__name__}: {exc}"
             else:
                 with self._lock:
-                    job.state = FINISHED
+                    job.state, job.result = FINISHED, result
             finally:
                 with self._lock:
                     job.finished_at = self._now()

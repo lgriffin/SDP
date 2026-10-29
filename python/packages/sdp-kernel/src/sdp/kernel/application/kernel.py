@@ -31,6 +31,7 @@ from sdp.kernel.application.planning import (
 from sdp.kernel.application.predeclarations import FreezePredeclarationUseCase
 from sdp.kernel.application.publication import PublishBundleUseCase
 from sdp.kernel.application.queries import QueryEvidenceUseCase
+from sdp.kernel.application.set_bundle import SetDossierUseCase
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe
 from sdp.kernel.ports.determinism import Clock, IdGenerator
@@ -88,6 +89,7 @@ class Kernel:
     approve_plan: ApprovePlanUseCase | None = None
     plan_investigation: PlanInvestigationUseCase | None = None
     execute_plan: ExecutePlanUseCase | None = None
+    set_dossier: SetDossierUseCase | None = None
 
     @classmethod
     def build(cls, ports: KernelPorts) -> Kernel:
@@ -144,6 +146,9 @@ class Kernel:
                 ports.investigate,
             )
             kernel.execute_plan = ExecutePlanUseCase(ports.uow, ports.clock, kernel.investigate_field)
+            kernel.set_dossier = SetDossierUseCase(
+                ports.uow, ports.store, ports.ledger, ports.executor, ports.investigate
+            )
             if ports.discovery is not None:
                 kernel.plan_investigation = PlanInvestigationUseCase(
                     ports.uow, ports.store, ports.clock, ports.discovery, ports.investigate

@@ -161,6 +161,7 @@
                 {
                   "ambiguous": false,
                   "counterpart_px": null,
+                  "counterparts": [],
                   "d2": null,
                   "image": "jw-synth-o001_t001_nircam_clear-f200w/jw-synth-o001_t001_nircam_clear-f200w_i2d.fits",
                   "predicted_px": [
@@ -228,7 +229,7 @@
       "id": "inv-000101",
       "label": "EXPLORATORY",
       "links": {
-        "dossier_id": "sha256:0661ef4d38b73bd2187ce19279399e0edf7e98eede6e0f0dbda80389de99402a"
+        "dossier_id": "sha256:ffc1dd521bf5718327e3316bb793616ca637a2e7a501e369dbaf49fa2809b7cb"
       },
       "notes": [],
       "rankingPolicy": "significance@1.0.0",
@@ -256,6 +257,7 @@
               {
                 "ambiguous": false,
                 "counterpart_px": null,
+                "counterparts": [],
                 "d2": null,
                 "image": "jw-synth-o001_t001_nircam_clear-f200w/jw-synth-o001_t001_nircam_clear-f200w_i2d.fits",
                 "predicted_px": [
@@ -670,7 +672,7 @@
         }
       ],
       "label": "EXPLORATORY",
-      "manifestId": "sha256:b2d7f2ff46fffdf1e1394f963f41a0693a2230c1747e506d4de3adf4c0758684",
+      "manifestId": "sha256:72afecc6248d356e5c0d7e4a764dd388e6db98675f3eac68e09d703f06cae2ba",
       "nullResults": [
         {
           "alpha": 0.01,
@@ -784,19 +786,19 @@
           }
         },
         {
-          "artifactId": "sha256:daeb53de58db2c585fc7f4c2d72e2b7d48d7a67d82dff0cd4199240adbd38faf",
+          "artifactId": "sha256:9a2709b727c9a9006527a1eb825d10d7a8b75a360fd2d14ddefbb2dda2c8d8af",
           "error": null,
           "finishedAt": "2026-10-28T12:00:37+00:00",
           "stage": "test",
           "state": "completed",
           "summary": {
             "results": 12,
-            "stored_bytes": 29994,
+            "stored_bytes": 35888,
             "tests": 1
           }
         },
         {
-          "artifactId": "sha256:0db1490bff20229434b6ad4dd62bc989c67b3d1d9f97de4fb24d7554150cd2dc",
+          "artifactId": "sha256:03fdf6994b2a7042b92e0c16c57e733fa78b4a16e0db74a8e8184f9ca0ac1a50",
           "error": null,
           "finishedAt": "2026-10-28T12:00:39+00:00",
           "stage": "candidates",
@@ -804,7 +806,7 @@
           "summary": {
             "candidates": 1,
             "ranked": 1,
-            "stored_bytes": 5692
+            "stored_bytes": 5728
           }
         }
       ],
@@ -873,19 +875,19 @@
           }
         },
         {
-          "artifactId": "sha256:daeb53de58db2c585fc7f4c2d72e2b7d48d7a67d82dff0cd4199240adbd38faf",
+          "artifactId": "sha256:9a2709b727c9a9006527a1eb825d10d7a8b75a360fd2d14ddefbb2dda2c8d8af",
           "error": null,
           "finishedAt": "2026-10-28T12:00:37+00:00",
           "stage": "test",
           "state": "completed",
           "summary": {
             "results": 12,
-            "stored_bytes": 29994,
+            "stored_bytes": 35888,
             "tests": 1
           }
         },
         {
-          "artifactId": "sha256:0db1490bff20229434b6ad4dd62bc989c67b3d1d9f97de4fb24d7554150cd2dc",
+          "artifactId": "sha256:03fdf6994b2a7042b92e0c16c57e733fa78b4a16e0db74a8e8184f9ca0ac1a50",
           "error": null,
           "finishedAt": "2026-10-28T12:00:39+00:00",
           "stage": "candidates",
@@ -893,7 +895,7 @@
           "summary": {
             "candidates": 1,
             "ranked": 1,
-            "stored_bytes": 5692
+            "stored_bytes": 5728
           }
         }
       ],

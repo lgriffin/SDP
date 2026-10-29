@@ -67,7 +67,7 @@
         setId={s.id}
         focus={data.star}
         crop={data.star ? crop : 0}
-        label="{title}, north up, with {image.stars.length} Gaia stars marked"
+        label="{title}, with {image.stars.length} Gaia stars marked"
       />
     {:else}
       <p class="muted">This image's size could not be read, so it cannot be drawn.</p>
@@ -105,7 +105,7 @@
           {#if failed.length}A file that fails a check is kept and used as fetched, never cleaned up or converted.{/if}
         </p>
         <ul class="checks">
-          {#each [...failed, ...image.checks.filter((c) => c.passed)] as c (c.field)}
+          {#each [...failed, ...image.checks.filter((c) => c.passed)] as c, i (`${c.field}:${i}`)}
             <li class:bad={!c.passed}>
               <svg class="mark" viewBox="0 0 16 16" aria-hidden="true">
                 {#if c.passed}<path d="M3.5 8.5l3 3 6-7" />{:else}<path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />{/if}
@@ -151,7 +151,7 @@
 
 <style>
   .tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 1rem; }
-  .tabs a { padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--text); display: inline-flex; gap: 0.4rem; align-items: center; }
+  .tabs a { min-height: 44px; min-width: 44px; padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--text); display: inline-flex; gap: 0.4rem; align-items: center; }
   .tabs a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--bad); }
   .layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 1fr); gap: 1.2rem; align-items: start; }

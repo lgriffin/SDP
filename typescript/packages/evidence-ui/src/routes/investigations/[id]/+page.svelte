@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { enhance } from "$app/forms";
+  import { invalidateAll } from "$app/navigation";
   import Badge from "$lib/components/Badge.svelte";
   import Journey from "$lib/components/Journey.svelte";
   import { candidateStateLabel, fieldLabel, humanTime, imageTitle, observedOn, openCandidates, planHref, planStateLabel, setJourney } from "$lib/plain.ts";
   import { formatNumber, formatPercent, investigationTone, rowCapReached, shortHash, stageTone, type NullResultDoc } from "$lib/view.ts";
 
-  let { data } = $props();
+  let { data, form } = $props();
   const s = $derived(data.set);
   const nulls = $derived((s.nullResults ?? []) as NullResultDoc[]);
   const field = $derived(s.field as { region?: Record<string, unknown>; epoch_jyear?: number; label?: string });
@@ -19,6 +21,23 @@
   const shown = $derived(data.show === "all" ? s.investigations : s.investigations.filter((i) => i.state === data.show));
   const cutOff = $derived(rowCapReached(s.stages ?? []));
   const images = $derived(s.images ?? []);
+  const tested = $derived((s.stages ?? []).some((st) => st.stage === "test" && st.state === "completed"));
+  const check = $derived(data.reproduction);
+  const result = $derived(check?.state === "finished" ? (check.result ?? null) : null);
+  let starting = $state(false);
+  const start = () => {
+    starting = true;
+    return async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) => {
+      await update({ reset: false });
+      starting = false;
+    };
+  };
+  // Re-running image tests takes minutes; the page reads the check again until it has finished.
+  $effect(() => {
+    if (check?.state !== "running") return;
+    const timer = setInterval(() => invalidateAll(), 4000);
+    return () => clearInterval(timer);
+  });
   const count = (key: string) => (key === "all" ? s.investigations.length : s.investigations.filter((i) => i.state === key).length);
 </script>
 
@@ -55,7 +74,7 @@
         {@const failed = (img.checks ?? []).filter((c) => !c.passed).length}
         <li>
           <a href="/investigations/{s.id}/images?image={encodeURIComponent(img.artifact_id)}">
-            <img src="/artifacts/{encodeURIComponent(img.artifact_id)}/preview.png" alt="" loading="lazy" width="96" height="96" />
+            <img src="/artifacts/{encodeURIComponent(img.artifact_id)}/preview.png" alt="" width="96" height="96" />
             <span class="what">
               <strong>{imageTitle(img.summary, img.product_id)}</strong>{#if observedOn(img.summary)}<span class="muted">{" · "}{observedOn(img.summary)}</span>{/if}
               <span class="muted small">
@@ -132,6 +151,54 @@
   </details>
 </section>
 
+<section aria-labelledby="keep-h" class="keep" data-testid="dossier">
+  <h2 id="keep-h">Save the evidence</h2>
+  <p>
+    One file holds everything behind these candidates: the download plan and who approved it, what each stage found, the
+    images with their Gaia stars marked, the files the tests read and every note made since. Anyone can check that the
+    tests give the same results from it, without this app or the archives.
+  </p>
+  <div class="keep-actions">
+    {#if data.downloads}
+      <a class="button" href="/investigations/{s.id}/dossier.zip" download data-testid="save-dossier">Save evidence dossier</a>
+    {/if}
+    {#if tested}
+      <form method="POST" action="?/reproduce" use:enhance={start}>
+        <button class="secondary" disabled={starting || check?.state === "running"} data-testid="check-reproduces">
+          {check?.state === "running" ? "Checking…" : check ? "Check again" : "Check it reproduces"}
+        </button>
+      </form>
+    {/if}
+  </div>
+  {#if !data.downloads}
+    <p class="muted small">The demonstration keeps pictures of its images, not the files, so it has no dossier to save.</p>
+  {/if}
+  <div role="status" aria-live="polite">
+    {#if check?.state === "running"}
+      <p class="muted" data-testid="reproducing">
+        Re-running the tests from the saved file, started {humanTime(check.started_at)}. With images this takes a few
+        minutes; you can leave this page and come back.
+      </p>
+    {:else if result?.ok}
+      <p class="done" data-testid="reproduced">
+        Reproduced. From the saved file alone, the tests gave the same {result.results_compared} result{result.results_compared === 1 ? "" : "s"}
+        (seed {result.seed}). <span class="muted small">Checked {humanTime(check?.finished_at ?? null)}.</span>
+      </p>
+    {/if}
+  </div>
+  {#if result && !result.ok}
+    <div class="error-text" role="alert" data-testid="not-reproduced">
+      <p>The tests gave different results from the saved file:</p>
+      <ul>{#each result.differences as d (d)}<li class="mono small">{d}</li>{/each}</ul>
+    </div>
+  {:else if check?.state === "failed"}
+    <p class="error-text" role="alert" data-testid="not-reproduced">The check could not run: {check.error}</p>
+  {:else if form?.error}
+    <p class="error-text" role="alert">{form.error}</p>
+  {/if}
+  <p class="muted small">From a terminal: <code>sdp investigate bundle {s.id}</code>, then <code>sdp investigate reproduce {s.id}.zip</code>.</p>
+</section>
+
 <section aria-labelledby="details-h" class="details">
   <h2 id="details-h">Details for reviewers</h2>
   <details>
@@ -193,6 +260,11 @@
   .images a:hover { border-color: var(--accent); }
   .images img { width: 4.5rem; height: 4.5rem; object-fit: cover; border-radius: calc(var(--radius) / 2); background: #000; flex: none; }
   .images .what { display: flex; flex-direction: column; gap: 0.2rem; }
+  .keep { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; margin-bottom: 1.4rem; }
+  .keep h2 { margin-top: 0; }
+  .keep-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.4rem 0 0.6rem; }
+  .keep-actions form { margin: 0; }
+  .done { color: var(--good); font-weight: 600; }
   .chance { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.75rem 1rem; }
   .details details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem 1rem; margin-bottom: 0.6rem; }
   .details details[open] summary { margin-bottom: 0.8rem; }
