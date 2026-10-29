@@ -54,6 +54,22 @@ class AcquisitionResult:
         """The archive filled the cap, so the region may hold more rows than were read (#59)."""
         return self.row_cap > 0 and self.rows >= self.row_cap
 
+    @property
+    def requests(self) -> int:
+        """Archive calls this acquisition made: one per part, none when an earlier read was reused (#60)."""
+        if self.reused or self.raw.acquisition is None:
+            return 0
+        return len(self.raw.acquisition.parts)
+
+    @property
+    def stored_bytes(self) -> int:
+        """Bytes this acquisition added to the store: its parts, the raw dataset and the curated one (#60).
+        A reused read adds nothing, since it read back what an earlier one stored."""
+        if self.reused:
+            return 0
+        parts = sum(p.byte_count for p in self.raw.acquisition.parts) if self.raw.acquisition else 0
+        return parts + self.raw.byte_count + (self.curated.byte_count if self.curated else 0)
+
 
 @dataclass(frozen=True)
 class DefineExperimentCommand:
