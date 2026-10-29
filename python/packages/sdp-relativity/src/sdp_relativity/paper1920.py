@@ -35,7 +35,10 @@ Probable errors: Principe's is printed (p. 328). For Sobral the paper gives none
 value the same of the residuals of the per-plate solutions of the p. 311 values; both are labelled
 as derived in the record.
 
-    python -m sdp_relativity.paper1920 dyson-1920.csv bundle.json [--verified-by NAME]
+A record is verified only when every cell it cites carries a check in the transcription's check
+column ("checked by NAME DATE" or "re-read by NAME DATE"); the pass is recorded with that name and date.
+
+    python -m sdp_relativity.paper1920 dyson-1920.csv bundle.json
 """
 
 from __future__ import annotations
@@ -44,6 +47,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -64,13 +68,20 @@ TRANSCRIBED_AT = datetime(2026, 10, 29, tzinfo=UTC)
 SOBRAL_STARS = ("11", "5", "4", "3", "6", "10", "2")
 ECLIPSE_PLATES = ("I", "II", "III", "IV", "V", "VII", "VIII")
 COMPARISON_PLATES = ("14_2a", "14_2b", "15_1", "15_2", "17_1", "17_2", "18_2")
-#: Principe comparisons: (plate id, the table holding its y working, the Delta_1 y column).
+#: Sobral astrographic plates and stars of p. 311 (no plates 13 and 14); one cell is printed as a dash.
+ASTRO_PLATES = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "15", "16", "17", "18")
+ASTRO_STARS = ("3", "4", "5", "6", "10")
+#: Principe comparisons: (plate id, the table holding its y working, the Delta_1 y column, its stars).
 PRINCIPE = (
-    ("X-G1", "p323-X-G1", "d1y"),
-    ("X-H1", "p324-XH1-y", "D1y"),
-    ("W-D1", "p324-WD1-y", "D1y"),
-    ("W-I2", "p325-WI2-y", "D1y"),
+    ("X-G1", "p323-X-G1", "d1y", ("11", "5", "4", "3", "6")),
+    ("X-H1", "p324-XH1-y", "D1y", ("11", "5", "4", "3", "6")),
+    ("W-D1", "p324-WD1-y", "D1y", ("5", "4", "3", "6", "10")),
+    ("W-I2", "p325-WI2-y", "D1y", ("5", "4", "3", "6", "10")),
 )
+#: A printed dash: nothing was measured there.
+DASHES = ("—", "-")
+#: A check pass recorded in the transcription's check column, e.g. "checked by Leigh 2026-10-29".
+CHECK = re.compile(r"(?:checked|re-read) by (?P<who>\S+) (?P<on>\d{4}-\d{2}-\d{2})")
 
 
 class TranscriptionError(ValueError):
@@ -87,6 +98,11 @@ class Cell:
     quantity: str
     value: str
     unit: str
+    check: str = ""
+
+    @property
+    def key(self) -> str:
+        return f"{self.table}/{self.plate_id}/{self.star_id}/{self.quantity}".replace("//", "/")
 
     @property
     def number(self) -> float:
@@ -125,6 +141,7 @@ class Transcription:
                 r["quantity"],
                 r["value"],
                 r["unit"],
+                r.get("check") or "",
             )
             for r in rows
         )
@@ -156,7 +173,7 @@ def sun_centre(
 
 def _record(record_id: str, cells: Sequence[Cell], fields: Mapping[str, Any], notes: str = "") -> TranscribedRecord:
     locator = "; ".join(dict.fromkeys(c.locator for c in cells))
-    printed = {f"{c.table}/{c.plate_id}/{c.star_id}/{c.quantity}".replace("//", "/"): c.value for c in cells}
+    printed = {c.key: c.value for c in cells}
     return TranscribedRecord(
         record_id=record_id,
         document_id=DOCUMENT_ID,
@@ -220,7 +237,7 @@ def sobral_4in(t: Transcription) -> list[TranscribedRecord]:
     records = [
         _record(
             f"{DOCUMENT_ID}/{instrument}",
-            [radius, screw_cell],
+            [radius, screw_cell, *residual_cells],
             {"kind": "instrument", "instrument": instrument, "solar_radius_arcmin": radius.number},
             notes=f"probable error of one row {pe:.3f} arcsec, derived: 0.6745 x RMS of the "
             f"{len(residual_cells)} Table VIII comparison-plate residuals (p. 308) x sqrt(1 + 1/7)",
@@ -251,7 +268,11 @@ def sobral_4in(t: Transcription) -> list[TranscribedRecord]:
         records.append(
             _record(
                 f"{DOCUMENT_ID}/{instrument}/{plate}",
-                [*adopted[plate], *refraction["eclipse"].values()],
+                [
+                    *adopted[plate],
+                    *refraction["eclipse"].values(),
+                    *(c for p in COMPARISON_PLATES for c in (*adopted[p], *refraction[p].values())),
+                ],
                 {
                     "kind": "plate",
                     "instrument": instrument,
@@ -302,11 +323,11 @@ def sobral_astro(t: Transcription, sun: tuple[float, float]) -> list[Transcribed
     revolution = t.cell(table="IX", plate_id="mean", quantity="revolution")
     radius = t.cell(table="text", instrument="sobral-4in", quantity="solar_radius")
     refraction = t.cell(table="p312-text", quantity="e_refraction_aberration")
-    measured = [
-        c for c in t.cells if c.table == "p311-Dy" and c.quantity == "Dy" and c.value.strip() not in ("", "—", "-")
-    ]
-    plates = sorted({c.plate_id for c in measured}, key=int)
-    positions = _table_one(t, sorted({c.star_id for c in measured}, key=int))
+    # Every plate and star of p. 311 must be transcribed; only a printed dash means "not measured".
+    printed = [t.cell(table="p311-Dy", plate_id=p, star_id=s, quantity="Dy") for p in ASTRO_PLATES for s in ASTRO_STARS]
+    measured = [c for c in printed if c.value.strip() not in DASHES]
+    plates = ASTRO_PLATES
+    positions = _table_one(t, ASTRO_STARS)
     coeff_y = {s: t.cell(table="p304-conditions", star_id=s, quantity="Ey").number for s in positions}
     # Per-plate solutions of Dy = f + d x + e y + a Ey, as the paper reduced each plate (p. 310).
     residuals: list[float] = []
@@ -324,7 +345,7 @@ def sobral_astro(t: Transcription, sun: tuple[float, float]) -> list[Transcribed
     records = [
         _record(
             f"{DOCUMENT_ID}/{instrument}",
-            [radius, revolution],
+            [radius, revolution, *measured],
             {"kind": "instrument", "instrument": instrument, "solar_radius_arcmin": radius.number},
             notes=f"probable error of one measure {pe:.3f} arcsec, derived: 0.6745 x RMS of the residuals of the "
             f"per-plate solutions of the p. 311 values ({dof} degrees of freedom)",
@@ -404,7 +425,7 @@ def principe(t: Transcription) -> list[TranscribedRecord]:
             notes="comparison of plate U with K2 left out, as on p. 327",
         )
     ]
-    for plate_id, y_table, y_quantity in PRINCIPE:
+    for plate_id, y_table, y_quantity, plate_stars in PRINCIPE:
         theta = t.cell(plate_id=plate_id, quantity="theta")
         records.append(
             _record(
@@ -422,8 +443,7 @@ def principe(t: Transcription) -> list[TranscribedRecord]:
                 "orientation from this comparison's x measures",
             )
         )
-        rows = [c for c in t.cells if c.table == y_table and c.quantity == y_quantity]
-        for cell in rows:
+        for cell in (t.cell(table=y_table, star_id=s, quantity=y_quantity) for s in plate_stars):
             x, y = table_one[cell.star_id]
             records.append(
                 _record(
@@ -451,16 +471,27 @@ def records(t: Transcription) -> list[TranscribedRecord]:
     return [*sobral_4in(t), *sobral_astro(t, sobral_sun(t)), *principe(t)]
 
 
-def verifications(
-    records: Sequence[TranscribedRecord], verifier: str, at: datetime, notes: str = ""
-) -> list[VerificationRecord]:
-    """One matching second pass per record, for a verifier who has checked the transcription."""
-    return [VerificationRecord(r.record_id, verifier, at, True, notes=notes) for r in records]
+def verifications(t: Transcription, records: Sequence[TranscribedRecord]) -> list[VerificationRecord]:
+    """A matching second pass for each record whose every cited cell has a recorded check in the
+    transcription's check column; a record with any unchecked cell stays unverified."""
+    checks = {c.key: CHECK.search(c.check) for c in t.cells}
+    out = []
+    for r in records:
+        found = [checks.get(k) for k in r.fields["printed"]]
+        if not found or not all(found):
+            continue
+        marks = [m for m in found if m is not None]
+        who = "+".join(sorted({m["who"] for m in marks}))
+        on = max(m["on"] for m in marks)
+        at = datetime.fromisoformat(on).replace(tzinfo=UTC)
+        out.append(VerificationRecord(r.record_id, who, at, True, notes="every cited cell checked against the page"))
+    return out
 
 
-def bundle(path: Path, verifier: str | None = None, verified_at: datetime | None = None) -> dict[str, Any]:
-    recs = records(Transcription.read(path))
-    passes = verifications(recs, verifier, verified_at or datetime.now(UTC)) if verifier else []
+def bundle(path: Path) -> dict[str, Any]:
+    t = Transcription.read(path)
+    recs = records(t)
+    passes = verifications(t, recs)
     return bundle_from_records(
         recs,
         passes,
@@ -472,9 +503,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("transcription", type=Path)
     parser.add_argument("out", type=Path)
-    parser.add_argument("--verified-by", help="the person whose check pass verifies every record")
     args = parser.parse_args(argv)
-    doc = bundle(args.transcription, args.verified_by)
+    doc = bundle(args.transcription)
     args.out.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     for s in doc["instrument_sets"]:
         n = sum(len(p["stars"]) for p in s["plates"])

@@ -6,8 +6,8 @@ images of Dyson, Eddington and Davidson 1920 with a page for every value (REL-00
 
 from __future__ import annotations
 
+import csv
 import dataclasses
-from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +21,7 @@ from sdp_relativity.reduction import historical
 
 pytestmark = pytest.mark.tier("T3")
 
+FIELDS = ("table", "page", "instrument", "plate_id", "star_id", "quantity", "value", "unit", "check")
 CSV = Path(__file__).resolve().parents[3] / "experiments" / "uc02-einstein-1919" / "transcription" / "dyson-1920.csv"
 
 
@@ -107,14 +108,37 @@ def test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cel
 
 
 @pytest.mark.req("REL-009")
-def test_records_are_verified_only_when_someone_checked_them() -> None:
+def test_a_record_is_verified_only_when_every_cell_it_cites_was_checked(tmp_path: Path) -> None:
+    rows = list(csv.DictReader(CSV.open(newline="", encoding="utf-8")))
     unchecked = paper1920.bundle(CSV)
-    assert unchecked["verifications"] == []
-    at = datetime(2026, 10, 29, 21, 30, tzinfo=UTC)
-    checked = paper1920.bundle(CSV, "leigh", at)
-    star_ids = {s["record_id"] for i in checked["instrument_sets"] for p in i["plates"] for s in p["stars"]}
-    assert star_ids <= {v["record_id"] for v in checked["verifications"] if v["matches"] and v["verifier"] == "leigh"}
-    assert all(v["verified_at"] == at.isoformat() for v in checked["verifications"])
+    cited = {k for r in paper1920.records(paper1920.Transcription.read(CSV)) for k in r.fields["printed"]}
+    checked = {paper1920.Cell(*(r[f] for f in FIELDS)).key for r in rows if r["check"]}
+    assert len(unchecked["verifications"]) < len(cited - checked)  # most records cite an unchecked cell
+    for r in rows:
+        r["check"] = r["check"] or "re-read by claude 2026-10-30"
+    path = tmp_path / "checked.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    everything = paper1920.bundle(path)
+    star_ids = {s["record_id"] for i in everything["instrument_sets"] for p in i["plates"] for s in p["stars"]}
+    passes = {v["record_id"]: v for v in everything["verifications"]}
+    assert star_ids <= set(passes)
+    some = passes[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"]
+    assert some["matches"] and some["verifier"] == "claude" and some["verified_at"].startswith("2026-10-30")
+
+
+@pytest.mark.req("REL-009")
+def test_every_expected_measurement_must_be_transcribed_and_only_a_dash_means_none(
+    transcription: paper1920.Transcription,
+) -> None:
+    dash = transcription.cell(table="p311-Dy", plate_id="15", star_id="10", quantity="Dy")
+    assert dash.value == "—"
+    for gone in (dash, transcription.cell(table="p324-WD1-y", star_id="10", quantity="D1y")):
+        without = paper1920.Transcription(c for c in transcription.cells if c != gone)
+        with pytest.raises(paper1920.TranscriptionError, match=f"quantity={gone.quantity!r}"):
+            paper1920.records(without)
 
 
 @pytest.mark.req("REL-009")

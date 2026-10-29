@@ -104,7 +104,8 @@ requirements:
       - "python/tests.relativity.test_paper1920::test_the_sun_found_from_the_coefficients_gives_them_back"
       - "python/tests.relativity.test_paper1920::test_the_1920_reduction_reproduces_the_published_deflections"
       - "python/tests.relativity.test_paper1920::test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cells"
-      - "python/tests.relativity.test_paper1920::test_records_are_verified_only_when_someone_checked_them"
+      - "python/tests.relativity.test_paper1920::test_a_record_is_verified_only_when_every_cell_it_cites_was_checked"
+      - "python/tests.relativity.test_paper1920::test_every_expected_measurement_must_be_transcribed_and_only_a_dash_means_none"
       - "python/tests.relativity.test_paper1920::test_a_missing_or_unreadable_cell_is_refused_by_name"
   - id: REL-010
     pattern: ubiquitous
@@ -115,6 +116,7 @@ requirements:
     gates: [REL-G-04, REL-G-08]
     status: approved
     traces:
+      - "python/tests.relativity.test_reduction::test_the_predeclared_historical_scenarios_are_the_ones_reproduced"
       - "python/tests.relativity.test_fitter::test_the_six_constant_model_absorbs_unequal_plate_scales"
       - "python/tests.relativity.test_fitter::test_a_set_measured_in_one_coordinate_leaves_the_other_constants_out"
       - "python/tests.relativity.test_fitter::test_fixed_scale_subtracts_known_terms_and_solves_an_unknown_rotation"

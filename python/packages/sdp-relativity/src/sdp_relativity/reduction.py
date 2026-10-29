@@ -77,8 +77,11 @@ HISTORICAL_BY_INSTRUMENT: Mapping[str, FitScenario] = {
 BASELINE = FitScenario()
 
 
-def historical(instrument: str) -> FitScenario:
-    """The scenario that repeats the 1920 reduction of one instrument (REL-G-04)."""
+def historical(instrument: str, declared: Mapping[str, Mapping[str, str]] | None = None) -> FitScenario:
+    """The scenario that repeats the 1920 reduction of one instrument (REL-G-04): the predeclared
+    ``historical_scenarios`` when given (``default`` for an instrument not named), else the defaults here."""
+    if declared is not None:
+        return FitScenario(**declared.get(instrument, declared["default"]))
     return HISTORICAL_BY_INSTRUMENT.get(instrument, HISTORICAL)
 
 

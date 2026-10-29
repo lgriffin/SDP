@@ -76,3 +76,10 @@ def test_the_1920_reduction_differs_by_instrument_as_the_paper_describes() -> No
 def test_the_packaged_predeclaration_is_the_experiment_file() -> None:
     packaged = json.loads(files("sdp_relativity").joinpath("predeclaration.json").read_text())
     assert packaged == predeclared()
+
+
+@pytest.mark.req("REL-010")
+def test_the_predeclared_historical_scenarios_are_the_ones_reproduced() -> None:
+    declared = predeclared()["parameters"]["historical_scenarios"]
+    for instrument in ("sobral-4in", "sobral-astro", "principe-astro"):
+        assert historical(instrument, declared) == historical(instrument)

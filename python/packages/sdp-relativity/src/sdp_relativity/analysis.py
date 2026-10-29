@@ -237,7 +237,9 @@ def synthesis(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
         if oracle.kind != "published_estimate" or oracle.oracle_id not in tolerances or oracle.value_arcsec is None:
             continue
         mine = next((v for v in fits if v["instrument"] == oracle.instrument), None)
-        result = mine["scenarios"].get(historical(str(oracle.instrument)).key) if mine else None
+        result = (
+            mine["scenarios"].get(historical(str(oracle.instrument), params.get("historical")).key) if mine else None
+        )
         if result is None:
             reproduction.append({"oracle_id": oracle.oracle_id, "instrument": oracle.instrument, "z": None})
             continue

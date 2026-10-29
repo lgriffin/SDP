@@ -67,7 +67,7 @@ Per plate and axis, `dx = a_x + s x + r y + alpha g_x` and `dy = a_y + s y - r x
 
 ### The 1919 data
 
-`experiments/uc02-einstein-1919/transcription/dyson-1920.csv` holds 2,079 values read from the page images of the 1920 report, each with its page; `python -m sdp_relativity.paper1920 dyson-1920.csv bundle.json --verified-by NAME` builds the bundle (REL-009). The module docstring says how each instrument's rows follow the paper:
+`experiments/uc02-einstein-1919/transcription/dyson-1920.csv` holds 2,079 values read from the page images of the 1920 report, each with its page; `python -m sdp_relativity.paper1920 dyson-1920.csv bundle.json` builds the bundle (REL-009). A record counts as verified only when every cell it cites has a check recorded in the CSV's `check` column. The module docstring says how each instrument's rows follow the paper:
 
 - Sobral 4-inch: Table II eclipse values less the mean of the seven comparison plates (which removes the intermediary scale plate), at 6.25 arcsec per revolution; for a fixed scale, the p. 307 refraction and aberration and the adopted scale and orientation.
 - Sobral astrographic: the p. 311 declination measures at 12.3 arcsec per revolution; for a fixed scale, the p. 312 refraction and aberration term, with the orientation solved.
@@ -76,7 +76,7 @@ Per plate and axis, `dx = a_x + s x + r y + alpha g_x` and `dy = a_y + s y - r x
 
 The 1920 reduction of each instrument (`reduction.historical`) reproduces the published values: Sobral 4-inch 2.02 arcsec against 1.98, astrographic 0.96 against 0.93, Principe 1.65 against 1.65 before the paper's final -0.04 correction (1.61 published).
 
-Rebuilding the 1920 normal equations (Tables III-VI) from Table II reproduces every sum except three cells, each read correctly from the page: eclipse plate I star 2 Dx (printed -0.789, the equations used -0.798), comparison plate 14_2a star 2 Dx (printed -0.396, the equations imply -0.345), and plate VIII's Dy constant (-1.322 printed, -1.332 implied, which cannot change the deflection). With the authors' working values the Sobral 4-inch result is exactly 1.98; with the printed measurements it is 2.01. The bundle uses the printed values.
+Rebuilding the 1920 normal equations (Tables III-VI) from Table II reproduces every sum except three cells, each read correctly from the page: eclipse plate I star 2 Dx (printed -0.789, the equations used -0.798), comparison plate 14_2a star 2 Dx (printed -0.396, the equations imply -0.345), and plate VIII's Dy constant (-1.322 printed, -1.332 implied, which cannot change the deflection). Solving the 1920 normal equations themselves gives exactly 1.98 with the authors' working values and 2.01 with the printed ones; the three cells are pinned in `test_paper1920.py`. The bundle uses the printed values; this module's six-constant fit of them gives the 2.02 above, the 0.01 coming from how the plates are combined.
 
 ### Running it
 
@@ -87,6 +87,6 @@ cd python && uv run python -m sdp.testing.emit ../reports/uc02 --protocol uc02-e
     --input observations=../reports/uc02/bundle.json --input independent_fit=../reports/uc02/independent-fit.json
 ```
 
-For the 1919 data, replace the first line with `python -m sdp_relativity.paper1920 experiments/uc02-einstein-1919/transcription/dyson-1920.csv reports/uc02/bundle.json --verified-by <name>`. Every gate then passes except REL-G-04 and REL-G-07, which wait on the oracle values' second pass and on the 2020 reanalysis being transcribed.
+For the 1919 data, replace the first line with `python -m sdp_relativity.paper1920 experiments/uc02-einstein-1919/transcription/dyson-1920.csv reports/uc02/bundle.json`. Records whose cells have not all been checked stay unverified; REL-G-04 also waits on the oracle values' second pass and REL-G-07 on the 2020 reanalysis being transcribed.
 
 `just cross-language` runs this and passes the manifest through `spec-harness conform` and `rederive`. With synthetic data the verdict is INCONCLUSIVE, with REL-G-04 and REL-G-07 reporting `oracle_unverified` and every other gate passing; the tests in `python/tests/relativity/test_protocol.py` plant each fault a gate guards against and check that gate fails.
