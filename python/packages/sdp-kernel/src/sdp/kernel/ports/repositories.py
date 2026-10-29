@@ -16,6 +16,7 @@ from sdp.kernel.domain.hypothesis import Hypothesis
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration, Predeclaration
 from sdp.kernel.ports.events import EventLog
 from sdp.kernel.ports.evidence import EvidenceRepository
+from sdp.kernel.ports.integration import PlanRepository
 from sdp.kernel.ports.investigate import InvestigationRepository
 from sdp.kernel.ports.storage import DatasetRepository
 
@@ -92,6 +93,9 @@ class UnitOfWork(Protocol):
 
     @property
     def investigations(self) -> InvestigationRepository: ...
+
+    @property
+    def plans(self) -> PlanRepository: ...
 
     def __enter__(self) -> Self: ...
 

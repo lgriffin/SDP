@@ -9,15 +9,17 @@ from datetime import date
 
 import pytest
 
-from sdp.kernel.domain.errors import CurationBlocked, InvariantViolation
+from sdp.kernel.domain.errors import CurationBlocked, IntegrityError, InvariantViolation
 from sdp.kernel.domain.integration import (
     AccessStatus,
+    AcquisitionPlan,
     ApprovalDecision,
     ConformanceKind,
     EvidenceRequirement,
     IntegrationRefused,
     MatchStatus,
     Operation,
+    PlanGate,
     PlanItem,
     ProductMetadata,
     ProductType,
@@ -28,6 +30,7 @@ from sdp.kernel.domain.integration import (
     match_requirement,
     order_matches,
     require_admitted,
+    select_items,
 )
 from sdp.testing.fakes.integration import descriptor_with_conformance
 from sdp.testing.integration import (
@@ -334,6 +337,47 @@ def test_changing_what_a_plan_hashes_after_approval_cannot_keep_the_approval() -
     item = approved.items[0]
     with pytest.raises(InvariantViolation, match="names"):
         replace(approved, constraints={"extra": 1}).authorise(item.source_id, item.operation, item.target)
+
+
+@pytest.mark.req("INT-013")
+def test_a_plan_round_trips_and_a_document_edited_into_another_plan_is_refused() -> None:
+    plan = sample_plan().decide(actor="kernel")
+    assert AcquisitionPlan.from_document(plan.to_document()) == plan
+    edited = plan.to_document()
+    edited["items"][0]["licence"] = "edited"
+    with pytest.raises(IntegrityError, match="hashes to"):
+        AcquisitionPlan.from_document(edited)
+
+
+@pytest.mark.req("INT-013")
+def test_the_minimum_set_plans_each_acquisition_once_and_reports_every_unserved_requirement() -> None:
+    plan = sample_plan()
+    image, rows = plan.items
+    twice = replace(rows, requirement_id="req-jwst-image")  # offered for a need its source cannot serve
+    unmatched = replace(image, source_id="synthetic-dasch", target="dasch:1")
+    items, gaps = select_items(plan.requirements, plan.matches, [rows, twice, image, unmatched])
+    assert [(i.item_id, i.source_id) for i in items] == [("item-001", "synthetic-gaia"), ("item-002", "synthetic-mast")]
+    assert next(i for i in items if i.source_id == "synthetic-gaia").requirement_id == "req-gaia-astrometry"
+    assert gaps == ()
+    items, gaps = select_items(plan.requirements, plan.matches, [unmatched])
+    assert items == ()
+    assert [g.requirement_id for g in gaps] == ["req-jwst-image", "req-gaia-astrometry"]
+    assert gaps[0].reason == "no source that lists it satisfies it: synthetic-dasch (unsatisfied)"
+    assert gaps[1].reason == "no source in the profile lists anything for it"
+
+
+@pytest.mark.req("INT-015")
+def test_the_gate_records_what_it_authorised_and_what_it_refused() -> None:
+    with pytest.raises(IntegrationRefused, match="not approved"):
+        PlanGate(sample_plan())
+    gate = PlanGate(sample_plan().decide(actor="kernel"))
+    image = gate.plan.items[0]
+    item = gate.authorise(image.source_id, image.operation, image.target)
+    assert item == image
+    gate.record(item, "sha256:" + "1" * 64)
+    assert gate.authorise("synthetic-mast", Operation.DOWNLOAD, "other.fits") is None
+    assert gate.refused[0]["target"] == "other.fits" and "INT-015" in gate.refused[0]["reason"]
+    assert gate.unavailable == ("item-2",)
 
 
 # --- compatibility ----------------------------------------------------------------------------

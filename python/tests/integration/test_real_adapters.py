@@ -27,12 +27,12 @@ from sdp.testing.contracts.artifact_store import ArtifactStoreContract
 from sdp.testing.contracts.compute import ComputeExecutorContract
 from sdp.testing.contracts.dataset_repository import DatasetRepositoryContract
 from sdp.testing.contracts.historical_sources import HistoricalSourcesContract
-from sdp.testing.contracts.integration import CapabilityRegistryContract, RegistryCase
+from sdp.testing.contracts.integration import CapabilityRegistryContract, PlanRepositoryContract, RegistryCase
 from sdp.testing.contracts.investigate import InvestigationRepositoryContract, sample_investigation, sample_set
 from sdp.testing.contracts.ledger import LedgerContract
 from sdp.testing.contracts.metadata import UnitOfWorkContract
 from sdp.testing.contracts.misc import DeterminismContract, TrackerContract
-from sdp.testing.integration import registry_descriptors
+from sdp.testing.integration import registry_descriptors, sample_plan
 
 from .keys import write_signing_key
 
@@ -105,6 +105,26 @@ class TestFilesystemHistoricalSources(HistoricalSourcesContract):
     @pytest.fixture
     def historical_sources(self, tmp_path: Path) -> FilesystemHistoricalSources:
         return FilesystemHistoricalSources(tmp_path / "historical")
+
+
+class TestPostgresPlans(PlanRepositoryContract):
+    @pytest.fixture
+    def uow_factory(self, database_url: str) -> Any:
+        return PostgresDatabase(database_url).unit_of_work
+
+    def test_the_schema_refuses_to_edit_or_delete_a_plan(self, database_url: str) -> None:
+        plan = sample_plan()
+        with PostgresDatabase(database_url).unit_of_work() as uow:
+            uow.plans.add(plan)
+            uow.commit()
+        with psycopg.connect(database_url, autocommit=True) as conn:
+            with pytest.raises(psycopg.errors.RaiseException):
+                conn.execute(
+                    "UPDATE acquisition_plans SET document = jsonb_set(document, '{items}', '[]') WHERE plan_id = %s",
+                    (plan.plan_id,),
+                )
+            with pytest.raises(psycopg.errors.RaiseException):
+                conn.execute("DELETE FROM acquisition_plans WHERE plan_id = %s", (plan.plan_id,))
 
 
 class TestPostgresInvestigations(InvestigationRepositoryContract):

@@ -1,4 +1,5 @@
-"""The Kernel facade: the nine use cases, built from driven ports by a composition root."""
+"""The Kernel facade: the nine use cases, Investigate's and the planner's, built from driven ports by
+a composition root."""
 
 from __future__ import annotations
 
@@ -21,6 +22,12 @@ from sdp.kernel.application.investigate import (
     QueryInvestigationsUseCase,
     TriageInvestigationUseCase,
 )
+from sdp.kernel.application.planning import (
+    ApprovePlanUseCase,
+    ExecutePlanUseCase,
+    PlanInvestigationUseCase,
+    QueryPlansUseCase,
+)
 from sdp.kernel.application.predeclarations import FreezePredeclarationUseCase
 from sdp.kernel.application.publication import PublishBundleUseCase
 from sdp.kernel.application.queries import QueryEvidenceUseCase
@@ -28,7 +35,7 @@ from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe
 from sdp.kernel.ports.determinism import Clock, IdGenerator
 from sdp.kernel.ports.evidence import ExperimentTracker
-from sdp.kernel.ports.integration import AdapterCompatibilitySource
+from sdp.kernel.ports.integration import AdapterCompatibilitySource, CapabilityDiscoveryService
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher
@@ -58,6 +65,8 @@ class KernelPorts:
     investigate: InvestigatePorts | None = None
     compatibility: AdapterCompatibilitySource | None = None
     """The release's adapter compatibility records (Integration v0.4.0 §6); none admits no adapter."""
+    discovery: CapabilityDiscoveryService | None = None
+    """What the planner matches requirements against (v0.4.0 §2); without it nothing is planned."""
 
 
 @dataclass
@@ -75,6 +84,10 @@ class Kernel:
     triage_investigation: TriageInvestigationUseCase | None = None
     query_investigations: QueryInvestigationsUseCase | None = None
     investigate_field: InvestigateFieldUseCase | None = None
+    query_plans: QueryPlansUseCase | None = None
+    approve_plan: ApprovePlanUseCase | None = None
+    plan_investigation: PlanInvestigationUseCase | None = None
+    execute_plan: ExecutePlanUseCase | None = None
 
     @classmethod
     def build(cls, ports: KernelPorts) -> Kernel:
@@ -116,6 +129,8 @@ class Kernel:
             query_evidence=QueryEvidenceUseCase(ports.uow, ports.ledger),
             triage_investigation=TriageInvestigationUseCase(ports.uow, ports.ledger, ports.clock),
             query_investigations=QueryInvestigationsUseCase(ports.uow, ports.store),
+            query_plans=QueryPlansUseCase(ports.uow),
+            approve_plan=ApprovePlanUseCase(ports.uow, ports.ledger, ports.clock),
         )
         if ports.investigate is not None:
             kernel.investigate_field = InvestigateFieldUseCase(
@@ -128,4 +143,9 @@ class Kernel:
                 kernel.acquire_dataset,
                 ports.investigate,
             )
+            kernel.execute_plan = ExecutePlanUseCase(ports.uow, ports.clock, kernel.investigate_field)
+            if ports.discovery is not None:
+                kernel.plan_investigation = PlanInvestigationUseCase(
+                    ports.uow, ports.store, ports.clock, ports.discovery, ports.investigate
+                )
         return kernel

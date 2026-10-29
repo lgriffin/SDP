@@ -22,8 +22,8 @@ import pyarrow as pa
 from sdp.kernel.application.acquisition import AcquireDatasetUseCase
 from sdp.kernel.application.media import JSON, PARQUET, decode_artifact
 from sdp.kernel.domain import events as ev
-from sdp.kernel.domain.archive import CatalogueQuery, idempotency_key
-from sdp.kernel.domain.canonical import canonical_json
+from sdp.kernel.domain.archive import CatalogueQuery, Cone, idempotency_key
+from sdp.kernel.domain.canonical import canonical_json, hash_document
 from sdp.kernel.domain.dataset import (
     ADMITTABLE_PRODUCT_TYPES,
     AcquisitionRecord,
@@ -42,14 +42,23 @@ from sdp.kernel.domain.errors import (
     PromotionRefused,
 )
 from sdp.kernel.domain.ids import ArtifactId
-from sdp.kernel.domain.integration import ScientificDataProduct, SemanticValidationReport
+from sdp.kernel.domain.integration import (
+    IntegrationRefused,
+    Operation,
+    PlanGate,
+    PlanItem,
+    ScientificDataProduct,
+    SemanticValidationReport,
+)
 from sdp.kernel.domain.investigation import (
     EXPLORATORY,
     UNMATCHED,
     ArchiveRole,
+    ArchiveSelection,
     EvidenceBundle,
     EvidenceUsed,
     FetchedProduct,
+    Field,
     IdentificationMethod,
     IdentifiedObject,
     IdentifyRoute,
@@ -65,6 +74,7 @@ from sdp.kernel.domain.investigation import (
     RankingPolicy,
     Stage,
     StageState,
+    TestProfile,
     TestResult,
     rank_by_significance,
 )
@@ -109,6 +119,40 @@ TEXT = "text/plain"
 
 def set_path(set_id: str, name: str) -> str:
     return f"investigations/{set_id}/{name}"
+
+
+def identify_query(field_: Field, profile: TestProfile) -> CatalogueQuery:
+    """The Gaia cone Identify reads (and Retrieve reads again, resumed from the same artifact)."""
+    spec = profile.identify
+    return CatalogueQuery(
+        source_id=spec.source_id,
+        release_label=spec.release_label,
+        region=field_.query_region(0.0),
+        columns=spec.columns,
+        filters=spec.quality_cuts,
+        row_cap=spec.row_cap,
+        chunk_rows=min(spec.row_cap, 50_000),
+    )
+
+
+def catalogue_query(field_: Field, selection: ArchiveSelection) -> CatalogueQuery:
+    """The cone a catalogue archive is read over: the field plus its match radius."""
+    return CatalogueQuery(
+        source_id=selection.source_id,
+        release_label=selection.release_label,
+        region=field_.query_region(selection.match_radius_arcsec / 3600.0),
+        columns=selection.columns,
+    )
+
+
+def query_operation(query: CatalogueQuery) -> Operation:
+    return Operation.CONE if isinstance(query.region, Cone) else Operation.REGION
+
+
+def query_target(query: CatalogueQuery) -> str:
+    """How a plan item names a catalogue query: the hash of the query document, so the executor
+    authorises exactly the query that was planned."""
+    return hash_document(query.to_document())
 
 
 def mjd_to_jyear(mjd: float) -> float:
@@ -262,6 +306,7 @@ class InvestigateFieldUseCase:
     executor: ComputeExecutor
     acquire: AcquireDatasetUseCase
     ports: InvestigatePorts
+    _gate: PlanGate | None = field(default=None, init=False, repr=False)
 
     # -- orchestration -------------------------------------------------------------------------
 
@@ -273,7 +318,13 @@ class InvestigateFieldUseCase:
             {**describe(t), "thresholds": dict(s.thresholds)} for s, t in zip(profile.tests, tests, strict=True)
         ]
         investigation_set = self._open_set(command, tests_described)
+        self._gate = command.gate
+        try:
+            return self._run(investigation_set, tests_described)
+        finally:
+            self._gate = None
 
+    def _run(self, investigation_set: InvestigationSet, tests_described: list[dict[str, Any]]) -> InvestigationRun:
         objects: ObjectSet | None = None
         bundles: list[EvidenceBundle] = []
         results: list[TestResult] = []
@@ -308,6 +359,9 @@ class InvestigateFieldUseCase:
                 raise InvariantViolation(
                     "a resumed run keeps its field and profile; a changed profile is a new version and a new run"
                 )
+            planned = command.gate.plan.plan_id if command.gate else None
+            if existing.plan_artifact_id != planned:
+                raise InvariantViolation("a resumed run executes the plan it started under, and only that plan")
             for stage, record in existing.stages.items():
                 if record.state is StageState.FAILED:
                     existing.stages[stage].state = StageState.PENDING
@@ -319,6 +373,7 @@ class InvestigateFieldUseCase:
             profile=command.profile,
             seed=command.seed,
             started_at=now,
+            plan_artifact_id=command.gate.plan.plan_id if command.gate else None,
         )
         environment = self.environment.record(Backend.CPU).to_document()
         with self.uow() as uow:
@@ -335,6 +390,7 @@ class InvestigateFieldUseCase:
                             "seed": command.seed,
                             "code_revision": environment.get("code_revision"),
                             "actor": command.actor,
+                            "plan_artifact_id": investigation_set.plan_artifact_id,
                         },
                     )
                 ]
@@ -399,25 +455,37 @@ class InvestigateFieldUseCase:
 
     # -- stage 1: Identify ---------------------------------------------------------------------
 
+    def _authorise(self, source_id: str, operation: Operation, target: str) -> tuple[bool, PlanItem | None]:
+        """Whether an acquisition may run: always outside a plan; under one, only when an approved
+        item names it (INT-015). The refusal is kept on the gate for the execution record."""
+        if self._gate is None:
+            return True, None
+        item = self._gate.authorise(source_id, operation, target)
+        return item is not None, item
+
     def _catalogue_table(
-        self, investigation_set: InvestigationSet, source_id: str, release: str, columns: tuple[str, ...], **kw: Any
-    ) -> tuple[pa.Table, DatasetArtifact]:
-        query = CatalogueQuery(
-            source_id=source_id,
-            release_label=release,
-            region=investigation_set.field.query_region(kw.pop("margin_deg", 0.0)),
-            columns=columns,
-            **kw,
-        )
+        self, investigation_set: InvestigationSet, query: CatalogueQuery, *, required: bool
+    ) -> tuple[pa.Table, DatasetArtifact] | None:
+        allowed, item = self._authorise(query.source_id, query_operation(query), query_target(query))
+        if not allowed:
+            if required:
+                raise IntegrationRefused(
+                    f"plan {investigation_set.plan_artifact_id} names no item for the {query.source_id} query "
+                    "Identify needs; nothing is acquired that the plan does not name (INT-015)"
+                )
+            log.warning("catalogue query refused by the plan", extra={"source": query.source_id})
+            return None
         result = self.acquire.execute(AcquireDatasetCommand(query))
         artifact = result.curated or result.raw
         if artifact.status is DatasetStatus.REJECTED:
-            raise IntegrityError(f"{source_id} acquisition was rejected: {artifact.rejection_reason}")
+            raise IntegrityError(f"{query.source_id} acquisition was rejected: {artifact.rejection_reason}")
+        if self._gate is not None and item is not None:
+            self._gate.record(item, artifact.artifact_id.value)
         with self.uow() as uow:
             self._used(uow, investigation_set.set_id, artifact)
             uow.commit()
         table = decode_artifact(self.store.get(artifact.artifact_id), PARQUET)
-        investigation_set.archive_releases = tuple(sorted({*investigation_set.archive_releases, release}))
+        investigation_set.archive_releases = tuple(sorted({*investigation_set.archive_releases, query.release_label}))
         return table, artifact
 
     def _identify(self, investigation_set: InvestigationSet) -> ObjectSet:
@@ -428,15 +496,11 @@ class InvestigateFieldUseCase:
             return restored
         spec = investigation_set.profile.identify
         field_ = investigation_set.field
-        gaia, gaia_artifact = self._catalogue_table(
-            investigation_set,
-            spec.source_id,
-            spec.release_label,
-            spec.columns,
-            filters=spec.quality_cuts,
-            row_cap=spec.row_cap,
-            chunk_rows=min(spec.row_cap, 50_000),
+        identified = self._catalogue_table(
+            investigation_set, identify_query(field_, investigation_set.profile), required=True
         )
+        assert identified is not None
+        gaia, gaia_artifact = identified
         objects: list[IdentifiedObject]
         if spec.route is IdentifyRoute.CATALOGUE:
             objects = self._from_catalogue(gaia, gaia_artifact.artifact_id, investigation_set)
@@ -760,15 +824,11 @@ class InvestigateFieldUseCase:
         releases: dict[str, set[str]] = {k: set() for k in keys}
 
         identify = profile.identify
-        gaia, gaia_artifact = self._catalogue_table(
-            investigation_set,
-            identify.source_id,
-            identify.release_label,
-            identify.columns,
-            filters=identify.quality_cuts,
-            row_cap=identify.row_cap,
-            chunk_rows=min(identify.row_cap, 50_000),
+        identified = self._catalogue_table(
+            investigation_set, identify_query(investigation_set.field, profile), required=True
         )
+        assert identified is not None
+        gaia, gaia_artifact = identified
         by_key = {str(r["source_key"]): r for r in gaia.to_pylist()}
         for o in objects.objects:
             if o.gaia_source_key and o.gaia_source_key in by_key:
@@ -782,13 +842,12 @@ class InvestigateFieldUseCase:
         for selection in profile.archives:
             if selection.role is not ArchiveRole.CATALOGUE:
                 continue
-            table, artifact = self._catalogue_table(
-                investigation_set,
-                selection.source_id,
-                selection.release_label,
-                selection.columns,
-                margin_deg=selection.match_radius_arcsec / 3600.0,
+            read = self._catalogue_table(
+                investigation_set, catalogue_query(investigation_set.field, selection), required=False
             )
+            if read is None:
+                continue
+            table, artifact = read
             if not keys or table.num_rows == 0:
                 continue
             match = self.ports.cross_match.match(positions, table, selection.match_radius_arcsec * u.arcsec)
@@ -851,6 +910,11 @@ class InvestigateFieldUseCase:
                     if record.product_type not in needed:
                         continue
                     if record.product not in retrieved:
+                        allowed, item = self._authorise(
+                            selection.source_id, Operation.DOWNLOAD, record.product.product_id
+                        )
+                        if not allowed:
+                            continue
                         got = gateway.fetch(record.product)
                         retrieved[record.product] = (
                             got,
@@ -866,6 +930,8 @@ class InvestigateFieldUseCase:
                                 product=uses.get(record.product),
                             ),
                         )
+                        if self._gate is not None and item is not None:
+                            self._gate.record(item, retrieved[record.product][1].artifact_id.value)
                     fetched, product = retrieved[record.product]
                     if envelopes is not None and envelopes.covers(record.mission):
                         try:

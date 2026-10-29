@@ -10,7 +10,7 @@ from sdp.kernel.application.acquisition import RetryPolicy
 from sdp.kernel.application.investigate import InvestigatePorts
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.ports.archives import ArchiveGateway
-from sdp.kernel.ports.integration import AdapterCompatibilitySource
+from sdp.kernel.ports.integration import AdapterCompatibilitySource, CapabilityDiscoveryService
 from sdp.kernel.science.protocol import ScientificProtocol
 from sdp.testing.fakes import (
     FakeDoiMinter,
@@ -47,6 +47,7 @@ def build_in_memory_kernel(
     min_free_bytes: int = 0,
     investigate: InvestigatePorts | None = None,
     compatibility: AdapterCompatibilitySource | None = None,
+    discovery: CapabilityDiscoveryService | None = None,
 ) -> InMemoryKernel:
     clock = FixedClock()
     db = InMemoryDatabase()
@@ -72,5 +73,6 @@ def build_in_memory_kernel(
         min_free_bytes=min_free_bytes,
         investigate=investigate,
         compatibility=compatibility,
+        discovery=discovery,
     )
     return InMemoryKernel(Kernel.build(ports), db, store, ledger, executor, publisher, clock)

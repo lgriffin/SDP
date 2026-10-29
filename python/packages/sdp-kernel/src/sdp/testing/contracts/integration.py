@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date
 
 import pytest
 
 from sdp.kernel.domain.association import AssociationGraph, AssociationPolicy, AssociationRecord, ReviewState
+from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.integration import EvidenceRequirement, MatchStatus, SourceCapabilityDescriptor
 from sdp.kernel.domain.investigation import Field
-from sdp.kernel.ports.integration import AssociationService, CapabilityDiscoveryService, CapabilityRegistry
+from sdp.kernel.ports.integration import (
+    AssociationService,
+    CapabilityDiscoveryService,
+    CapabilityRegistry,
+    PlanExecution,
+)
+from sdp.kernel.ports.repositories import UnitOfWork
+from sdp.testing.contracts.investigate import sample_set
+from sdp.testing.integration import ledger_approval, sample_plan
 
 # ---------------------------------------------------------------------------------------------
 # CapabilityRegistry
@@ -157,3 +167,65 @@ class AssociationServiceContract:
             return sorted((a.record_id, members[a.hypothesis_id], round(a.posterior, 12)) for a in g.associations)
 
         assert view(first) == view(second)
+
+
+# ---------------------------------------------------------------------------------------------
+# PlanRepository, through a unit of work
+
+
+class PlanRepositoryContract:
+    """A plan is stored as drafted, decided once and executed once; nothing is edited or deleted."""
+
+    @pytest.mark.req("INT-013")
+    def test_a_drafted_plan_round_trips_and_storing_it_again_changes_nothing(
+        self, uow_factory: Callable[[], UnitOfWork]
+    ) -> None:
+        plan = sample_plan()
+        with uow_factory() as uow:
+            uow.plans.add(plan)
+            uow.plans.add(plan)
+            uow.commit()
+        with uow_factory() as uow:
+            got = uow.plans.get(plan.plan_id)
+            listed = uow.plans.list()
+        assert got is not None and got.plan == plan and got.state == "drafted"
+        assert got.set_id is None and got.execution is None
+        assert [r.plan.plan_id for r in listed] == [plan.plan_id]
+        with uow_factory() as uow:
+            assert uow.plans.get("sha256:" + "0" * 64) is None
+
+    @pytest.mark.req("INT-014")
+    def test_a_plan_is_decided_once(self, uow_factory: Callable[[], UnitOfWork]) -> None:
+        plan = sample_plan(image_bytes=50_000_000)
+        approved = plan.decide(actor="leigh", ledger_entry=ledger_approval(plan))
+        with uow_factory() as uow:
+            uow.plans.add(plan)
+            uow.plans.decide(approved)
+            uow.commit()
+        with uow_factory() as uow:
+            got = uow.plans.get(plan.plan_id)
+        assert got is not None and got.plan == approved and got.state == "approved"
+        with uow_factory() as uow, pytest.raises(InvariantViolation):
+            uow.plans.decide(plan.decide(actor="leigh", refuse_reason="changed my mind"))
+
+    @pytest.mark.req("INT-015")
+    def test_only_an_approved_plan_is_executed_and_only_once(self, uow_factory: Callable[[], UnitOfWork]) -> None:
+        plan = sample_plan()
+        refused = sample_plan(image_bytes=4_000_000)
+        execution = PlanExecution(plan.plan_id, ("sha256:" + "a" * 64,), ("item-2",))
+        with uow_factory() as uow:
+            uow.investigations.save_set(sample_set("invset-1"))
+            uow.plans.add(plan)
+            uow.plans.add(refused)
+            uow.plans.decide(plan.decide(actor="leigh"))
+            uow.plans.decide(refused.decide(actor="leigh", refuse_reason="not needed"))
+            uow.plans.executed(plan.plan_id, "invset-1", execution)
+            uow.commit()
+        with uow_factory() as uow:
+            got = uow.plans.get(plan.plan_id)
+        assert got is not None and got.state == "executed"
+        assert got.set_id == "invset-1" and got.execution == execution
+        with uow_factory() as uow, pytest.raises(InvariantViolation):
+            uow.plans.executed(plan.plan_id, "invset-2", execution)
+        with uow_factory() as uow, pytest.raises(InvariantViolation):
+            uow.plans.executed(refused.plan_id, "invset-3", replace(execution, plan_id=refused.plan_id))

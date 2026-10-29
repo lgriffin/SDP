@@ -177,6 +177,8 @@ class PlanInvestigationCommand:
     profile: TestProfile
     budget: AcquisitionBudget
     actor: str = "kernel"
+    seed: int = 0
+    """Recorded in the plan's constraints, so the executed run is the one that was planned."""
 
 
 class PlanInvestigation(Protocol):
@@ -214,6 +216,51 @@ class PlanExecution:
     """Artifact ids, one per plan item fetched."""
     unavailable: tuple[str, ...]
     """Item ids that could not be fetched, with the reason in the PlanExecuted event."""
+
+    def to_document(self) -> dict[str, Any]:
+        return {"plan_id": self.plan_id, "acquired": list(self.acquired), "unavailable": list(self.unavailable)}
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> PlanExecution:
+        return cls(doc["plan_id"], tuple(doc["acquired"]), tuple(doc["unavailable"]))
+
+
+@dataclass(frozen=True)
+class PlanRecord:
+    """A stored plan with what became of it: the investigation set its execution opened, and the
+    execution itself. The UI derives the plan's state from these (drafted, decided, executed)."""
+
+    plan: AcquisitionPlan
+    set_id: str | None = None
+    execution: PlanExecution | None = None
+
+    @property
+    def state(self) -> str:
+        if self.execution is not None:
+            return "executed"
+        approval = self.plan.approval
+        return approval.decision.value if approval is not None else "drafted"
+
+
+class PlanRepository(Protocol):
+    """Plans as documents. The plan itself never changes (its id hashes it); its approval is
+    recorded once, and its execution once. Nothing is deleted (ADR-020)."""
+
+    def add(self, plan: AcquisitionPlan) -> None:
+        """Store a drafted plan; storing the same plan again changes nothing."""
+        ...
+
+    def decide(self, plan: AcquisitionPlan) -> None:
+        """Record the approval or refusal the plan now carries; a plan is decided once."""
+        ...
+
+    def executed(self, plan_id: str, set_id: str, execution: PlanExecution) -> None:
+        """Record the run an approved plan opened; a plan is executed once."""
+        ...
+
+    def get(self, plan_id: str) -> PlanRecord | None: ...
+
+    def list(self) -> Sequence[PlanRecord]: ...
 
 
 class ExecutePlan(Protocol):

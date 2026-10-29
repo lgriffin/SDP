@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import date
 from typing import Any
 
 import numpy as np
@@ -16,6 +17,15 @@ import pyarrow as pa
 
 from sdp.kernel.application.investigate import InvestigatePorts
 from sdp.kernel.domain.archive import ColumnDescriptor, Cone, SourceDescriptor
+from sdp.kernel.domain.integration import (
+    AdapterInfo,
+    Coverage,
+    Operation,
+    ProductType,
+    Rights,
+    ServiceLimits,
+    SourceCapabilityDescriptor,
+)
 from sdp.kernel.domain.investigation import (
     ArchiveRole,
     ArchiveSelection,
@@ -45,6 +55,7 @@ from sdp.kernel.ports.investigate import (
 from sdp.kernel.science.investigation import InvestigationTest, InvestigationTestRegistry
 from sdp.kernel.science.plan import TaskContext
 from sdp.testing.fakes.archives import AstropyCrossMatch, FakeArchive
+from sdp.testing.fakes.integration import FixtureDiscovery, InMemoryCapabilityRegistry
 from sdp.testing.fakes.investigate import FakeObservationArchive, FixtureResolver, PlacedRecord
 
 CANONICAL_COLUMNS = (
@@ -423,3 +434,51 @@ def investigate_ports(
         product_dialects=dict(product_dialects or {}),
         rankers=dict(rankers or {}),
     )
+
+
+def planning_descriptors() -> tuple[SourceCapabilityDescriptor, ...]:
+    """Descriptors for the synthetic world's three sources, so the planner can match against them."""
+    verified = date(2026, 10, 28)
+    gaia = SourceCapabilityDescriptor(
+        source_id="synthetic-gaia",
+        title="Synthetic Gaia",
+        publisher="SDP test fixtures",
+        origin="hand-written",
+        verified_on=verified,
+        product_types=frozenset({ProductType.CATALOGUE}),
+        missions=("Gaia",),
+        coverage=Coverage(all_sky=True),
+        operations=frozenset({Operation.CONE, Operation.REGION}),
+        limits=ServiceLimits(throughput_bytes_per_s=2e6),
+        rights=Rights("CC-BY-SA-3.0 IGO", "Gaia Collaboration"),
+        adapter=AdapterInfo("synthetic-gaia", "1.0.0", verified, {"catalogue": True}),
+    )
+    twomass = replace(
+        gaia,
+        source_id="synthetic-2mass",
+        title="Synthetic 2MASS",
+        missions=("2MASS",),
+        rights=Rights("public domain", "2MASS"),
+        adapter=AdapterInfo("synthetic-2mass", "1.0.0", verified, {"catalogue": True}),
+    )
+    plates = SourceCapabilityDescriptor(
+        source_id="fake-plates",
+        title="Fake plates",
+        publisher="SDP test fixtures",
+        origin="hand-written",
+        verified_on=verified,
+        product_types=frozenset({ProductType.TIMESERIES, ProductType.MEASUREMENTS}),
+        missions=("DASCH",),
+        coverage=Coverage(all_sky=True),
+        operations=frozenset({Operation.CONE, Operation.DOWNLOAD}),
+        rights=Rights("fixture licence", "fixture citation"),
+        adapter=AdapterInfo("fake-plates", "1.0.0", verified, {"timeseries": True, "measurements": True}),
+    )
+    return gaia, twomass, plates
+
+
+def planning_discovery(*descriptors: SourceCapabilityDescriptor) -> FixtureDiscovery:
+    registry = InMemoryCapabilityRegistry()
+    for d in descriptors or planning_descriptors():
+        registry.put(d)
+    return FixtureDiscovery(registry)
