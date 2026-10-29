@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from importlib.metadata import entry_points
@@ -88,6 +89,7 @@ from sdp.kernel.ports.integration import ProductInventory, ProductNormalizer, Pr
 from sdp.kernel.ports.investigate import (
     CandidateRanker,
     CuratedProduct,
+    FieldResolver,
     ImageFrame,
     InvestigateFieldCommand,
     InvestigationRun,
@@ -139,6 +141,54 @@ def identify_query(field_: Field, profile: TestProfile) -> CatalogueQuery:
 
 #: The stage summary key naming each source whose read filled its row cap, with the cap (#59)
 ROW_CAP_REACHED = "row_cap_reached"
+
+#: The stage summary key for the bytes the stage added to the artifact store (#60)
+STORED_BYTES = "stored_bytes"
+
+
+class _MeteredStore:
+    """The use case's store, counting the bytes of every artifact it adds; bytes already stored are not
+    counted again, since a content-addressed put of equal bytes writes nothing (#60)."""
+
+    def __init__(self, inner: ArtifactStore) -> None:
+        self.inner = inner
+        self.stored_bytes = 0
+        self._lock = threading.Lock()
+
+    def add(self, count: int) -> None:
+        with self._lock:
+            self.stored_bytes += count
+
+    def take(self) -> int:
+        with self._lock:
+            count, self.stored_bytes = self.stored_bytes, 0
+        return count
+
+    def put(self, data: bytes, media_type: str, *, logical_path: str | None = None) -> ArtifactId:
+        new = not self.inner.exists(ArtifactId.of_bytes(data))
+        artifact = self.inner.put(data, media_type, logical_path=logical_path)
+        if new:
+            self.add(len(data))
+        return artifact
+
+    def get(self, artifact_id: ArtifactId) -> bytes:
+        return self.inner.get(artifact_id)
+
+    def exists(self, artifact_id: ArtifactId) -> bool:
+        return self.inner.exists(artifact_id)
+
+    def media_type(self, artifact_id: ArtifactId) -> str:
+        return self.inner.media_type(artifact_id)
+
+    def resolve(self, logical_path: str) -> ArtifactId | None:
+        return self.inner.resolve(logical_path)
+
+    def link(self, logical_path: str, artifact_id: ArtifactId) -> None:
+        self.inner.link(logical_path, artifact_id)
+
+    def free_bytes(self) -> int | None:
+        return self.inner.free_bytes()
+
 
 CATALOGUE_ROWS = 50_000
 """The most rows Retrieve reads from a catalogue archive, in a single call."""
@@ -345,6 +395,11 @@ class InvestigateFieldUseCase:
     acquire: AcquireDatasetUseCase
     ports: InvestigatePorts
     _gate: PlanGate | None = field(default=None, init=False, repr=False)
+    _meter: _MeteredStore = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._meter = _MeteredStore(self.store)
+        self.store = self._meter
 
     # -- orchestration -------------------------------------------------------------------------
 
@@ -357,6 +412,7 @@ class InvestigateFieldUseCase:
         ]
         investigation_set = self._open_set(command, tests_described)
         self._gate = command.gate
+        self._meter.take()  # a stage counts only its own bytes
         try:
             return self._run(investigation_set, tests_described)
         finally:
@@ -464,6 +520,7 @@ class InvestigateFieldUseCase:
     ) -> ArtifactId:
         artifact = self.store.put(canonical_json(document).encode(), JSON)
         self.store.link(set_path(investigation_set.set_id, f"{stage.value}.json"), artifact)
+        summary[STORED_BYTES] = self._meter.take()
         with self.uow() as uow:
             investigation_set.complete_stage(stage, artifact, self.clock.now(), **summary)
             graph = ProvGraph()
@@ -521,6 +578,7 @@ class InvestigateFieldUseCase:
             log.warning("catalogue query refused by the plan", extra={"source": query.source_id})
             return None
         result = self.acquire.execute(AcquireDatasetCommand(query))
+        self._meter.add(result.stored_bytes)
         if cut_off is not None and result.reached_row_cap:
             cut_off[query.source_id] = query.row_cap
         artifact = result.curated or result.raw
@@ -556,10 +614,12 @@ class InvestigateFieldUseCase:
             objects = self._from_images(gaia, gaia_artifact.artifact_id, investigation_set)
         if spec.resolve and self.ports.resolver is not None:
             resolver = self.ports.resolver
-            objects = [
-                o.with_resolution(resolver.by_position(o.ra_deg, o.dec_deg, spec.resolver_radius_arcsec))
-                for o in objects
-            ]
+            radius = spec.resolver_radius_arcsec
+            if isinstance(resolver, FieldResolver):
+                records = resolver.resolve_positions([(o.ra_deg, o.dec_deg) for o in objects], radius)
+                objects = [o.with_resolution(r) for o, r in zip(objects, records, strict=True)]
+            else:
+                objects = [o.with_resolution(resolver.by_position(o.ra_deg, o.dec_deg, radius)) for o in objects]
             investigation_set.archive_releases = tuple(
                 sorted({*investigation_set.archive_releases, resolver.release_label})
             )
