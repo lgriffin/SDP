@@ -1,8 +1,8 @@
 // Starts what the compose stack starts, without containers: PostgreSQL, the migrations, sdp-api and the
 // evidence UI's Node server. The Electron main process and the smoke test both call startBackend.
 import type { ChildProcess } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -39,22 +39,49 @@ export function commandPromptEnvironment(env: Record<string, string>): string {
   return ["@echo off", "rem Written by SDP Desktop on each start. Do not edit.", ...lines, ""].join("\r\n");
 }
 
-/** Copy the shipped default profiles (and their guide) into the person's profiles folder. A file
- * already there is left alone, so edits survive; a new default version arrives under its own name. */
+/** Where seedProfiles records the hash of each default it last shipped. */
+export const SHIPPED = ".shipped.json";
+
+const sha256 = (data: Buffer): string => createHash("sha256").update(data).digest("hex");
+
+/** Copy the shipped default profiles (and their guide) into the person's profiles folder. A default the
+ * person has not edited is brought up to date by each release; one they edited, or a file of their own
+ * with the same name in any letter case, is left alone. */
 export async function seedProfiles(from: string, to: string): Promise<string[]> {
   await mkdir(to, { recursive: true });
   let names: string[];
   try {
-    names = (await readdir(from)).filter((n) => /\.(ya?ml|md)$/.test(n));
+    names = (await readdir(from)).filter((n) => /\.(ya?ml|md)$/.test(n)).sort();
   } catch {
     return [];
   }
-  const present = new Set(await readdir(to));
+  const shipped: Record<string, string> = await readFile(join(to, SHIPPED), "utf8")
+    .then((text) => JSON.parse(text) as Record<string, string>)
+    .catch(() => ({}));
+  // Windows folders ignore letter case, so FIRST-LOOK.yaml and first-look.yaml are the same file.
+  const present = new Map((await readdir(to)).map((n) => [n.toLowerCase(), n]));
   const copied = [];
-  for (const name of names.filter((n) => !present.has(n)).sort()) {
-    await copyFile(join(from, name), join(to, name));
+  for (const name of names) {
+    const content = await readFile(join(from, name));
+    const hash = sha256(content);
+    const existing = present.get(name.toLowerCase());
+    if (existing !== undefined) {
+      if (existing !== name || shipped[name] === undefined) continue; // the person's own file
+      const current = sha256(await readFile(join(to, name)));
+      if (current !== shipped[name] || current === hash) continue; // edited, or already current
+      await writeFile(join(to, name), content);
+    } else {
+      try {
+        await writeFile(join(to, name), content, { flag: "wx" }); // never replace a file that appeared since
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+        throw error;
+      }
+    }
+    shipped[name] = hash;
     copied.push(name);
   }
+  await writeFile(join(to, SHIPPED), `${JSON.stringify(shipped, null, 2)}\n`);
   return copied;
 }
 

@@ -135,6 +135,10 @@ def identify_query(field_: Field, profile: TestProfile) -> CatalogueQuery:
     )
 
 
+CATALOGUE_ROWS = 50_000
+"""The most rows Retrieve reads from a catalogue archive, in a single call."""
+
+
 def catalogue_query(field_: Field, selection: ArchiveSelection) -> CatalogueQuery:
     """The cone a catalogue archive is read over: the field plus its match radius."""
     return CatalogueQuery(
@@ -142,6 +146,9 @@ def catalogue_query(field_: Field, selection: ArchiveSelection) -> CatalogueQuer
         release_label=selection.release_label,
         region=field_.query_region(selection.match_radius_arcsec / 3600.0),
         columns=selection.columns,
+        # One page: within every declared source's per-call limit, and readable by a source that cannot page.
+        row_cap=CATALOGUE_ROWS,
+        chunk_rows=CATALOGUE_ROWS,
     )
 
 
