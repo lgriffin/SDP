@@ -15,16 +15,18 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, Protocol
 
 USER_AGENT = "sdp-archives/0.1 (+https://github.com/lgriffin/SDP)"
+log = logging.getLogger("sdp.adapters.transport")
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,43 @@ class UrllibTransport:
 
 
 RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})
+
+
+@dataclass
+class MirrorTransport:
+    """Sends a request under one of ``mirrors``' primary base URLs to the first copy of that service that
+    answers: the primary as built, then each mirror with the same path, query and body. Only getting no
+    HTTP answer at all moves on; any status, even an error, is the service's answer and comes back as it
+    is. Once a mirror answers it is asked first from then on, so an outage costs one failover, not one per
+    request. In replay a missing recording also moves on, so a run recorded against a mirror replays."""
+
+    inner: Transport
+    #: primary base URL -> its mirrors, in the order to try them
+    mirrors: Mapping[str, tuple[str, ...]]
+    _first: dict[str, str] = field(default_factory=dict, init=False)
+
+    def send(self, request: HttpRequest) -> HttpResponse:
+        primary = next((p for p in self.mirrors if request.url.startswith(p)), None)
+        if primary is None or not self.mirrors[primary]:
+            return self.inner.send(request)
+        rest = request.url[len(primary) :]
+        preferred = self._first.get(primary, primary)
+        bases = sorted([primary, *self.mirrors[primary]], key=lambda base: base != preferred)
+        failure: TransportError | None = None
+        for base in bases:
+            try:
+                response = self.inner.send(replace(request, url=base + rest))
+            except TransportError as exc:
+                if exc.status is not None:
+                    raise
+                failure = failure or exc
+                continue
+            if base != preferred:
+                log.warning("%s did not answer (%s); using %s from now on", preferred, failure, base)
+                self._first[primary] = base
+            return response
+        assert failure is not None
+        raise failure
 
 
 @dataclass

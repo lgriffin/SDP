@@ -14,6 +14,7 @@ from sdp.adapters.archives.transport import (
     CassetteTransport,
     HttpRequest,
     HttpResponse,
+    MirrorTransport,
     PoliteTransport,
     TransportError,
 )
@@ -129,3 +130,70 @@ def test_the_archives_minimum_interval_is_honoured() -> None:
     t.now += 0.5
     polite.send(REQUEST)
     assert t.slept == [1.0]
+
+
+# --- official mirrors ---------------------------------------------------------------------------
+
+PRIMARY = "https://primary.invalid/tap"
+MIRROR = "https://mirror.invalid/tap"
+
+
+@dataclass
+class ByHost:
+    """Answers per base URL: an exception means that host never answered."""
+
+    replies: dict[str, HttpResponse | Exception]
+    asked: list[str] = field(default_factory=list)
+
+    def send(self, request: HttpRequest) -> HttpResponse:
+        self.asked.append(request.url)
+        base = next(b for b in self.replies if request.url.startswith(b))
+        reply = self.replies[base]
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+def _sync(base: str) -> HttpRequest:
+    return HttpRequest("POST", f"{base}/sync", b"QUERY=SELECT", {"Content-Type": "application/x-www-form-urlencoded"})
+
+
+def test_a_silent_primary_fails_over_to_its_mirror_once_and_then_stays_there() -> None:
+    inner = ByHost({PRIMARY: TransportError("timed out"), MIRROR: HttpResponse(200, b"rows")})
+    mirrored = MirrorTransport(inner, {PRIMARY: (MIRROR,)})
+    assert mirrored.send(_sync(PRIMARY)).body == b"rows"
+    assert mirrored.send(_sync(PRIMARY)).body == b"rows"
+    assert inner.asked == [f"{PRIMARY}/sync", f"{MIRROR}/sync", f"{MIRROR}/sync"]
+
+
+def test_an_http_answer_from_the_primary_is_its_answer_even_an_error() -> None:
+    inner = ByHost({PRIMARY: HttpResponse(400, b"bad ADQL"), MIRROR: HttpResponse(200, b"rows")})
+    assert MirrorTransport(inner, {PRIMARY: (MIRROR,)}).send(_sync(PRIMARY)).status == 400
+    assert inner.asked == [f"{PRIMARY}/sync"]
+
+
+def test_an_error_with_a_status_is_not_failed_over() -> None:
+    inner = ByHost({PRIMARY: TransportError("HTTP 404", 404), MIRROR: HttpResponse(200, b"rows")})
+    with pytest.raises(TransportError, match="404"):
+        MirrorTransport(inner, {PRIMARY: (MIRROR,)}).send(_sync(PRIMARY))
+
+
+def test_when_no_copy_answers_the_primarys_failure_is_raised() -> None:
+    inner = ByHost({PRIMARY: TransportError("primary down"), MIRROR: TransportError("mirror down")})
+    with pytest.raises(TransportError, match="primary down"):
+        MirrorTransport(inner, {PRIMARY: (MIRROR,)}).send(_sync(PRIMARY))
+
+
+def test_requests_to_other_services_pass_straight_through() -> None:
+    inner = ByHost({"https://elsewhere.invalid": HttpResponse(200, b"x")})
+    MirrorTransport(inner, {PRIMARY: (MIRROR,)}).send(_sync("https://elsewhere.invalid"))
+    assert inner.asked == ["https://elsewhere.invalid/sync"]
+
+
+def test_a_run_recorded_against_a_mirror_replays(tmp_path: Path) -> None:
+    live = ByHost({PRIMARY: TransportError("timed out"), MIRROR: HttpResponse(200, b"rows")})
+    MirrorTransport(CassetteTransport(tmp_path, "record", inner=live), {PRIMARY: (MIRROR,)}).send(_sync(PRIMARY))
+    replay = MirrorTransport(CassetteTransport(tmp_path, "replay"), {PRIMARY: (MIRROR,)})
+    assert replay.send(_sync(PRIMARY)).body == b"rows"
+    doc = json.loads(next(tmp_path.glob("*.json")).read_text())
+    assert doc["request"]["url"] == f"{MIRROR}/sync", "the recording names the copy that answered"

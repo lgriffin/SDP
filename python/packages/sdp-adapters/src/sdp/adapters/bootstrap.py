@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sdp.adapters.archives import simbad
 from sdp.adapters.archives.bulk import BulkCatalogueGateway
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
@@ -18,7 +19,13 @@ from sdp.adapters.archives.mast import MastObservationGateway
 from sdp.adapters.archives.mast_inventory import MastProductInventory
 from sdp.adapters.archives.simbad import SimbadResolver
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
-from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
+from sdp.adapters.archives.transport import (
+    CassetteTransport,
+    MirrorTransport,
+    PoliteTransport,
+    Transport,
+    UrllibTransport,
+)
 from sdp.adapters.archives.untrusted import IsolatedVotableParser
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
@@ -124,6 +131,12 @@ def archive_transport(settings: Settings, name: str, min_seconds_between_calls: 
     return CassetteTransport(directory, "record", inner=live)
 
 
+def simbad_transport(settings: Settings) -> Transport:
+    """SIMBAD's transport: Strasbourg first, then CDS's Harvard mirrors unless SDP_ARCHIVE_MIRRORS=0."""
+    transport = archive_transport(settings, "simbad", 1.0)
+    return MirrorTransport(transport, simbad.MIRRORS) if settings.archive_mirrors else transport
+
+
 def archive_gateways(settings: Settings, store: ArtifactStore | None = None) -> dict[str, ArchiveGateway]:
     """One TAP gateway per packaged source, each with its own rate limit (§8). Gaia is read from the
     store's bulk copy instead when ``SDP_GAIA_SOURCE`` is bulk, or auto and the copy is complete (#72)."""
@@ -206,7 +219,7 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
         observation_gateways=observation_gateways(settings, mast),
         detector=detector,
         refiner=refiner,
-        resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
+        resolver=SimbadResolver(simbad_transport(settings)),
         services={
             "clusterer": SklearnHdbscan(),
             # the image tests' detector and both association methods (v0.4.0 §7, ADR-019)
