@@ -129,6 +129,7 @@ requirements:
     status: approved
     traces:
       - "python/tests.archives.test_dialect_columnar::test_every_packaged_dialect_curates_its_golden_rows_identically"
+      - "python/tests.archives.test_dialect_columnar::test_a_blank_declination_leaves_the_ra_motion_as_the_row_path_does"
       - "python/tests.archives.test_dialect_columnar::test_gaia_rows_with_nulls_curate_identically_and_faster"
       - "python/tests.archives.test_dialect_columnar::test_rows_without_an_epoch_are_excluded_and_counted_as_the_row_path_does"
       - "python/tests.archives.test_dialect_columnar::test_a_native_table_lacking_a_column_is_refused_by_name"

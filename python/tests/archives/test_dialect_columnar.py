@@ -78,6 +78,21 @@ def test_unit_conversion_cos_dec_epoch_kinds_and_mapped_quality_match_the_row_pa
             assert curate_columnar(dialect, native).equals(dialect.curate(native), check_metadata=True)
 
 
+@pytest.mark.req("DSI-016")
+def test_a_blank_declination_leaves_the_ra_motion_as_the_row_path_does() -> None:
+    gaia = load_dialects()["gaia-dr3"]
+    dialect = _variant(gaia, pm_ra_needs_cos_dec=True)
+    native = gaia_native(5)
+    dec = native.column("dec").to_pylist()
+    dec[2] = None
+    native = native.set_column(
+        native.schema.get_field_index("dec"), "dec", pa.array(dec, native.schema.field("dec").type)
+    )
+    columns = curate_columnar(dialect, native)
+    assert columns.equals(dialect.curate(native), check_metadata=True)
+    assert columns.column("pm_ra_cosdec_masyr")[2].as_py() is not None
+
+
 def test_rows_without_an_epoch_are_excluded_and_counted_as_the_row_path_does() -> None:
     gaia = load_dialects()["gaia-dr3"]
     native = gaia_native(20)

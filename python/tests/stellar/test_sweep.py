@@ -173,6 +173,13 @@ def test_a_planted_cluster_in_no_benchmark_comes_out_potentially_new_and_labelle
     assert new[0]["candidate_id"].startswith(result["tile"]["tile_id"] + "-c")
 
 
+@pytest.mark.req("STL-009")
+@pytest.mark.tier("T8")
+def test_a_tile_counts_as_searched_only_the_stars_inside_it_not_its_rim() -> None:
+    result = syn_b_result()
+    assert 0 < result["owned_stars"] < result["cuts"]["kept_rows"]
+
+
 @pytest.mark.tier("T8")
 def test_the_field_itself_is_rejected_as_most_of_the_stars() -> None:
     field = [c for c in syn_b_result()["candidates"] if c["status"] == "rejected"]
@@ -275,7 +282,8 @@ def _result(statuses: list[str], nulls: int, survivors: int, kept: int, skipped:
         ],
         "null_fields": nulls,
         "null_fields_with_survivors": survivors,
-        "cuts": {"kept_rows": kept},
+        "cuts": {"kept_rows": kept + 99},  # the rim's stars too; never counted as searched
+        "owned_stars": kept,
         "skipped": skipped,
     }
 

@@ -13,6 +13,7 @@ Two ways in, one pipeline:
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import time
@@ -87,23 +88,30 @@ def _benchmark_path(benchmark_id: str, release: str) -> str:
     return f"benchmarks/{benchmark_id}/{release.replace(':', '_')}.parquet"
 
 
-def _load_benchmarks(store: Any, labels: list[str]) -> tuple[list[Any], list[str]]:
-    """The stored benchmark catalogues the settings name, and the ones missing."""
+def _load_benchmarks(store: Any, labels: list[str]) -> tuple[list[Any], list[str], dict[str, str]]:
+    """The stored benchmark catalogues the settings name, the ones missing, and the artifact each was read from."""
     import io
 
     import pyarrow.parquet as pq
 
     from sdp_stellar.benchmark import benchmark_from
 
-    found, missing = [], []
+    found, missing, artifacts = [], [], {}
     for label in labels:
         benchmark_id = label.split(":", 1)[0]
         artifact = store.resolve(_benchmark_path(benchmark_id, label))
         if artifact is None:
             missing.append(benchmark_id)
             continue
-        found.append(benchmark_from(benchmark_id, pq.read_table(io.BytesIO(store.get(artifact)))))
-    return found, missing
+        table = pq.read_table(io.BytesIO(store.get(artifact)))
+        release = (table.schema.metadata or {}).get(b"sdp.benchmark.release", b"").decode()
+        if release != label:
+            raise DomainError(
+                f"the stored {benchmark_id} catalogue is release {release or 'unknown'!r}, not {label!r}; run `sdp benchmark fetch` again"
+            )
+        found.append(benchmark_from(benchmark_id, table))
+        artifacts[benchmark_id] = str(artifact)
+    return found, missing, artifacts
 
 
 # --- prepare: the cut catalogue ------------------------------------------------------------------
@@ -196,7 +204,7 @@ def _settings_guard(path: Path, settings: dict[str, Any], what: str) -> None:
 def discover_prepare(
     name: Annotated[str, typer.Option(help="The sweep's folder under <SDP data>/sweep")] = "gaia-dr3",
     workers: Annotated[int, typer.Option(min=1, max=32, help="Files read at once")] = 4,
-    count: Annotated[int | None, typer.Option(help="Do at most this many files (try 2 first)")] = None,
+    count: Annotated[int | None, typer.Option(min=1, help="Do at most this many files (try 2 first)")] = None,
 ) -> None:
     """Read every stored bulk Gaia file once into a cut catalogue for the sweep (STL-009).
 
@@ -289,7 +297,8 @@ def _band_table(catalogue: Path, bands: list[int]) -> Any:
     for band in bands:
         folder = catalogue / f"band={band:03d}"
         for path in sorted(folder.glob("*.parquet")) if folder.is_dir() else []:
-            parts.append(pq.read_table(path))
+            if (catalogue / "_done" / f"{path.stem}.json").exists():  # a file whose prepare finished
+                parts.append(pq.read_table(path))
     if not parts:
         return None
     return pa.concat_tables(parts)
@@ -315,7 +324,7 @@ def run_tile(
         statuses[c["status"]] = statuses.get(c["status"], 0) + 1
     return {
         "tile_id": t.tile_id,
-        "stars": result["cuts"]["kept_rows"],
+        "stars": result["owned_stars"],
         "statuses": statuses,
         "skipped": result["skipped"],
         "seconds": result["seconds"],
@@ -362,17 +371,31 @@ def discover_sweep(
     prepared = json.loads((catalogue / "_settings.json").read_text("utf-8"))
     if prepared != {"quality_cuts": settings["quality_cuts"], "tile_deg": float(settings["tile_deg"])}:
         raise DomainError("the prepared catalogue used other cuts or tiles than this SDP version; prepare it again")
-    benchmarks, missing = _load_benchmarks(artifact_store(_artifact_root()), list(settings["benchmarks"]))
-    if missing and not without_benchmarks:
-        raise DomainError(
-            f"no stored {missing}; run `sdp benchmark fetch` first (or pass --without-benchmarks: then nothing is called potentially new)"
-        )
-    _settings_guard(folder / "tiles" / "_settings.json", settings, "sweep")
+    benchmarks: list[Any] = []
+    used: dict[str, str] = {}
+    if not without_benchmarks:
+        benchmarks, missing, used = _load_benchmarks(artifact_store(_artifact_root()), list(settings["benchmarks"]))
+        if missing:
+            raise DomainError(
+                f"no stored {missing}; run `sdp benchmark fetch` first (or pass --without-benchmarks: then nothing is called potentially new)"
+            )
+    # Tiles are only comparable when searched over the same prepared files with the same catalogues.
+    done = sorted(p.stem for p in (catalogue / "_done").glob("*.json")) if (catalogue / "_done").is_dir() else []
+    _settings_guard(
+        folder / "tiles" / "_settings.json",
+        {
+            **settings,
+            "benchmarks_used": used,
+            "prepared_files": hashlib.sha256("\n".join(done).encode()).hexdigest(),
+        },
+        "sweep",
+    )
     out = folder / "tiles"
     tile_deg, margin = float(settings["tile_deg"]), float(settings["margin_deg"])
     total = band_count(tile_deg)
     chosen = _bands(bands, total)
     summaries: list[dict[str, Any]] = []
+    failed: list[str] = []
     started = time.monotonic()
     with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
         for band in chosen:
@@ -397,6 +420,7 @@ def discover_sweep(
                 try:
                     s = future.result()
                 except Exception as exc:  # one bad tile never stops the sweep; it is retried next run
+                    failed.append(futures[future])
                     _say(f"{futures[future]} failed: {exc}")
                     continue
                 summaries.append(s)
@@ -411,10 +435,13 @@ def discover_sweep(
             "bands": [chosen[0], chosen[-1]],
             "tiles_this_run": len(summaries),
             "potentially_new_this_run": new,
+            "failed": failed,
             "seconds": round(time.monotonic() - started, 1),
-            "next": "sdp discover report",
+            "next": "run the sweep again to retry the failed tiles" if failed else "sdp discover report",
         }
     )
+    if failed:
+        raise typer.Exit(1)
 
 
 @discover_app.command("report")
@@ -429,6 +456,8 @@ def discover_report(
     if not tiles:
         raise DomainError(f"no swept tiles in {folder / 'tiles'}; run `sdp discover sweep` first")
     results = [json.loads(p.read_text("utf-8")) for p in tiles]
+    if any("owned_stars" not in r for r in results):
+        raise DomainError(f"{folder / 'tiles'} holds tiles from an older SDP; delete that folder and sweep again")
     rows = candidate_rows(results)
     path = folder / "candidates.csv"
     fields = list(rows[0]) if rows else ["candidate_id", "status"]
@@ -488,6 +517,10 @@ def discover_run(
     for i, target in enumerate(targets, start=1):
         _say(f"2/5 Reading Gaia for {target.target_id} ({i}/{len(targets)})...")
         ra, dec, radius = (float(target.spec[k]) for k in ("ra_deg", "dec_deg", "radius_deg"))
+        if target.spec.get("source_release") != gaia.release_label:
+            raise DomainError(
+                f"{target.target_id} is predeclared on {target.spec.get('source_release')!r} but this SDP reads {gaia.release_label!r}"
+            )
         result = kernel.acquire_dataset.execute(
             AcquireDatasetCommand(
                 CatalogueQuery(
@@ -504,7 +537,10 @@ def discover_run(
         if result.curated is None:
             raise DomainError(f"Gaia for {target.target_id} was not curated")
         if result.rows >= row_cap:
-            _say(f"    warning: {target.target_id} filled its {row_cap:,}-row cap; raise --row-cap")
+            # A full cap means the region was cut short: no verdict on part of a field.
+            raise DomainError(
+                f"{target.target_id} filled its {row_cap:,}-row cap, so the field is incomplete; raise --row-cap"
+            )
         inputs[f"field:{target.target_id}"] = result.curated.artifact_id
     params: dict[str, Any] = {}
     if null_fields is not None:
