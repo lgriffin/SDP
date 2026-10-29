@@ -88,6 +88,7 @@ from sdp.kernel.ports.integration import ProductInventory, ProductNormalizer, Pr
 from sdp.kernel.ports.investigate import (
     CandidateRanker,
     CuratedProduct,
+    FieldResolver,
     ImageFrame,
     InvestigateFieldCommand,
     InvestigationRun,
@@ -556,10 +557,12 @@ class InvestigateFieldUseCase:
             objects = self._from_images(gaia, gaia_artifact.artifact_id, investigation_set)
         if spec.resolve and self.ports.resolver is not None:
             resolver = self.ports.resolver
-            objects = [
-                o.with_resolution(resolver.by_position(o.ra_deg, o.dec_deg, spec.resolver_radius_arcsec))
-                for o in objects
-            ]
+            radius = spec.resolver_radius_arcsec
+            if isinstance(resolver, FieldResolver):
+                records = resolver.resolve_positions([(o.ra_deg, o.dec_deg) for o in objects], radius)
+                objects = [o.with_resolution(r) for o, r in zip(objects, records, strict=True)]
+            else:
+                objects = [o.with_resolution(resolver.by_position(o.ra_deg, o.dec_deg, radius)) for o in objects]
             investigation_set.archive_releases = tuple(
                 sorted({*investigation_set.archive_releases, resolver.release_label})
             )

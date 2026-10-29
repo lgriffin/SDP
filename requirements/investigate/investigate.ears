@@ -123,3 +123,13 @@ requirements:
     tiers: [T1]
     status: approved
     traces: []
+  - id: INV-016
+    pattern: event
+    text: "When Identify resolves a field through a resolver that can resolve a whole field, the kernel shall ask it once for every identified position and record the same record by_position gives for each."
+    rationale: "SIMBAD star by star costs one to two seconds a star and dominated every run; one field query plus batched bibliographies takes seconds (#65)."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.usecase.test_investigate::test_a_field_resolver_is_asked_once_for_the_whole_field_with_the_same_answers"
+      - "python/tests.archives.test_investigate_vo::test_a_field_is_resolved_from_one_box_query_nearest_first_then_lower_oid"

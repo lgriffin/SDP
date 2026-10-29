@@ -37,6 +37,7 @@ from sdp.kernel.ports.investigate import Detection, InvestigateFieldCommand, Inv
 from sdp.testing.fakes.archives import FakeArchive
 from sdp.testing.fakes.investigate import (
     FakeObservationArchive,
+    FieldFixtureResolver,
     NearestWcsRefiner,
     PlantedDetector,
     ThinningDialect,
@@ -45,6 +46,7 @@ from sdp.testing.fakes.investigate import (
 from sdp.testing.investigate import (
     PLANTED,
     ProperMotionExcessTest,
+    fixture_resolver,
     gaia_archive,
     investigate_ports,
     observation_archive,
@@ -474,3 +476,18 @@ def test_a_stage_whose_read_filled_its_row_cap_names_the_source(world: World) ->
     identify = run.investigation_set.stages[Stage.IDENTIFY].summary
     assert identify["row_cap_reached"] == {profile.identify.source_id: 20}
     assert run.investigation_set.stages[Stage.RETRIEVE].summary["row_cap_reached"][profile.identify.source_id] == 20
+
+
+@pytest.mark.req("INV-016")
+def test_a_field_resolver_is_asked_once_for_the_whole_field_with_the_same_answers() -> None:
+    per_star = make_world().run()
+    fixture = fixture_resolver(synthetic_catalogue())
+    field_resolver = FieldFixtureResolver(fixture.table)
+    batched = make_world(resolver=field_resolver).run()
+    assert field_resolver.field_calls == [len(batched.investigation_set.objects_examined)]
+
+    def records(run: InvestigationRun) -> dict[str, object]:
+        return {b.object.object_key: b.object.resolver_record for b in run.bundles}
+
+    assert records(batched) == records(per_star)
+    assert any(records(batched).values())
