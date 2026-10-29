@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -756,6 +757,69 @@ def archive_acquire(
     )
     if result.reached_row_cap:
         warn_row_caps({source: row_cap})
+
+
+@archive_app.command("bulk")
+def archive_bulk(
+    source: Annotated[str, typer.Option(help="Source id; gaia is the only one with publisher bulk files")] = "gaia",
+    first: Annotated[int | None, typer.Option(help="Start at this file (0-based, in name order)")] = None,
+    count: Annotated[int | None, typer.Option(help="Do at most this many files (try 1 first)")] = None,
+    workers: Annotated[int, typer.Option(min=1, max=16, help="Files downloaded at once")] = 2,
+    work_dir: Annotated[
+        Path | None, typer.Option(help="Where downloads wait while being read; default beside the artifact store")
+    ] = None,
+    base_url: Annotated[str | None, typer.Option(help="The publisher's folder, ending in /")] = None,
+    status: Annotated[bool, typer.Option("--status", help="Only report how much is stored")] = False,
+) -> None:
+    """Copy a whole catalogue release from the publisher's bulk files into the artifact store, one Parquet
+    per file, skipping files already stored (#72). Stop it any time; run it again to resume."""
+    import os
+
+    from sdp.adapters.archives.bulk import GAIA_DR3_BULK, BulkSweep, select_files
+    from sdp.adapters.archives.tap import load_sources
+    from sdp.adapters.bootstrap import artifact_store
+
+    if source != "gaia":
+        raise typer.BadParameter("only gaia publishes bulk files SDP reads", param_hint="--source")
+    root = os.environ.get("SDP_ARTIFACT_ROOT")
+    if not root:
+        raise DomainError("SDP_ARTIFACT_ROOT is not set: it names the artifact store the sweep fills")
+    descriptor = load_sources()["gaia"].descriptor
+    sweep = BulkSweep(
+        store=artifact_store(Path(root)),
+        descriptor=descriptor,
+        work_dir=work_dir or Path(root).parent / "downloads",
+        columns=descriptor.column_names(),
+        base_url=base_url or GAIA_DR3_BULK,
+        min_free_bytes=int(os.environ.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
+    )
+    files = sweep.files()
+    if status:
+        emit(sweep.status(files))
+        return
+    chosen = select_files(files, first, count)
+    started, done = time.monotonic(), [0]
+
+    def report(result: Any) -> None:
+        done[0] += 1
+        size = f"{result.parquet_bytes / 1e6:,.1f} MB" if result.parquet_bytes else ""
+        typer.echo(
+            f"{done[0]}/{len(chosen)} {result.name} {result.status} {result.rows:,} rows {size} "
+            f"{result.seconds:.1f} s{' ' + result.error if result.error else ''}",
+            err=True,
+        )
+
+    results = sweep.run(chosen, workers=workers, progress=report)
+    summary = sweep.status(files)
+    failed = [r.name for r in results if r.status == "failed"]
+    emit(
+        {
+            **summary,
+            "this_run": {"files": len(results), "failed": failed, "seconds": round(time.monotonic() - started, 1)},
+        }
+    )
+    if failed:
+        raise typer.Exit(1)
 
 
 @archive_app.command("smoke")

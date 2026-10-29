@@ -74,3 +74,21 @@ None of these can be scripted, because each one rests on human judgement or on y
 - **Mutation baselines.** Run the **Mutation** workflow once with `update` ticked, then review the
   branch it pushes.
 - **The DGX Spark spike.** It runs on that machine; the steps are in `docs/spike/phase0-dgx-spark.md`.
+
+## All of Gaia DR3 on your own disk
+
+`sdp archive bulk` copies the whole of Gaia DR3 `gaia_source` from ESA's bulk files (about 3,400
+gzipped files listed in ESA's `_MD5SUM.txt`), not through TAP, as ESA asks for whole-catalogue copies.
+Each file is checked against its published MD5, cut down to the 27 columns SDP reads, and stored as
+one Parquet artifact under `bulk/gaia/gaia_DR3/` in the artifact store, with a JSON record of its URL,
+MD5 and row count beside it. It needs only `SDP_ARTIFACT_ROOT` (and `SDP_MIN_FREE_BYTES`), not the
+database.
+
+```
+sdp archive bulk --count 1        # one file first: about 500,000 stars
+sdp archive bulk --workers 4      # then the rest; Ctrl+C any time
+sdp archive bulk --status         # files done, rows and bytes stored, free space
+```
+
+Run the same command again to resume: stored files are skipped and a file that failed is tried again.
+The sweep stops cleanly before a file when free space falls below `SDP_MIN_FREE_BYTES`.

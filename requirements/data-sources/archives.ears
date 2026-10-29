@@ -83,3 +83,14 @@ requirements:
     traces:
       - "python/tests.usecase.test_acquire_dataset::test_an_acquisition_that_fills_its_row_cap_says_so"
       - "python/tests.usecase.test_investigate::test_a_stage_whose_read_filled_its_row_cap_names_the_source"
+  - id: DSI-013
+    pattern: event
+    text: "When a bulk sweep stores a publisher file, the system shall verify the file against the published MD5, keep only the source's declared columns with their declared types, and skip every file already stored on a later run."
+    rationale: "All of Gaia DR3 is about 3,400 files and days of downloading; a sweep must be resumable, verified and no wider than what SDP reads (#72)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_bulk::test_each_file_becomes_a_typed_parquet_of_the_declared_columns_with_its_record"
+      - "python/tests.archives.test_bulk::test_a_rerun_skips_stored_files_and_a_bad_md5_fails_only_that_file"
+      - "python/tests.archives.test_bulk::test_the_sweep_stops_at_the_disk_floor_before_downloading"
