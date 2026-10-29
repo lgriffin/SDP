@@ -10,15 +10,17 @@ import {
   type InvestigationSet,
   type InvestigationSetSummary,
   type Plan,
+  type ArchivesStatus,
+  type ArtifactBytes,
   PlannerUnavailable,
 } from "../ports.ts";
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const SUMMARY = "id state protocol protocolVersion backend seed startedAt finishedAt verdict { status protocolVersion reasons }";
-const PLAN = "id setId state document execution";
+const PLAN = "id setId state document execution run";
 const SET_SUMMARY =
-  "id fieldId profileId profileVersion profileHash seed startedAt complete objectsExamined investigationIds label stages { stage state artifactId finishedAt error summary }";
+  "id fieldId profileId profileVersion profileHash seed startedAt complete objectsExamined investigationIds label planArtifactId stages { stage state artifactId finishedAt error summary }";
 
 export const QUERIES = {
   experiments: `query Experiments($state: String) { experiments(state: $state) { ${SUMMARY} } }`,
@@ -32,7 +34,7 @@ export const QUERIES = {
   events: `query Events($after: Int!, $limit: Int!) { events(after: $after, limit: $limit) { sequence name aggregateId occurredAt payload } }`,
   investigationSets: `query InvestigationSets { investigationSets { ${SET_SUMMARY} } }`,
   investigationSet: `query InvestigationSet($id: ID!) { investigationSet(id: $id) {
-    ${SET_SUMMARY} field profile testsApplied archiveReleases nullResults manifestId
+    ${SET_SUMMARY} field profile testsApplied archiveReleases nullResults manifestId images
     investigations { id candidateKey score state label rankingPolicy } } }`,
   investigation: `query Investigation($id: ID!) { investigation(id: $id) {
     id setId fieldId candidateKey candidate state label score rankingPolicy testResults evidenceBundleIds evidenceUsed
@@ -40,10 +42,12 @@ export const QUERIES = {
   // The planner (ADR-020). A server older than Stage E answers these with PlannerUnavailable.
   plans: `query Plans { plans { ${PLAN} } }`,
   plan: `query Plan($id: ID!) { plan(id: $id) { ${PLAN} } }`,
+  archives: `query Archives { archives { sources { sourceId origin verifiedOn productTypes } registration } }`,
 } as const;
 
 // sdp-api (graphql-core) quotes names with ' and graphql-js with ", so either is accepted.
 const MISSING_PLANNER = /Cannot query field ["']plans?["'] on type ["']Query["']/;
+const MISSING_FIELD = (name: string) => new RegExp(`Cannot query field ["']${name}["']`);
 
 interface GraphQLResponse<T> {
   data?: T;
@@ -104,7 +108,14 @@ export class GraphQLEvidenceSource implements EvidenceSource {
   }
 
   async investigationSet(id: string): Promise<InvestigationSet | null> {
-    return (await this.request<{ investigationSet: InvestigationSet | null }>(QUERIES.investigationSet, { id })).investigationSet;
+    try {
+      return (await this.request<{ investigationSet: InvestigationSet | null }>(QUERIES.investigationSet, { id })).investigationSet;
+    } catch (e) {
+      // An sdp-api from before the image view (INV-020) has no InvestigationSet.images.
+      if (!(e instanceof EvidenceUnavailable && MISSING_FIELD("images").test(e.message))) throw e;
+      const older = QUERIES.investigationSet.replace(" images", "");
+      return (await this.request<{ investigationSet: InvestigationSet | null }>(older, { id })).investigationSet;
+    }
   }
 
   async investigation(id: string): Promise<Investigation | null> {
@@ -119,12 +130,48 @@ export class GraphQLEvidenceSource implements EvidenceSource {
     return (await this.planRequest<{ plan: Plan | null }>(QUERIES.plan, { id })).plan;
   }
 
+  async archives(): Promise<ArchivesStatus | null> {
+    try {
+      return (await this.planRequest<{ archives: ArchivesStatus | null }>(QUERIES.archives)).archives;
+    } catch (e) {
+      // An sdp-api from before archive registration (INV-019): the port promises null.
+      if (e instanceof EvidenceUnavailable && MISSING_FIELD("archives").test(e.message)) return null;
+      throw e;
+    }
+  }
+
+  async artifact(artifactId: string): Promise<ArtifactBytes | null> {
+    return this.bytes(`/artifacts/${encodeURIComponent(artifactId)}`);
+  }
+
+  async preview(artifactId: string): Promise<ArtifactBytes | null> {
+    return this.bytes(`/artifacts/${encodeURIComponent(artifactId)}/preview.png`);
+  }
+
+  /** Bytes from sdp-api beside its GraphQL endpoint; null for a 404 or a 415 (not an image). */
+  async bytes(path: string): Promise<ArtifactBytes | null> {
+    const url = this.endpoint.replace(/\/graphql\/?$/, "") + path;
+    let response: Response;
+    try {
+      response = await this.fetch(url, { method: "GET" });
+    } catch (cause) {
+      throw new EvidenceUnavailable(`cannot reach ${url}: ${(cause as Error).message}`);
+    }
+    if (response.status === 404 || response.status === 415) return null;
+    if (!response.ok) throw new EvidenceUnavailable(`${url} answered ${response.status}`);
+    return { body: new Uint8Array(await response.arrayBuffer()), mediaType: response.headers.get("content-type") ?? "application/octet-stream" };
+  }
+
   async planRequest<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     try {
       return await this.request<T>(query, variables);
     } catch (e) {
       if (e instanceof EvidenceUnavailable && MISSING_PLANNER.test(e.message)) {
         throw new PlannerUnavailable("this server does not offer the planner yet");
+      }
+      // A planner from before background runs (INV-018) has no Plan.run: read the plans without it.
+      if (e instanceof EvidenceUnavailable && MISSING_FIELD("run").test(e.message) && query.includes(" run ")) {
+        return this.planRequest<T>(query.replace(" run ", " "), variables);
       }
       throw e;
     }

@@ -140,6 +140,7 @@ class Einstein1919Protocol:
                     **common,
                     "instruments": instruments,
                     "oracle_tolerances": [t.to_document() for t in pre.oracle_tolerances],
+                    "historical": declared.get("historical_scenarios"),
                 },
             ),
         )

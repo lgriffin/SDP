@@ -78,7 +78,7 @@ requirements:
       - "python/tests.stellar.test_protocol::test_rejected_candidates_are_retained_with_their_reasons"
   - id: STL-008
     pattern: ubiquitous
-    text: "The stellar module shall take the candidate pass marks for member count, stability across the grid and CMD coherence from the predeclaration's parameters."
+    text: "The stellar module shall take the candidate pass marks for member count, stability across the grid, CMD coherence and the largest allowed share of the searched stars from the predeclaration's parameters."
     rationale: "The pass marks decide which candidates reach the cross-match; as predeclared parameters they are frozen with the hash, so changing one is a new predeclaration (resolves D15)."
     verification: test
     tiers: [T8]
@@ -86,3 +86,22 @@ requirements:
     traces:
       - "python/tests.stellar.test_protocol::test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the_outcome"
       - "python/tests.stellar.test_protocol::test_malformed_pass_marks_are_refused_at_planning_not_coerced"
+      - "python/tests.stellar.test_sweep::test_the_field_itself_is_rejected_as_most_of_the_stars"
+  - id: STL-009
+    pattern: event
+    text: "When the system sweeps the sky for clusters, the system shall search each tile with the predeclared cuts and pass marks, keep only candidates centred inside the tile, run at least one null field per tile, count each star searched in one tile only, refuse to mix tiles searched over a different prepared catalogue or set of known-cluster catalogues, and label every finding exploratory."
+    rationale: "A whole-sky search is not predeclared region by region, so its findings are leads for a predeclared run (sdp discover run), never a verdict; half-open tiles stop a cluster on an edge being counted twice."
+    verification: test
+    tiers: [T3, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_sweep::test_every_point_of_the_sky_is_in_exactly_one_tile"
+      - "python/tests.stellar.test_sweep::test_a_tile_counts_as_searched_only_the_stars_inside_it_not_its_rim"
+      - "python/tests.cli.test_cli_discover::test_tiles_are_not_reused_once_the_catalogue_or_the_benchmarks_change"
+      - "python/tests.stellar.test_sweep::test_a_tile_keeps_only_candidates_centred_inside_it"
+      - "python/tests.stellar.test_sweep::test_a_planted_cluster_in_no_benchmark_comes_out_potentially_new_and_labelled_exploratory"
+      - "python/tests.stellar.test_sweep::test_without_a_null_field_a_new_looking_candidate_is_only_inconclusive"
+      - "python/tests.stellar.test_sweep::test_a_null_field_survivor_makes_new_looking_candidates_inconclusive"
+      - "python/tests.stellar.test_sweep::test_settings_share_the_predeclared_cuts_and_pass_marks"
+      - "python/tests.cli.test_cli_discover::test_prepare_sweep_report_finds_the_planted_cluster_in_no_benchmark"
+      - "python/tests.cli.test_cli_discover::test_the_predeclared_run_reads_gaia_and_issues_a_verdict"

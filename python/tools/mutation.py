@@ -69,11 +69,12 @@ RELATIVITY_SHARDS = (
     ("protocol", "comparison", "constants"),
     ("observations", "synthetic", "geometry"),
     ("models", "measurement", "transcription", "oracles"),
+    ("paper1920",),
 )
 STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd"),
     ("protocol", "features", "quality", "ranking"),
-    ("synthetic", "inject", "search", "membership", "dossier", "null"),
+    ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
 )
 
 #: The Gaia DataLink adapters (INT-022): the shared DR3 facts, the gateway and inventory, the VOTable

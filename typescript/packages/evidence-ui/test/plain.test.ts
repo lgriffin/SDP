@@ -13,6 +13,14 @@ import {
   humanDuration,
   humanTime,
   needsSignature,
+  checkName,
+  imageTitle,
+  observedOn,
+  productFile,
+  starStatus,
+  planBadge,
+  planProgress,
+  runJourney,
   setJourney,
   verdictSentence,
   waitingItems,
@@ -94,7 +102,7 @@ describe("plans", () => {
 
   it("needs a signature only above the threshold", () => {
     const sizes = FIXTURES.plans.map((p) => [p.document.cost.total_bytes, needsSignature(p)]);
-    expect(sizes).toEqual([[13_000_000, false], [15_000_000, false], [1_290_000_000, true]]);
+    expect(sizes).toEqual([[13_000_000, false], [15_000_000, false], [1_290_000_000, true], [8_417_600, false]]);
   });
 
   it("puts drafted plans, runnable experiments and open candidates in the waiting list", () => {
@@ -102,11 +110,47 @@ describe("plans", () => {
     expect(items.map((i) => i.action)).toEqual(["Approve or refuse", "Needs a signed approval", "Run it again", "Run it", "Review"]);
   });
 
+  it("[INV-018] lists an approved plan as waiting to download, running or stopped", () => {
+    const [, small] = FIXTURES.plans as Plan[];
+    const approved = { ...small!, state: "auto_approved" as const };
+    const run = { state: "running" as const, started_at: "2026-10-29T22:00:00Z", finished_at: null, error: null };
+    const items = (p: Plan) => waitingItems([], [], {}, [p]).map((i) => `${i.detail} / ${i.action}`);
+    expect(items(approved)).toEqual(["Approved, not downloaded yet / Download"]);
+    expect(items({ ...approved, run })).toEqual(["Downloading now / See progress"]);
+    expect(items({ ...approved, run: { ...run, state: "failed", error: "504" } })).toEqual(["The download stopped before it finished / See why"]);
+  });
+
   it("follows a set from plan to review", () => {
     const set = FIXTURES.investigationSets[0]!;
     const plan = FIXTURES.plans[0] as Plan;
     expect(setJourney(set, plan, 3).map((s) => `${s.label}:${s.status}`)).toEqual(["Plan:done", "Search:done", "Test:done", "Review:current"]);
     expect(setJourney(set, null, 0).map((s) => s.status)).toEqual(["done", "done", "done"]);
+  });
+});
+
+describe("a plan's download", () => {
+  const run = { state: "running" as const, started_at: "2026-10-29T22:00:00Z", finished_at: null, error: null };
+
+  it("[INV-018] is running or stopped only while the plan is approved", () => {
+    expect(planProgress({ state: "auto_approved", run })).toBe("running");
+    expect(planProgress({ state: "approved", run: { ...run, state: "failed" } })).toBe("stopped");
+    expect(planProgress({ state: "approved", run: { ...run, state: "finished" } })).toBeNull();
+    expect(planProgress({ state: "approved", run: null })).toBeNull();
+    expect(planProgress({ state: "executed", run })).toBeNull();
+    expect(planProgress({ state: "drafted", run })).toBeNull();
+    expect(planProgress({ state: "refused", run })).toBeNull();
+    expect(planBadge({ state: "approved", run })).toEqual({ label: "Downloading", tone: "neutral" });
+    expect(planBadge({ state: "approved", run: { ...run, state: "failed" } })).toEqual({ label: "Download stopped", tone: "bad" });
+    expect(planBadge({ state: "executed", run })).toEqual({ label: "Downloaded", tone: "good" });
+  });
+
+  it("[INV-018] shows the stage it has reached, and where it stopped", () => {
+    const steps = (stages: { stage: string; state: string }[] | null, stopped = false) => runJourney(stages, stopped).map((s) => s.status);
+    expect(runJourney(null).map((s) => s.label)).toEqual(["Find the objects in the field", "Download and check the data", "Run the tests", "Rank the candidates"]);
+    expect(steps(null)).toEqual(["current", "todo", "todo", "todo"]);
+    expect(steps([{ stage: "identify", state: "completed" }, { stage: "retrieve", state: "pending" }])).toEqual(["done", "current", "todo", "todo"]);
+    expect(steps([{ stage: "identify", state: "completed" }, { stage: "retrieve", state: "failed" }])).toEqual(["done", "failed", "todo", "todo"]);
+    expect(steps([{ stage: "identify", state: "completed" }], true)).toEqual(["done", "failed", "todo", "todo"]);
   });
 });
 
@@ -125,5 +169,21 @@ describe("formatting for people", () => {
     expect(fieldLabel({ label: "Hyades" })).toBe("Hyades");
     expect(fieldLabel({ region: { ra_deg: 120, dec_deg: -10, radius_deg: 0.5 } })).toBe("RA 120°, Dec -10°, radius 0.5°");
     expect(coneRegion(120, -10, 0.5)).toBe("icrs;circle(120,-10,0.5)");
+  });
+});
+
+describe("images of a field", () => {
+  it("[INV-020] names checks, images, dates and what the image says about each star", () => {
+    expect(checkName("has_wcs")).toBe("Sky coordinates (WCS)");
+    expect(checkName("something.new")).toBe("something.new");
+    expect(imageTitle({ instrument: "NIRCAM", filter_or_grating: "F090W" }, "x")).toBe("NIRCam F090W");
+    expect(imageTitle({}, "jw/a_i2d.fits@cutout(1,2,40arcsec)")).toBe("a_i2d.fits@cutout(1,2,40arcsec)");
+    expect(productFile("jw/a_i2d.fits@cutout(1,2,40arcsec)")).toBe("a_i2d.fits");
+    expect(observedOn({ time: { start_mjd: 59750.97 } })).toBe("20 Jun 2022");
+    expect(observedOn({})).toBeNull();
+    expect(starStatus({ flagged: true, ambiguous: false, counterpart_px: null })).toBe("missing");
+    expect(starStatus({ flagged: true, ambiguous: true, counterpart_px: [1, 2] })).toBe("displaced");
+    expect(starStatus({ flagged: false, ambiguous: true, counterpart_px: [1, 2] })).toBe("ambiguous");
+    expect(starStatus({ flagged: false, ambiguous: false, counterpart_px: [1, 2] })).toBe("matched");
   });
 });

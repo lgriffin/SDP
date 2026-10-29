@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import string
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.resources import files
@@ -19,7 +20,9 @@ from pathlib import Path
 from typing import Any
 
 import astropy.units as u
+import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 import yaml
 
 from sdp.kernel.domain.canonical import canonical_json
@@ -223,6 +226,126 @@ class Dialect:
         # curated Parquet carries it, never dropped silently.
         note = {"count": excluded, "reason": f"no {self.epoch['column']} (blank or a declared missing value)"}
         return table.replace_schema_metadata({b"sdp.excluded_rows": canonical_json(note).encode()})
+
+
+def _floats(native: pa.Table, name: str) -> np.ndarray:
+    """A native column as float64, null as NaN (what ``_number`` reads as None)."""
+    col = native.column(name)
+    if not (pa.types.is_floating(col.type) or pa.types.is_integer(col.type)):
+        col = pc.cast(col, pa.float64())
+    return np.asarray(pc.fill_null(pc.cast(col, pa.float64()), np.nan).to_numpy(zero_copy_only=False), dtype=np.float64)
+
+
+def _nullable(values: np.ndarray) -> pa.Array:
+    return pa.array(values, mask=np.isnan(values), type=pa.float64())
+
+
+def curate_columnar(dialect: Dialect, native: pa.Table) -> pa.Table:
+    """The table ``dialect.curate(native)`` returns, computed a column at a time (DSI-016).
+
+    Row-by-row curation converts units once per value and costs about 0.7 ms a row, which is a day
+    for the stars of a whole-sky sweep; here each unit conversion runs once per column. Only the
+    source key, the quality flags and the correlation lists are built per row, from plain values."""
+    missing = dialect.native_columns() - set(native.column_names)
+    if missing:
+        raise DialectError(f"{dialect.ref.dialect_id}: native table lacks {sorted(missing)}")
+    excluded = 0
+    if "constant" not in dialect.epoch:
+        raw_epoch = _floats(native, dialect.epoch["column"])
+        absent = np.isnan(raw_epoch) | np.isin(raw_epoch, np.asarray(dialect.epoch.get("missing", ()), dtype=float))
+        if absent.any():
+            if not dialect.epoch.get("exclude_rows_without_epoch"):
+                raise DialectError(f"{dialect.ref.dialect_id}: row without an epoch")
+            excluded = int(absent.sum())
+            native = native.filter(pa.array(~absent))
+    n = native.num_rows
+    out: dict[str, pa.Array] = {}
+    fields = [f for _, f, _, _ in string.Formatter().parse(dialect.key_template) if f]
+    values = {f: native.column(f).to_pylist() for f in fields}
+    out["source_key"] = pa.array(
+        [dialect.key_template.format(**{f: values[f][i] for f in fields}) for i in range(n)], pa.string()
+    )
+    numbers: dict[str, np.ndarray] = {}
+    for name in CANONICAL_COLUMNS:
+        if name not in dialect.columns:
+            continue
+        spec = dialect.columns[name]
+        v = _floats(native, spec["column"])
+        if name in _PHYSICAL:
+            v = np.asarray((v * u.Unit(spec.get("unit", _PHYSICAL[name]))).to_value(_PHYSICAL[name]), dtype=np.float64)
+        numbers[name] = v
+    if dialect.pm_ra_needs_cos_dec and "dec_deg" in numbers:
+        # The row path leaves the motion as it is when the declination is blank; so does this.
+        dec = numbers["dec_deg"]
+        factor = np.where(np.isnan(dec), 1.0, np.cos(np.radians(dec)))
+        for name in ("pm_ra_cosdec_masyr", "pm_ra_cosdec_masyr_err"):
+            if name in numbers:
+                numbers[name] = numbers[name] * factor
+    if "constant" in dialect.epoch:
+        epoch = np.full(n, float(dialect.epoch["constant"]))
+    else:
+        epoch = _floats(native, dialect.epoch["column"])
+        kind = dialect.epoch.get("kind", "jyear")
+        if kind == "jd":
+            epoch = 2000.0 + (epoch - _JD_J2000) / 365.25
+        elif kind == "mjd":
+            epoch = 2000.0 + (epoch + _MJD_OFFSET - _JD_J2000) / 365.25
+        elif kind != "jyear":
+            raise DialectError(f"{dialect.ref.dialect_id}: unknown epoch kind {kind!r}")
+    if dialect.correlations is not None:
+        corr = np.column_stack([_floats(native, c) for c in dialect.correlations]) if n else np.empty((0, 10))
+        lists: list[list[float | None] | None] = []
+        for row in corr.tolist():
+            items = [None if math.isnan(x) else x for x in row]
+            lists.append(None if all(x is None for x in items) else items)
+        correlations = pa.array(lists, pa.list_(pa.float64()))
+    else:
+        correlations = pa.nulls(n, pa.list_(pa.float64()))
+    flags = {f: native.column(f).to_pylist() for f in dialect.quality_flags}
+    for name in CANONICAL_COLUMNS:
+        if name == "source_key":
+            continue
+        if name == "epoch_jyear":
+            out[name] = pa.array(epoch, pa.float64())
+        elif name in numbers:
+            out[name] = _nullable(numbers[name])
+        elif name in _FLOATS:
+            out[name] = pa.nulls(n, pa.float64())
+        elif name == "astrometric_corr":
+            out[name] = correlations
+        elif name == "quality_flags":
+            out[name] = pa.array(
+                [canonical_json({f: flags[f][i] for f in dialect.quality_flags}) for i in range(n)], pa.string()
+            )
+        elif name == "quality_class":
+            out[name] = pa.array(_quality_classes(dialect, native), pa.string())
+        elif name == "zero_point_corrected":
+            out[name] = pa.array([dialect.zero_point_corrected] * n, pa.bool_())
+        elif name == "source_release":
+            out[name] = pa.array([dialect.source_release] * n, pa.string())
+    table = pa.Table.from_arrays([out[name] for name in CANONICAL_COLUMNS], schema=SCHEMA)
+    if not excluded:
+        return table
+    note = {"count": excluded, "reason": f"no {dialect.epoch['column']} (blank or a declared missing value)"}
+    return table.replace_schema_metadata({b"sdp.excluded_rows": canonical_json(note).encode()})
+
+
+def _quality_classes(dialect: Dialect, native: pa.Table) -> list[str]:
+    rule = dialect.quality_class
+    n = native.num_rows
+    if not rule:
+        return ["unknown"] * n
+    if "map" in rule:
+        return [dialect._quality({rule["column"]: v}) for v in native.column(rule["column"]).to_pylist()]
+    value = _floats(native, rule["column"])
+    labels = np.full(n, str(rule.get("otherwise", "poor")), dtype=object)
+    decided = np.isnan(value)
+    labels[decided] = "unknown"
+    for limit, label in rule["below"]:
+        hit = ~decided & (value < float(limit))
+        labels[hit] = str(label)
+        decided |= hit
+    return [str(x) for x in labels.tolist()]
 
 
 def _root(directory: Path | None) -> Path:

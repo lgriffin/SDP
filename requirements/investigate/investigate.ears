@@ -144,3 +144,27 @@ requirements:
       - "python/tests.cli.test_cli_metrics::test_acquire_reports_rows_bytes_requests_and_time_and_a_reread_costs_nothing"
       - "python/tests.cli.test_cli_metrics::test_a_run_reports_seconds_and_stored_bytes_per_stage"
       - "python/tests.cli.test_cli_metrics::test_the_meter_counts_equal_bytes_once"
+  - id: INV-018
+    pattern: event
+    text: "When the evidence UI asks the API to execute an approved plan in the background, the API shall answer before the run ends and report the run as running, finished or failed with its error on the plan."
+    rationale: "A JWST plan reads archives for 10 to 20 minutes, longer than a browser or the UI server waits for one answer (undici gives up after 5 minutes). The run continues on a worker thread; asking again while it runs starts nothing new, and a failed run can be started again because the plan stays approved. Jobs live in the API process, so a restart forgets a running job but not the plan."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-019
+    pattern: event
+    text: "When the evidence UI asks the API to register the archives, the API shall read every source's descriptor as a background job and list the registered sources with their verification dates."
+    rationale: "A fresh installation plans nothing until the descriptors are registered (INT-017), and reading MAST's from the VO takes minutes. A scientist starts it once from the Start page instead of a terminal (`sdp integration register` does the same)."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-020
+    pattern: event
+    text: "When a field investigation has read images, the API shall list each image with its envelope's validation checks and every Gaia star the image-counterpart test placed on it, with the star's predicted and matched pixels, its chance probability and whether the match was ambiguous, and serve the image north up as a picture."
+    rationale: "The scientist checks a JWST field by eye: Gaia's stars drawn where their motion puts them on the calibrated image, flagged and ambiguous ones first, beside the checks the FITS file passed (INT-019). The test records the pixels in the aligned frame, so the viewer needs no WCS and draws nothing the test did not compute; the picture is an asinh stretch and is never read by a test."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []

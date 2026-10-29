@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,8 +14,10 @@ from sdp.kernel.domain.experiment import Experiment
 from sdp.kernel.domain.verdict import ValidationReport
 from sdp.kernel.ports.driving import DefineExperimentCommand, FreezePredeclarationCommand
 from sdp.testing.wiring import InMemoryKernel, build_in_memory_kernel
+from sdp_relativity import analysis, protocol
 from sdp_relativity.fitter import fit_set
 from sdp_relativity.observations import parse_bundle
+from sdp_relativity.oracles import Oracle, load_registry
 from sdp_relativity.protocol import Einstein1919Protocol
 from sdp_relativity.reduction import fit_scenarios
 from sdp_relativity.synthetic import dumps, make_bundle
@@ -32,6 +35,18 @@ def independent_fit(bundle: dict[str, Any], perturb: float = 0.0) -> dict[str, A
             for s in fit_scenarios()
         ],
     }
+
+
+@pytest.fixture
+def unverified_oracles(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The oracle registry with every verification removed: synthetic data is not the 1919 data, so a
+    synthetic run is judged as if no published value had been checked."""
+
+    def registry(text: str | None = None) -> dict[str, Oracle]:
+        return {k: dataclasses.replace(o, verifications=()) for k, o in load_registry(text).items()}
+
+    monkeypatch.setattr(analysis, "load_registry", registry)
+    monkeypatch.setattr(protocol, "load_registry", registry)
 
 
 @dataclass

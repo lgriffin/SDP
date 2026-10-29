@@ -1,6 +1,6 @@
 // Plain-language view logic for scientists: what a state means, where a piece of work is on its path,
 // the one next step, and the geometry of the gate ruler. Pure, and unit-tested without a browser.
-import type { ExperimentSummary, GateCheck, Investigation, InvestigationSetSummary, Plan, PlanState } from "./ports.ts";
+import type { ExperimentSummary, FieldStar, GateCheck, Investigation, InvestigationSetSummary, Plan, PlanState } from "./ports.ts";
 import type { Tone } from "./view.ts";
 
 const PROGRAMMES: Record<string, string> = {
@@ -89,6 +89,45 @@ export function planTone(state: PlanState): Tone {
 /** Above the budget's threshold, approval is a signed ledger entry made from the CLI (INT-014). */
 export function needsSignature(plan: Plan): boolean {
   return plan.document.cost.total_bytes > plan.document.constraints.budget.approval_threshold_bytes;
+}
+
+/** Where an approved plan's download is: started from here and still going, or stopped by an error. */
+export function planProgress(plan: Pick<Plan, "state" | "run">): "running" | "stopped" | null {
+  if (plan.state === "executed" || plan.state === "drafted" || plan.state === "refused") return null;
+  if (plan.run?.state === "running") return "running";
+  return plan.run?.state === "failed" ? "stopped" : null;
+}
+
+/** The plan's badge, counting a download that is running or stopped. */
+export function planBadge(plan: Pick<Plan, "state" | "run">): { label: string; tone: Tone } {
+  const progress = planProgress(plan);
+  if (progress === "running") return { label: "Downloading", tone: "neutral" };
+  if (progress === "stopped") return { label: "Download stopped", tone: "bad" };
+  return { label: planStateLabel(plan.state), tone: planTone(plan.state) };
+}
+
+/** The stages of a run under a plan, as the steps a scientist waits through. */
+const RUN_STAGES: [string, string][] = [
+  ["identify", "Find the objects in the field"],
+  ["retrieve", "Download and check the data"],
+  ["test", "Run the tests"],
+  ["candidates", "Rank the candidates"],
+];
+
+export function runJourney(stages: readonly { stage: string; state: string }[] | null, stopped = false): JourneyStep[] {
+  const state = (key: string) => stages?.find((s) => s.stage === key)?.state ?? "pending";
+  let current = false;
+  return RUN_STAGES.map(([key, label]) => {
+    const s = state(key);
+    if (s === "completed") return { label, status: "done" };
+    if (current) return { label, status: "todo" };
+    if (s === "failed") {
+      current = true;
+      return { label, status: "failed" };
+    }
+    current = true;
+    return { label, status: stopped ? "failed" : "current" };
+  });
 }
 
 export function withinBudget(plan: Plan): boolean {
@@ -212,6 +251,15 @@ export function waitingItems(
       title: `Download plan for ${fieldLabel(p.document.intent.field)}`,
       detail: `${humanBytes(p.document.cost.total_bytes)} from ${Object.keys(p.document.cost.requests_per_source).length} archives`,
       action: needsSignature(p) ? "Needs a signed approval" : "Approve or refuse",
+    });
+  }
+  for (const p of plans.filter((x) => x.state === "approved" || x.state === "auto_approved")) {
+    const progress = planProgress(p);
+    items.push({
+      href: planHref(p.id),
+      title: `Download plan for ${fieldLabel(p.document.intent.field)}`,
+      detail: progress === "running" ? "Downloading now" : progress === "stopped" ? "The download stopped before it finished" : "Approved, not downloaded yet",
+      action: progress === "running" ? "See progress" : progress === "stopped" ? "See why" : "Download",
     });
   }
   for (const e of experiments) {
@@ -380,4 +428,69 @@ export function outcomeLabel(outcome: string): string {
 
 export function outcomeTone(outcome: string): Tone {
   return outcome === "pass" ? "good" : outcome === "fail" ? "bad" : "warn";
+}
+
+// --- images of a field (INV-020) ---------------------------------------------------------------------
+
+const CHECK_NAMES: Record<string, string> = {
+  checksum: "The bytes match their checksum",
+  size_bytes: "Size",
+  product_type: "Kind of product",
+  frame: "Sky coordinate frame",
+  time_scale: "Time scale",
+  calibration_level: "Calibration level",
+  access_status: "Public data",
+  "rights.citation": "Citation and licence",
+  format: "Readable FITS file",
+  mission: "Telescope named in the header",
+  "mission.obscore": "Telescope agrees with the archive",
+  instrument: "Instrument named in the header",
+  "instrument.obscore": "Instrument agrees with the archive",
+  detector: "Detector",
+  filter_or_grating: "Filter",
+  units: "Pixel units",
+  "extensions.SCI": "Science pixels present",
+  has_wcs: "Sky coordinates (WCS)",
+  uncertainty: "Uncertainty array",
+  quality: "Quality mask",
+};
+
+/** A validator check in words; an unknown check keeps its field name. */
+export function checkName(field: string): string {
+  return CHECK_NAMES[field] ?? field;
+}
+
+/** "NIRCam F090W" from an image's envelope summary; the product id when it says nothing. */
+export function imageTitle(summary: Record<string, unknown>, fallback: string): string {
+  const instrument = String(summary.instrument ?? "").replace(/^NIRCAM$/, "NIRCam").replace(/^NIRISS$/, "NIRISS").replace(/^MIRI$/, "MIRI");
+  const filter = String(summary.filter_or_grating ?? "");
+  const words = [instrument, filter].filter(Boolean).join(" ");
+  return words || fallback.split("/").pop() || fallback;
+}
+
+/** The date an image was taken, from its envelope's start time in MJD; null when it gives none. */
+export function observedOn(summary: Record<string, unknown>): string | null {
+  const mjd = (summary.time as { start_mjd?: number } | undefined)?.start_mjd;
+  if (typeof mjd !== "number") return null;
+  return new Date((mjd - 40587) * 86_400_000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+export type StarStatus = "missing" | "displaced" | "ambiguous" | "matched";
+
+/** What the image says about a Gaia star: gone, off its predicted place, matched two ways, or where expected. */
+export function starStatus(star: Pick<FieldStar, "flagged" | "ambiguous" | "counterpart_px">): StarStatus {
+  if (star.flagged) return star.counterpart_px ? "displaced" : "missing";
+  return star.ambiguous ? "ambiguous" : "matched";
+}
+
+export const STAR_WORDS: Record<StarStatus, string> = {
+  missing: "Not on the image",
+  displaced: "Off its predicted place",
+  ambiguous: "Ambiguous match",
+  matched: "Where expected",
+};
+
+/** A product id's last part, e.g. the file name, without a cutout's suffix. */
+export function productFile(productId: string): string {
+  return (productId.split("/").pop() ?? productId).replace(/@cutout\(.*\)$/, "");
 }

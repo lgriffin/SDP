@@ -1,11 +1,24 @@
 import { error, fail } from "@sveltejs/kit";
 
-import { needsSignature } from "$lib/plain.ts";
+import { needsSignature, planProgress } from "$lib/plain.ts";
 import { actorFrom, attempt, rememberedActor } from "$lib/server/actions.ts";
 import { evidence, workbench } from "$lib/server/source.ts";
 import { PlannerUnavailable } from "$lib/ports.ts";
 
 import type { Actions, PageServerLoad } from "./$types";
+
+/** The stages of the plan's latest run: each "Start again" opens a new set. Progress is optional,
+ *  so a failed read leaves the page with the plan and its run state. */
+async function runStages(planId: string, since: string | undefined) {
+  try {
+    const started = since ? Date.parse(since) - 5_000 : -Infinity; // the API and its database may round differently
+    const sets = (await evidence().investigationSets()).filter((s) => s.planArtifactId === planId && Date.parse(s.startedAt) >= started);
+    const latest = sets.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))[0];
+    return latest?.stages ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
   let plan;
@@ -16,7 +29,9 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     throw e;
   }
   if (!plan) error(404, `No plan ${params.id}`);
-  return { plan, actor: rememberedActor(cookies) };
+  // While a download runs, its investigation set shows how far it has got (INV-018).
+  const progress = planProgress(plan);
+  return { plan, actor: rememberedActor(cookies), stages: progress ? await runStages(plan.id, plan.run?.started_at) : null };
 };
 
 export const actions: Actions = {
@@ -42,9 +57,9 @@ export const actions: Actions = {
       return { done: "Refused. Nothing will be downloaded under this plan." };
     });
   },
-  execute: async ({ params }) =>
+  execute: async ({ params, cookies }) =>
     attempt(async () => {
-      await workbench().executePlan(params.id);
-      return { done: "Downloaded. Everything fetched is listed below." };
+      await workbench().executePlan(params.id, rememberedActor(cookies) || "viewer");
+      return { done: "Started. This page follows the download until it finishes." };
     }),
 };

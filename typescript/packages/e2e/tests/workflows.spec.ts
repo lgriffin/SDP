@@ -9,7 +9,7 @@ test("home lists what is waiting and where each piece of work is", async ({ page
   await page.goto("/");
   await expect(page.getByTestId("demonstration")).toContainText("synthetic");
   const waiting = page.getByTestId("waiting").locator("li");
-  await expect(waiting).toHaveCount(5);
+  await expect(waiting).toHaveCount(6);
   await expect(waiting.filter({ hasText: "1.29 GB" })).toContainText("Needs a signed approval");
   await expect(page.getByTestId("work-experiments").locator("> li")).toHaveCount(4);
   const failed = page.getByTestId("work-experiments").locator("> li").filter({ hasText: "exp-000003" });
@@ -89,7 +89,24 @@ test("approves a small plan and downloads it", async ({ page }) => {
   await decision.getByRole("button", { name: "Approve" }).click();
   await expect(page.getByTestId("action-done")).toContainText("no signature was needed");
   await page.getByRole("button", { name: "Download now" }).click();
-  await expect(page.getByTestId("execution")).toContainText("Fetched 3 of 3 items");
+  // [INV-018] The download runs on its own; the page follows it until it finishes.
+  await expect(page.getByTestId("run-progress")).toContainText("Downloading and checking");
+  await expect(page.getByTestId("run-progress").getByTestId("journey")).toContainText("Download and check the data");
+  await expect(page.getByTestId("execution")).toContainText("Fetched 3 of 3 items", { timeout: 15_000 });
+});
+
+test("[INV-019] the JWST example fills in the field and its profile", async ({ page }) => {
+  await page.goto("/start");
+  await page.getByTestId("examples").getByRole("link", { name: "JWST: the outskirts of M92" }).click();
+  await expect(page).toHaveURL(/example=jwst-m92/);
+  const form = page.getByTestId("field-form");
+  await expect(form.getByLabel("Right ascension")).toHaveValue("259.323");
+  await expect(form.getByLabel("Declination")).toHaveValue("43.1505");
+  await expect(form.getByLabel("Radius")).toHaveValue("0.004");
+  await expect(form.getByText("This is 14 arcsec")).toBeVisible();
+  await expect(form.getByLabel("Tests to run")).toHaveValue(/^jwst-image-check@/);
+  await expect(page.getByTestId("example-why")).toContainText("programme 1334");
+  await expect(page.getByTestId("archives-setup")).toHaveCount(0);
 });
 
 test("a large plan needs a signed approval, and can be refused with a reason", async ({ page }) => {

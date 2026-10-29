@@ -1,7 +1,9 @@
 """The ASGI app: ``/graphql`` for queries, ``/health``, run/validate command endpoints (ADR-016),
 ``POST /investigations``, which the field viewer and the evidence UI call to run InvestigateField
 (INV-012), ``POST /investigations/{id}/triage`` for the unsigned triage steps, and the planner
-(ADR-020): ``POST /plans``, ``/plans/{id}/approve``, ``/plans/{id}/refuse`` and ``/plans/{id}/execute``.
+(ADR-020): ``POST /plans``, ``/plans/{id}/approve``, ``/plans/{id}/refuse`` and ``/plans/{id}/execute``
+(``{"background": true}`` runs it as a job, INV-018), and ``/archives`` with ``POST /archives/register``,
+which reads what each archive offers so a new installation can plan (INV-019).
 
 Signed steps are not exposed here: freezing, approval of a verdict or of a plan above its budget
 threshold, and promotion need a signer or a frozen confirmatory predeclaration and belong to the CLI.
@@ -12,6 +14,7 @@ already written. Triage and refusals record their actor and reason like the CLI.
 from __future__ import annotations
 
 import hmac
+import threading
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -22,10 +25,13 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from strawberry.asgi import GraphQL
 
+from sdp.adapters.products.preview import preview_png
+from sdp.api.jobs import REGISTER_JOB, RUNNING, Jobs, plan_job
 from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, plan_view
 from sdp.kernel.domain.errors import DomainError
+from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.integration import AcquisitionBudget
 from sdp.kernel.domain.investigation import Field, TestProfile, parse_region
 from sdp.kernel.ports.integration import ApprovePlanCommand, ExecutePlanCommand, PlanInvestigationCommand
@@ -33,6 +39,9 @@ from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationR
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.storage import ArtifactStore
 
+BUSY = "another field run is going on this server; it reads archives for minutes, so start this when it finishes"
+#: Artifacts are content-addressed, so an answer for one never changes.
+IMMUTABLE = {"cache-control": "private, max-age=31536000, immutable"}
 UNSIGNED_TRIAGE = frozenset({"park", "reopen", "close", "annotate"})
 """Triage the UI may send. Promotion is left to the CLI (INV-009)."""
 
@@ -48,13 +57,23 @@ class Runtime(Protocol):
     def ledger(self) -> Ledger: ...
 
 
+class Archives(Protocol):
+    """The archives plans are matched against: what is registered, and registering them again."""
+
+    def registered(self) -> list[dict[str, Any]]: ...
+
+    def register(self) -> list[dict[str, Any]]: ...
+
+
 class _GraphQL(GraphQL[dict[str, Any], None]):
-    def __init__(self, runtime: Runtime) -> None:
+    def __init__(self, runtime: Runtime, jobs: Jobs, archives: Archives | None) -> None:
         super().__init__(schema, graphql_ide="graphiql")
         self.runtime = runtime
+        self.jobs = jobs
+        self.archives = archives
 
     async def get_context(self, request: Any, response: Any = None) -> dict[str, Any]:
-        return {"kernel": self.runtime.kernel, "request": request}
+        return {"kernel": self.runtime.kernel, "request": request, "jobs": self.jobs, "archives": self.archives}
 
 
 class RequireToken:
@@ -77,7 +96,20 @@ class RequireToken:
         await self.app(scope, receive, send)
 
 
-def create_app(runtime: Runtime, token: str | None = None) -> Starlette:
+def create_app(
+    runtime: Runtime, token: str | None = None, *, archives: Archives | None = None, jobs: Jobs | None = None
+) -> Starlette:
+    work = jobs if jobs is not None else Jobs()
+    # One InvestigateField at a time: its use case holds the running plan's gate on the instance, so a
+    # second run alongside a background download could replace or clear that gate mid-run (INV-018).
+    runs = threading.Lock()
+
+    def busy() -> Response:
+        return JSONResponse(
+            {"error": BUSY, "type": "RunInProgress"},
+            status_code=409,
+        )
+
     def health(_: Request) -> Response:
         checks: dict[str, Any] = {}
         ok = True
@@ -131,10 +163,14 @@ def create_app(runtime: Runtime, token: str | None = None) -> Starlette:
             )
         except (KeyError, TypeError, ValueError, DomainError) as exc:
             return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
+        if not runs.acquire(blocking=False):
+            return busy()
         try:
             run = use_case.execute(command)
         except DomainError as exc:
             return JSONResponse({"error": str(exc), "type": type(exc).__name__}, status_code=409)
+        finally:
+            runs.release()
         return JSONResponse(run_summary(run))
 
     async def triage(request: Request) -> Response:
@@ -261,6 +297,10 @@ def create_app(runtime: Runtime, token: str | None = None) -> Starlette:
             return refused(exc)
         return JSONResponse(view(plan_id))
 
+    def job_view(plan_id: str) -> dict[str, Any]:
+        job = work.get(plan_job(plan_id))
+        return {**view(plan_id), "run": job.to_document() if job else None}
+
     async def execute(request: Request) -> Response:
         use_case = runtime.kernel.execute_plan
         if use_case is None:
@@ -269,13 +309,87 @@ def create_app(runtime: Runtime, token: str | None = None) -> Starlette:
         try:
             body = json_object(await request.json()) if await request.body() else {}
             actor = actor_of(body, "viewer")
+            background = body.get("background", False)
+            if not isinstance(background, bool):
+                raise TypeError("background is true or false")
         except (TypeError, ValueError, AttributeError) as exc:
             return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
+        command = ExecutePlanCommand(plan_id, actor)
+        current = work.get(plan_job(plan_id))
+        if current is not None and current.state == RUNNING:
+            return JSONResponse(job_view(plan_id))  # already downloading: nothing new starts
+        if not background:
+            if not runs.acquire(blocking=False):
+                return busy()
+            try:
+                use_case.execute(command)
+            except (KeyError, DomainError) as exc:
+                return refused(exc)
+            finally:
+                runs.release()
+            return JSONResponse(job_view(plan_id))
         try:
-            use_case.execute(ExecutePlanCommand(plan_id, actor))
-        except (KeyError, DomainError) as exc:
+            state = view(plan_id)["state"]
+        except KeyError as exc:
             return refused(exc)
-        return JSONResponse(view(plan_id))
+        if state not in ("approved", "auto_approved"):
+            return JSONResponse({"error": f"plan {plan_id} is {state}; only an approved plan runs"}, status_code=409)
+        if not runs.acquire(blocking=False):
+            return busy()
+
+        def run_plan() -> None:
+            try:
+                use_case.execute(command)
+            finally:
+                runs.release()
+
+        # The run reads archives for minutes, so it answers now and the UI reads the job's state (INV-018).
+        _, started = work.start(plan_job(plan_id), run_plan)
+        if not started:
+            runs.release()
+        return JSONResponse(job_view(plan_id), status_code=202 if started else 200)
+
+    def artifact_of(request: Request) -> ArtifactId | Response:
+        try:
+            artifact = ArtifactId(request.path_params["artifact_id"])
+        except (DomainError, ValueError) as exc:
+            return JSONResponse({"error": f"bad artifact id: {exc}"}, status_code=400)
+        if not runtime.store.exists(artifact):
+            return JSONResponse({"error": f"no artifact {artifact.value}"}, status_code=404)
+        return artifact
+
+    def artifact(request: Request) -> Response:
+        """An artifact's bytes, as stored: a FITS cutout, an envelope, a stage document (INV-020)."""
+        found = artifact_of(request)
+        if isinstance(found, Response):
+            return found
+        return Response(runtime.store.get(found), media_type=runtime.store.media_type(found), headers=IMMUTABLE)
+
+    def preview(request: Request) -> Response:
+        """A FITS image drawn north up for the eye; the overlay comes from the set's ``images`` (INV-020)."""
+        found = artifact_of(request)
+        if isinstance(found, Response):
+            return found
+        try:
+            picture = preview_png(runtime.store.get(found))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=415)
+        return Response(picture, media_type="image/png", headers=IMMUTABLE)
+
+    def archive_sources(_: Request) -> Response:
+        if archives is None:
+            return JSONResponse({"error": "archive registration is not wired on this server"}, status_code=503)
+        job = work.get(REGISTER_JOB)
+        return JSONResponse({"sources": archives.registered(), "registration": job.to_document() if job else None})
+
+    def register_archives(request: Request) -> Response:
+        if archives is None:
+            return JSONResponse({"error": "archive registration is not wired on this server"}, status_code=503)
+        # Reading MAST's descriptor from the VO takes minutes, so it runs as a job too (INV-019).
+        job, started = work.start(REGISTER_JOB, archives.register)
+        return JSONResponse(
+            {"sources": archives.registered(), "registration": job.to_document()}, status_code=202 if started else 200
+        )
 
     return Starlette(
         routes=[
@@ -284,11 +398,15 @@ def create_app(runtime: Runtime, token: str | None = None) -> Starlette:
             Route("/plans/{plan_id}/approve", decide, methods=["POST"]),
             Route("/plans/{plan_id}/refuse", decide, methods=["POST"]),
             Route("/plans/{plan_id}/execute", execute, methods=["POST"]),
+            Route("/archives", archive_sources),
+            Route("/artifacts/{artifact_id}", artifact),
+            Route("/artifacts/{artifact_id}/preview.png", preview),
+            Route("/archives/register", register_archives, methods=["POST"]),
             Route("/investigations", investigate, methods=["POST"]),
             Route("/investigations/{investigation_id}/triage", triage, methods=["POST"]),
             Route("/experiments/{experiment_id}/run", command(run), methods=["POST"]),
             Route("/experiments/{experiment_id}/validate", command(validate), methods=["POST"]),
-            Mount("/graphql", _GraphQL(runtime)),
+            Mount("/graphql", _GraphQL(runtime, work, archives)),
         ],
         middleware=[Middleware(RequireToken, token=token)] if token else [],
     )

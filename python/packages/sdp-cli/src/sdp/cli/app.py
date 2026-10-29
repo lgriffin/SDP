@@ -18,6 +18,7 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
+from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
@@ -138,6 +139,7 @@ for name, sub in (
     ("demo", demo_app),
     ("local", local_app),
     ("benchmark", benchmark_app),
+    ("discover", discover_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -1104,7 +1106,7 @@ def archive_smoke(
 
 
 def _register(mast: bool) -> list[dict[str, Any]]:
-    from sdp.adapters.archives.registration import register_defaults
+    from sdp.adapters.archives.registration import describe, register_defaults
     from sdp.adapters.bootstrap import archive_transport
     from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
     from sdp.adapters.settings import Settings
@@ -1115,17 +1117,7 @@ def _register(mast: bool) -> list[dict[str, Any]]:
         lambda name: archive_transport(settings, name, 1.0),
         mast=mast,
     )
-    return [
-        {
-            "source_id": d.source_id,
-            "origin": d.origin,
-            "product_types": sorted(t.value for t in d.product_types),
-            "operations": sorted(o.value for o in d.operations),
-            "adapter": d.adapter.name if d.adapter else None,
-            "admitted_for": sorted(t for t, ok in (d.adapter.conformance if d.adapter else {}).items() if ok),
-        }
-        for d in registered
-    ]
+    return [describe(d) for d in registered]
 
 
 @integration_app.command("register")
@@ -1301,10 +1293,6 @@ def _known_clusters() -> Any:
     from sdp.adapters.settings import Settings
 
     return known_clusters(Settings.from_env())
-
-
-def _benchmark_path(benchmark_id: str, release: str) -> str:
-    return f"benchmarks/{benchmark_id}/{release.replace(':', '_')}.parquet"
 
 
 @benchmark_app.command("fetch")

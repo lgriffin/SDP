@@ -220,7 +220,8 @@
     "candidate_checks": {
       "min_members": 10,
       "min_stability": 0.5,
-      "min_cmd_coherence": 3.0
+      "min_cmd_coherence": 3.0,
+      "max_field_fraction": 0.5
     },
     "crossmatch_radius_deg": 0.1,
     "pm_window_masyr": 1.0,
@@ -241,5 +242,5 @@
     "source_release": "gaia:DR3",
     "bootstrap_resamples": 1000
   },
-  "notes": "DRAFT for Phase 0 review. Regions, cuts, candidate_checks (the pass marks: members, stability across the grid, CMD coherence) and the null-field tolerance are proposals; Leigh confirms them before freeze(). DR4 runs as a separate experiment under this same predeclaration after 2 December 2026 (decision 6)."
+  "notes": "DRAFT for Phase 0 review. Regions, cuts, candidate_checks (the pass marks: members, stability across the grid, CMD coherence, share of the field) and the null-field tolerance are proposals; Leigh confirms them before freeze(). DR4 runs as a separate experiment under this same predeclaration after 2 December 2026 (decision 6)."
 }

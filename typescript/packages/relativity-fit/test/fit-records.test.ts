@@ -1,6 +1,6 @@
 // The exact records of the fitter's parts: special-function values at known points and at their edges,
-// the Cholesky factor and its refusal, the rows a plate becomes, and the Student-t fit's density,
-// iteration count and non-convergence guard, so a loosened formula fails a test.
+// the Cholesky factor and its refusal, the rows a plate becomes, and the Student-t fit's density and
+// iteration count, so a loosened formula fails a test.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -222,6 +222,31 @@ describe("[UC-02] the rows a plate becomes", () => {
         ),
       ),
     );
+  });
+
+  it("rows on different plates get their own columns and no shared check-scale covariance", () => {
+    const [first, , third] = observations.plates[0]!.stars;
+    const two: InstrumentSet = {
+      ...observations,
+      plates: [
+        { ...observations.plates[0]!, stars: [first!] },
+        {
+          plate_id: "Q",
+          check_scale: 0,
+          check_rotation: 0,
+          check_scale_sigma: 0.005,
+          stars: [
+            { ...third!, dx_arcsec: 2, dy_arcsec: null, error_arcsec: 0.1 },
+          ],
+        },
+      ],
+    };
+    const { design, y, cov } = buildRows(two, scenario);
+    expect([design.rows, design.cols]).toEqual([2, 3]);
+    // Columns: P x offset, Q x offset, alpha; the y offsets no measurement touches are left out.
+    close(design.data, [1, 0, 1.92, 0, 1, 0.96]);
+    close(y, [1 - 0.11, 2]);
+    close(cov.data, [0.25 + tau2 * 9, 0, 0, 0.01 + 0.005 ** 2 * 36]);
   });
 
   it("probable errors used as quoted are not converted", () => {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Badge from "$lib/components/Badge.svelte";
-  import { fieldLabel, humanBytes, needsSignature, planHref, planStateLabel, planTone } from "$lib/plain.ts";
+  import { fieldLabel, humanBytes, needsSignature, planBadge, planHref } from "$lib/plain.ts";
   import { shortHash } from "$lib/view.ts";
 
   let { data } = $props();
@@ -35,7 +35,7 @@
                 <td><a href={planHref(p.id)} class="mono">{shortHash(p.id)}</a></td>
                 <td>{fieldLabel(p.document.intent.field)}</td>
                 <td class="num">{humanBytes(p.document.cost.total_bytes)}{#if p.state === "drafted" && needsSignature(p)}<div class="muted small">needs a signed approval</div>{/if}</td>
-                <td><Badge tone={planTone(p.state)} label={planStateLabel(p.state)} /></td>
+                <td><Badge {...planBadge(p)} /></td>
               </tr>
             {/each}
           </tbody>

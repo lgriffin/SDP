@@ -1,8 +1,10 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { invalidateAll } from "$app/navigation";
   import Badge from "$lib/components/Badge.svelte";
   import CopyCommand from "$lib/components/CopyCommand.svelte";
-  import { fieldLabel, humanBytes, humanDuration, needsSignature, planStateLabel, planTone, withinBudget } from "$lib/plain.ts";
+  import Journey from "$lib/components/Journey.svelte";
+  import { fieldLabel, humanBytes, humanDuration, humanTime, needsSignature, planBadge, planProgress, runJourney, withinBudget } from "$lib/plain.ts";
   import { shortHash } from "$lib/view.ts";
 
   let { data, form } = $props();
@@ -15,6 +17,13 @@
   const scaleMax = $derived(Math.max(budget.max_bytes, doc.cost.total_bytes));
   const pct = (n: number) => `${Math.min(100, (n / scaleMax) * 100)}%`;
   const unavailable = $derived(new Set(p.execution?.unavailable ?? []));
+  const progress = $derived(planProgress(p));
+  // A download takes minutes; the page reads the plan again until it has finished or stopped.
+  $effect(() => {
+    if (progress !== "running") return;
+    const timer = setInterval(() => invalidateAll(), 4000);
+    return () => clearInterval(timer);
+  });
   // Typed once and kept across failed submissions; the server remembers it in a cookie.
   let actor = $state(data.actor);
   let reason = $state("");
@@ -32,7 +41,7 @@
 
 <p class="crumbs"><a href="/plans">Downloads</a> / <span class="mono">{shortHash(p.id)}</span></p>
 <h1>Download plan for {fieldLabel(doc.intent.field)}</h1>
-<p class="sub"><Badge tone={planTone(p.state)} label={planStateLabel(p.state)} /> <span class="mono muted">{shortHash(p.id, 16)}</span></p>
+<p class="sub"><Badge {...planBadge(p)} /> <span class="mono muted">{shortHash(p.id, 16)}</span></p>
 
 <div class="top">
   <section class="sheet" aria-labelledby="cost-h" data-testid="plan-cost">
@@ -80,10 +89,29 @@
           <button class="danger" formaction="?/refuse" disabled={busy}>Refuse</button>
         </details>
       </form>
+    {:else if progress === "running"}
+      <div class="progress" role="status" aria-live="polite" data-testid="run-progress">
+        <p><strong>Downloading and checking.</strong> Started {humanTime(p.run?.started_at)}, about {humanDuration(doc.cost.estimated_wall_seconds)} in all.</p>
+        <Journey steps={runJourney(data.stages)} label="How far the download has got" stacked />
+        <p class="muted small">You can leave this page; the download carries on, and this page catches up when you come back.</p>
+      </div>
     {:else if p.state === "approved" || p.state === "auto_approved"}
-      <p>Approved by {doc.approval?.actor}. Nothing has been downloaded yet.</p>
+      {#if progress === "stopped"}
+        <div data-testid="run-stopped">
+          <p class="error-text">The download stopped before it finished.</p>
+          <Journey steps={runJourney(data.stages, true)} label="Where the download stopped" stacked />
+          <details>
+            <summary>What went wrong</summary>
+            <p class="mono small">{p.run?.error}</p>
+          </details>
+          <p>Archives are public services and are sometimes busy. Starting again is safe: the plan stays approved, and nothing outside it is fetched.</p>
+        </div>
+      {:else}
+        <p>Approved by {doc.approval?.actor}. Nothing has been downloaded yet.</p>
+      {/if}
       <form method="POST" action="?/execute" use:enhance={working}>
-        <button disabled={busy}>{busy ? "Downloading…" : "Download now"}</button>
+        <button disabled={busy}>{busy ? "Starting…" : progress === "stopped" ? "Start again" : "Download now"}</button>
+        <p class="muted small">It runs on its own once started, about {humanDuration(doc.cost.estimated_wall_seconds)}.</p>
       </form>
     {:else if p.state === "refused"}
       <p>Refused by {doc.approval?.actor}: {doc.approval?.reason}</p>
@@ -180,6 +208,8 @@
   .refuse label { margin: 0.6rem 0; }
   .done { color: var(--good); font-weight: 600; }
   .small { font-size: 0.85rem; }
+  .progress { display: grid; gap: 0.8rem; }
+  .progress p { margin: 0; }
   .op { text-transform: capitalize; font-weight: 600; }
   .target { overflow-wrap: anywhere; }
   tr.missing td { background: color-mix(in srgb, var(--bad) 6%, transparent); }

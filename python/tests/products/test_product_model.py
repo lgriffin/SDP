@@ -208,3 +208,20 @@ def test_fits_served_as_octet_stream_is_read_as_fits_and_a_specific_type_is_neve
     assert effective_media_type(data, "") == "application/fits"
     assert effective_media_type(data, "image/jpeg") == "image/jpeg"
     assert effective_media_type(b"\xff\xd8\xff", "application/octet-stream") == "application/octet-stream"
+
+
+@pytest.mark.req("INT-019")
+def test_a_cutout_is_checked_against_its_own_bytes_not_the_whole_files_inventory_size() -> None:
+    sp = synthetic_i2d()
+    whole = len(sp.raw.data) * 100
+    raw = replace(sp.raw, inventory_row={**sp.raw.inventory_row, "size": whole})
+    meta = DIALECT.normalize(raw)
+    [failed] = VALIDATOR.validate(meta, raw).failures()
+    assert failed.field == "size_bytes"
+    cut = replace(meta, product_id=f"{meta.product_id}@cutout(53.160000,-27.780000,40arcsec)")
+    report = VALIDATOR.validate(cut, raw)
+    assert report.passed, [(c.field, c.detail) for c in report.failures()]
+    [size] = [c for c in report.checks if c.field == "size_bytes"]
+    assert size.detail == f"{len(raw.data)} bytes read; envelope {len(raw.data)}; a cutout of the inventory's {whole}"
+    bigger = replace(raw, inventory_row={**raw.inventory_row, "size": len(raw.data) - 1})
+    assert [c.field for c in VALIDATOR.validate(cut, bigger).failures()] == ["size_bytes"]

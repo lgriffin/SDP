@@ -94,9 +94,17 @@ class ProductCutouts(Protocol):
         ...
 
 
+CUTOUT_MARK = "@cutout("
+
+
 def cutout_product_id(product_id: str, ra_deg: float, dec_deg: float, side_arcsec: float) -> str:
     """The id of a cutout: the product it comes from, then where and how big."""
-    return f"{product_id}@cutout({ra_deg:.6f},{dec_deg:.6f},{side_arcsec:g}arcsec)"
+    return f"{product_id}{CUTOUT_MARK}{ra_deg:.6f},{dec_deg:.6f},{side_arcsec:g}arcsec)"
+
+
+def is_cutout(product_id: str) -> bool:
+    """Whether a product id names a cutout of a product rather than the whole file."""
+    return CUTOUT_MARK in product_id
 
 
 @dataclass(frozen=True)

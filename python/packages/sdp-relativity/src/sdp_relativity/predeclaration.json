@@ -268,6 +268,7 @@
       ],
       "plate_scale": [
         "solved",
+        "solved_affine",
         "fixed_from_check_plates"
       ],
       "astrographic": [
@@ -289,6 +290,20 @@
         2.0
       ]
     },
+    "historical_scenarios": {
+      "default": {
+        "error_convention": "probable_as_standard",
+        "plate_scale": "solved_affine",
+        "error_correlation": "independent",
+        "likelihood": "gaussian"
+      },
+      "principe-astro": {
+        "error_convention": "probable_as_standard",
+        "plate_scale": "fixed_from_check_plates",
+        "error_correlation": "independent",
+        "likelihood": "gaussian"
+      }
+    },
     "student_t_nu": 4,
     "bootstrap_resamples": 2000,
     "alpha_grid_arcsec": {
@@ -297,5 +312,5 @@
       "step": 0.005
     }
   },
-  "notes": "DRAFT for Phase 0 review. REL-G-04 tolerances are provisional until the 1920 tables are inspected and transcribed; they must be finalised before freeze()."
+  "notes": "DRAFT for Phase 0 review. REL-G-04 tolerances are provisional until the 1920 tables are inspected and transcribed; they must be finalised before freeze(). Amended 2026-10-29, before any freeze, after reading the 1920 report's method: plate_scale gains solved_affine (the six constants per plate the Sobral reductions solved, pp. 304-310), and historical_scenarios names the scenario REL-G-04 compares, per instrument (the Principe reduction fixed scale and orientation from the check plates and x measures, pp. 321-325)."
 }

@@ -5,7 +5,15 @@ Per plate, the measured displacement on each axis is modelled as
     dx = a_x + s x + r y + alpha g_x        dy = a_y + s y - r x + alpha g_y
 
 with plate offsets (a_x, a_y), scale s and rotation r (solved, or fixed from check plates), and
-g the geometric response of a 1/b deflection (StarGeometry.response). Errors are Gaussian or
+g the geometric response of a 1/b deflection (StarGeometry.response). The ``solved_affine`` plate
+model is the 1920 reduction's: six constants per plate,
+
+    dx = a_x + s_xx x + s_xy y + alpha g_x  dy = a_y + s_yx x + s_yy y + alpha g_y
+
+When the scale is fixed, the known linear terms (one check-plate scale, or the four terms of
+Plate.check_terms) are subtracted, and so is the rotation when the plate's orientation is known;
+otherwise the rotation is solved from the plate. A constant no measurement touches (a plate
+measured in one coordinate only) is left out. Errors are Gaussian or
 Student-t, independent or correlated within a plate through the check-plate scale uncertainty.
 This is the reference implementation; typescript/packages/relativity-fit is the independent one
 (REL-007), written from this docstring and the scenario definitions, not from this code.
@@ -78,9 +86,14 @@ class FitResult:
         }
 
 
+#: Plate constants per plate, by plate model.
+PLATE_CONSTANTS = {"solved": 4, "solved_affine": 6, "fixed_from_check_plates": 3}
+
+
 def build_system(obs: ObservationSet, scenario: FitScenario, sigma_scale: float = 1.0) -> System:
-    solved = scenario.plate_scale == "solved"
-    per_plate = 4 if solved else 2
+    model = scenario.plate_scale
+    solved = model != "fixed_from_check_plates"
+    per_plate = PLATE_CONSTANTS[model]
     columns = per_plate * len(obs.plates) + 1
     rows: list[np.ndarray] = []
     observed: list[float] = []
@@ -102,12 +115,22 @@ def build_system(obs: ObservationSet, scenario: FitScenario, sigma_scale: float 
                 else:
                     row[base + 1] = 1.0
                     position, cross, response = y, -x, gy
-                if solved:
+                if model == "solved":
                     row[base + 2] = position
                     row[base + 3] = cross
                     target = value
+                elif model == "solved_affine":
+                    first = base + (2 if axis == "x" else 4)
+                    row[first] = x
+                    row[first + 1] = y
+                    target = value
                 else:
-                    target = value - plate.check_scale * position - plate.check_rotation * cross
+                    xx, xy, yx, yy = plate.known_terms
+                    target = value - (xx * x + xy * y if axis == "x" else yx * x + yy * y)
+                    if plate.check_rotation is None:
+                        row[base + 2] = cross
+                    else:
+                        target -= plate.check_rotation * cross
                 row[-1] = response
                 rows.append(row)
                 observed.append(target)
@@ -117,6 +140,7 @@ def build_system(obs: ObservationSet, scenario: FitScenario, sigma_scale: float 
     if not rows:
         raise FitError(f"{obs.instrument}: no measured displacements")
     design = np.vstack(rows)
+    design = design[:, np.any(design != 0.0, axis=0) | (np.arange(columns) == columns - 1)]
     covariance = np.diag(variances)
     if scenario.error_correlation == "per_plate" and not solved:
         plate_idx = np.asarray(plate_of_row)
@@ -125,9 +149,9 @@ def build_system(obs: ObservationSet, scenario: FitScenario, sigma_scale: float 
             mask = plate_idx == p_index
             v = np.where(mask, direction, 0.0)
             covariance += plate.check_scale_sigma**2 * np.outer(v, v)
-    if np.linalg.matrix_rank(design) < columns:
+    if np.linalg.matrix_rank(design) < design.shape[1]:
         raise FitError(f"{obs.instrument}: too few stars to solve the plate constants under {scenario.key}")
-    return System(design, np.asarray(observed), covariance, tuple(p.plate_id for p in obs.plates), columns - 1)
+    return System(design, np.asarray(observed), covariance, tuple(p.plate_id for p in obs.plates), design.shape[1] - 1)
 
 
 def _student_t_logpdf(r: np.ndarray, nu: float) -> np.ndarray:

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Badge from "$lib/components/Badge.svelte";
   import Journey from "$lib/components/Journey.svelte";
-  import { candidateStateLabel, fieldLabel, humanTime, openCandidates, planHref, planStateLabel, setJourney } from "$lib/plain.ts";
+  import { candidateStateLabel, fieldLabel, humanTime, imageTitle, observedOn, openCandidates, planHref, planStateLabel, setJourney } from "$lib/plain.ts";
   import { formatNumber, formatPercent, investigationTone, rowCapReached, shortHash, stageTone, type NullResultDoc } from "$lib/view.ts";
 
   let { data } = $props();
@@ -18,6 +18,7 @@
   ];
   const shown = $derived(data.show === "all" ? s.investigations : s.investigations.filter((i) => i.state === data.show));
   const cutOff = $derived(rowCapReached(s.stages ?? []));
+  const images = $derived(s.images ?? []);
   const count = (key: string) => (key === "all" ? s.investigations.length : s.investigations.filter((i) => i.state === key).length);
 </script>
 
@@ -42,6 +43,31 @@
     {#each cutOff as [source, cap], i (source)}{i ? "; " : ""}{source} had at least {formatNumber(cap)} rows here{/each}, so
     only part of the field was read. Choose a smaller region, or raise <code>row_cap</code> in a copy of the profile.
   </p>
+{/if}
+
+{#if images.length}
+  <section aria-labelledby="images-h" data-testid="set-images">
+    <h2 id="images-h">The images</h2>
+    <ul class="images">
+      {#each images as img (img.artifact_id)}
+        {@const flagged = img.stars.filter((x) => x.flagged).length}
+        {@const ambiguous = img.stars.filter((x) => x.ambiguous && !x.flagged).length}
+        {@const failed = (img.checks ?? []).filter((c) => !c.passed).length}
+        <li>
+          <a href="/investigations/{s.id}/images?image={encodeURIComponent(img.artifact_id)}">
+            <img src="/artifacts/{encodeURIComponent(img.artifact_id)}/preview.png" alt="" loading="lazy" width="96" height="96" />
+            <span class="what">
+              <strong>{imageTitle(img.summary, img.product_id)}</strong>{#if observedOn(img.summary)}<span class="muted">{" · "}{observedOn(img.summary)}</span>{/if}
+              <span class="muted small">
+                {img.stars.length} Gaia star{img.stars.length === 1 ? "" : "s"}: {flagged} stand{flagged === 1 ? "s" : ""} out, {ambiguous} ambiguous.
+                {#if img.checks}{failed ? `${failed} file check${failed === 1 ? "" : "s"} failed.` : "Every file check passed."}{/if}
+              </span>
+            </span>
+          </a>
+        </li>
+      {/each}
+    </ul>
+  </section>
 {/if}
 
 <section aria-labelledby="candidates-h">
@@ -162,6 +188,11 @@
   @media (max-width: 640px) {
     .policy, .go, th:last-child { display: none; }
   }
+  .images { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.6rem; }
+  .images a { display: flex; gap: 0.8rem; align-items: center; padding: 0.6rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; color: var(--text); }
+  .images a:hover { border-color: var(--accent); }
+  .images img { width: 4.5rem; height: 4.5rem; object-fit: cover; border-radius: calc(var(--radius) / 2); background: #000; flex: none; }
+  .images .what { display: flex; flex-direction: column; gap: 0.2rem; }
   .chance { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.75rem 1rem; }
   .details details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem 1rem; margin-bottom: 0.6rem; }
   .details details[open] summary { margin-bottom: 0.8rem; }

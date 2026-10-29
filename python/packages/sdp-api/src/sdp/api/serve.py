@@ -21,12 +21,19 @@ def main() -> None:
 
     import uvicorn
 
-    from sdp.adapters.bootstrap import build_application
+    from sdp.adapters.archives.registration import RegisteredArchives
+    from sdp.adapters.bootstrap import archive_transport, build_application
+    from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
     from sdp.adapters.settings import Settings, secret
     from sdp.api.app import create_app
 
+    settings = Settings.from_env()
     token = secret(os.environ, "SDP_API_TOKEN")
-    uvicorn.run(create_app(build_application(Settings.from_env()), token), host=args.host, port=args.port)
+    archives = RegisteredArchives(
+        PostgresCapabilityRegistry(settings.database_url), lambda name: archive_transport(settings, name, 1.0)
+    )
+    app = create_app(build_application(settings), token, archives=archives)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

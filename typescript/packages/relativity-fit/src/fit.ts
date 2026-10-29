@@ -1,7 +1,10 @@
 // The deflection fit, implemented from the UC-02 specification (§9 and docs/protocols/uc02-einstein-1919.md):
 // per plate, dx = a_x + s x + r y + alpha g_x and dy = a_y + s y - r x + alpha g_y, where g is the
 // response of a 1/b deflection at limb amplitude alpha. Scale and rotation are solved per plate or
-// fixed from check plates; errors are Gaussian or Student-t, independent or correlated within a plate
+// fixed from check plates (known linear terms subtracted, the rotation too when the plate's
+// orientation is known, else solved), or the 1920 reduction's six constants per plate are solved (solved_affine:
+// dx = a_x + s_xx x + s_xy y + alpha g_x, dy = a_y + s_yx x + s_yy y + alpha g_y); a constant no
+// measurement touches (a plate measured in one coordinate only) is left out; errors are Gaussian or Student-t, independent or correlated within a plate
 // through the check-plate scale uncertainty; probable errors are converted or used as quoted.
 import { at, cholesky, column, forward, matrix, normal, set, solveSpd, type Matrix } from "./linalg.ts";
 import { STANDARD_PER_PROBABLE, logGamma } from "./stats.ts";
@@ -19,7 +22,10 @@ export interface Star {
 export interface Plate {
   plate_id: string;
   check_scale?: number;
-  check_rotation?: number;
+  /** null: the orientation is not known apart from the plate, so the fixed-scale fit solves it. */
+  check_rotation?: number | null;
+  /** Known linear terms in arcsec per arcmin, replacing check_scale: dx += xx x + xy y, dy += yx x + yy y. */
+  check_terms?: { xx: number; xy: number; yx: number; yy: number };
   check_scale_sigma?: number;
   stars: Star[];
 }
@@ -37,14 +43,14 @@ export interface Bundle {
 
 export interface Scenario {
   error_convention: "probable_as_standard" | "converted";
-  plate_scale: "solved" | "fixed_from_check_plates";
+  plate_scale: "solved" | "solved_affine" | "fixed_from_check_plates";
   error_correlation: "independent" | "per_plate";
   likelihood: "gaussian" | "student_t";
 }
 
 export const SCENARIO_VALUES = {
   error_convention: ["probable_as_standard", "converted"],
-  plate_scale: ["solved", "fixed_from_check_plates"],
+  plate_scale: ["solved", "solved_affine", "fixed_from_check_plates"],
   error_correlation: ["independent", "per_plate"],
   likelihood: ["gaussian", "student_t"],
 } as const;
@@ -77,9 +83,10 @@ function sigmaOf(star: Star, scenario: Scenario): number {
 }
 
 export function buildRows(observations: InstrumentSet, scenario: Scenario): Rows {
-  const solved = scenario.plate_scale === "solved";
-  const perPlate = solved ? 4 : 2;
-  const params = perPlate * observations.plates.length + 1;
+  const model = scenario.plate_scale;
+  const solved = model !== "fixed_from_check_plates";
+  const perPlate = model === "solved" ? 4 : model === "solved_affine" ? 6 : 3;
+  const all = perPlate * observations.plates.length + 1;
   type Row = { coeffs: Map<number, number>; y: number; variance: number; plate: number; along: number };
   const rows: Row[] = [];
   observations.plates.forEach((plate, p) => {
@@ -93,24 +100,36 @@ export function buildRows(observations: InstrumentSet, scenario: Scenario): Rows
       if (star.dx_arcsec !== null) axes.push([star.dx_arcsec, star.x_arcmin, star.y_arcmin, (ratio * star.x_arcmin) / theta, 0]);
       if (star.dy_arcsec !== null) axes.push([star.dy_arcsec, star.y_arcmin, -star.x_arcmin, (ratio * star.y_arcmin) / theta, 1]);
       for (const [measured, own, cross, response, offset] of axes) {
-        const coeffs = new Map<number, number>([[base + offset, 1], [params - 1, response]]);
+        const coeffs = new Map<number, number>([[base + offset, 1], [all - 1, response]]);
         let y = measured;
-        if (solved) {
+        if (model === "solved") {
           coeffs.set(base + 2, own);
           coeffs.set(base + 3, cross);
+        } else if (model === "solved_affine") {
+          coeffs.set(base + 2 + 2 * offset, star.x_arcmin);
+          coeffs.set(base + 3 + 2 * offset, star.y_arcmin);
         } else {
-          y -= (plate.check_scale ?? 0) * own + (plate.check_rotation ?? 0) * cross;
+          const scale = plate.check_scale ?? 0;
+          const t = plate.check_terms ?? { xx: scale, xy: 0, yx: 0, yy: scale };
+          y -= offset === 0 ? t.xx * star.x_arcmin + t.xy * star.y_arcmin : t.yx * star.x_arcmin + t.yy * star.y_arcmin;
+          if (plate.check_rotation === null) coeffs.set(base + 2, cross);
+          else y -= (plate.check_rotation ?? 0) * cross;
         }
         rows.push({ coeffs, y, variance: sigma * sigma, plate: p, along: own });
       }
     }
   });
+  // Keep only the constants some measurement touches, and alpha last.
+  const used = new Set<number>([all - 1]);
+  for (const row of rows) for (const [j, v] of row.coeffs) if (v !== 0) used.add(j);
+  const index = new Map<number, number>([...used].sort((a, b) => a - b).map((j, k) => [j, k]));
+  const params = index.size;
   const n = rows.length;
   const design = matrix(n, params);
   const y = new Float64Array(n);
   const cov = matrix(n, n);
   rows.forEach((row, i) => {
-    for (const [j, v] of row.coeffs) set(design, i, j, v);
+    for (const [j, v] of row.coeffs) if (v !== 0) set(design, i, index.get(j) as number, v);
     y[i] = row.y;
     set(cov, i, i, row.variance);
   });

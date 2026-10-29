@@ -18,7 +18,7 @@ from sdp_relativity.fitter import FitError, bootstrap, build_system, fit, poster
 from sdp_relativity.models import GRDeflection, HalfDeflection, hypotheses
 from sdp_relativity.observations import ObservationBundle, PoolingJustification, parse_bundle
 from sdp_relativity.oracles import load_registry
-from sdp_relativity.reduction import BASELINE, HISTORICAL, FitScenario, fit_scenarios
+from sdp_relativity.reduction import BASELINE, FitScenario, fit_scenarios, historical
 
 ASTROGRAPHIC = "sobral-astro"
 HYPOTHESES = ("UC02-H0", "UC02-H1", "UC02-H2", "UC02-H3")
@@ -237,7 +237,9 @@ def synthesis(params: Mapping[str, Any], upstream: Mapping[str, Any], ctx: TaskC
         if oracle.kind != "published_estimate" or oracle.oracle_id not in tolerances or oracle.value_arcsec is None:
             continue
         mine = next((v for v in fits if v["instrument"] == oracle.instrument), None)
-        result = mine["scenarios"].get(HISTORICAL.key) if mine else None
+        result = (
+            mine["scenarios"].get(historical(str(oracle.instrument), params.get("historical")).key) if mine else None
+        )
         if result is None:
             reproduction.append({"oracle_id": oracle.oracle_id, "instrument": oracle.instrument, "z": None})
             continue

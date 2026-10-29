@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 from astropy.time import Time
@@ -278,6 +278,10 @@ class ImageCounterpart(FieldTest):
                         d2,
                         {
                             "image": product_id,
+                            # Where to draw the star and its counterpart on this image's pixels, in the
+                            # aligned frame, so a viewer needs no WCS of its own (INV-020).
+                            "predicted_px": _pixel(wcs, propagate(source, epoch)),
+                            "counterpart_px": _pixel(wcs, record),
                             **({"alignment": alignments[product_id]} if product_id in alignments else {}),
                             "counterparts": rows,
                             "method": graphs[0].method,
@@ -295,7 +299,17 @@ class ImageCounterpart(FieldTest):
             d2, worst = max(results, key=lambda r: math.inf if r[0] is None or not math.isfinite(r[0]) else r[0])
             keys.append(key)
             d2s.append(d2)
-            details.append({**worst, "images": len(results)})
+            per_image = [
+                {
+                    "image": r["image"],
+                    "predicted_px": r["predicted_px"],
+                    "counterpart_px": r["counterpart_px"],
+                    "d2": d if d is not None and math.isfinite(d) else None,
+                    "ambiguous": r["ambiguous"],
+                }
+                for d, r in results
+            ]
+            details.append({**worst, "images": len(results), "per_image": per_image})
         return Features(tuple(keys), {"d2": d2s, "details": details})
 
     def evaluate(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> list[Scored]:
@@ -326,6 +340,22 @@ def _inside(source: CatalogueSource, wcs: WCS, shape: tuple[int, int] | None, ep
         return True
     x, y = wcs.celestial.world_to_pixel_values(moved.ra_deg, moved.dec_deg)
     return bool(0 <= float(x) < shape[0] and 0 <= float(y) < shape[1])
+
+
+class _Sky(Protocol):
+    @property
+    def ra_deg(self) -> float: ...
+
+    @property
+    def dec_deg(self) -> float: ...
+
+
+def _pixel(wcs: WCS, position: _Sky | None) -> list[float] | None:
+    """0-based pixel x, y of a position on the image, to a hundredth of a pixel; None without one."""
+    if position is None:
+        return None
+    x, y = wcs.celestial.world_to_pixel_values(position.ra_deg, position.dec_deg)
+    return [round(float(x), 2), round(float(y), 2)]
 
 
 def _header(text: str) -> str:

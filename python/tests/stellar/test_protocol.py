@@ -221,13 +221,35 @@ def test_bad_overrides_fail_the_run_at_planning(params: dict[str, Any], message:
 @pytest.mark.parametrize(
     ("checks", "message"),
     [
-        ({"min_members": 10.5, "min_stability": 0.5, "min_cmd_coherence": 3.0}, "min_members must be a whole number"),
-        ({"min_members": 0, "min_stability": 0.5, "min_cmd_coherence": 3.0}, "min_members must be a whole number"),
-        ({"min_members": True, "min_stability": 0.5, "min_cmd_coherence": 3.0}, "min_members must be a whole number"),
-        ({"min_members": 10, "min_stability": "0.5", "min_cmd_coherence": 3.0}, "min_stability must be a finite"),
-        ({"min_members": 10, "min_stability": 0.5, "min_cmd_coherence": float("nan")}, "min_cmd_coherence must be"),
-        ({"min_members": 10, "min_stability": -0.1, "min_cmd_coherence": 3.0}, "min_stability must be a finite"),
-        ({"min_members": 10, "min_stability": 0.5}, r"lacks \['min_cmd_coherence'\]"),
+        (
+            {"min_members": 10.5, "min_stability": 0.5, "min_cmd_coherence": 3.0, "max_field_fraction": 0.5},
+            "min_members must be a whole number",
+        ),
+        (
+            {"min_members": 0, "min_stability": 0.5, "min_cmd_coherence": 3.0, "max_field_fraction": 0.5},
+            "min_members must be a whole number",
+        ),
+        (
+            {"min_members": True, "min_stability": 0.5, "min_cmd_coherence": 3.0, "max_field_fraction": 0.5},
+            "min_members must be a whole number",
+        ),
+        (
+            {"min_members": 10, "min_stability": "0.5", "min_cmd_coherence": 3.0, "max_field_fraction": 0.5},
+            "min_stability must be a finite",
+        ),
+        (
+            {"min_members": 10, "min_stability": 0.5, "min_cmd_coherence": float("nan"), "max_field_fraction": 0.5},
+            "min_cmd_coherence must be",
+        ),
+        (
+            {"min_members": 10, "min_stability": -0.1, "min_cmd_coherence": 3.0, "max_field_fraction": 0.5},
+            "min_stability must be a finite",
+        ),
+        ({"min_members": 10, "min_stability": 0.5, "max_field_fraction": 0.5}, r"lacks \['min_cmd_coherence'\]"),
+        (
+            {"min_members": 10, "min_stability": 0.5, "min_cmd_coherence": 3.0, "max_field_fraction": -1},
+            "max_field_fraction must be a finite",
+        ),
     ],
 )
 def test_malformed_pass_marks_are_refused_at_planning_not_coerced(
@@ -277,12 +299,18 @@ def test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the
         "min_members": 10,
         "min_stability": 0.5,
         "min_cmd_coherence": 3.0,
+        "max_field_fraction": 0.5,
     }
     strict = {
         **declared,
         "parameters": {
             **declared["parameters"],
-            "candidate_checks": {"min_members": 10_000, "min_stability": 1.01, "min_cmd_coherence": 1000.0},
+            "candidate_checks": {
+                "min_members": 10_000,
+                "min_stability": 1.01,
+                "min_cmd_coherence": 1000.0,
+                "max_field_fraction": 0.0,
+            },
         },
     }
     monkeypatch.setattr(stellar_protocol, "load_predeclaration", lambda: strict)
@@ -296,3 +324,4 @@ def test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the
         r.endswith("< 1.01") and r.startswith("unstable across the grid: stability ") for r in praesepe["reasons"]
     )
     assert any(r.endswith("< 1000.0") for r in praesepe["reasons"])
+    assert any(r.endswith("stars searched: the field itself, not a cluster") for r in praesepe["reasons"])
