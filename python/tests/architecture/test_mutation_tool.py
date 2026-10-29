@@ -54,6 +54,9 @@ def test_every_kernel_target_selects_every_suite_that_drives_the_kernel(tool: Mo
         "sdp-kernel-science",
         "sdp-kernel-application",
         "sdp-kernel-integration",
+        "sdp-kernel-investigation",
+        "sdp-kernel-investigate",
+        "sdp-kernel-planning",
     }
     for target in kernel:
         assert target.tests == tool.KERNEL_TESTS
@@ -64,3 +67,19 @@ def test_every_kernel_target_selects_every_suite_that_drives_the_kernel(tool: Mo
 @pytest.mark.req("TST-004")
 def test_the_shards_cover_every_science_module(tool: ModuleType) -> None:
     tool.check_shards()
+
+
+@pytest.mark.req("TST-004")
+def test_every_kernel_module_is_scored_by_exactly_one_target(tool: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    domain = tool.TARGETS["sdp-kernel-domain"]
+    investigation = "src/sdp/kernel/domain/investigation.py"
+    assert tool._mutates(tool.TARGETS["sdp-kernel-investigation"], investigation)
+    assert not tool._mutates(domain, investigation)
+    assert tool._mutates(domain, "src/sdp/kernel/domain/canonical.py")
+    twice = {
+        **tool.TARGETS,
+        "sdp-kernel-domain": tool.Target(domain.name, domain.package, domain.only_mutate, domain.tests),
+    }
+    monkeypatch.setattr(tool, "TARGETS", twice)
+    with pytest.raises(SystemExit, match="is scored by"):
+        tool.check_shards()
