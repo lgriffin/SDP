@@ -65,6 +65,8 @@ export const FIXTURES = {
 
 export class InMemoryEvidenceSource implements EvidenceSource {
   readonly data: FixtureData;
+  /** The set a demonstration plan opens when it has run, by plan id; others open the first set. */
+  readonly demoSets: Record<string, string> = {};
 
   constructor(data: FixtureData = FIXTURES) {
     this.data = structuredClone(data);
@@ -147,7 +149,7 @@ export class InMemoryEvidenceSource implements EvidenceSource {
     if (p.run?.state !== "running" || now - Date.parse(p.run.started_at) < DEMO_RUN_MS) return;
     p.state = "executed";
     p.execution = { plan_id: p.id, acquired: p.document.items.map((i) => `synthetic:${i.item_id}`), unavailable: [] };
-    p.setId = this.data.investigationSets[0]?.id ?? null;
+    p.setId = this.demoSets[p.id] ?? this.data.investigationSets[0]?.id ?? null;
     p.run = { ...p.run, state: "finished", finished_at: new Date(now).toISOString() };
   }
 }
