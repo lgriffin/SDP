@@ -10,15 +10,16 @@ import {
   type InvestigationSet,
   type InvestigationSetSummary,
   type Plan,
+  type ArchivesStatus,
   PlannerUnavailable,
 } from "../ports.ts";
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const SUMMARY = "id state protocol protocolVersion backend seed startedAt finishedAt verdict { status protocolVersion reasons }";
-const PLAN = "id setId state document execution";
+const PLAN = "id setId state document execution run";
 const SET_SUMMARY =
-  "id fieldId profileId profileVersion profileHash seed startedAt complete objectsExamined investigationIds label stages { stage state artifactId finishedAt error summary }";
+  "id fieldId profileId profileVersion profileHash seed startedAt complete objectsExamined investigationIds label planArtifactId stages { stage state artifactId finishedAt error summary }";
 
 export const QUERIES = {
   experiments: `query Experiments($state: String) { experiments(state: $state) { ${SUMMARY} } }`,
@@ -40,6 +41,7 @@ export const QUERIES = {
   // The planner (ADR-020). A server older than Stage E answers these with PlannerUnavailable.
   plans: `query Plans { plans { ${PLAN} } }`,
   plan: `query Plan($id: ID!) { plan(id: $id) { ${PLAN} } }`,
+  archives: `query Archives { archives { sources { sourceId origin verifiedOn productTypes } registration } }`,
 } as const;
 
 // sdp-api (graphql-core) quotes names with ' and graphql-js with ", so either is accepted.
@@ -117,6 +119,10 @@ export class GraphQLEvidenceSource implements EvidenceSource {
 
   async plan(id: string): Promise<Plan | null> {
     return (await this.planRequest<{ plan: Plan | null }>(QUERIES.plan, { id })).plan;
+  }
+
+  async archives(): Promise<ArchivesStatus | null> {
+    return (await this.planRequest<{ archives: ArchivesStatus | null }>(QUERIES.archives)).archives;
   }
 
   async planRequest<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {

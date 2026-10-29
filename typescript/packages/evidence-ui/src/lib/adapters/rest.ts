@@ -4,7 +4,10 @@ import {
   CommandRefused,
   EvidenceUnavailable,
   PlannerUnavailable,
+  type ArchiveSource,
+  type ArchivesStatus,
   type InvestigateRequest,
+  type JobRun,
   type PlanState,
   type TriageAction,
   type Workbench,
@@ -107,8 +110,13 @@ export class RestWorkbench implements Workbench {
     return { state: planState(await this.post(`/plans/${encodeURIComponent(planId)}/refuse`, { actor, reason }, true)) };
   }
 
-  async executePlan(planId: string): Promise<{ state: PlanState }> {
-    await this.post(`/plans/${encodeURIComponent(planId)}/execute`, {}, true);
-    return { state: "executed" };
+  async executePlan(planId: string, actor: string): Promise<{ state: PlanState; run: JobRun | null }> {
+    const r = await this.post(`/plans/${encodeURIComponent(planId)}/execute`, { actor, background: true }, true);
+    return { state: planState(r), run: (r.run ?? null) as JobRun | null };
+  }
+
+  async registerArchives(): Promise<ArchivesStatus> {
+    const r = await this.post("/archives/register", {}, true);
+    return { sources: (r.sources ?? []) as ArchiveSource[], registration: (r.registration ?? null) as JobRun | null };
   }
 }

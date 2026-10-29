@@ -1,6 +1,6 @@
 import { error, fail } from "@sveltejs/kit";
 
-import { needsSignature } from "$lib/plain.ts";
+import { needsSignature, planProgress } from "$lib/plain.ts";
 import { actorFrom, attempt, rememberedActor } from "$lib/server/actions.ts";
 import { evidence, workbench } from "$lib/server/source.ts";
 import { PlannerUnavailable } from "$lib/ports.ts";
@@ -16,7 +16,10 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     throw e;
   }
   if (!plan) error(404, `No plan ${params.id}`);
-  return { plan, actor: rememberedActor(cookies) };
+  // While a download runs, its investigation set shows how far it has got (INV-018).
+  const progress = planProgress(plan);
+  const set = progress ? ((await evidence().investigationSets()).find((s) => s.planArtifactId === plan.id) ?? null) : null;
+  return { plan, actor: rememberedActor(cookies), stages: set?.stages ?? null };
 };
 
 export const actions: Actions = {
@@ -42,9 +45,9 @@ export const actions: Actions = {
       return { done: "Refused. Nothing will be downloaded under this plan." };
     });
   },
-  execute: async ({ params }) =>
+  execute: async ({ params, cookies }) =>
     attempt(async () => {
-      await workbench().executePlan(params.id);
-      return { done: "Downloaded. Everything fetched is listed below." };
+      await workbench().executePlan(params.id, rememberedActor(cookies) || "viewer");
+      return { done: "Started. This page follows the download until it finishes." };
     }),
 };

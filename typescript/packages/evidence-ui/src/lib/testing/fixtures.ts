@@ -11,6 +11,7 @@ import type {
   Investigation,
   InvestigationSet,
   InvestigationSetSummary,
+  ArchivesStatus,
   LedgerEntry,
   Plan,
 } from "../ports.ts";
@@ -27,9 +28,23 @@ export interface FixtureData {
   investigationSet: Record<string, InvestigationSet>;
   investigation: Record<string, Investigation>;
   plans: Plan[];
+  archives: ArchivesStatus;
 }
 
-export const FIXTURES = { ...data, plans } as unknown as FixtureData;
+/** What a server that has registered its archives lists: the packaged catalogues and MAST. */
+export const REGISTERED_ARCHIVES: ArchivesStatus = {
+  sources: [
+    { sourceId: "2mass", origin: "hand-written", verifiedOn: "2026-10-29", productTypes: ["catalogue"] },
+    { sourceId: "gaia", origin: "hand-written", verifiedOn: "2026-10-29", productTypes: ["catalogue"] },
+    { sourceId: "mast", origin: "registry", verifiedOn: "2026-10-29", productTypes: ["cube", "image", "spectrum", "timeseries"] },
+  ],
+  registration: null,
+};
+
+/** How long a demonstration plan's background run takes before it reads as finished. */
+export const DEMO_RUN_MS = 2500;
+
+export const FIXTURES = { ...data, plans, archives: REGISTERED_ARCHIVES } as unknown as FixtureData;
 
 export class InMemoryEvidenceSource implements EvidenceSource {
   readonly data: FixtureData;
@@ -75,6 +90,21 @@ export class InMemoryEvidenceSource implements EvidenceSource {
   }
 
   async plan(id: string): Promise<Plan | null> {
-    return this.data.plans.find((p) => p.id === id) ?? null;
+    const p = this.data.plans.find((x) => x.id === id) ?? null;
+    if (p) this.settle(p);
+    return p;
+  }
+
+  async archives(): Promise<ArchivesStatus | null> {
+    return this.data.archives;
+  }
+
+  /** A demonstration run finishes a moment after it starts, so the page shows it running first. */
+  settle(p: Plan, now = Date.now()): void {
+    if (p.run?.state !== "running" || now - Date.parse(p.run.started_at) < DEMO_RUN_MS) return;
+    p.state = "executed";
+    p.execution = { plan_id: p.id, acquired: p.document.items.map((i) => `synthetic:${i.item_id}`), unavailable: [] };
+    p.setId = this.data.investigationSets[0]?.id ?? null;
+    p.run = { ...p.run, state: "finished", finished_at: new Date(now).toISOString() };
   }
 }

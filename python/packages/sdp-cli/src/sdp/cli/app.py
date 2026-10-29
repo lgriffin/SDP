@@ -1104,7 +1104,7 @@ def archive_smoke(
 
 
 def _register(mast: bool) -> list[dict[str, Any]]:
-    from sdp.adapters.archives.registration import register_defaults
+    from sdp.adapters.archives.registration import describe, register_defaults
     from sdp.adapters.bootstrap import archive_transport
     from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
     from sdp.adapters.settings import Settings
@@ -1115,17 +1115,7 @@ def _register(mast: bool) -> list[dict[str, Any]]:
         lambda name: archive_transport(settings, name, 1.0),
         mast=mast,
     )
-    return [
-        {
-            "source_id": d.source_id,
-            "origin": d.origin,
-            "product_types": sorted(t.value for t in d.product_types),
-            "operations": sorted(o.value for o in d.operations),
-            "adapter": d.adapter.name if d.adapter else None,
-            "admitted_for": sorted(t for t, ok in (d.adapter.conformance if d.adapter else {}).items() if ok),
-        }
-        for d in registered
-    ]
+    return [describe(d) for d in registered]
 
 
 @integration_app.command("register")

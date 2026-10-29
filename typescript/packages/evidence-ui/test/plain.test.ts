@@ -13,6 +13,9 @@ import {
   humanDuration,
   humanTime,
   needsSignature,
+  planBadge,
+  planProgress,
+  runJourney,
   setJourney,
   verdictSentence,
   waitingItems,
@@ -102,11 +105,47 @@ describe("plans", () => {
     expect(items.map((i) => i.action)).toEqual(["Approve or refuse", "Needs a signed approval", "Run it again", "Run it", "Review"]);
   });
 
+  it("[INV-018] lists an approved plan as waiting to download, running or stopped", () => {
+    const [, small] = FIXTURES.plans as Plan[];
+    const approved = { ...small!, state: "auto_approved" as const };
+    const run = { state: "running" as const, started_at: "2026-10-29T22:00:00Z", finished_at: null, error: null };
+    const items = (p: Plan) => waitingItems([], [], {}, [p]).map((i) => `${i.detail} / ${i.action}`);
+    expect(items(approved)).toEqual(["Approved, not downloaded yet / Download"]);
+    expect(items({ ...approved, run })).toEqual(["Downloading now / See progress"]);
+    expect(items({ ...approved, run: { ...run, state: "failed", error: "504" } })).toEqual(["The download stopped before it finished / See why"]);
+  });
+
   it("follows a set from plan to review", () => {
     const set = FIXTURES.investigationSets[0]!;
     const plan = FIXTURES.plans[0] as Plan;
     expect(setJourney(set, plan, 3).map((s) => `${s.label}:${s.status}`)).toEqual(["Plan:done", "Search:done", "Test:done", "Review:current"]);
     expect(setJourney(set, null, 0).map((s) => s.status)).toEqual(["done", "done", "done"]);
+  });
+});
+
+describe("a plan's download", () => {
+  const run = { state: "running" as const, started_at: "2026-10-29T22:00:00Z", finished_at: null, error: null };
+
+  it("[INV-018] is running or stopped only while the plan is approved", () => {
+    expect(planProgress({ state: "auto_approved", run })).toBe("running");
+    expect(planProgress({ state: "approved", run: { ...run, state: "failed" } })).toBe("stopped");
+    expect(planProgress({ state: "approved", run: { ...run, state: "finished" } })).toBeNull();
+    expect(planProgress({ state: "approved", run: null })).toBeNull();
+    expect(planProgress({ state: "executed", run })).toBeNull();
+    expect(planProgress({ state: "drafted", run })).toBeNull();
+    expect(planProgress({ state: "refused", run })).toBeNull();
+    expect(planBadge({ state: "approved", run })).toEqual({ label: "Downloading", tone: "neutral" });
+    expect(planBadge({ state: "approved", run: { ...run, state: "failed" } })).toEqual({ label: "Download stopped", tone: "bad" });
+    expect(planBadge({ state: "executed", run })).toEqual({ label: "Downloaded", tone: "good" });
+  });
+
+  it("[INV-018] shows the stage it has reached, and where it stopped", () => {
+    const steps = (stages: { stage: string; state: string }[] | null, stopped = false) => runJourney(stages, stopped).map((s) => s.status);
+    expect(runJourney(null).map((s) => s.label)).toEqual(["Find the objects in the field", "Download and check the data", "Run the tests", "Rank the candidates"]);
+    expect(steps(null)).toEqual(["current", "todo", "todo", "todo"]);
+    expect(steps([{ stage: "identify", state: "completed" }, { stage: "retrieve", state: "pending" }])).toEqual(["done", "current", "todo", "todo"]);
+    expect(steps([{ stage: "identify", state: "completed" }, { stage: "retrieve", state: "failed" }])).toEqual(["done", "failed", "todo", "todo"]);
+    expect(steps([{ stage: "identify", state: "completed" }], true)).toEqual(["done", "failed", "todo", "todo"]);
   });
 });
 

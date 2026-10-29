@@ -77,3 +77,34 @@ def register_defaults(
         registry.put(descriptor)
         registered.append(descriptor)
     return registered
+
+
+def describe(d: SourceCapabilityDescriptor) -> dict[str, object]:
+    """What ``sdp integration register`` prints and the evidence UI lists for one descriptor."""
+    return {
+        "source_id": d.source_id,
+        "origin": d.origin,
+        "verified_on": d.verified_on.isoformat(),
+        "product_types": sorted(t.value for t in d.product_types),
+        "operations": sorted(o.value for o in d.operations),
+        "adapter": d.adapter.name if d.adapter else None,
+        "admitted_for": sorted(t for t, ok in (d.adapter.conformance if d.adapter else {}).items() if ok),
+    }
+
+
+class RegisteredArchives:
+    """The registry as sdp-api offers it: what is registered, and registering every source again
+    (MAST read from the VO), so a new installation can plan from the app (INV-019)."""
+
+    def __init__(
+        self, registry: CapabilityRegistry, transport_for: Callable[[str], Transport], *, mast: bool = True
+    ) -> None:
+        self.registry = registry
+        self.transport_for = transport_for
+        self.mast = mast
+
+    def registered(self) -> list[dict[str, object]]:
+        return [describe(d) for d in sorted(self.registry.all(), key=lambda d: d.source_id)]
+
+    def register(self) -> list[dict[str, object]]:
+        return [describe(d) for d in register_defaults(self.registry, self.transport_for, mast=self.mast)]

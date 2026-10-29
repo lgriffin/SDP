@@ -91,6 +91,45 @@ export function needsSignature(plan: Plan): boolean {
   return plan.document.cost.total_bytes > plan.document.constraints.budget.approval_threshold_bytes;
 }
 
+/** Where an approved plan's download is: started from here and still going, or stopped by an error. */
+export function planProgress(plan: Pick<Plan, "state" | "run">): "running" | "stopped" | null {
+  if (plan.state === "executed" || plan.state === "drafted" || plan.state === "refused") return null;
+  if (plan.run?.state === "running") return "running";
+  return plan.run?.state === "failed" ? "stopped" : null;
+}
+
+/** The plan's badge, counting a download that is running or stopped. */
+export function planBadge(plan: Pick<Plan, "state" | "run">): { label: string; tone: Tone } {
+  const progress = planProgress(plan);
+  if (progress === "running") return { label: "Downloading", tone: "neutral" };
+  if (progress === "stopped") return { label: "Download stopped", tone: "bad" };
+  return { label: planStateLabel(plan.state), tone: planTone(plan.state) };
+}
+
+/** The stages of a run under a plan, as the steps a scientist waits through. */
+const RUN_STAGES: [string, string][] = [
+  ["identify", "Find the objects in the field"],
+  ["retrieve", "Download and check the data"],
+  ["test", "Run the tests"],
+  ["candidates", "Rank the candidates"],
+];
+
+export function runJourney(stages: readonly { stage: string; state: string }[] | null, stopped = false): JourneyStep[] {
+  const state = (key: string) => stages?.find((s) => s.stage === key)?.state ?? "pending";
+  let current = false;
+  return RUN_STAGES.map(([key, label]) => {
+    const s = state(key);
+    if (s === "completed") return { label, status: "done" };
+    if (current) return { label, status: "todo" };
+    if (s === "failed") {
+      current = true;
+      return { label, status: "failed" };
+    }
+    current = true;
+    return { label, status: stopped ? "failed" : "current" };
+  });
+}
+
 export function withinBudget(plan: Plan): boolean {
   const { cost, constraints } = plan.document;
   return cost.total_bytes <= constraints.budget.max_bytes && cost.estimated_wall_seconds <= constraints.budget.max_wall_seconds;
@@ -212,6 +251,15 @@ export function waitingItems(
       title: `Download plan for ${fieldLabel(p.document.intent.field)}`,
       detail: `${humanBytes(p.document.cost.total_bytes)} from ${Object.keys(p.document.cost.requests_per_source).length} archives`,
       action: needsSignature(p) ? "Needs a signed approval" : "Approve or refuse",
+    });
+  }
+  for (const p of plans.filter((x) => x.state === "approved" || x.state === "auto_approved")) {
+    const progress = planProgress(p);
+    items.push({
+      href: planHref(p.id),
+      title: `Download plan for ${fieldLabel(p.document.intent.field)}`,
+      detail: progress === "running" ? "Downloading now" : progress === "stopped" ? "The download stopped before it finished" : "Approved, not downloaded yet",
+      action: progress === "running" ? "See progress" : progress === "stopped" ? "See why" : "Download",
     });
   }
   for (const e of experiments) {

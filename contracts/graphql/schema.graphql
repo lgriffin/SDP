@@ -1,3 +1,25 @@
+"""A source plans are matched against, as registered (INV-019)."""
+type ArchiveSource {
+  sourceId: String!
+  origin: String!
+
+  """When its descriptor was last read, as an ISO date."""
+  verifiedOn: String!
+  productTypes: [String!]!
+}
+
+"""
+The registered archives and the last registration started on this server.
+"""
+type Archives {
+  sources: [ArchiveSource!]!
+
+  """
+  state (running, finished or failed), started_at, finished_at and error; null if none was started.
+  """
+  registration: JSON
+}
+
 type Dataset {
   id: ID!
   kind: String!
@@ -182,6 +204,11 @@ type Plan {
 
   """plan_id, acquired artifact ids, unavailable items."""
   execution: JSON
+
+  """
+  The execution started in the background, while it runs and after: state (running, finished or failed), started_at, finished_at and error. Null when none was started since the server started.
+  """
+  run: JSON
 }
 
 type Query {
@@ -207,6 +234,11 @@ type Query {
   """Acquisition plans (ADR-020)."""
   plans: [Plan!]!
   plan(id: ID!): Plan
+
+  """
+  The archives plans are matched against; null when the server cannot register them.
+  """
+  archives: Archives
 }
 
 type Task {

@@ -60,7 +60,7 @@ describe("RestWorkbench", () => {
 
   it("says the planner is missing when its routes are unknown", async () => {
     const w = new RestWorkbench("http://api.test", server(404, "Not Found").fetch);
-    await expect(w.executePlan("p")).rejects.toBeInstanceOf(PlannerUnavailable);
+    await expect(w.executePlan("p", "ada")).rejects.toBeInstanceOf(PlannerUnavailable);
     await expect(w.runExperiment("e")).rejects.toBeInstanceOf(EvidenceUnavailable);
   });
 
@@ -70,6 +70,22 @@ describe("RestWorkbench", () => {
     await expect(w.approvePlan("p", "leigh")).rejects.toBeInstanceOf(PlannerUnavailable);
     const down = new RestWorkbench("http://api.test", server(503, JSON.stringify({ error: "db down" })).fetch);
     await expect(down.approvePlan("p", "leigh")).rejects.toBeInstanceOf(EvidenceUnavailable);
+  });
+
+  it("[INV-018] starts a plan's download in the background and returns its run", async () => {
+    const run = { state: "running", started_at: "2026-10-29T22:00:00+00:00", finished_at: null, error: null };
+    const s = server(202, JSON.stringify({ state: "auto_approved", run }));
+    const w = new RestWorkbench("http://api.test", s.fetch);
+    expect(await w.executePlan("sha256:p 1", "ada")).toEqual({ state: "auto_approved", run });
+    expect(s.sent).toEqual([{ url: "http://api.test/plans/sha256%3Ap%201/execute", body: { actor: "ada", background: true } }]);
+  });
+
+  it("[INV-019] asks the server to register the archives", async () => {
+    const registration = { state: "running", started_at: "2026-10-29T22:00:00+00:00", finished_at: null, error: null };
+    const s = server(202, JSON.stringify({ sources: [], registration }));
+    const w = new RestWorkbench("http://api.test", s.fetch);
+    expect(await w.registerArchives()).toEqual({ sources: [], registration });
+    expect(s.sent.map((x) => x.url)).toEqual(["http://api.test/archives/register"]);
   });
 
   it("reports an unreachable server", async () => {
@@ -112,11 +128,39 @@ describe("InMemoryWorkbench", () => {
     const { source, w } = make();
     const [, small, large] = await source.plans();
     expect((await w.approvePlan(small!.id, "ada")).state).toBe("auto_approved");
-    expect((await w.executePlan(small!.id)).state).toBe("executed");
+    expect((await w.executePlan(small!.id, "ada")).run?.state).toBe("running");
     await expect(w.approvePlan(large!.id, "ada")).rejects.toThrow("a signed ledger approval is required (INT-014)");
-    await expect(w.executePlan(large!.id)).rejects.toThrow("only an approved plan runs");
+    await expect(w.executePlan(large!.id, "ada")).rejects.toThrow("only an approved plan runs");
     expect((await w.refusePlan(large!.id, "ada", "too big for this field")).state).toBe("refused");
     expect((await source.plan(large!.id))?.document.approval?.reason).toBe("too big for this field");
+  });
+});
+
+describe("InMemoryWorkbench background runs", () => {
+  it("[INV-018] shows a demonstration download running, then finished a moment later", async () => {
+    const source = new InMemoryEvidenceSource();
+    const w = new InMemoryWorkbench(source, () => "2026-10-29T09:00:00.000Z");
+    const [, small] = await source.plans();
+    await w.approvePlan(small!.id, "ada");
+    await w.executePlan(small!.id, "ada");
+    expect((await w.executePlan(small!.id, "ada")).run?.started_at).toBe("2026-10-29T09:00:00.000Z");
+    const p = source.data.plans.find((x) => x.id === small!.id)!;
+    source.settle(p, Date.parse("2026-10-29T09:00:01.000Z"));
+    expect(p.state).toBe("auto_approved");
+    source.settle(p, Date.parse("2026-10-29T09:00:03.000Z"));
+    expect(p.state).toBe("executed");
+    expect(p.run).toEqual({ state: "finished", started_at: "2026-10-29T09:00:00.000Z", finished_at: "2026-10-29T09:00:03.000Z", error: null });
+    expect(p.execution?.acquired.length).toBe(p.document.items.length);
+    expect(p.setId).toBe("invset-000001");
+  });
+
+  it("[INV-019] registers the demonstration archives", async () => {
+    const source = new InMemoryEvidenceSource();
+    source.data.archives = { sources: [], registration: null };
+    const w = new InMemoryWorkbench(source, () => "2026-10-29T09:00:00.000Z");
+    const done = await w.registerArchives();
+    expect(done.sources.map((a) => a.sourceId)).toEqual(["2mass", "gaia", "mast"]);
+    expect((await source.archives())?.registration?.state).toBe("finished");
   });
 });
 

@@ -36,6 +36,8 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200, planner = tr
         return { plans: data.plans };
       case "Plan":
         return { plan: data.plans.find((p) => p.id === v.id) ?? null };
+      case "Archives":
+        return { archives: data.archives };
       case "Events":
         return { events: data.events.filter((e) => e.sequence > Number(v.after)).slice(0, Number(v.limit)) };
       default:
