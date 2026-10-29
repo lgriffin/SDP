@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
@@ -249,3 +250,15 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         discovery=capability_discovery(settings),
     )
     return Application(settings, Kernel.build(ports), database, store, ledger)
+
+
+def store_usage(root: Path, min_free_bytes: int) -> dict[str, Any]:
+    """``sdp artifact usage``: the store's size and the free space against the DSI-010 floor (#60)."""
+    usage = NasArtifactStore(root).usage()
+    free = usage["free_bytes"]
+    return {
+        **usage,
+        "min_free_bytes": min_free_bytes,
+        "headroom_bytes": free - min_free_bytes if free is not None else None,
+        "acquisition_allowed": free is None or free >= min_free_bytes,
+    }

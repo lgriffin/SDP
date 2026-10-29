@@ -18,6 +18,7 @@ import stat
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sdp.kernel.domain.canonical import sha256_id
 from sdp.kernel.domain.errors import ImmutableArtifact, IntegrityError, InvariantViolation
@@ -114,3 +115,26 @@ class NasArtifactStore:
 
     def free_bytes(self) -> int | None:
         return shutil.disk_usage(self.root).free
+
+    def usage(self) -> dict[str, Any]:
+        """Objects and bytes stored, in all and per media type, and the free space (#60). It walks the
+        object folders and reads no artifact, so it is quick even for a large store."""
+        by_media: dict[str, dict[str, int]] = {}
+        for shard in (self.root / "objects" / "sha256").iterdir():
+            if not shard.is_dir():
+                continue
+            for entry in shard.iterdir():
+                if entry.name.endswith(".media") or entry.name.startswith(".tmp-"):
+                    continue
+                media = entry.with_name(entry.name + ".media")
+                kind = media.read_text() if media.exists() else "unknown"
+                counts = by_media.setdefault(kind, {"objects": 0, "bytes": 0})
+                counts["objects"] += 1
+                counts["bytes"] += entry.stat().st_size
+        return {
+            "root": str(self.root),
+            "objects": sum(c["objects"] for c in by_media.values()),
+            "bytes": sum(c["bytes"] for c in by_media.values()),
+            "by_media_type": dict(sorted(by_media.items())),
+            "free_bytes": self.free_bytes(),
+        }

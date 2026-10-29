@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,11 +18,18 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
-from sdp.kernel.application.investigate import ROW_CAP_REACHED, QueryInvestigationsUseCase
+from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
 from sdp.kernel.domain.errors import DomainError
-from sdp.kernel.domain.investigation import Field, Investigation, InvestigationSet, TestProfile, parse_region
+from sdp.kernel.domain.investigation import (
+    STAGES,
+    Field,
+    Investigation,
+    InvestigationSet,
+    TestProfile,
+    parse_region,
+)
 from sdp.kernel.ports.driving import (
     ApproveVerdictCommand,
     AssembleDossierCommand,
@@ -343,6 +351,20 @@ def artifact_put(
     emit({"artifact_id": artifact.value, "media_type": media})
 
 
+@artifact_app.command("usage")
+def artifact_usage() -> None:
+    """The artifact store's size: objects and bytes in all and per media type, and the free space the
+    acquisition guard sees against SDP_MIN_FREE_BYTES (DSI-010). Needs only SDP_ARTIFACT_ROOT."""
+    import os
+
+    from sdp.adapters.bootstrap import store_usage
+
+    root = os.environ.get("SDP_ARTIFACT_ROOT")
+    if not root:
+        raise DomainError("SDP_ARTIFACT_ROOT is not set: it names the artifact store to measure")
+    emit(store_usage(Path(root), int(os.environ.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3)))))
+
+
 @artifact_app.command("get")
 def artifact_get(artifact_id: str, out: Annotated[Path | None, typer.Option()] = None) -> None:
     from sdp.kernel.domain.ids import ArtifactId
@@ -379,7 +401,27 @@ def _set_summary(s: InvestigationSet) -> dict[str, Any]:
         "manifest_id": s.manifest_id.value if s.manifest_id else None,
         "label": s.label,
         "row_cap_reached": row_cap_reached(s),
+        "timing": stage_timing(s),
     }
+
+
+def stage_timing(s: InvestigationSet) -> dict[str, dict[str, Any]]:
+    """Seconds and stored bytes per finished stage (#60). Stages run one after another, so a stage took
+    from the end of the one before (or the set's start) to its own end; on a resumed set the first
+    stage run again also counts the time between the two runs."""
+    timing: dict[str, dict[str, Any]] = {}
+    previous = s.started_at
+    for stage in STAGES:
+        record = s.stages.get(stage)
+        if record is None or record.finished_at is None:
+            continue
+        timing[stage.value] = {
+            "state": record.state.value,
+            "seconds": round((record.finished_at - previous).total_seconds(), 3),
+            "stored_bytes": record.summary.get(STORED_BYTES),
+        }
+        previous = record.finished_at
+    return timing
 
 
 def row_cap_reached(s: InvestigationSet) -> dict[str, int]:
@@ -664,7 +706,8 @@ def plan_execute(plan_id: str, actor: Annotated[str, typer.Option()] = "cli") ->
     summary = _plan_summary(_plan_record(plan_id))
     executed = _query().set(summary["set_id"]) if summary["set_id"] else None
     reached = row_cap_reached(executed) if executed is not None else {}
-    emit({**summary, "execution": execution.to_document(), "row_cap_reached": reached})
+    timing = stage_timing(executed) if executed is not None else {}
+    emit({**summary, "execution": execution.to_document(), "row_cap_reached": reached, "timing": timing})
     warn_row_caps(reached)
 
 
@@ -743,14 +786,22 @@ def archive_acquire(
     query = CatalogueQuery(
         source, release, Cone(ra, dec, radius), tuple(column), row_cap=row_cap, chunk_rows=chunk_rows
     )
-    result = state.runtime().kernel.acquire_dataset.execute(AcquireDatasetCommand(query, curate=curate))
+    use_case = state.runtime().kernel.acquire_dataset
+    started = time.monotonic()
+    result = use_case.execute(AcquireDatasetCommand(query, curate=curate))
     emit(
         {
             "raw": result.raw.artifact_id.value,
             "curated": result.curated.artifact_id.value if result.curated else None,
             "reused": result.reused,
             "rows": result.rows,
+            "raw_bytes": result.raw.byte_count,
+            "curated_bytes": result.curated.byte_count if result.curated else 0,
+            "stored_bytes": result.stored_bytes,
+            "requests": result.requests,
+            "seconds": round(time.monotonic() - started, 3),
             "row_cap_reached": result.reached_row_cap,
+            "truncated": result.reached_row_cap,
             "query": result.raw.source_ref.query_text,
         }
     )
