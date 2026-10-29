@@ -29,7 +29,7 @@ Measured on 2026-10-29 on `main` at `b745e3a` plus this change, on a 4-core mach
 |---|---:|
 | Requirements (`spec-harness ears`) | 100, 0 problems under the strict form (TST-008) |
 | Approved | 96 |
-| Bound to a Gherkin Rule (`spec-harness bdd`) | 5 |
+| Bound to a Gherkin Rule (`spec-harness bdd`) | 7 |
 
 | Mutation score | v0.1.0 release run | This change, local | Goal |
 |---|---:|---:|---:|

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from . import steps_kernel  # noqa: F401  (each steps_* module registers its steps in the one library)
+from . import steps_kernel, steps_planning  # noqa: F401  (each steps_* module registers its steps in the one library)
 from .runner import FeatureFile
 
 
