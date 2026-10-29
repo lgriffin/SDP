@@ -1,15 +1,32 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { invalidateAll } from "$app/navigation";
   import CopyCommand from "$lib/components/CopyCommand.svelte";
   import { experimentStateLabel, programmeName } from "$lib/plain.ts";
 
   let { data, form } = $props();
-  const values = $derived((form?.values ?? {}) as Record<string, string>);
+  const values = $derived((form?.values ?? (data.example ? { ...data.example } : {})) as Record<string, string>);
   const v = (name: string, fallback: string) => values[name] ?? fallback;
   const invalid = (name: string) => (form?.field === name ? true : undefined);
   let chosen = $state("");
   const profileKey = $derived(chosen || values.profile || data.profiles[0]?.key || "");
   const description = $derived(data.profiles.find((p) => p.key === profileKey)?.description ?? "");
+  let radiusText = $state<string | null>(null);
+  $effect(() => {
+    void data.example?.key; // an example's radius replaces whatever was typed
+    radiusText = null;
+  });
+  const radius = $derived(Number(radiusText ?? v("radius", "0.5")));
+  // Small fields are easier to judge in arcseconds: a NIRCam detector is about 60 arcsec across.
+  const arcsec = $derived(radius > 0 && radius < 0.1 ? Math.round(radius * 3600) : null);
+  const archives = $derived(data.archives);
+  const registering = $derived(archives?.registration?.state === "running");
+  const mastReady = $derived(archives === null || archives.sources.some((a) => a.sourceId === "mast"));
+  $effect(() => {
+    if (!registering) return;
+    const timer = setInterval(() => invalidateAll(), 5000);
+    return () => clearInterval(timer);
+  });
   let busy = $state(false);
   const working = () => {
     busy = true;
@@ -33,6 +50,39 @@
     conclusion.
   </p>
 
+  {#if data.planner && !mastReady}
+    <div class="setup" data-testid="archives-setup">
+      <h3>Before your first plan</h3>
+      {#if registering}
+        <p role="status" aria-live="polite">
+          <strong>Reading what each archive offers.</strong> MAST, where JWST's data lives, describes itself through the
+          Virtual Observatory, and reading it takes about 5 to 15 minutes. This page updates by itself.
+        </p>
+      {:else}
+        <p>
+          SDP plans downloads from what each archive says it offers, and it has not read that yet. It reads it once, in
+          about 5 to 15 minutes, and again only when you ask.
+        </p>
+        {#if archives?.registration?.state === "failed"}
+          <p class="error-text" role="alert">The last attempt stopped: {archives.registration.error}. Archives are sometimes busy; try again in a few minutes.</p>
+        {/if}
+        <form method="POST" action="?/register" use:enhance={working}>
+          <button disabled={busy}>Read what the archives offer</button>
+        </form>
+      {/if}
+    </div>
+  {/if}
+
+  {#if data.examples.length && data.profiles.length}
+    <div class="examples" data-testid="examples">
+      <span class="muted">Not sure where to look? Try an example:</span>
+      {#each data.examples as x (x.key)}
+        <a class="button secondary" href="?example={x.key}#field" data-sveltekit-noscroll aria-current={data.example?.key === x.key ? "true" : undefined}>{x.title}</a>
+      {/each}
+    </div>
+    {#if data.example}<p class="hint example-why" data-testid="example-why">{data.example.why}</p>{/if}
+  {/if}
+
   {#if data.profiles.length === 0}
     <p class="error-text" data-testid="no-profiles">
       No test profiles are available. Ask whoever runs this server to set <code>SDP_PROFILES_DIR</code> to the folder of profile files.
@@ -55,8 +105,8 @@
           <input name="dec" inputmode="decimal" required value={v("dec", "")} aria-invalid={invalid("dec")} />
         </label>
         <label>
-          Radius <span class="hint">In degrees; 0.5 is about a full Moon</span>
-          <input name="radius" inputmode="decimal" required value={v("radius", "0.5")} aria-invalid={invalid("radius")} />
+          Radius <span class="hint">In degrees; 0.5 is about a full Moon{#if arcsec !== null}. This is {arcsec} arcsec{/if}</span>
+          <input name="radius" inputmode="decimal" required value={v("radius", "0.5")} oninput={(e) => (radiusText = e.currentTarget.value)} aria-invalid={invalid("radius")} />
         </label>
         <label class="wide">
           Tests to run
@@ -141,6 +191,12 @@
   .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
   .actions .hint { flex-basis: 100%; }
   .ready { list-style: none; padding: 0; margin: 0; }
+  .setup { border: 1px solid var(--line); background: var(--sunken); border-radius: var(--radius); padding: 0.9rem 1rem; margin: 1rem 0; }
+  .setup h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+  .setup p { margin: 0 0 0.7rem; }
+  .examples { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; margin: 1rem 0 0.4rem; }
+  .examples a[aria-current="true"] { border-color: var(--accent); }
+  .example-why { margin: 0 0 0.6rem; max-width: 70ch; }
   .ready li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 0.6rem 0; border-top: 1px solid var(--line); }
   @media (max-width: 700px) {
     .grid { grid-template-columns: 1fr; }

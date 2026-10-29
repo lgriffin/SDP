@@ -12,6 +12,7 @@ import strawberry
 from strawberry.scalars import JSON
 from strawberry.types import Info
 
+from sdp.api.jobs import REGISTER_JOB, plan_job
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import plan_view
 from sdp.kernel.domain.dataset import DatasetArtifact
@@ -35,6 +36,13 @@ else:
 def _kernel(info: Info[Any, None]) -> Kernel:
     kernel: Kernel = info.context["kernel"]
     return kernel
+
+
+def _job(info: Info[Any, None], key: str) -> dict[str, Any] | None:
+    """A long command's state from the API's jobs (sdp.api.jobs), when the server runs any."""
+    jobs = info.context.get("jobs")
+    job = jobs.get(key) if jobs is not None else None
+    return job.to_document() if job is not None else None
 
 
 @strawberry.type(description="One predeclared gate evaluated against a finding.")
@@ -421,9 +429,14 @@ class Plan:
     state: str
     document: JSONValue = strawberry.field(description="The plan document (acquisition-plan.schema.json).")
     execution: JSONValue | None = strawberry.field(description="plan_id, acquired artifact ids, unavailable items.")
+    run: JSONValue | None = strawberry.field(
+        default=None,
+        description="The execution started in the background, while it runs and after: state (running, finished or "
+        "failed), started_at, finished_at and error. Null when none was started since the server started.",
+    )
 
     @classmethod
-    def of(cls, record: PlanRecord) -> Plan:
+    def of(cls, record: PlanRecord, run: dict[str, Any] | None = None) -> Plan:
         view = plan_view(record)
         return cls(
             id=strawberry.ID(view["id"]),
@@ -431,7 +444,24 @@ class Plan:
             state=view["state"],
             document=view["document"],
             execution=view["execution"],
+            run=run,
         )
+
+
+@strawberry.type(description="A source plans are matched against, as registered (INV-019).")
+class ArchiveSource:
+    source_id: str
+    origin: str
+    verified_on: str = strawberry.field(description="When its descriptor was last read, as an ISO date.")
+    product_types: list[str]
+
+
+@strawberry.type(description="The registered archives and the last registration started on this server.")
+class Archives:
+    sources: list[ArchiveSource]
+    registration: JSONValue | None = strawberry.field(
+        description="state (running, finished or failed), started_at, finished_at and error; null if none was started."
+    )
 
 
 @strawberry.type
@@ -496,13 +526,31 @@ class Query:
     @strawberry.field(description="Acquisition plans (ADR-020).")  # type: ignore[untyped-decorator]
     def plans(self, info: Info[Any, None]) -> list[Plan]:
         query = _kernel(info).query_plans
-        return [Plan.of(r) for r in (query.plans() if query else [])]
+        return [Plan.of(r, _job(info, plan_job(r.plan.plan_id))) for r in (query.plans() if query else [])]
 
     @strawberry.field
     def plan(self, info: Info[Any, None], id: strawberry.ID) -> Plan | None:
         query = _kernel(info).query_plans
         found = query.plan(str(id)) if query else None
-        return Plan.of(found) if found else None
+        return Plan.of(found, _job(info, plan_job(str(id)))) if found else None
+
+    @strawberry.field(description="The archives plans are matched against; null when the server cannot register them.")  # type: ignore[untyped-decorator]
+    def archives(self, info: Info[Any, None]) -> Archives | None:
+        archives = info.context.get("archives")
+        if archives is None:
+            return None
+        return Archives(
+            sources=[
+                ArchiveSource(
+                    source_id=d["source_id"],
+                    origin=d["origin"],
+                    verified_on=d["verified_on"],
+                    product_types=list(d["product_types"]),
+                )
+                for d in archives.registered()
+            ],
+            registration=_job(info, REGISTER_JOB),
+        )
 
 
 schema = strawberry.Schema(query=Query)

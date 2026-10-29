@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from sdp.adapters.archives.registration import catalogue_descriptor, register_defaults
+from sdp.adapters.archives.registration import RegisteredArchives, catalogue_descriptor, describe, register_defaults
 from sdp.adapters.archives.tap import load_sources
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.integration import EvidenceRequirement, MatchStatus, Operation, ProductType, match_requirement
@@ -39,3 +39,24 @@ def test_register_defaults_registers_every_packaged_catalogue() -> None:
         registry, lambda name: pytest.fail(f"no transport for {name}"), mast=False, today=lambda: TODAY
     )
     assert {d.source_id for d in registered} == set(load_sources()) == {d.source_id for d in registry.all()}
+
+
+@pytest.mark.req("INV-019")
+def test_the_registered_archives_are_listed_and_registered_again_for_the_api() -> None:
+    archives = RegisteredArchives(
+        InMemoryCapabilityRegistry(), lambda name: pytest.fail(f"no transport for {name}"), mast=False
+    )
+    assert archives.registered() == []
+    registered = archives.register()
+    assert [d["source_id"] for d in archives.registered()] == sorted(load_sources())
+    gaia = next(d for d in registered if d["source_id"] == "gaia")
+    assert gaia == {
+        "source_id": "gaia",
+        "origin": "hand-written",
+        "verified_on": date.today().isoformat(),
+        "product_types": ["catalogue"],
+        "operations": sorted(o.value for o in catalogue_descriptor(load_sources()["gaia"], TODAY).operations),
+        "adapter": "tap-archive",
+        "admitted_for": [],
+    }
+    assert describe(catalogue_descriptor(load_sources()["gaia"], TODAY))["verified_on"] == "2026-10-29"

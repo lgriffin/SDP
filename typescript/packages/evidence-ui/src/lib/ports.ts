@@ -20,7 +20,7 @@ export type Investigation = graphql.Investigation;
 export type InvestigationSummary = Pick<graphql.Investigation, "id" | "candidateKey" | "score" | "state" | "label" | "rankingPolicy">;
 export type InvestigationSetSummary = Pick<
   graphql.InvestigationSet,
-  "id" | "fieldId" | "profileId" | "profileVersion" | "profileHash" | "seed" | "startedAt" | "complete" | "objectsExamined" | "investigationIds" | "label" | "stages"
+  "id" | "fieldId" | "profileId" | "profileVersion" | "profileHash" | "seed" | "startedAt" | "complete" | "objectsExamined" | "investigationIds" | "label" | "planArtifactId" | "stages"
 >;
 export type InvestigationSet = Omit<graphql.InvestigationSet, "manifest" | "investigations"> & {
   investigations: InvestigationSummary[];
@@ -39,12 +39,35 @@ export interface PlanExecutionDoc {
   unavailable: string[];
 }
 
+/** A long command sdp-api runs in the background (INV-018, INV-019). */
+export interface JobRun {
+  state: "running" | "finished" | "failed";
+  started_at: string;
+  finished_at: string | null;
+  error: string | null;
+}
+
 export interface Plan {
   id: string;
   setId: string | null;
   state: PlanState;
   document: AcquisitionPlanDoc;
   execution: PlanExecutionDoc | null;
+  /** The execution started from the UI, while it runs and after; null when none was started. */
+  run?: JobRun | null;
+}
+
+export interface ArchiveSource {
+  sourceId: string;
+  origin: string;
+  verifiedOn: string;
+  productTypes: string[];
+}
+
+/** The archives plans are matched against, and the last registration started on the server. */
+export interface ArchivesStatus {
+  sources: ArchiveSource[];
+  registration: JobRun | null;
 }
 
 export interface EvidenceSource {
@@ -59,6 +82,8 @@ export interface EvidenceSource {
   /** Throws PlannerUnavailable when the server does not offer the planner yet. */
   plans(): Promise<Plan[]>;
   plan(id: string): Promise<Plan | null>;
+  /** Null when the server cannot register archives (an older sdp-api). */
+  archives(): Promise<ArchivesStatus | null>;
 }
 
 export type TriageAction = "park" | "reopen" | "close" | "annotate";
@@ -81,7 +106,10 @@ export interface Workbench {
   planInvestigation(request: InvestigateRequest): Promise<{ planId: string }>;
   approvePlan(planId: string, actor: string): Promise<{ state: PlanState }>;
   refusePlan(planId: string, actor: string, reason: string): Promise<{ state: PlanState }>;
-  executePlan(planId: string): Promise<{ state: PlanState }>;
+  /** Starts the run and answers at once; the plan's run says how it goes (INV-018). */
+  executePlan(planId: string, actor: string): Promise<{ state: PlanState; run: JobRun | null }>;
+  /** Starts reading what each archive offers; takes minutes the first time (INV-019). */
+  registerArchives(): Promise<ArchivesStatus>;
 }
 
 export interface ProfileOption {

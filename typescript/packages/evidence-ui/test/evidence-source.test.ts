@@ -58,6 +58,13 @@ function contract(name: string, make: () => EvidenceSource): void {
       expect((await source.plan(first.id))?.document.plan_id).toBe(first.id);
       expect(await source.plan("sha256:missing")).toBeNull();
     });
+
+    it("[INV-019] lists the registered archives and the last registration", async () => {
+      const archives = await make().archives();
+      expect(archives?.sources.map((a) => a.sourceId)).toEqual(["2mass", "gaia", "mast"]);
+      expect(archives?.sources[2]).toEqual({ sourceId: "mast", origin: "registry", verifiedOn: "2026-10-29", productTypes: ["cube", "image", "spectrum", "timeseries"] });
+      expect(archives?.registration).toBeNull();
+    });
   });
 }
 

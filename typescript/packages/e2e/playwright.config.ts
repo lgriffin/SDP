@@ -23,6 +23,7 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { SDP_UI_FIXTURES: "1", PORT: String(port), HOST: "127.0.0.1", ORIGIN: `http://127.0.0.1:${port}` },
+    // The repository's profiles, so the Start page offers its examples (jwst-image-check for the JWST field).
+    env: { SDP_UI_FIXTURES: "1", SDP_PROFILES_DIR: "../../../profiles", PORT: String(port), HOST: "127.0.0.1", ORIGIN: `http://127.0.0.1:${port}` },
   },
 });

@@ -2,14 +2,16 @@
 // rules would, so pages and browser tests see the result of a button. It is a demonstration server:
 // validation issues no real verdict, and Investigate reopens the one synthetic set.
 import {
+  type ArchivesStatus,
   CommandRefused,
   type InvestigateRequest,
+  type JobRun,
   type Investigation,
   type PlanState,
   type TriageAction,
   type Workbench,
 } from "../ports.ts";
-import type { InMemoryEvidenceSource } from "./fixtures.ts";
+import { type InMemoryEvidenceSource, REGISTERED_ARCHIVES } from "./fixtures.ts";
 
 const TRIAGE: Record<Exclude<TriageAction, "annotate">, { to: string; from: string[] }> = {
   park: { to: "parked", from: ["open"] },
@@ -133,13 +135,19 @@ export class InMemoryWorkbench implements Workbench {
     return { state: p.state };
   }
 
-  async executePlan(planId: string): Promise<{ state: PlanState }> {
-    this.commands.push({ command: "execute-plan", args: [planId] });
+  async executePlan(planId: string, actor: string): Promise<{ state: PlanState; run: JobRun | null }> {
+    this.commands.push({ command: "execute-plan", args: [planId, actor] });
     const p = this.planOrRefuse(planId);
-    if (p.state !== "approved" && p.state !== "auto_approved") throw new CommandRefused(`plan is ${p.state}; only an approved plan runs`, 409);
-    p.state = "executed";
-    p.execution = { plan_id: p.id, acquired: p.document.items.map((i) => `synthetic:${i.item_id}`), unavailable: [] };
-    p.setId = this.source.data.investigationSets[0]?.id ?? null;
-    return { state: p.state };
+    if (p.run?.state === "running") return { state: p.state, run: p.run };
+    if (p.state !== "approved" && p.state !== "auto_approved") throw new CommandRefused(`plan ${planId} is ${p.state}; only an approved plan runs`, 409);
+    p.run = { state: "running", started_at: this.now(), finished_at: null, error: null };
+    return { state: p.state, run: p.run };
+  }
+
+  async registerArchives(): Promise<ArchivesStatus> {
+    this.commands.push({ command: "register-archives", args: [] });
+    const now = this.now();
+    this.source.data.archives = { sources: REGISTERED_ARCHIVES.sources, registration: { state: "finished", started_at: now, finished_at: now, error: null } };
+    return this.source.data.archives;
   }
 }

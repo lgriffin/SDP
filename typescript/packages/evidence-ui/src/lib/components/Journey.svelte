@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { JourneyStep } from "../plain.ts";
 
-  let { steps, label = "Progress" }: { steps: JourneyStep[]; label?: string } = $props();
+  let { steps, label = "Progress", stacked = false }: { steps: JourneyStep[]; label?: string; stacked?: boolean } = $props();
   const words: Record<string, string> = { done: "done", current: "next", todo: "to come", failed: "stopped here" };
 </script>
 
-<ol class="journey" aria-label={label} data-testid="journey">
+<ol class="journey" class:stacked aria-label={label} data-testid="journey">
   {#each steps as step, i (step.label)}
     <li class={step.status} data-status={step.status} aria-current={step.status === "current" ? "step" : undefined}>
       <span class="mark" aria-hidden="true">
@@ -39,5 +39,9 @@
   @media (max-width: 640px) {
     li:not(:last-child)::after { width: 0.7rem; margin: 0 0.3rem; }
   }
+  /* One step per line, joined by a short vertical rule: for narrow columns and steps with long names. */
+  .stacked { flex-direction: column; flex-wrap: nowrap; gap: 0.7rem; }
+  .stacked li { position: relative; }
+  .stacked li:not(:last-child)::after { position: absolute; left: calc(0.675rem - 1px); top: 1.5rem; width: 2px; height: 0.5rem; margin: 0; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>

@@ -3,24 +3,31 @@ import { fail, redirect, type Cookies } from "@sveltejs/kit";
 import { coneRegion, planHref } from "$lib/plain.ts";
 import { actorFrom, attempt, rememberedActor } from "$lib/server/actions.ts";
 import { evidence, profiles, workbench } from "$lib/server/source.ts";
-import { PlannerUnavailable, type InvestigateRequest } from "$lib/ports.ts";
+import { EXAMPLES } from "$lib/examples.ts";
+import { PlannerUnavailable, type ArchivesStatus, type InvestigateRequest } from "$lib/ports.ts";
 
 import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, url }) => {
   const source = evidence();
   const [experiments, options] = await Promise.all([source.experiments(), profiles().profiles()]);
   let planner = true;
+  let archives: ArchivesStatus | null = null;
   try {
     await source.plans();
+    archives = await source.archives();
   } catch (e) {
     if (!(e instanceof PlannerUnavailable)) throw e;
     planner = false;
   }
+  const example = EXAMPLES.find((x) => x.key === url.searchParams.get("example")) ?? null;
   return {
     ready: experiments.filter((e) => e.state === "defined" || e.state === "failed"),
     profiles: options.map(({ key, description }) => ({ key, description })),
     planner,
+    archives,
+    examples: EXAMPLES.filter((x) => options.some((o) => o.key.startsWith(`${x.profile}@`))),
+    example: example ? { ...example, profile: options.find((o) => o.key.startsWith(`${example.profile}@`))?.key ?? "" } : null,
     actor: rememberedActor(cookies),
   };
 };
@@ -65,6 +72,11 @@ async function submitted(request: Request, cookies: Cookies) {
 }
 
 export const actions: Actions = {
+  register: async () =>
+    attempt(async () => {
+      await workbench().registerArchives();
+      return { registering: true };
+    }),
   investigate: async ({ request, cookies }) => {
     const s = await submitted(request, cookies);
     if ("failure" in s) return s.failure;
