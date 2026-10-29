@@ -48,3 +48,18 @@ requirements:
     traces:
       - "python/tests.local.test_plate_solver::test_a_batch_writes_solutions_and_refusals_under_the_data_folder_only"
       - "python/tests.local.test_plate_solver::test_the_command_solves_against_gaia_through_the_acquisition_cache"
+  - id: LOC-005
+    pattern: event
+    text: "When an investigation profile names an indexed local source as an observation archive, the system shall offer as images only that source's dated, solved light and stack frames that reach the field, each read in place and given its sky solution in the image header."
+    rationale: "The person's own frames answer the same question as an archive's images (is each Gaia star where its motion puts it?); a frame with no solution or date cannot be compared with Gaia, and the source folder is never written to (#71)."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.local.test_local_gateway::test_a_search_lists_the_dated_solved_frames_that_reach_the_target"
+      - "python/tests.local.test_local_gateway::test_an_unsolved_or_calibration_frame_is_never_offered"
+      - "python/tests.local.test_local_gateway::test_a_cutout_carries_the_frames_solution_onto_its_own_pixels"
+      - "python/tests.local.test_local_gateway::test_a_cutout_off_the_frame_is_refused"
+      - "python/tests.local.test_local_gateway::test_the_dialect_curates_a_whole_solved_frame_and_leaves_the_rest"
+      - "python/tests.local.test_local_gateway::test_bootstrap_offers_each_indexed_local_source"
+      - "python/tests.local.test_local_gateway::test_the_my_frames_profile_finds_the_one_gaia_star_the_frames_do_not_show"

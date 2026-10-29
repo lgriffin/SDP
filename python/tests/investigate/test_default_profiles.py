@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from tests.local.synthetic import local_world
 
 from sdp.adapters.archives.dialect import load_dialects
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
@@ -21,6 +22,7 @@ from sdp.adapters.bootstrap import clusterers
 from sdp.adapters.compute.clustering import SklearnHdbscan
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
+from sdp.adapters.local.gateway import LocalFrameDialect, LocalImageGateway
 from sdp.kernel.application.investigate import (
     SIGNIFICANCE_POLICY,
     catalogue_query,
@@ -28,7 +30,8 @@ from sdp.kernel.application.investigate import (
     load_candidate_rankers,
 )
 from sdp.kernel.application.media import JSON, decode_artifact
-from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, Stage, StageState, TestProfile
+from sdp.kernel.domain.archive import Cone
+from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, Field, Stage, StageState, TestProfile
 from sdp.kernel.ports.investigate import InvestigateFieldCommand
 from sdp.kernel.science import products
 from sdp.testing.investigate import (
@@ -87,7 +90,8 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
 
     for archive in profile.archives:
         if archive.role is ArchiveRole.OBSERVATIONS:
-            assert archive.source_id in OBSERVATION_ARCHIVES
+            # a local source is the person's own folder, wired once it is added and indexed (#71)
+            assert archive.source_id in OBSERVATION_ARCHIVES or archive.source_id.startswith("local:")
             assert set(archive.product_types) <= {products.LIGHTCURVE, products.ASTROMETRY, "image"}
 
     registered = {(t.name, t.version): t for t in registered_tests()}
@@ -136,7 +140,7 @@ def on_synthetic_world(profile: TestProfile) -> TestProfile:
             columns=("source_key", "ra_deg", "dec_deg", "j_mag", "k_mag"),
         )
         if a.role is ArchiveRole.CATALOGUE
-        else replace(a, source_id=SYNTHETIC[a.source_id])
+        else replace(a, source_id=SYNTHETIC.get(a.source_id, a.source_id))
         for a in profile.archives
     )
     tests = tuple(
@@ -153,12 +157,15 @@ def on_synthetic_world(profile: TestProfile) -> TestProfile:
 
 @pytest.mark.req("INV-001")
 @pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
-def test_a_default_profile_runs_end_to_end(path: Path) -> None:
+def test_a_default_profile_runs_end_to_end(path: Path, tmp_path: Path) -> None:
     profile = on_synthetic_world(load(path))
     assert all(isinstance(a, ArchiveSelection) for a in profile.archives)
-    # A profile that reads JWST images runs on the synthetic JWST field, with a gateway that cuts.
+    # A profile that reads JWST images runs on the synthetic JWST field, with a gateway that cuts;
+    # one that reads the person's own frames runs on synthetic solved frames.
     images = any(a.source_id == MAST for a in profile.archives)
-    catalogue = jwst_catalogue() if images else synthetic_catalogue()
+    local = next((a.source_id for a in profile.archives if a.source_id.startswith("local:")), None)
+    world = local_world(tmp_path) if local else None
+    catalogue = jwst_catalogue() if images else world.catalogue if world else synthetic_catalogue()
     ports = investigate_ports(
         *registered_tests(),
         catalogue=catalogue,
@@ -167,6 +174,10 @@ def test_a_default_profile_runs_end_to_end(path: Path) -> None:
     )
     if images:
         ports.observation_gateways = {MAST: jwst_cutting_archive(catalogue)}
+    if world is not None and local is not None:
+        frames = LocalImageGateway(world.source, world.data)
+        ports.observation_gateways = {local: frames}
+        ports.product_dialects = {local: LocalFrameDialect(frames)}
     k = build_in_memory_kernel(
         gateways={"synthetic-gaia": gaia_archive(catalogue), "synthetic-2mass": twomass_archive(catalogue)},
         investigate=ports,
@@ -181,6 +192,8 @@ def test_a_default_profile_runs_end_to_end(path: Path) -> None:
         "refiner": TweakwcsRefiner(),
     }
     field_ = jwst_field() if images else synthetic_field()
+    if world is not None:
+        field_ = Field(Cone(*world.centre, 0.12), epoch_jyear=2016.0, label="synthetic M31 frames")
     run = use_case.execute(InvestigateFieldCommand(field_, profile, seed=1))
     assert all(record.state is StageState.COMPLETED for record in run.investigation_set.stages.values())
     stage = run.investigation_set.stages[Stage.TEST].artifact_id
