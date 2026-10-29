@@ -335,10 +335,15 @@ class ArchiveSelection:
     match_radius_arcsec: float = 1.0
     missions: tuple[str, ...] = ()
     product_types: tuple[str, ...] = ()
+    cutout_arcsec: float | None = None
+    """Fetch a square cutout of this side around the target instead of the whole product, where the
+    product supports one (INT-004). ``None`` fetches whole products."""
 
     def __post_init__(self) -> None:
         if self.role is ArchiveRole.CATALOGUE and not self.columns:
             raise InvariantViolation(f"catalogue archive {self.source_id} must name its columns")
+        if self.cutout_arcsec is not None and not 0 < self.cutout_arcsec <= 3600:
+            raise InvariantViolation("a cutout side is more than 0 and at most 3600 arcsec")
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -349,6 +354,8 @@ class ArchiveSelection:
             "match_radius_arcsec": self.match_radius_arcsec,
             "missions": list(self.missions),
             "product_types": list(self.product_types),
+            # Only when set, so profiles written before cutouts keep their hash.
+            **({"cutout_arcsec": self.cutout_arcsec} if self.cutout_arcsec is not None else {}),
         }
 
     @classmethod
@@ -361,6 +368,7 @@ class ArchiveSelection:
             match_radius_arcsec=float(doc.get("match_radius_arcsec", 1.0)),
             missions=tuple(doc.get("missions", ())),
             product_types=tuple(doc.get("product_types", ())),
+            cutout_arcsec=float(doc["cutout_arcsec"]) if doc.get("cutout_arcsec") is not None else None,
         )
 
 

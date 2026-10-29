@@ -19,10 +19,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from sdp.adapters.archives.fits_range import BLOCK, range_request, range_status
 from sdp.adapters.archives.mast import MAST_OBSCORE, file_name, obs_id_of
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
+from sdp.kernel.domain.integration import cutout_support
 from sdp.kernel.domain.investigation import ProductRef
 from sdp.kernel.ports.integration import ProductRows
 
@@ -86,6 +88,8 @@ class MastProductInventory:
     api_url: str = MAST_API
     page_size: int = 2000
     max_pages: int = 50
+    probe_cutouts: bool = True
+    """Ask the product's host for one block by byte range, to record whether it can be cut (INT-004)."""
 
     def obscore_request(self, product: ProductRef) -> HttpRequest:
         adql = (
@@ -137,11 +141,18 @@ class MastProductInventory:
                     if str(row.get("productFilename") or "") == wanted or (
                         row.get("dataURI") and file_name(str(row["dataURI"])) == wanted
                     ):
+                        obscore_row = obscore[0] if obscore else {}
+                        status = None
+                        if self.probe_cutouts:
+                            status = range_status(self.transport, product.uri)
+                            rendered.append(range_request(product.uri, 0, BLOCK - 1))
+                        media = str(obscore_row.get("access_format") or "application/fits")
                         return ProductRows(
                             inventory_row=row,
-                            obscore_row=obscore[0] if obscore else {},
+                            obscore_row=obscore_row,
                             links=(),
                             rendered_query=render(rendered),
+                            cutout=cutout_support((), media, status, product.uri),
                         )
                 if len(page_rows) < self.page_size:
                     break

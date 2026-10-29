@@ -89,6 +89,7 @@ class Semantics(StrEnum):
     PREVIEW = "#preview"
     CALIBRATION = "#calibration"
     DERIVATION = "#derivation"
+    CUTOUT = "#cutout"
 
 
 class Relationship(BaseModel):
@@ -106,6 +107,25 @@ class CalibrationReference(BaseModel):
     )
     keyword: Annotated[str, Field(min_length=1)]
     file: Annotated[str, Field(min_length=1)]
+
+
+class Method(StrEnum):
+    SODA = "soda"
+    RANGE = "range"
+    NONE = "none"
+
+
+class Cutout(BaseModel):
+    """
+    How this product can be cut out, read per product from DataLink/SODA or a byte-range probe (INT-004). Absent when not recorded.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    method: Method
+    service_url: str | None
+    evidence: Annotated[str, Field(min_length=1)]
 
 
 class ProductMetadata(BaseModel):
@@ -144,6 +164,12 @@ class ProductMetadata(BaseModel):
     size_bytes: Annotated[int, Field(ge=0)]
     relationships: list[Relationship]
     calibration_references: list[CalibrationReference]
+    cutout: Annotated[
+        Cutout | None,
+        Field(
+            description="How this product can be cut out, read per product from DataLink/SODA or a byte-range probe (INT-004). Absent when not recorded."
+        ),
+    ] = None
 
 
 class Check(BaseModel):

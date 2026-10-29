@@ -24,6 +24,7 @@ JWST through a mission-aware MAST adapter is the first acceptance case (§7, ADR
 | A JWST ingestion | Retrieve normalises, validates and stores the envelope for every product from a source with `ProductEnvelopes` (normaliser, validator, `MastProductInventory`), stamps the raw product with its adapter and product type, and curates only after both checks pass (INT-019); FITS served as `application/octet-stream` is recognised. `sdp integration record` and the "Integration recordings" workflow record MAST's descriptor and one public product as a `to_verify` reference product | Code done; recorded in run 40792899043; needs Leigh's verification pass |
 | E Planning | `PlanInvestigationUseCase` derives `EvidenceRequirement`s from the profile's tests (a test may declare its own), matches them against the capability registry, lists products from each observation archive's index over the field and selects the minimum set (`select_items`); the plan's intent document is its artifact, so the artifact id is the plan id. `ApprovePlanUseCase` approves below the threshold and needs the signed ledger approval of the plan by the actor above it. `ExecutePlanUseCase` runs InvestigateField under a `PlanGate` that authorises only the plan's items and records every refusal; the set and its manifest carry `plan_artifact_id`. Plans are stored in `acquisition_plans` (migration 0004) (INT-013, 014, 015 approved). `sdp plan draft|list|show|approve|refuse|execute` (approve signs the ledger above the threshold); `POST /plans`, `/plans/{id}/approve`, `/refuse`, `/execute` and GraphQL `plans`/`plan` for the evidence UI; the budget comes from `SDP_PLAN_*`. Harness `rederive-plan` recomputes each plan's id, its minimum set and gaps from the candidates it records (mirroring `select_items`), its cost and its approval; CI runs it on plans the kernel drafts on fakes (`python -m sdp.testing.emit_plans`) | Done |
 | Demonstration | The §7 slice on a synthetic JWST field (`sdp.testing.jwst`): Gaia identifies, the planner names one Gaia cone and one NIRCam i2d, ExecutePlan fetches only those, and the `image-counterpart` test (INT-020) detects with photutils, associates with both methods after propagating Gaia to the image epoch, and flags the star missing from the image while keeping a blended pair's two hypotheses; the run reproduces from the plan artifact and CI re-derives its plan. MAST sizes are bytes and product ids are per file (`obs_id/<file>`). A test that reads the identify catalogue is served by Identify's own query | Synthetic slice done; the live field needs a small public NIRCam image with several Gaia stars |
+| Cutouts | Cutout support is read per product into the envelope (`metadata.cutout`, scientific-data-product 1.2.0): a DataLink `#cutout` row means SODA, otherwise a one-block range probe of the product's URL that answers 206 means `range`, otherwise `none`. A profile asks for cutouts with `cutout_arcsec` on an observation archive; the planner then names one `cutout` item per product around the field centre, sized for the square rather than the file, and Retrieve cuts each once for the whole field. `MastObservationGateway.cutout_product` reads an uncompressed FITS image by HTTP range: headers, then only the rows the square covers, pixels unchanged, WCS shifted (INT-004 approved, D40) | Done |
 
 ## Where the code is
 
@@ -40,12 +41,13 @@ JWST through a mission-aware MAST adapter is the first acceptance case (§7, ADR
 | Reference products for T5s | `fixtures/reference-products/` |
 | Descriptors and compatibility records the harness checks | `capabilities/` |
 | VO discovery and the capability-backed `SourceRegistry` | `sdp.adapters.archives.capabilities` |
+| Byte-range FITS cutouts and the `ProductCutouts` port | `sdp.adapters.archives.fits_range`, `sdp.kernel.ports.investigate` |
 | MAST product inventory and the reference-product recording | `sdp.adapters.archives.mast_inventory`, `sdp.adapters.archives.reference_recording` |
 | `PostgresCapabilityRegistry` | `sdp.adapters.postgres.capabilities` |
 | Harness `admit` and `claims` | `typescript/packages/spec-harness/src/admit.ts` |
 | Requirements | `requirements/integration/integration.ears` |
 
-Deviations D30 to D38 in `docs/spec-deviations.md` record where the code differs from the document's wording.
+Deviations D30 to D40 in `docs/spec-deviations.md` record where the code differs from the document's wording.
 
 ## Association: what the methods assume
 

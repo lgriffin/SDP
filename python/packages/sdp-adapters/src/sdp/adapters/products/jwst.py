@@ -196,8 +196,14 @@ class JwstDialect:
         references = tuple(
             sorted((k, str(v)) for k, v in header.items() if k.startswith("R_") and v not in (None, "N/A"))
         )
+        product_id = f"mast:JWST/product/{filename}"
+        _, at, cut = raw.product.product_id.partition("@")
+        if at:
+            # A cutout is its own product; the envelope says what it was cut from (INT-004).
+            links = (*links, ProductRelationship(RelationshipSemantics.CUTOUT, product_id, raw.read_from))
+            product_id = f"{product_id}@{cut}"
         return ProductMetadata(
-            product_id=f"mast:JWST/product/{filename}",
+            product_id=product_id,
             product_type=kind,
             mission=_str(header.get("TELESCOP")) or _str(obs.get("obs_collection")) or "JWST",
             instrument=_str(header.get("INSTRUME")) or _str(obs.get("instrument_name")),

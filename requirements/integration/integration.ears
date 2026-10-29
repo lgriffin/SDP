@@ -30,11 +30,11 @@ requirements:
     traces: []
   - id: INT-004
     pattern: ubiquitous
-    text: "Cutout support shall be recorded per product from DataLink and SODA descriptors, never assumed per archive."
-    rationale: "Server-side cutouts differ product by product."
+    text: "The product envelope shall record each product's cutout support from its DataLink and SODA descriptors or a byte-range probe of its own URL."
+    rationale: "Cutouts differ product by product, so support is never assumed per archive. MAST publishes no SODA service for JWST, but its downloads answer HTTP range requests, so an uncompressed FITS image is cut by reading only its headers and the rows the square covers, pixels unchanged. A profile asks for cutouts with cutout_arcsec; the planner then names one field-wide cutout per product, and Retrieve leaves out a product it cannot cut rather than fetching it whole."
     verification: test
-    tiers: [T3, T5s]
-    status: draft
+    tiers: [T1, T3, T4]
+    status: approved
     traces: []
   - id: INT-005
     pattern: ubiquitous

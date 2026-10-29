@@ -2,6 +2,10 @@
 
 Schemas are versioned with semver. The `$id` carries the major version (`.../schemas/v1/<name>.schema.json`) and `x-version` carries the full version; every manifest carries `schema_version`. The harness reads the current major and the previous one (CTR-004). A breaking change needs an ADR and a migration note here.
 
+## 1.5.0 (2026-10-29) — per-product cutouts
+
+- `scientific-data-product` 1.2.0: optional `metadata.cutout` records how this product can be cut (`soda` with its `service_url`, `range` for a byte-range read of its own URL, or `none`) and the evidence it was read from, and `#cutout` joins the relationship semantics so a cutout names the product it was cut from (INT-004). Additive; envelopes without it stay valid.
+
 ## 1.4.0 (2026-10-28) — review fixes to the integration contracts
 
 - `evidence-manifest` 1.4.0: inputs may name the `adapter_version` that acquired them, and `adapter` and `product_type` now come together. Admission is per adapter version: the kernel writes the version and the harness treats an input naming an adapter without one as unadmitted (INT-016).

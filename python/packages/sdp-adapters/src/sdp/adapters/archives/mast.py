@@ -13,10 +13,11 @@ import math
 import posixpath
 import urllib.parse
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import astropy.units as u
 
+from sdp.adapters.archives.fits_range import range_cutout
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
 from sdp.kernel.domain.investigation import (
@@ -28,7 +29,7 @@ from sdp.kernel.domain.investigation import (
     ProductRef,
     region_centre,
 )
-from sdp.kernel.ports.investigate import ObservationTarget
+from sdp.kernel.ports.investigate import ObservationTarget, cutout_product_id
 
 MAST_OBSCORE = "https://mast.stsci.edu/vo-tap/api/v0.1/caom"
 HAPCUT = "https://mast.stsci.edu/hapcut/api/v0.1/astrocut"
@@ -187,6 +188,18 @@ class MastObservationGateway:
         media = response.headers.get("Content-Type", "application/octet-stream").split(";")[0].strip()
         return FetchedProduct(
             product, response.body, media, self.release_label, self.licence, self.citation, product.uri
+        )
+
+    def cutout_product(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> FetchedProduct:
+        """A cutout of one listed FITS image, read by byte range: MAST publishes no SODA service for
+        JWST, and its downloads answer range requests (checked live, 2026-10-29; INT-004)."""
+        if product.archive != self.archive_id:
+            raise ValueError(f"{product.product_id} is a {product.archive} product, not a MAST one")
+        cut = range_cutout(self.transport, product.uri, ra_deg, dec_deg, side_arcsec)
+        ref = replace(product, product_id=cutout_product_id(product.product_id, ra_deg, dec_deg, side_arcsec))
+        # Read from the product's own URL; which rows were read is in the cutout's header (SDPCUTX0/Y0).
+        return FetchedProduct(
+            ref, cut.data, "application/fits", self.release_label, self.licence, self.citation, product.uri
         )
 
     def cutout_request(self, field: Field, size: u.Quantity) -> HttpRequest:

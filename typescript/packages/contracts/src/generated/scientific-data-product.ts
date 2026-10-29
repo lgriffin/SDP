@@ -4,7 +4,7 @@ import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../ref
 import * as common from "./common.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/scientific-data-product.schema.json";
-export const SCHEMA_VERSION = "1.1.0";
+export const SCHEMA_VERSION = "1.2.0";
 
 export const ProductMetadata = z.object({
     "product_id": z.string().min(1),
@@ -54,7 +54,7 @@ export const ProductMetadata = z.object({
     "checksum": common.Sha256Id,
     "size_bytes": z.number().int().gte(0),
     "relationships": z.array(z.object({
-      "semantics": z.enum(["#this","#progenitor","#auxiliary","#preview","#calibration","#derivation"]),
+      "semantics": z.enum(["#this","#progenitor","#auxiliary","#preview","#calibration","#derivation","#cutout"]),
       "product_id": z.string().min(1),
       "description": z.string(),
     }).strict()),
@@ -62,6 +62,11 @@ export const ProductMetadata = z.object({
       "keyword": z.string().min(1),
       "file": z.string().min(1),
     }).strict()),
+    "cutout": z.object({
+      "method": z.enum(["soda","range","none"]),
+      "service_url": z.string().nullable(),
+      "evidence": z.string().min(1),
+    }).strict().optional(),
   }).strict();
 export type ProductMetadata = z.infer<typeof ProductMetadata>;
 

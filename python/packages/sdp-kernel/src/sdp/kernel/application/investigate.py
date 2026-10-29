@@ -94,10 +94,12 @@ from sdp.kernel.ports.investigate import (
     ObjectResolver,
     ObservationArchiveGateway,
     ObservationTarget,
+    ProductCutouts,
     ProductDialect,
     SourceDetector,
     TriageCommand,
     WcsRefiner,
+    cutout_product_id,
 )
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.repositories import UnitOfWork
@@ -160,6 +162,21 @@ def query_target(query: CatalogueQuery) -> str:
     """How a plan item names a catalogue query: the hash of the query document, so the executor
     authorises exactly the query that was planned."""
     return hash_document(query.to_document())
+
+
+def field_search_cone(field_: Field) -> tuple[float, float, float]:
+    """The centre of a field and the radius (arcsec) that covers it: where a field-wide search looks."""
+    region = field_.query_region()
+    if isinstance(region, Cone):
+        return region.ra_deg, region.dec_deg, region.radius_deg * 3600.0
+    ra, dec = region.centre
+    width = (region.ra_max_deg - region.ra_min_deg) * math.cos(math.radians(dec))
+    return ra, dec, math.hypot(width, region.dec_max_deg - region.dec_min_deg) / 2 * 3600.0
+
+
+def cutout_ref(product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> ProductRef:
+    """The reference a cutout of ``product`` goes by: its own id, read from the product's URL."""
+    return replace(product, product_id=cutout_product_id(product.product_id, ra_deg, dec_deg, side_arcsec))
 
 
 def mjd_to_jyear(mjd: float) -> float:
@@ -778,6 +795,8 @@ class InvestigateFieldUseCase:
             fetched, raw.artifact_id.value, rows.rendered_query, rows.inventory_row, rows.obscore_row, rows.links
         )
         metadata = envelopes.normalizer.normalize(raw_product)
+        if metadata.cutout is None and rows.cutout is not None:
+            metadata = replace(metadata, cutout=rows.cutout)  # read per product, whatever the dialect (INT-004)
         report = envelopes.validator.validate(metadata, raw_product)
         envelope = ScientificDataProduct(raw.artifact_id.value, metadata).validated(report)
         curated = None
@@ -874,13 +893,32 @@ class InvestigateFieldUseCase:
             gateway = self.ports.observation_gateways.get(selection.source_id)
             if gateway is None:
                 raise InvariantViolation(f"no ObservationArchiveGateway for {selection.source_id!r} (INV-004)")
-            criteria = ObservationCriteria(
-                missions=selection.missions,
-                product_types=selection.product_types,
-                radius_arcsec=selection.match_radius_arcsec,
-            )
-            for o in objects.objects:
-                index = gateway.search(ObservationTarget(o.object_key, o.ra_deg, o.dec_deg), criteria)
+            # A cutout selection is field-wide: one search and one cutout around the field centre,
+            # shared by every object, as the planner plans it (INT-004). Otherwise each object is
+            # searched on its own and whole products are fetched.
+            side = selection.cutout_arcsec
+            cutouts = gateway if side is not None and isinstance(gateway, ProductCutouts) else None
+            if side is not None and cutouts is None:
+                log.warning("cutouts asked of a gateway that cannot cut", extra={"source": selection.source_id})
+            if cutouts is not None:
+                ra, dec, radius = field_search_cone(investigation_set.field)
+                criteria = ObservationCriteria(
+                    missions=selection.missions,
+                    product_types=selection.product_types,
+                    radius_arcsec=radius + selection.match_radius_arcsec,
+                )
+                targets = [(ObservationTarget("field", ra, dec), list(keys))]
+            else:
+                criteria = ObservationCriteria(
+                    missions=selection.missions,
+                    product_types=selection.product_types,
+                    radius_arcsec=selection.match_radius_arcsec,
+                )
+                targets = [
+                    (ObservationTarget(o.object_key, o.ra_deg, o.dec_deg), [o.object_key]) for o in objects.objects
+                ]
+            for target, owners in targets:
+                index = gateway.search(target, criteria)
                 registered = self._register_bytes(
                     investigation_set.set_id,
                     data=canonical_json(index.to_document()).encode(),
@@ -891,8 +929,9 @@ class InvestigateFieldUseCase:
                     citation=index.citation,
                     rendered=index.query_text,
                 )
-                indices[o.object_key].append((index, registered.artifact_id))
-                releases[o.object_key].add(index.release_label)
+                for key in owners:
+                    indices[key].append((index, registered.artifact_id))
+                    releases[key].add(index.release_label)
                 investigation_set.archive_releases = tuple(
                     sorted({*investigation_set.archive_releases, index.release_label})
                 )
@@ -916,13 +955,26 @@ class InvestigateFieldUseCase:
                 for record in index.records:
                     if record.product_type not in needed:
                         continue
+                    ref = record.product
+                    if cutouts is not None:
+                        assert side is not None
+                        ref = cutout_ref(record.product, target.ra_deg, target.dec_deg, side)
                     if record.product not in retrieved:
-                        allowed, item = self._authorise(
-                            selection.source_id, Operation.DOWNLOAD, record.product.product_id
-                        )
+                        operation = Operation.CUTOUT if cutouts is not None else Operation.DOWNLOAD
+                        allowed, item = self._authorise(selection.source_id, operation, ref.product_id)
                         if not allowed:
                             continue
-                        got = gateway.fetch(record.product)
+                        if cutouts is not None:
+                            assert side is not None
+                            try:
+                                got = cutouts.cutout_product(record.product, target.ra_deg, target.dec_deg, side)
+                            except (LookupError, ValueError, RuntimeError) as exc:
+                                # This product cannot be cut here (compressed, no range support, off
+                                # the image): it is left out, never fetched whole behind the plan's back.
+                                log.warning("cutout not made", extra={"product": ref.product_id, "error": str(exc)})
+                                continue
+                        else:
+                            got = gateway.fetch(record.product)
                         retrieved[record.product] = (
                             got,
                             self._register_bytes(
@@ -953,10 +1005,9 @@ class InvestigateFieldUseCase:
                                 "product not enveloped",
                                 extra={"artifact_id": product.artifact_id.value, "error": str(exc)},
                             )
-                            evidence = ProductEvidence(
-                                record.product, record.product_type, product.artifact_id, fetched.read_from
-                            )
-                        products[o.object_key].append(evidence)
+                            evidence = ProductEvidence(ref, record.product_type, product.artifact_id, fetched.read_from)
+                        for key in owners:
+                            products[key].append(evidence)
                         continue
                     dialect = self.ports.product_dialects.get(selection.source_id)
                     curated = (
@@ -964,15 +1015,16 @@ class InvestigateFieldUseCase:
                         if dialect is not None
                         else None
                     )
-                    products[o.object_key].append(
-                        ProductEvidence(
-                            record.product,
-                            record.product_type,
-                            curated.artifact_id if curated else product.artifact_id,
-                            fetched.read_from,
-                            raw_artifact_id=product.artifact_id if curated else None,
+                    for key in owners:
+                        products[key].append(
+                            ProductEvidence(
+                                ref,
+                                record.product_type,
+                                curated.artifact_id if curated else product.artifact_id,
+                                fetched.read_from,
+                                raw_artifact_id=product.artifact_id if curated else None,
+                            )
                         )
-                    )
 
         bundles = [
             EvidenceBundle(

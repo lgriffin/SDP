@@ -95,6 +95,8 @@ class RelationshipSemantics(StrEnum):
     PREVIEW = "#preview"
     CALIBRATION = "#calibration"
     DERIVATION = "#derivation"
+    CUTOUT = "#cutout"
+    """On a cutout's envelope: the product it was cut from."""
 
 
 class ConformanceKind(StrEnum):
@@ -657,6 +659,63 @@ class ProductRelationship:
         return {"semantics": self.semantics.value, "product_id": self.product_id, "description": self.description}
 
 
+class CutoutMethod(StrEnum):
+    """How a cutout of one product is made (INT-004)."""
+
+    SODA = "soda"
+    """The product's DataLink row names a SODA service (``#cutout``)."""
+    RANGE = "range"
+    """An uncompressed FITS image whose host answered a byte-range request: SDP reads the header and
+    the rows around the field, never the whole file."""
+    NONE = "none"
+
+
+@dataclass(frozen=True)
+class CutoutSupport:
+    """Whether and how one product can be cut out, with the evidence it was read from (INT-004)."""
+
+    method: CutoutMethod
+    evidence: str
+    service_url: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.evidence:
+            raise InvariantViolation("cutout support records the evidence it was read from (INT-004)")
+        if self.method is CutoutMethod.SODA and not self.service_url:
+            raise InvariantViolation("SODA cutout support names its service")
+
+    @property
+    def supported(self) -> bool:
+        return self.method is not CutoutMethod.NONE
+
+    def to_document(self) -> dict[str, Any]:
+        return {"method": self.method.value, "service_url": self.service_url, "evidence": self.evidence}
+
+
+#: DataLink ``semantics`` for a server-side cutout service.
+CUTOUT_SEMANTICS = "#cutout"
+FITS_FORMATS = frozenset({"application/fits", "image/fits", "application/x-fits"})
+
+
+def cutout_support(
+    links: Sequence[Mapping[str, Any]], media_type: str, range_status: int | None, url: str
+) -> CutoutSupport:
+    """Read per product, never assumed per archive (INT-004): a DataLink ``#cutout`` row with a SODA
+    service wins; otherwise a FITS file whose host answered a one-block range request with 206 can be
+    cut by range; otherwise none, saying why."""
+    for row in links:
+        if str(row.get("semantics")) == CUTOUT_SEMANTICS and row.get("service_def") and row.get("access_url"):
+            return CutoutSupport(
+                CutoutMethod.SODA, f"DataLink #cutout row, service {row['service_def']}", str(row["access_url"])
+            )
+    if media_type.split(";")[0].strip().lower() not in FITS_FORMATS:
+        return CutoutSupport(CutoutMethod.NONE, f"{media_type} is not FITS and DataLink names no cutout service")
+    if range_status == 206:
+        return CutoutSupport(CutoutMethod.RANGE, f"HTTP 206 to a byte-range request for {url}")
+    answered = "not probed" if range_status is None else f"HTTP {range_status}"
+    return CutoutSupport(CutoutMethod.NONE, f"no DataLink cutout service; a byte-range request was {answered}")
+
+
 @dataclass(frozen=True)
 class PayloadExtension:
     """One extension of the raw file and what it carries."""
@@ -714,6 +773,8 @@ class ProductMetadata:
     relationships: tuple[ProductRelationship, ...] = ()
     calibration_references: tuple[tuple[str, str], ...] = ()
     """Calibration reference files named in the header (keyword, file), recorded as provenance."""
+    cutout: CutoutSupport | None = None
+    """How this product can be cut out, read per product (INT-004); ``None`` when not recorded."""
 
     def __post_init__(self) -> None:
         if not self.frame:
@@ -776,6 +837,8 @@ class ProductMetadata:
             "size_bytes": self.size_bytes,
             "relationships": [r.to_document() for r in self.relationships],
             "calibration_references": [{"keyword": k, "file": f} for k, f in self.calibration_references],
+            # Only when recorded, so envelopes written before cutouts keep their digest.
+            **({"cutout": self.cutout.to_document()} if self.cutout is not None else {}),
         }
 
 

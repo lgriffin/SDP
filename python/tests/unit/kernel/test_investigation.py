@@ -17,6 +17,8 @@ from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.investigation import (
     EXPLORATORY,
     UNMATCHED,
+    ArchiveRole,
+    ArchiveSelection,
     EvidenceBundle,
     EvidenceUsed,
     Field,
@@ -330,3 +332,14 @@ def test_set_stages_complete_in_order_and_failure_keeps_earlier_stages() -> None
     restored = InvestigationSet.from_document(s.to_document())
     assert restored.to_document() == s.to_document()
     assert [e.name for e in s.pull_events()] == ["InvestigationStageCompleted", "InvestigationStageFailed"]
+
+
+@pytest.mark.req("INT-004")
+def test_a_cutout_side_round_trips_and_leaves_older_profiles_hashing_as_before() -> None:
+    whole = ArchiveSelection("mast", ArchiveRole.OBSERVATIONS, "mast:caom", product_types=("image",))
+    assert "cutout_arcsec" not in whole.to_document()
+    cut = replace(whole, cutout_arcsec=40.0)
+    assert ArchiveSelection.from_document(cut.to_document()) == cut
+    for side in (0.0, -1.0, 3601.0):
+        with pytest.raises(InvariantViolation, match="cutout side"):
+            replace(whole, cutout_arcsec=side)
