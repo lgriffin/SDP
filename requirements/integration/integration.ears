@@ -151,7 +151,7 @@ requirements:
   - id: INT-019
     pattern: event
     text: "When Retrieve fetches a product from a source with a normaliser, the system shall register the raw bytes with the adapter and product type, store the product's envelope with its validation report, and curate only after the report and the curation check pass."
-    rationale: "The envelope is what SDP queries and the report is stored beside the product (v0.4.0 §3, ADR-018); admission needs the adapter on every input (INT-016)."
+    rationale: "The envelope is what SDP queries and the report is stored beside the product (v0.4.0 §3, ADR-018); admission needs the adapter on every input (INT-016). A cutout is checked against its own bytes: the inventory's size is the whole file's, which failed every M92 cutout until 2026-10-29."
     verification: test
     tiers: [T4]
     status: approved

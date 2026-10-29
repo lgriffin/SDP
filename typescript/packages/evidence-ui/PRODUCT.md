@@ -44,7 +44,7 @@ The UI never overstates evidence. Every verdict comes from gates frozen before t
 
 ## Evidence on Hand
 
-- `src/lib/testing/fixtures.json`: real `sdp-api` answers over the in-memory kernel (synthetic-linear protocol experiments, one synthetic Investigate set). Demonstration data must stay labelled synthetic.
+- `src/lib/testing/fixtures.json`: real `sdp-api` answers over the in-memory kernel (synthetic-linear protocol experiments, one synthetic Investigate set); `src/lib/testing/jwst.json`: the synthetic JWST field through the planner, with its image. Demonstration data must stay labelled synthetic.
 - No real Relativity or Stellar run outputs are in the fixtures; historical 1919 measurements must never be invented.
 
 ## Product Principles

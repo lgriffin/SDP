@@ -148,6 +148,11 @@ type InvestigationSet {
   """The set's manifest, as written to the store."""
   manifest: JSON
 
+  """
+  Each image the set read: what it is, the checks its envelope passed, and the Gaia stars on it with their predicted and matched pixels (INV-020). Draw an image from /artifacts/{artifactId}/preview.png.
+  """
+  images: JSON!
+
   """The set's investigations, highest score first."""
   investigations(state: String = null): [Investigation!]!
 }

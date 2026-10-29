@@ -109,9 +109,9 @@ test.describe("investigations", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Candidates" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Investigations" })).toBeVisible();
     const rows = page.getByTestId("sets").locator("tbody tr");
-    await expect(rows).toHaveCount(1);
+    await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("field-");
-    await rows.first().getByRole("link", { name: "invset-000001" }).click();
+    await page.getByRole("link", { name: "invset-000001" }).click();
     const candidates = page.getByTestId("candidates").locator("tbody tr");
     await expect(candidates).toHaveCount(5);
     await expect(candidates.filter({ hasText: "gaia:DR3:1" })).toContainText("Parked");
@@ -142,6 +142,40 @@ test.describe("investigations", () => {
     await expect(page.getByTestId("evidence-used")).toContainText("gaia:DR3");
   });
 
+  test("[INV-020] a JWST field shows its image with Gaia stars, and zooms in on an ambiguous match", async ({ page }) => {
+    await page.goto("/investigations/invset-000101");
+    const card = page.getByTestId("set-images").getByRole("link");
+    await expect(card).toContainText("12 Gaia stars: 1 stands out, 2 ambiguous.");
+    await card.click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Images of synthetic JWST field");
+    const figure = page.getByTestId("field-image");
+    await expect(figure.locator("image")).toHaveAttribute("href", /\/artifacts\/sha256%3A[0-9a-f]+\/preview\.png/);
+    await expect(figure.locator(".star")).toHaveCount(12);
+    await expect(figure.locator('[data-status="missing"]')).toHaveCount(1);
+    await expect(figure.locator('[data-status="ambiguous"]')).toHaveCount(2);
+    await expect(page.getByTestId("legend")).toContainText("Where expected 9");
+    await expect(page.getByTestId("checks")).toContainText("not checked against an envelope");
+    const picture = await page.request.get(await figure.locator("image").getAttribute("href") as string);
+    expect(picture.headers()["content-type"]).toBe("image/png");
+
+    const notable = page.getByTestId("notable").locator("tbody tr");
+    await expect(notable).toHaveCount(3);
+    await expect(notable.first()).toContainText("j-vanished");
+    await notable.filter({ hasText: "j-pair-a" }).getByRole("link", { name: "Zoom in" }).click();
+    await expect(page.getByTestId("zoomed")).toContainText("j-pair-a: ambiguous match");
+    await expect(page.getByTestId("focus-matches")).toContainText("a blend of 2 Gaia stars");
+    await expect(page.getByTestId("focus-matches")).toContainText("Also kept: j-pair-b");
+
+    await page.goto("/investigations/invset-000101/images");
+    await expect(page.getByTestId("field-image").locator('a[data-status="missing"]')).toHaveAttribute("href", "/investigations/invset-000101/inv-000101");
+    await page.getByTestId("notable").getByRole("link", { name: "Candidate" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "j-vanished" })).toBeVisible();
+    await expect(page.getByTestId("sightings")).toContainText("Not on the image");
+    await expect(page.getByTestId("sightings")).toContainText("No detection on this image is a plausible match");
+    await page.getByLabel("Show Gaia stars").uncheck();
+    await expect(page.getByTestId("sightings").locator(".star")).toHaveCount(0);
+  });
+
   test("notes are shown, and an investigation from another set is a 404", async ({ page }) => {
     await page.goto("/investigations/invset-000001/inv-000001");
     await expect(page.getByTestId("notes")).toContainText("Check the plate positions.");
@@ -164,6 +198,10 @@ test("pages never scroll sideways", async ({ page }) => {
     "/investigations",
     "/investigations/invset-000001",
     "/investigations/invset-000001/inv-000002",
+    "/investigations/invset-000101",
+    "/investigations/invset-000101/images",
+    "/investigations/invset-000101/images?star=j-pair-a",
+    "/investigations/invset-000101/inv-000101",
     "/plans",
     `/plans/${encodeURIComponent("sha256:297aea48cac6cf41832f6b5207e6cd04ed5034bb611d1c5d72b2a4232ffc1181")}`,
     "/help",

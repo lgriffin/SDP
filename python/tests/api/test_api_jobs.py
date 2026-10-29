@@ -210,3 +210,38 @@ def test_a_job_document_and_a_real_thread() -> None:
             break
         time.sleep(0.01)
     assert done == [1] and job.state == FINISHED and job.finished_at is not None
+
+
+@pytest.mark.req("INV-018")
+def test_one_field_run_at_a_time_so_a_download_keeps_its_plans_gate(k: InMemoryKernel) -> None:  # noqa: F811
+    held = Held()
+    client = TestClient(create_app(k, jobs=Jobs(held, clock())))
+    plan_id = approved_plan(client)
+    assert client.post(f"/plans/{plan_id}/execute", json={"background": True}).status_code == 202
+    other = client.post("/investigations", json=body())
+    assert other.status_code == 409 and other.json()["type"] == "RunInProgress", other.text
+    again = client.post(f"/plans/{plan_id}/execute", json={})
+    assert again.status_code == 200 and again.json()["run"]["state"] == RUNNING, "no second download of the plan"
+    assert len(held.waiting) == 1
+    held.release()
+    assert plan_run(client, plan_id)["state"] == "executed"
+    ran = client.post("/investigations", json=body())
+    assert ran.status_code == 200, "the run let go of the server when it finished"
+
+
+@pytest.mark.req("INV-018")
+def test_a_failed_background_run_lets_the_next_run_start(k: InMemoryKernel) -> None:  # noqa: F811
+    held = Held()
+    client = TestClient(create_app(k, jobs=Jobs(held, clock())))
+    plan_id = approved_plan(client)
+    real = k.kernel.execute_plan
+
+    class Broken:
+        def execute(self, command: Any) -> Any:
+            raise ConnectionError("MAST answered 504")
+
+    k.kernel.execute_plan = Broken()  # type: ignore[assignment]
+    client.post(f"/plans/{plan_id}/execute", json={"background": True})
+    held.release()
+    k.kernel.execute_plan = real
+    assert client.post("/investigations", json=body()).status_code == 200

@@ -378,6 +378,14 @@ class InvestigationSet:
         query = _kernel(info).query_investigations
         return query.manifest(str(self.id)) if query else None
 
+    @strawberry.field(
+        description="Each image the set read: what it is, the checks its envelope passed, and the Gaia stars on it "
+        "with their predicted and matched pixels (INV-020). Draw an image from /artifacts/{artifactId}/preview.png."
+    )  # type: ignore[untyped-decorator]
+    def images(self, info: Info[Any, None]) -> JSONValue:
+        query = _kernel(info).query_investigations
+        return query.images(str(self.id)) if query else []
+
     @strawberry.field(description="The set's investigations, highest score first.")  # type: ignore[untyped-decorator]
     def investigations(self, info: Info[Any, None], state: str | None = None) -> list[Investigation]:
         query = _kernel(info).query_investigations

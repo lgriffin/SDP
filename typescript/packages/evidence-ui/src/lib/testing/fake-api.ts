@@ -46,7 +46,14 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200, planner = tr
   };
   return {
     requests,
-    fetch: async (_input, init) => {
+    fetch: async (input, init) => {
+      // GET /artifacts/{id}/preview.png answers with the fixture picture (INV-020).
+      const preview = /\/artifacts\/([^/]+)\/preview\.png$/.exec(input);
+      if (init?.method === "GET") {
+        const b64 = preview ? data.previews[decodeURIComponent(preview[1]!)] : undefined;
+        if (status !== 200) return new Response("unavailable", { status });
+        return b64 ? new Response(Buffer.from(b64, "base64"), { headers: { "content-type": "image/png" } }) : new Response("no such artifact", { status: 404 });
+      }
       const body = JSON.parse(String(init?.body)) as Request;
       requests.push(body);
       if (status !== 200) return new Response("unavailable", { status });

@@ -13,6 +13,11 @@ import {
   humanDuration,
   humanTime,
   needsSignature,
+  checkName,
+  imageTitle,
+  observedOn,
+  productFile,
+  starStatus,
   planBadge,
   planProgress,
   runJourney,
@@ -97,7 +102,7 @@ describe("plans", () => {
 
   it("needs a signature only above the threshold", () => {
     const sizes = FIXTURES.plans.map((p) => [p.document.cost.total_bytes, needsSignature(p)]);
-    expect(sizes).toEqual([[13_000_000, false], [15_000_000, false], [1_290_000_000, true]]);
+    expect(sizes).toEqual([[13_000_000, false], [15_000_000, false], [1_290_000_000, true], [8_417_600, false]]);
   });
 
   it("puts drafted plans, runnable experiments and open candidates in the waiting list", () => {
@@ -164,5 +169,21 @@ describe("formatting for people", () => {
     expect(fieldLabel({ label: "Hyades" })).toBe("Hyades");
     expect(fieldLabel({ region: { ra_deg: 120, dec_deg: -10, radius_deg: 0.5 } })).toBe("RA 120°, Dec -10°, radius 0.5°");
     expect(coneRegion(120, -10, 0.5)).toBe("icrs;circle(120,-10,0.5)");
+  });
+});
+
+describe("images of a field", () => {
+  it("[INV-020] names checks, images, dates and what the image says about each star", () => {
+    expect(checkName("has_wcs")).toBe("Sky coordinates (WCS)");
+    expect(checkName("something.new")).toBe("something.new");
+    expect(imageTitle({ instrument: "NIRCAM", filter_or_grating: "F090W" }, "x")).toBe("NIRCam F090W");
+    expect(imageTitle({}, "jw/a_i2d.fits@cutout(1,2,40arcsec)")).toBe("a_i2d.fits@cutout(1,2,40arcsec)");
+    expect(productFile("jw/a_i2d.fits@cutout(1,2,40arcsec)")).toBe("a_i2d.fits");
+    expect(observedOn({ time: { start_mjd: 59750.97 } })).toBe("20 Jun 2022");
+    expect(observedOn({})).toBeNull();
+    expect(starStatus({ flagged: true, ambiguous: false, counterpart_px: null })).toBe("missing");
+    expect(starStatus({ flagged: true, ambiguous: true, counterpart_px: [1, 2] })).toBe("displaced");
+    expect(starStatus({ flagged: false, ambiguous: true, counterpart_px: [1, 2] })).toBe("ambiguous");
+    expect(starStatus({ flagged: false, ambiguous: false, counterpart_px: [1, 2] })).toBe("matched");
   });
 });

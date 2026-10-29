@@ -7,6 +7,19 @@ import { PlannerUnavailable } from "$lib/ports.ts";
 
 import type { Actions, PageServerLoad } from "./$types";
 
+/** The stages of the plan's latest run: each "Start again" opens a new set. Progress is optional,
+ *  so a failed read leaves the page with the plan and its run state. */
+async function runStages(planId: string, since: string | undefined) {
+  try {
+    const started = since ? Date.parse(since) - 5_000 : -Infinity; // the API and its database may round differently
+    const sets = (await evidence().investigationSets()).filter((s) => s.planArtifactId === planId && Date.parse(s.startedAt) >= started);
+    const latest = sets.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))[0];
+    return latest?.stages ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const load: PageServerLoad = async ({ params, cookies }) => {
   let plan;
   try {
@@ -18,8 +31,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
   if (!plan) error(404, `No plan ${params.id}`);
   // While a download runs, its investigation set shows how far it has got (INV-018).
   const progress = planProgress(plan);
-  const set = progress ? ((await evidence().investigationSets()).find((s) => s.planArtifactId === plan.id) ?? null) : null;
-  return { plan, actor: rememberedActor(cookies), stages: set?.stages ?? null };
+  return { plan, actor: rememberedActor(cookies), stages: progress ? await runStages(plan.id, plan.run?.started_at) : null };
 };
 
 export const actions: Actions = {

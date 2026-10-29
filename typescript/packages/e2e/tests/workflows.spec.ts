@@ -9,7 +9,7 @@ test("home lists what is waiting and where each piece of work is", async ({ page
   await page.goto("/");
   await expect(page.getByTestId("demonstration")).toContainText("synthetic");
   const waiting = page.getByTestId("waiting").locator("li");
-  await expect(waiting).toHaveCount(5);
+  await expect(waiting).toHaveCount(6);
   await expect(waiting.filter({ hasText: "1.29 GB" })).toContainText("Needs a signed approval");
   await expect(page.getByTestId("work-experiments").locator("> li")).toHaveCount(4);
   const failed = page.getByTestId("work-experiments").locator("> li").filter({ hasText: "exp-000003" });

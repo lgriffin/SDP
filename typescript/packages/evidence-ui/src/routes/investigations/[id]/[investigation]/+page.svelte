@@ -2,7 +2,9 @@
   import { enhance } from "$app/forms";
   import Badge from "$lib/components/Badge.svelte";
   import CopyCommand from "$lib/components/CopyCommand.svelte";
-  import { candidateStateLabel, humanTime } from "$lib/plain.ts";
+  import FieldImage from "$lib/components/FieldImage.svelte";
+  import MatchList from "$lib/components/MatchList.svelte";
+  import { candidateStateLabel, humanTime, imageTitle, observedOn, STAR_WORDS, starStatus } from "$lib/plain.ts";
   import { belowAlpha, formatNumber, formatPercent, investigationTone, shortHash, type TestResultDoc } from "$lib/view.ts";
 
   let { data, form } = $props();
@@ -24,6 +26,7 @@
   const used = $derived(i.evidenceUsed as { archives: string[]; releases: string[]; epoch_min_jyear: number | null; epoch_max_jyear: number | null });
   const notes = $derived((i.notes ?? []) as { text: string; author: string; at: string }[]);
   const knownAs = $derived(dossier?.objects.find((o) => o.object.object_key === i.candidateKey)?.object.resolver_record?.main_id);
+  const sightings = $derived(data.sightings);
   const canPark = $derived(i.state === "open");
   const canReopen = $derived(i.state === "parked");
   const canClose = $derived(i.state !== "closed");
@@ -136,6 +139,40 @@
   </section>
 </div>
 
+{#if sightings.length}
+  <section aria-labelledby="sightings-h" data-testid="sightings">
+    <h2 id="sightings-h">On the images</h2>
+    <p class="muted">The marker is where Gaia's motion puts the star on the day each image was taken; the cross is the detection it was matched to.</p>
+    <div class="sightings">
+      {#each sightings as { image, star } (image.artifact_id)}
+        {@const status = starStatus(star)}
+        <article class="sighting" data-status={status}>
+          <h3>{imageTitle(image.summary, image.product_id)}{#if observedOn(image.summary)}<span class="muted">{" · "}{observedOn(image.summary)}</span>{/if}</h3>
+          {#if image.width && image.height}
+            <FieldImage
+              src="/artifacts/{encodeURIComponent(image.artifact_id)}/preview.png"
+              width={image.width}
+              height={image.height}
+              stars={image.stars}
+              setId={i.setId}
+              focus={star.object_key}
+              crop={Math.max(40, Math.round(image.width / 20))}
+              label="{i.candidateKey} on {imageTitle(image.summary, image.product_id)}: {STAR_WORDS[status].toLowerCase()}"
+            />
+          {/if}
+          <p><Badge tone={star.flagged ? "bad" : star.ambiguous ? "warn" : "good"} label={STAR_WORDS[status]} />
+            {#if star.d2 !== null}<span class="muted small">offset of {formatNumber(Math.sqrt(star.d2))} times its combined uncertainty</span>{/if}</p>
+          <a class="small" href="/investigations/{i.setId}/images?image={encodeURIComponent(image.artifact_id)}&star={encodeURIComponent(star.object_key)}#viewer">See it on the whole image</a>
+          {#if star.counterparts}
+            <h4>Possible matches</h4>
+            <MatchList star={star.object_key} counterparts={star.counterparts} />
+          {/if}
+        </article>
+      {/each}
+    </div>
+  </section>
+{/if}
+
 {#if dossier}
   <section aria-labelledby="objects">
     <h2 id="objects">What the archives hold</h2>
@@ -218,6 +255,11 @@
   article h3 { font-size: 0.98rem; margin: 0 0 0.2rem; }
   article p { margin: 0 0 0.3rem; }
   .timeline { padding-left: 1.2rem; }
+  .sightings { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.8rem; }
+  .sighting { margin: 0; display: grid; gap: 0.5rem; align-content: start; }
+  .sighting h3, .sighting h4 { margin: 0; font-size: 0.95rem; }
+  .sighting p { margin: 0; }
+
   .timeline li { margin-bottom: 0.6rem; }
   @media (max-width: 800px) {
     .top { grid-template-columns: 1fr; }

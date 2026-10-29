@@ -22,9 +22,62 @@ export type InvestigationSetSummary = Pick<
   graphql.InvestigationSet,
   "id" | "fieldId" | "profileId" | "profileVersion" | "profileHash" | "seed" | "startedAt" | "complete" | "objectsExamined" | "investigationIds" | "label" | "planArtifactId" | "stages"
 >;
-export type InvestigationSet = Omit<graphql.InvestigationSet, "manifest" | "investigations"> & {
+export type InvestigationSet = Omit<graphql.InvestigationSet, "manifest" | "investigations" | "images"> & {
   investigations: InvestigationSummary[];
+  /** Absent from sets recorded before images were listed. */
+  images?: FieldImage[];
 };
+
+/** A Gaia star the image-counterpart test placed on an image (INV-020). Pixels are 0-based FITS x, y. */
+export interface FieldStar {
+  object_key: string;
+  investigation_id: string | null;
+  predicted_px: [number, number];
+  counterpart_px: [number, number] | null;
+  d2: number | null;
+  p_value: number;
+  flagged: boolean;
+  ambiguous: boolean;
+  /** Every retained hypothesis for the image the star's result describes; null for its other images. */
+  counterparts: CounterpartDoc[] | null;
+}
+
+export interface CounterpartDoc {
+  record_id: string;
+  posterior: number;
+  option_posterior: number;
+  no_counterpart: number;
+  role: string | null;
+  blend_of: string[];
+  competing: string[];
+}
+
+export interface EnvelopeCheck {
+  field: string;
+  passed: boolean;
+  detail: string;
+}
+
+/** An image a field investigation read, with its envelope's checks and the stars on it (INV-020). */
+export interface FieldImage {
+  product_id: string;
+  archive: string;
+  artifact_id: string;
+  raw_artifact_id: string | null;
+  envelope_artifact_id: string | null;
+  read_from: string | null;
+  width: number | null;
+  height: number | null;
+  summary: Record<string, unknown>;
+  checks: EnvelopeCheck[] | null;
+  passed: boolean | null;
+  stars: FieldStar[];
+}
+
+export interface ArtifactBytes {
+  body: Uint8Array;
+  mediaType: string;
+}
 
 export type AcquisitionPlanDoc = generated.acquisitionPlan.AcquisitionPlan;
 
@@ -84,6 +137,10 @@ export interface EvidenceSource {
   plan(id: string): Promise<Plan | null>;
   /** Null when the server cannot register archives (an older sdp-api). */
   archives(): Promise<ArchivesStatus | null>;
+  /** A stored artifact's bytes, e.g. a FITS cutout; null when there is none. */
+  artifact(artifactId: string): Promise<ArtifactBytes | null>;
+  /** A FITS image drawn north up as a PNG (INV-020); null when there is none. */
+  preview(artifactId: string): Promise<ArtifactBytes | null>;
 }
 
 export type TriageAction = "park" | "reopen" | "close" | "annotate";

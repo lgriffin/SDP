@@ -9,7 +9,14 @@ import type { Actions, PageServerLoad } from "./$types";
 export const load: PageServerLoad = async ({ params, cookies }) => {
   const investigation = await evidence().investigation(params.investigation);
   if (!investigation || investigation.setId !== params.id) error(404, `No investigation ${params.investigation} in ${params.id}`);
-  return { investigation, actor: rememberedActor(cookies) };
+  // Where the candidate sits on each image the search read (INV-020).
+  const set = await evidence().investigationSet(params.id);
+  const sightings = (set?.images ?? []).flatMap((image) =>
+    image.stars
+      .filter((star) => star.object_key === investigation.candidateKey)
+      .map((star) => ({ image, star })),
+  );
+  return { investigation, sightings, actor: rememberedActor(cookies) };
 };
 
 const DONE: Record<TriageAction, string> = {

@@ -23,7 +23,7 @@ from sdp.kernel.domain.integration import (
     SemanticValidationReport,
 )
 from sdp.kernel.ports.integration import RawProduct
-from sdp.kernel.ports.investigate import CuratedProduct
+from sdp.kernel.ports.investigate import CuratedProduct, is_cutout
 
 FITS_TYPES = FITS_MEDIA_TYPES
 #: FITS keyword -> (envelope attribute, ObsCore column). Keyword wins; any disagreement fails (v0.4.0 §3).
@@ -60,8 +60,14 @@ class EnvelopeValidator:
             else f"bytes hash to {digest}; envelope says {metadata.checksum}",
         )
         inv_size = product.inventory_row.get("size")
-        size_ok = metadata.size_bytes == len(data) and (inv_size is None or int(inv_size) == len(data))
-        check("size_bytes", size_ok, f"{len(data)} bytes read; envelope {metadata.size_bytes}; inventory {inv_size}")
+        if is_cutout(metadata.product_id):
+            # The inventory describes the whole file; a cutout is a square read out of it (INT-004).
+            size_ok = metadata.size_bytes == len(data) and (inv_size is None or len(data) <= int(inv_size))
+            detail = f"{len(data)} bytes read; envelope {metadata.size_bytes}; a cutout of the inventory's {inv_size}"
+        else:
+            size_ok = metadata.size_bytes == len(data) and (inv_size is None or int(inv_size) == len(data))
+            detail = f"{len(data)} bytes read; envelope {metadata.size_bytes}; inventory {inv_size}"
+        check("size_bytes", size_ok, detail)
 
         inv_kind = str(product.inventory_row.get("productType", "")).upper()
         if inv_kind in ("PREVIEW", "AUXILIARY", "INFO"):
