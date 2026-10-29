@@ -81,15 +81,15 @@ def test_a_star_row_without_a_convention_is_refused() -> None:
         bundle_from_records(rows, [])
 
 
-def test_a_correction_from_the_second_pass_supersedes_the_transcription() -> None:
+def test_a_correction_from_a_second_pass_supersedes_the_transcription() -> None:
     corrections = [
-        VerificationRecord("r1", "leigh", AT, False, {"dx_arcsec": -0.25}),  # single-user: one's own second pass
-        VerificationRecord("r2", "leigh", AT, True, {"dx_arcsec": 9.9}),  # a matching pass corrects nothing
+        VerificationRecord("r1", "reader-2", AT, False, {"dx_arcsec": -0.25}),
+        VerificationRecord("r2", "leigh", AT, False, {"dx_arcsec": 0.31}),  # one user: the transcriber re-checks
     ]
     bundle = parse_bundle(bundle_from_records(table(), corrections))
     stars = {s.star_id: s for s in bundle.instrument("sobral-4in").stars}
     assert stars["11"].dx_arcsec == -0.25
-    assert stars["5"].dx_arcsec == 0.3
+    assert stars["5"].dx_arcsec == 0.31
 
 
 def test_a_set_without_a_solar_radius_is_refused() -> None:

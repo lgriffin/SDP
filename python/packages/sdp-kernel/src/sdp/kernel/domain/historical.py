@@ -42,7 +42,8 @@ class TranscribedRecord:
 
 @dataclass(frozen=True)
 class VerificationRecord:
-    """A second pass against the same locator. SDP is single-user, so the transcriber may make it."""
+    """A second pass against the same locator. SDP is a single-user app, so the transcriber may make it:
+    what counts is a deliberate, recorded re-check, not a second person."""
 
     record_id: str
     verifier: str
@@ -53,5 +54,5 @@ class VerificationRecord:
 
 
 def is_verified(record: TranscribedRecord, verifications: tuple[VerificationRecord, ...]) -> bool:
-    """A record is verified when a second pass found it matching."""
+    """A record is verified when a recorded second pass found it matching."""
     return any(v.record_id == record.record_id and v.matches for v in verifications)

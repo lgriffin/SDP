@@ -30,7 +30,7 @@ class Oracle:
     @property
     def verified(self) -> bool:
         """Analytic oracles are verified by construction; a transcribed value needs a locator and a
-        matching second pass, which its transcriber may make (SDP is single-user)."""
+        matching, recorded second pass (which its transcriber may make: SDP has one user)."""
         if self.status == "analytic":
             return True
         return bool(self.locator) and any(v.get("matches") and v.get("verifier") for v in self.verifications)

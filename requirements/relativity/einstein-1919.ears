@@ -5,7 +5,7 @@ requirements:
   - id: REL-001
     pattern: ubiquitous
     text: "Every transcribed measurement shall carry an uncertainty convention and a page or table locator."
-    rationale: "Transcription errors and convention confusion are the main integrity risks of UC-02. Every row also needs a matching second pass against its locator (REL-G-02); SDP is single-user, so the transcriber's own second pass counts (Leigh, 2026-10-29)."
+    rationale: "Transcription errors and convention confusion are the main integrity risks of UC-02. A row counts as verified after a recorded, matching second pass against the same locator; SDP is a single-user app, so the transcriber may make that pass (decided 2026-10-29)."
     verification: test
     tiers: [T1]
     gates: [REL-G-01]
