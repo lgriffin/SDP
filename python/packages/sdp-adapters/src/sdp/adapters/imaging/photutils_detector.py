@@ -42,10 +42,13 @@ def header_epoch_mjd(*headers: fits.Header) -> float | None:
     return None
 
 
-def image_headers(frame: ImageFrame) -> tuple[fits.Header, fits.Header]:
-    """The primary header and the first 2-D image extension's header."""
+def image_headers(frame: ImageFrame, hdu: int | None = None) -> tuple[fits.Header, fits.Header]:
+    """The primary header and the header of the image read_image reads: the HDU named, else the first 2-D one."""
     with fits.open(io.BytesIO(frame.data), memmap=False) as hdus:
-        image = next((h for h in hdus if h.data is not None and getattr(h.data, "ndim", 0) == 2), hdus[0])
+        if hdu is not None:
+            image = hdus[hdu]
+        else:
+            image = next((h for h in hdus if h.data is not None and getattr(h.data, "ndim", 0) == 2), hdus[0])
         return hdus[0].header.copy(), image.header.copy()
 
 
@@ -79,7 +82,7 @@ class PhotutilsDetector:
     def detect(self, frame: ImageFrame, params: Mapping[str, Any]) -> DetectionList:
         p = {**DEFAULTS, **params}
         data, wcs = read_image(frame, p["hdu"])
-        primary, sci = image_headers(frame)
+        primary, sci = image_headers(frame, p["hdu"])
         finite = np.isfinite(data)
         box = int(min(p["box_size"], *data.shape))
         background = Background2D(

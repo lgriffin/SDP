@@ -107,19 +107,30 @@ def anchor(bundle: EvidenceBundle, row: Mapping[str, Any], sigma_arcsec: float) 
 
 
 def counterpart_rows(graph: AssociationGraph, anchor_id: str) -> list[Mapping[str, Any]]:
-    """Every retained association of a record to this anchor's hypothesis, best first."""
+    """Every retained association of a record to this anchor's hypothesis, best first.
+
+    A blend ranks by its whole option's posterior, not the share the graph gives each member, and
+    each row carries the posterior that its detection has no counterpart at all."""
     hypothesis = f"obj:{anchor_id}"
     rows = [a for a in graph.associations if a.hypothesis_id == hypothesis and a.record_id != anchor_id]
+    alone = {a.record_id: a.posterior for a in graph.associations if a.hypothesis_id == f"obj:{a.record_id}"}
     return [
         {
             "record_id": a.record_id,
             "posterior": a.posterior,
+            "option_posterior": float(a.evidence.get("option_posterior", a.posterior)),
+            "no_counterpart": alone.get(a.record_id, 0.0),
             "role": a.evidence.get("role"),
             "blend_of": list(a.evidence.get("blend_of", [])),
             "competing": [h for h in a.competing if h != f"obj:{a.record_id}"],
         }
-        for a in sorted(rows, key=lambda a: (-a.posterior, a.record_id))
+        for a in sorted(rows, key=lambda a: (-float(a.evidence.get("option_posterior", a.posterior)), a.record_id))
     ]
+
+
+def best_counterpart(rows: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    """The most probable row whose detection is not more probably unrelated to every anchor."""
+    return next((r for r in rows if r["option_posterior"] >= r["no_counterpart"]), None)
 
 
 def mahalanobis2(sources: Sequence[CatalogueSource], record: Detection) -> float:
@@ -173,56 +184,68 @@ class ImageCounterpart(FieldTest):
             for p in b.products:
                 if p.product_type == IMAGE:
                     images.setdefault(p.artifact_id.value, p.product.product_id)
-        records: list[AssociationRecord] = list(anchors.values())
-        footprints: list[tuple[WCS, tuple[int, int] | None, float]] = []
-        epochs: list[float] = []
+        frames: list[tuple[str, list[Detection], WCS, tuple[int, int] | None, float]] = []
         for artifact_id, product_id in sorted(images.items()):
             data = product_bytes(context, artifact_id)
             found = detector.detect(ImageFrame(artifact_id, data, "application/fits"), params)
             epoch = epoch_jyear(found, artifact_id)
-            instrument = found.instrument or "unknown"
             dets, _, shape, wcs = detection_records(
-                found, product_id, epoch, instrument, fwhm_px, float(thresholds.get("min_sigma_arcsec", 0.005))
+                found,
+                product_id,
+                epoch,
+                found.instrument or "unknown",
+                fwhm_px,
+                float(thresholds.get("min_sigma_arcsec", 0.005)),
             )
-            records.extend(dets)
-            footprints.append((wcs, shape, epoch))
-            epochs.append(epoch)
-        if not anchors or not footprints:
+            frames.append((product_id, dets, wcs, shape, epoch))
+        if not anchors or not frames:
             return Features((), {"d2": [], "details": []})
-        policy = AssociationPolicy(
-            "image-counterpart",
-            "1.0.0",
-            common_epoch_jyear=float(np.mean(epochs)),
-            search_radius_arcsec=float(thresholds.get("search_radius_arcsec", 1.0)),
-            anchor_catalogue=ANCHORS,
-        )
-        graphs = [a.associate(records, policy) for a in associators]
-        by_id = {r.record_id: r for r in records}
+        # Each image is associated on its own, so a counterpart on one image cannot stand in for a
+        # star missing from another that covers it. A source's result is its worst covering image.
+        per_source: dict[str, list[tuple[float | None, dict[str, Any]]]] = {}
+        for product_id, dets, wcs, shape, epoch in frames:
+            inside = {k: a for k, a in anchors.items() if _inside(a, wcs, shape, epoch)}
+            if not inside:
+                continue
+            records: list[AssociationRecord] = [*inside.values(), *dets]
+            policy = AssociationPolicy(
+                "image-counterpart",
+                "1.0.0",
+                common_epoch_jyear=epoch,
+                search_radius_arcsec=float(thresholds.get("search_radius_arcsec", 1.0)),
+                anchor_catalogue=ANCHORS,
+            )
+            graphs = [a.associate(records, policy) for a in associators]
+            by_id = {d.record_id: d for d in dets}
+            for key, source in inside.items():
+                rows = counterpart_rows(graphs[0], key)
+                others = [{r["record_id"]: r["posterior"] for r in counterpart_rows(g, key)} for g in graphs[1:]]
+                best = best_counterpart(rows)
+                record = by_id.get(best["record_id"]) if best else None
+                members = [anchors[m] for m in (best["blend_of"] if best else []) if m in anchors] or [source]
+                d2 = mahalanobis2(members, record) if record is not None else None
+                per_source.setdefault(key, []).append(
+                    (
+                        d2,
+                        {
+                            "image": product_id,
+                            "counterparts": rows,
+                            "method": graphs[0].method,
+                            "other_methods": {
+                                g.method: o.get(best["record_id"]) if best else None
+                                for g, o in zip(graphs[1:], others, strict=True)
+                            },
+                            "ambiguous": any(r["competing"] for r in rows),
+                            "graph_ids": [g.graph_id for g in graphs],
+                        },
+                    )
+                )
         keys, d2s, details = [], [], []
-        for key, source in sorted(anchors.items()):
-            if not any(_inside(source, wcs, shape, epoch) for wcs, shape, epoch in footprints):
-                continue  # off the image, or without a motion to carry it to the image epoch
-            rows = counterpart_rows(graphs[0], key)
-            others = [{r["record_id"]: r["posterior"] for r in counterpart_rows(g, key)} for g in graphs[1:]]
-            best = rows[0] if rows else None
-            record = by_id.get(best["record_id"]) if best else None
-            members = [anchors[m] for m in (best["blend_of"] if best else []) if m in anchors] or [source]
-            d2 = mahalanobis2(members, record) if isinstance(record, Detection) else None
+        for key, results in sorted(per_source.items()):
+            d2, worst = max(results, key=lambda r: math.inf if r[0] is None or not math.isfinite(r[0]) else r[0])
             keys.append(key)
             d2s.append(d2)
-            details.append(
-                {
-                    "counterparts": rows,
-                    "method": graphs[0].method,
-                    "other_methods": {
-                        g.method: o.get(best["record_id"]) if best else None
-                        for g, o in zip(graphs[1:], others, strict=True)
-                    },
-                    "ambiguous": any(r["competing"] for r in rows),
-                    "graph_ids": [g.graph_id for g in graphs],
-                    "images": len(footprints),
-                }
-            )
+            details.append({**worst, "images": len(results)})
         return Features(tuple(keys), {"d2": d2s, "details": details})
 
     def evaluate(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> list[Scored]:

@@ -89,9 +89,9 @@ def image_epoch_jyear() -> float:
     return float(Time(IMAGE_MJD, format="mjd").jyear)
 
 
-def jwst_i2d(catalogue: pa.Table | None = None, seed: int = 5) -> bytes:
-    """A NIRCam-like level-3 image: every Gaia star but ``j-vanished``, moved to the image epoch, as a
-    Gaussian PSF of 3 pixels FWHM on unit noise; the header carries MJD-AVG and a TAN WCS."""
+def jwst_i2d(catalogue: pa.Table | None = None, seed: int = 5, missing: tuple[str, ...] = (VANISHED,)) -> bytes:
+    """A NIRCam-like level-3 image: every Gaia star but those ``missing`` (``j-vanished``), moved to the
+    image epoch, as a Gaussian PSF of 3 pixels FWHM on unit noise; the header carries MJD-AVG and a TAN WCS."""
     rows = (catalogue or jwst_catalogue()).to_pylist()
     rng = np.random.default_rng(seed)
     data = rng.normal(0.0, 1.0, (IMAGE_PIXELS, IMAGE_PIXELS))
@@ -113,7 +113,7 @@ def jwst_i2d(catalogue: pa.Table | None = None, seed: int = 5) -> bytes:
     yy, xx = np.mgrid[0:IMAGE_PIXELS, 0:IMAGE_PIXELS]
     dt = image_epoch_jyear() - 2016.0
     for r in rows:
-        if r["source_key"] == VANISHED:
+        if r["source_key"] in missing:
             continue
         cosd = math.cos(math.radians(float(r["dec_deg"])))
         ra = float(r["ra_deg"]) + float(r["pm_ra_cosdec_masyr"]) * dt / 3.6e6 / cosd
@@ -165,22 +165,30 @@ def fits_image(primary: dict[str, str | float], header: dict[str, str | float], 
     )
 
 
-def jwst_archive(catalogue: pa.Table | None = None) -> FakeObservationArchive:
-    """MAST-shaped: one public level-3 NIRCam image over the field, under its file-level product id."""
-    image = jwst_i2d(catalogue)
-    record = ObservationRecord(
-        product=ProductRef(MAST, PRODUCT_ID, f"https://mast.invalid/{PRODUCT_ID}"),
-        mission="JWST",
-        instrument="NIRCAM/IMAGE",
-        product_type="image",
-        epoch_mjd=IMAGE_MJD,
-        size_bytes=len(image),
-        licence="public after the exclusive-access period",
-        citation="synthetic",
+def jwst_archive(
+    catalogue: pa.Table | None = None, images: tuple[tuple[str, bytes], ...] | None = None
+) -> FakeObservationArchive:
+    """MAST-shaped: public level-3 NIRCam images over the field (by default the one i2d), each under its
+    file-level product id."""
+    images = images if images is not None else ((PRODUCT_ID, jwst_i2d(catalogue)),)
+    records = tuple(
+        PlacedRecord(
+            JWST_CENTRE[0],
+            JWST_CENTRE[1],
+            ObservationRecord(
+                product=ProductRef(MAST, product_id, f"https://mast.invalid/{product_id}"),
+                mission="JWST",
+                instrument="NIRCAM/IMAGE",
+                product_type="image",
+                epoch_mjd=IMAGE_MJD,
+                size_bytes=len(image),
+                licence="public after the exclusive-access period",
+                citation="synthetic",
+            ),
+        )
+        for product_id, image in images
     )
-    return FakeObservationArchive(
-        MAST, "mast:caom", records=(PlacedRecord(JWST_CENTRE[0], JWST_CENTRE[1], record),), products={PRODUCT_ID: image}
-    )
+    return FakeObservationArchive(MAST, "mast:caom", records=records, products=dict(images))
 
 
 def jwst_resolver(catalogue: pa.Table | None = None) -> FixtureResolver:

@@ -3,17 +3,21 @@ both association methods (Integration v0.4.0 §7, INT-020)."""
 
 from __future__ import annotations
 
+import io
 from typing import Any
 
+import numpy as np
 import pytest
 from astropy.io import fits
 
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
-from sdp.adapters.imaging.photutils_detector import PhotutilsDetector, header_epoch_mjd
+from sdp.adapters.imaging.photutils_detector import PhotutilsDetector, header_epoch_mjd, image_headers
 from sdp.kernel.application.media import JSON, decode_artifact
+from sdp.kernel.domain.association import AssociationPolicy, CatalogueSource, Detection, PositionCovariance
 from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.investigation import Stage
 from sdp.kernel.ports.investigate import DetectionList, ImageFrame, InvestigateFieldCommand
+from sdp.testing.fakes.investigate import FakeObservationArchive
 from sdp.testing.investigate import gaia_archive, investigate_ports
 from sdp.testing.jwst import (
     FAST,
@@ -22,6 +26,7 @@ from sdp.testing.jwst import (
     MAST,
     PAIR_A,
     PAIR_B,
+    PRODUCT_ID,
     VANISHED,
     image_epoch_jyear,
     jwst_archive,
@@ -32,7 +37,7 @@ from sdp.testing.jwst import (
     jwst_resolver,
 )
 from sdp.testing.wiring import build_in_memory_kernel
-from sdp_investigate.imaging import MISSING_STATISTIC, ImageCounterpart, epoch_jyear
+from sdp_investigate.imaging import MISSING_STATISTIC, ImageCounterpart, best_counterpart, counterpart_rows, epoch_jyear
 
 pytestmark = pytest.mark.tier("T4")
 
@@ -41,11 +46,10 @@ def services() -> dict[str, Any]:
     return {"detector": PhotutilsDetector(), "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation())}
 
 
-@pytest.fixture(scope="module")
-def results() -> dict[str, dict[str, Any]]:
+def run_field(archive: FakeObservationArchive | None = None) -> dict[str, dict[str, Any]]:
     catalogue = jwst_catalogue()
     ports = investigate_ports(ImageCounterpart(), catalogue=catalogue, resolver=jwst_resolver(catalogue))
-    ports.observation_gateways = {MAST: jwst_archive(catalogue)}
+    ports.observation_gateways = {MAST: archive or jwst_archive(catalogue)}
     ports.services = services()
     k = build_in_memory_kernel(gateways={GAIA: gaia_archive(catalogue)}, investigate=ports)
     assert k.kernel.investigate_field is not None
@@ -53,6 +57,11 @@ def results() -> dict[str, dict[str, Any]]:
     stage = run.investigation_set.stages[Stage.TEST].artifact_id
     assert stage is not None
     return {r["subject"]["object_key"]: r for r in decode_artifact(k.store.get(stage), JSON)["results"]}
+
+
+@pytest.fixture(scope="module")
+def results() -> dict[str, dict[str, Any]]:
+    return run_field()
 
 
 @pytest.mark.req("INT-020")
@@ -96,3 +105,41 @@ def test_the_image_epoch_comes_from_the_header() -> None:
     assert header_epoch_mjd(fits.Header()) is None
     with pytest.raises(PlanInvalid, match="no observation time"):
         epoch_jyear(DetectionList((), "", 0.0, 1.0, "photutils"), "a")
+
+
+@pytest.mark.req("INT-020")
+def test_a_star_found_on_one_image_but_missing_from_another_is_flagged() -> None:
+    second = PRODUCT_ID.replace("o001", "o002")
+    archive = jwst_archive(images=((PRODUCT_ID, jwst_i2d()), (second, jwst_i2d(missing=(VANISHED, FAST), seed=6))))
+    results = run_field(archive)
+    assert {key for key, r in results.items() if r["p_value"] < 0.01} == {VANISHED, FAST}
+    fast = results[FAST]["details"]
+    assert fast["images"] == 2 and fast["image"] == second and not fast["counterpart_found"]
+
+
+def test_a_detection_more_probably_unrelated_is_not_a_counterpart() -> None:
+    sigma = PositionCovariance(0.05, 0.05)
+    star = CatalogueSource("s", "gaia", "", "s", 150.0, 2.0, sigma, 2016.0, None)
+    near = Detection("d", "img", "SCI", 150.0 + 0.4 / 3600, 2.0, sigma, 2016.0, 0.1, "X")
+    policy = AssociationPolicy(
+        "t", "1.0.0", common_epoch_jyear=2016.0, search_radius_arcsec=1.0, anchor_catalogue="gaia"
+    )
+    [row] = counterpart_rows(BayesFactorAssociation().associate([star, near], policy), "s")
+    assert row["no_counterpart"] > row["option_posterior"] > 0
+    assert best_counterpart([row]) is None
+
+
+def test_the_epoch_comes_from_the_extension_the_pixels_come_from() -> None:
+    data = np.zeros((8, 8), dtype=np.float32)
+    hdus = fits.HDUList(
+        [
+            fits.PrimaryHDU(),
+            fits.ImageHDU(data, fits.Header({"MJD-AVG": 59000.0}), name="SCI"),
+            fits.ImageHDU(data, fits.Header({"MJD-AVG": 59500.0}), name="SCI2"),
+        ]
+    )
+    buffer = io.BytesIO()
+    hdus.writeto(buffer)
+    frame = ImageFrame("a", buffer.getvalue(), "application/fits")
+    assert header_epoch_mjd(*image_headers(frame)) == 59000.0
+    assert header_epoch_mjd(*image_headers(frame, 2)) == 59500.0
