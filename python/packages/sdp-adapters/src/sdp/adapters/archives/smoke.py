@@ -13,7 +13,7 @@ from pathlib import Path
 
 from sdp.adapters.archives.drift import columns_from, schema_drift, tap_schema_request
 from sdp.adapters.archives.tap import TapArchiveAdapter, TapSource
-from sdp.adapters.archives.transport import CassetteTransport, Transport, read_cassette
+from sdp.adapters.archives.transport import CassetteTransport, Transport, TransportError, read_cassette
 from sdp.kernel.domain.archive import CatalogueQuery, Cone
 
 
@@ -50,7 +50,12 @@ def run_smoke(
     for sid, source in sorted(sources.items()):
         recorder = CassetteTransport(record / sid, "record", inner=live(source), recorder="weekly-live-smoke")
         request = tap_schema_request(source)
-        response = recorder.send(request)
+        try:
+            response = recorder.send(request)
+        except TransportError as exc:
+            # one unreachable archive is reported; the others are still asked and recorded
+            results.append(SmokeResult(sid, (f"{sid}: TAP_SCHEMA query failed: {exc}",), None))
+            continue
         if response.status != 200:
             results.append(SmokeResult(sid, (f"{sid}: TAP_SCHEMA query failed with HTTP {response.status}",), None))
             continue
