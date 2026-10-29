@@ -1,6 +1,7 @@
 {
   "name": "@sdp/spec-harness",
   "version": "0.1.0",
+  "license": "GPL-3.0-only",
   "private": true,
   "type": "module",
   "description": "The specification harness: .ears compiler, traceability, manifest conformance, independent verdict re-derivation, release report",

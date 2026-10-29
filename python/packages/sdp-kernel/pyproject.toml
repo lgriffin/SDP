@@ -3,7 +3,7 @@ name = "sdp-kernel"
 version = "0.1.0"
 description = "SDP scientific kernel: domain, application use cases, ports, science contracts and the testing fakes"
 requires-python = ">=3.12"
-license = { text = "See repository LICENSE" }
+license = { text = "GPL-3.0-only" }
 dependencies = [
   "numpy>=2.0",
   "astropy>=6.1",

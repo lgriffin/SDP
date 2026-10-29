@@ -3,7 +3,7 @@ name = "sdp-imviz"
 version = "0.1.0"
 description = "The SDP Investigate plugin for Jdaviz Imviz: a driving adapter that calls InvestigateField through sdp-api and renders its candidates (INV-012)"
 requires-python = ">=3.12"
-license = { text = "See repository LICENSE" }
+license = { text = "GPL-3.0-only" }
 # Jdaviz keeps its own environment (Investigate §7): this package is not a member of the python/
 # workspace, its lock file is its own, and it reaches the kernel only over HTTP.
 dependencies = ["jdaviz>=5.0,<6", "pyyaml>=6.0"]

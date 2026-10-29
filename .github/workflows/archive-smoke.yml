@@ -21,12 +21,20 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --python 3.12 --frozen
-      - name: Record and compare against the committed cassettes
+      # The same script anyone can run on their own machine (python/tools/record_live_data.py): the live
+      # smoke, the CDS X-Match agreement check (DSI-009), then the replay tests on what was recorded.
+      # Manual runs commit the recordings to an archive-cassettes/run-<id> branch for review; the
+      # scheduled run only reports drift.
+      - name: Record, check and (manual runs only) push the recordings
         shell: bash
         run: |
-          set -o pipefail
-          mkdir -p ../reports
-          uv run sdp archive smoke --baseline tests/cassettes --record ../reports/cassettes | tee ../reports/archive-smoke.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            uv run python tools/record_live_data.py --label "run-${GITHUB_RUN_ID}"
+          else
+            uv run python tools/record_live_data.py --no-push
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -34,19 +42,3 @@ jobs:
           path: |
             reports/cassettes
             reports/archive-smoke.json
-      - name: Push the recordings to a branch (manual runs only)
-        # The recordings are reviewed and merged like code; the scheduled run only reports drift.
-        if: always() && github.event_name == 'workflow_dispatch'
-        shell: bash
-        working-directory: .
-        run: |
-          set -euo pipefail
-          if [ ! -d reports/cassettes ]; then echo "nothing recorded"; exit 0; fi
-          branch="archive-cassettes/run-${GITHUB_RUN_ID}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          cp -R reports/cassettes/. python/tests/cassettes/
-          git add python/tests/cassettes
-          git commit -m "Archive live smoke recordings from run ${GITHUB_RUN_ID}"
-          git push origin "$branch"
