@@ -119,3 +119,16 @@ sdp archive bulk --status         # files done, rows and bytes stored, free spac
 
 Run the same command again to resume: stored files are skipped and a file that failed is tried again.
 The sweep stops cleanly before a file when free space falls below `SDP_MIN_FREE_BYTES`.
+
+Once every file in ESA's list is stored, SDP reads Gaia fields from the copy instead of the archive:
+runs, investigations and `sdp archive acquire` get the same rows, in the same order, with no TAP call.
+Only the files whose sky box overlaps the field are opened. `SDP_GAIA_SOURCE` chooses:
+
+| Value | Gaia fields come from |
+|---|---|
+| `auto` (default) | the copy once it is complete, the archive until then |
+| `tap` | always the archive |
+| `bulk` | always the copy; a run is refused while any file is missing |
+
+A dataset read from the copy records its query as `BULK SELECT ...`, so it never passes for an archive
+read and is not reused for one.
