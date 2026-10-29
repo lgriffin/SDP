@@ -35,7 +35,7 @@ cross-language:
     pnpm --silent harness conform reports/emitted/experiments
     pnpm --silent harness rederive reports/emitted/experiments
     rm -rf reports/uc02 && mkdir -p reports/uc02
-    cd python && uv run python -m sdp_relativity.synthetic ../reports/uc02/bundle.json
+    cd python && uv run python -m sdp_relativity.paper1920 ../experiments/uc02-einstein-1919/transcription/dyson-1920.csv ../reports/uc02/bundle.json
     node typescript/packages/relativity-fit/src/cli.ts reports/uc02/bundle.json --out reports/uc02/independent-fit.json
     cd python && uv run python -m sdp.testing.emit ../reports/uc02 --protocol uc02-einstein-1919 --input observations=../reports/uc02/bundle.json --input independent_fit=../reports/uc02/independent-fit.json --param bootstrap_resamples=200
     pnpm --silent harness conform reports/uc02/experiments

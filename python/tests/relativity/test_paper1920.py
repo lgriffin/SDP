@@ -19,6 +19,8 @@ from sdp_relativity.observations import parse_bundle
 from sdp_relativity.oracles import load_registry
 from sdp_relativity.reduction import historical
 
+from .conftest import RunFactory
+
 pytestmark = pytest.mark.tier("T3")
 
 FIELDS = ("table", "page", "instrument", "plate_id", "star_id", "quantity", "value", "unit", "check")
@@ -110,23 +112,31 @@ def test_table_ii_agrees_with_the_1920_normal_equations_except_three_printed_cel
 @pytest.mark.req("REL-009")
 def test_a_record_is_verified_only_when_every_cell_it_cites_was_checked(tmp_path: Path) -> None:
     rows = list(csv.DictReader(CSV.open(newline="", encoding="utf-8")))
-    unchecked = paper1920.bundle(CSV)
-    cited = {k for r in paper1920.records(paper1920.Transcription.read(CSV)) for k in r.fields["printed"]}
-    checked = {paper1920.Cell(*(r[f] for f in FIELDS)).key for r in rows if r["check"]}
-    assert len(unchecked["verifications"]) < len(cited - checked)  # most records cite an unchecked cell
+    target = f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"
+    cites = {r.record_id: set(r.fields["printed"]) for r in paper1920.records(paper1920.Transcription.read(CSV))}
+    dropped = sorted(cites[target])[0]
     for r in rows:
-        r["check"] = r["check"] or "re-read by claude 2026-10-30"
+        key = paper1920.Cell(*(r[f] for f in FIELDS)).key
+        r["check"] = "" if key == dropped else "re-read by claude 2026-10-30"
     path = tmp_path / "checked.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    everything = paper1920.bundle(path)
-    star_ids = {s["record_id"] for i in everything["instrument_sets"] for p in i["plates"] for s in p["stars"]}
-    passes = {v["record_id"]: v for v in everything["verifications"]}
-    assert star_ids <= set(passes)
-    some = passes[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/3"]
+    passes = {v["record_id"]: v for v in paper1920.bundle(path)["verifications"]}
+    assert set(passes) == {k for k, keys in cites.items() if dropped not in keys}
+    assert target not in passes
+    some = passes[f"{paper1920.DOCUMENT_ID}/principe-astro/X-G1/4"]
     assert some["matches"] and some["verifier"] == "claude" and some["verified_at"].startswith("2026-10-30")
+
+
+@pytest.mark.req("REL-009")
+def test_every_cell_of_the_committed_transcription_has_a_recorded_check() -> None:
+    rows = list(csv.DictReader(CSV.open(newline="", encoding="utf-8")))
+    assert all(paper1920.CHECK.search(r["check"]) for r in rows)
+    bundle = paper1920.bundle(CSV)
+    star_ids = {s["record_id"] for i in bundle["instrument_sets"] for p in i["plates"] for s in p["stars"]}
+    assert star_ids <= {v["record_id"] for v in bundle["verifications"]}
 
 
 @pytest.mark.req("REL-009")
@@ -161,3 +171,15 @@ def test_the_sun_centre_is_the_mean_of_each_star_less_its_coefficient() -> None:
         dx, dy = x - sun[0], y - sun[1]
         coefficients[s] = (2.0 * dx / (dx * dx + dy * dy), 2.0 * dy / (dx * dx + dy * dy))
     assert np.allclose(paper1920.sun_centre(positions, coefficients, 2.0), sun)
+
+
+@pytest.mark.req("REL-009")
+@pytest.mark.gate("REL-G-04")
+@pytest.mark.tier("T8")
+def test_the_1919_data_reproduces_the_published_values_and_waits_only_on_the_2020_reanalysis(
+    run_uc02: RunFactory,
+) -> None:
+    run = run_uc02(paper1920.bundle(CSV))
+    outcomes = {g: run.outcome(g) for g in (f"REL-G-0{i}" for i in range(1, 10))}
+    assert {g for g, o in outcomes.items() if o != "pass"} == {"REL-G-07"}
+    assert outcomes["REL-G-07"] == "oracle_unverified"

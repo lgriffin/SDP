@@ -36,7 +36,7 @@ REL-G-01 to REL-G-09 as in the specification §9; each names the finding it eval
 
 ## Status of the oracle registry
 
-The historical values in `sdp_relativity/oracles.yaml` are placeholders "as commonly reported" until they are transcribed from the cited page and verified by a second pass. A gate that references an unverified oracle cannot pass, so the first runs of this protocol are expected to return INCONCLUSIVE with the transcription gap named in the report. That is the designed behaviour, not a defect.
+A gate that references an unverified oracle cannot pass. The three 1920 values in `sdp_relativity/oracles.yaml` (Sobral 4-inch, Sobral astrographic, Príncipe) were transcribed from the cited pages and re-read against the page images on 2026-10-29, so REL-G-04 can now judge them. The 2020 reanalysis that REL-G-07 compares against is not transcribed yet, so a run on the 1919 data returns INCONCLUSIVE with that gap named in the report. That is the designed behaviour, not a defect.
 
 ## Recoverability statement (REL-008)
 
@@ -55,7 +55,7 @@ The original plates are not available to this project. Every analysis is a reana
 | The 1920 tables as records and a bundle (REL-009) | `sdp_relativity.paper1920`, `experiments/uc02-einstein-1919/transcription/dyson-1920.csv` |
 | GLS and Student-t (IRLS, nu = 4) fits, bootstrap, evidence and posterior | `sdp_relativity.fitter` |
 | Hypothesis comparison per instrument and scenario (REL-005) | `sdp_relativity.comparison` |
-| Oracle registry; only analytic oracles are verified today | `sdp_relativity/oracles.yaml` |
+| Oracle registry; the analytic oracles and the three 1920 values are verified | `sdp_relativity/oracles.yaml` |
 | Dossier limitations and the remeasurement-claim lint (REL-008) | `sdp_relativity.dossier` |
 | Plan, interpretation and gates | `sdp_relativity.protocol`, `.analysis` |
 | Independent fitter (REL-007) | `typescript/packages/relativity-fit` |
@@ -81,12 +81,12 @@ Rebuilding the 1920 normal equations (Tables III-VI) from Table II reproduces ev
 ### Running it
 
 ```
-python -m sdp_relativity.synthetic reports/uc02/bundle.json
+python -m sdp_relativity.paper1920 experiments/uc02-einstein-1919/transcription/dyson-1920.csv reports/uc02/bundle.json
 node typescript/packages/relativity-fit/src/cli.ts reports/uc02/bundle.json --out reports/uc02/independent-fit.json
 cd python && uv run python -m sdp.testing.emit ../reports/uc02 --protocol uc02-einstein-1919 \
     --input observations=../reports/uc02/bundle.json --input independent_fit=../reports/uc02/independent-fit.json
 ```
 
-For the 1919 data, replace the first line with `python -m sdp_relativity.paper1920 experiments/uc02-einstein-1919/transcription/dyson-1920.csv reports/uc02/bundle.json`. Records whose cells have not all been checked stay unverified; REL-G-04 also waits on the oracle values' second pass and REL-G-07 on the 2020 reanalysis being transcribed.
+For synthetic data with planted deflections, replace the first line with `python -m sdp_relativity.synthetic reports/uc02/bundle.json`. Every cell of the 1919 transcription has a recorded check (a full re-read against the page images on 2026-10-29), so every record is verified; a record whose cells were not all checked would stay unverified.
 
-`just cross-language` runs this and passes the manifest through `spec-harness conform` and `rederive`. With synthetic data the verdict is INCONCLUSIVE, with REL-G-04 and REL-G-07 reporting `oracle_unverified` and every other gate passing; the tests in `python/tests/relativity/test_protocol.py` plant each fault a gate guards against and check that gate fails.
+`just cross-language` runs this on the 1919 data and passes the manifest through `spec-harness conform` and `rederive`. The verdict is INCONCLUSIVE: REL-G-07 reports `oracle_unverified` and every other gate passes, REL-G-04 included. Synthetic data is not the 1919 data, so its tests judge it with the oracle verifications removed, where REL-G-04 and REL-G-07 both report `oracle_unverified`; the tests in `python/tests/relativity/test_protocol.py` plant each fault a gate guards against and check that gate fails.
