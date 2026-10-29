@@ -1,6 +1,7 @@
 // Starts what the compose stack starts, without containers: PostgreSQL, the migrations, sdp-api and the
 // evidence UI's Node server. The Electron main process and the smoke test both call startBackend.
 import type { ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -41,33 +42,42 @@ export function commandPromptEnvironment(env: Record<string, string>): string {
 export interface Backend {
   uiUrl: string;
   apiUrl: string;
+  /** Required by sdp-api on everything but /health, so other pages in the person's browser cannot drive it. */
+  apiToken: string;
   stop(): Promise<void>;
 }
 
 export type Progress = (step: string) => void;
 
 export async function startBackend(layout: Layout, progress: Progress = () => {}): Promise<Backend> {
-  await mkdir(logs(layout), { recursive: true });
-  for (const dir of ["artifacts", "ledger"]) await mkdir(join(layout.data, dir), { recursive: true });
+  // Test profiles the person adds (YAML, as for the Imviz plugin) appear on the Start page.
+  for (const dir of ["logs", "artifacts", "ledger", "profiles"]) await mkdir(join(layout.data, dir), { recursive: true });
 
   progress("Starting the database");
   const database = await startDatabase(layout);
   const env = sdpEnvironment(layout, database);
-  const childEnv = { ...process.env, ...env };
-  await mkdir(runtime(layout), { recursive: true });
-  await writeFile(join(runtime(layout), "sdp-env.cmd"), commandPromptEnvironment(env), { mode: 0o600 });
+  const apiToken = randomBytes(32).toString("hex");
 
   let api: ChildProcess | undefined;
   const stop = async (): Promise<void> => {
     if (api && api.exitCode === null) {
       const exited = new Promise((r) => api?.once("exit", r));
       api.kill();
-      await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
+      const stopped = await Promise.race([exited.then(() => true), new Promise((r) => setTimeout(r, 5000, false))]);
+      // On Windows kill() already terminates; elsewhere a server that ignored SIGTERM is killed outright.
+      if (!stopped && api.exitCode === null) {
+        api.kill("SIGKILL");
+        await Promise.race([exited, new Promise((r) => setTimeout(r, 2000))]);
+      }
     }
     await stopDatabase(layout);
   };
 
   try {
+    await mkdir(runtime(layout), { recursive: true });
+    await writeFile(join(runtime(layout), "sdp-env.cmd"), commandPromptEnvironment(env), { mode: 0o600 });
+    const childEnv = { ...process.env, ...env };
+
     progress("Preparing the database");
     const migrateLog = openLog(join(logs(layout), "migrate.log"));
     try {
@@ -80,7 +90,7 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
     const apiPort = await choosePort(54380);
     const apiUrl = `http://127.0.0.1:${apiPort}`;
     api = start(python(layout), ["-m", "sdp.api.serve", "--host", "127.0.0.1", "--port", String(apiPort)], {
-      env: childEnv,
+      env: { ...childEnv, SDP_API_TOKEN: apiToken },
       cwd: layout.data,
       log: openLog(join(logs(layout), "api.log")),
     });
@@ -96,11 +106,13 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
       PORT: String(uiPort),
       ORIGIN: uiUrl,
       SDP_API_URL: `${apiUrl}/graphql`,
+      SDP_API_TOKEN: apiToken,
+      SDP_PROFILES_DIR: join(layout.data, "profiles"),
       NODE_ENV: "production",
     });
     await import(pathToFileURL(ui(layout)).href);
     await waitForHttp(uiUrl, 30_000);
-    return { uiUrl, apiUrl, stop };
+    return { uiUrl, apiUrl, apiToken, stop };
   } catch (error) {
     await stop().catch(() => {});
     throw error;

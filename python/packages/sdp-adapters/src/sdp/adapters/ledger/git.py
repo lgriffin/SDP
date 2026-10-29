@@ -12,10 +12,10 @@ independent copy of the chain; ``require_signatures`` refuses to append or verif
 from __future__ import annotations
 
 import base64
-import fcntl
 import json
 import os
 import subprocess
+import sys
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -95,12 +95,26 @@ class GitSignedLedger:
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
-        with (self.root / ".lock").open("a") as handle:
-            fcntl.flock(handle, fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle, fcntl.LOCK_UN)
+        with (self.root / ".lock").open("a+") as handle:
+            if sys.platform == "win32":
+                import msvcrt
+
+                # Lock the first byte; LK_LOCK retries for about ten seconds before raising.
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle, fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(handle, fcntl.LOCK_UN)
 
     def _read(self) -> list[LedgerEntry]:
         entries: list[LedgerEntry] = []

@@ -32,6 +32,9 @@ cp -RL "$native/bin" "$native/lib" "$native/share" "$out/postgres/"
 echo "== repository data"
 mkdir -p "$out/repo"
 cp -R "$repo/contracts" "$repo/experiments" "$out/repo/"
+# The provenance collector records the digest of python/uv.lock, the lock this Python was built from.
+mkdir -p "$out/repo/python"
+cp "$repo/python/uv.lock" "$out/repo/python/uv.lock"
 
 echo "== SDP Command Prompt"
 cp -R "$here/shell" "$out/bin"

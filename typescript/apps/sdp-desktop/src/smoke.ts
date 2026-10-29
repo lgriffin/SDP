@@ -18,6 +18,9 @@ try {
   const health = await fetch(`${backend.apiUrl}/health`);
   console.log(`sdp-api /health: ${health.status} ${await health.text()}`);
   if (!health.ok) throw new Error("sdp-api reports itself unhealthy");
+  const query = JSON.stringify({ query: "{ experiments { experimentId } }" });
+  const anonymous = await fetch(`${backend.apiUrl}/graphql`, { method: "POST", body: query, headers: { "content-type": "application/json" } });
+  if (anonymous.status !== 401) throw new Error(`sdp-api answered a request without its token with ${anonymous.status}`);
   const page = await fetch(backend.uiUrl);
   const html = await page.text();
   console.log(`UI ${backend.uiUrl}: ${page.status}, ${html.length} bytes`);

@@ -16,6 +16,7 @@ const layout: Layout = {
 };
 
 let backend: Backend | undefined;
+let starting: Promise<Backend> | undefined;
 let window: BrowserWindow | undefined;
 let quitting = false;
 
@@ -48,11 +49,15 @@ async function launch(): Promise<void> {
   window = createWindow();
   await window.loadFile(join(import.meta.dirname, "..", "static", "starting.html"));
   try {
-    backend = await startBackend(layout, (step) => {
-      void window?.webContents.executeJavaScript(`window.sdpStep && window.sdpStep(${JSON.stringify(step)})`).catch(() => {});
+    starting = startBackend(layout, (step) => {
+      if (!window || window.isDestroyed()) return;
+      void window.webContents.executeJavaScript(`window.sdpStep && window.sdpStep(${JSON.stringify(step)})`).catch(() => {});
     });
+    backend = await starting;
+    if (quitting) return;
     await window.loadURL(backend.uiUrl);
   } catch (error) {
+    if (quitting) return;
     const { response } = await dialog.showMessageBox(window, {
       type: "error",
       title: "SDP could not start",
@@ -75,11 +80,15 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on("window-all-closed", () => app.quit());
   app.on("before-quit", (event) => {
-    if (quitting || !backend) return;
-    // Stop sdp-api and shut PostgreSQL down cleanly before the process ends.
+    if (quitting || !starting) return;
+    // Stop sdp-api and shut PostgreSQL down cleanly before the process ends. Closing during start-up
+    // waits for it to settle: a failed start-up has already stopped what it started.
     event.preventDefault();
     quitting = true;
-    void backend.stop().finally(() => app.quit());
+    void starting
+      .then((b) => b.stop())
+      .catch(() => {})
+      .finally(() => app.quit());
   });
   // A terminal's Ctrl+C or a service manager's stop takes the same clean path as closing the window.
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => app.quit());
