@@ -39,11 +39,22 @@ from sdp.kernel.domain.investigation import (
 
 @dataclass(frozen=True)
 class ObservationTarget:
-    """What an observation search is about: one object at a position, or the whole field."""
+    """What an observation search is about: one object at a position, or the whole field.
+
+    An object Identify read from Gaia carries its proper motion and the epoch of its position, so a
+    gateway whose own catalogue has another epoch can follow a fast-moving star to it.
+    """
 
     key: str
     ra_deg: float
     dec_deg: float
+    pm_ra_cosdec_masyr: float | None = None
+    pm_dec_masyr: float | None = None
+    epoch_jyear: float | None = None
+
+    @property
+    def moving(self) -> bool:
+        return None not in (self.pm_ra_cosdec_masyr, self.pm_dec_masyr, self.epoch_jyear)
 
 
 class ObservationArchiveGateway(Protocol):
