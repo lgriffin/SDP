@@ -18,7 +18,7 @@ from tweakwcs.matchutils import XYXYMatch
 from sdp.adapters.imaging import header_text, wcs_from_text
 from sdp.kernel.ports.investigate import Detection, DetectionList, RefinedWcs
 
-DEFAULTS: Mapping[str, Any] = {"fitgeom": "shift", "searchrad": 5.0, "separation": 0.5, "tolerance": 2.0, "minobj": 3}
+DEFAULTS: Mapping[str, Any] = {"fitgeom": "shift", "searchrad": 5.0, "separation": 0.5, "tolerance": 1.0, "minobj": 3}
 
 
 @dataclass(frozen=True)
