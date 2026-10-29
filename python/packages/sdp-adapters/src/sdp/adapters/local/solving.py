@@ -96,14 +96,23 @@ class LocalSolver:
                 ]:
                     continue
             if not resolve:
-                if self.solution_path(row["path"]).exists():
+                if self.current(self.solution_path(row["path"]), row):
                     continue
-                if not retry_refused and self.refusal_path(row["path"]).exists():
+                if not retry_refused and self.current(self.refusal_path(row["path"]), row):
                     continue
             chosen.append(row)
             if limit is not None and len(chosen) >= limit:
                 break
         return chosen
+
+    @staticmethod
+    def current(path: Path, row: dict[str, Any]) -> bool:
+        """A result written for the file as it is now indexed (same size and modification time)."""
+        if not path.exists():
+            return False
+        return bool(
+            json.loads(path.read_text("utf-8")).get("file") == {"size": row["size"], "mtime_ns": row["mtime_ns"]}
+        )
 
     # -- what each frame needs ----------------------------------------------------------------------
 
@@ -152,7 +161,12 @@ class LocalSolver:
     def solve_frame(self, row: dict[str, Any], rows: list[dict[str, Any]]) -> Outcome:
         started = time.monotonic()
         relative = row["path"]
-        context: dict[str, Any] = {"frame": relative, "source": self.source.source_id, "solver": SOLVER_VERSION}
+        context: dict[str, Any] = {
+            "frame": relative,
+            "source": self.source.source_id,
+            "solver": SOLVER_VERSION,
+            "file": {"size": row["size"], "mtime_ns": row["mtime_ns"]},
+        }
         try:
             centre, centre_from = self.rough_centre(row, rows)
             scale, scale_from = self.scale(row)
@@ -164,6 +178,8 @@ class LocalSolver:
             image, binning = solving_image(data, row["bayer"] if row["kind"] != "stack" else None)
             stars = detect(image, self.config, binning)
             solution = solve(stars, reference, centre, scale, self.config, self._triangles)
+            # binning drops an odd last row or column; the frame keeps it
+            solution.wcs.update(NAXIS1=int(data.shape[-1]), NAXIS2=int(data.shape[-2]))
         except Unsolved as refused:
             self._write(self.refusal_path(relative), {**context, "reason": refused.reason, **refused.details})
             self.solution_path(relative).unlink(missing_ok=True)
@@ -171,6 +187,7 @@ class LocalSolver:
         except (OSError, ValueError) as exc:
             reason = f"the frame could not be read: {exc}"
             self._write(self.refusal_path(relative), {**context, "reason": reason})
+            self.solution_path(relative).unlink(missing_ok=True)
             return Outcome(relative, "refused", reason, seconds=time.monotonic() - started)
         self._write(
             self.solution_path(relative), {**context, **solution.to_document(), "config": self.config.to_document()}

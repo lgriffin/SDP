@@ -126,7 +126,12 @@ def _unreadable(relative: PurePosixPath, size: int, mtime_ns: int, error: str) -
 
 def walk_frames(root: Path) -> Iterator[tuple[Path, PurePosixPath]]:
     """Every FITS file under ``root`` in name order, with its path relative to the source."""
-    for folder, dirs, files in os.walk(root):
+
+    def unreadable(exc: OSError) -> None:
+        # a folder that cannot be listed would read as frames removed, so the scan stops instead
+        raise LocalSourceError(f"{exc.filename} could not be listed ({exc.strerror}); the index is unchanged")
+
+    for folder, dirs, files in os.walk(root, onerror=unreadable):
         dirs.sort()
         for name in sorted(files):
             if name.lower().endswith(SUFFIXES) and not name.startswith("."):
@@ -167,7 +172,10 @@ class FrameIndex:
         rows: list[dict[str, Any]] = []
         read = reused = 0
         for count, (path, relative) in enumerate(walk_frames(self.source.path), start=1):
-            stat = path.stat()
+            try:
+                stat = path.stat()
+            except FileNotFoundError:
+                continue  # removed while the scan ran
             previous = known.get(str(relative))
             if previous is not None and (previous["size"], previous["mtime_ns"]) == (stat.st_size, stat.st_mtime_ns):
                 rows.append(previous)

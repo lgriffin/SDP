@@ -183,6 +183,31 @@ def test_a_source_and_the_data_folder_never_hold_each_other(folder: Path, data: 
         LocalSources(data).get("astro")
 
 
+@pytest.mark.req("LOC-002")
+def test_a_name_keeps_its_folder_and_an_unlistable_folder_leaves_the_index(
+    folder: Path, data: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sources = LocalSources(data)
+    index = FrameIndex(sources.add("astro", folder), data)
+    assert sources.add("astro", folder, 1.65).scale_arcsec == 1.65, "the same folder again only updates it"
+    other = tmp_path / "other"
+    other.mkdir()
+    with pytest.raises(LocalSourceError, match="already"):
+        sources.add("astro", other)
+    index.update()
+    before = index.path.read_bytes()
+    real_walk = os.walk
+
+    def failing(top: Any, **kwargs: Any) -> Any:
+        kwargs["onerror"](PermissionError(13, "Permission denied", str(folder / "M31")))
+        yield from real_walk(top, **kwargs)
+
+    monkeypatch.setattr(os, "walk", failing)
+    with pytest.raises(LocalSourceError, match="could not be listed"):
+        index.update()
+    assert index.path.read_bytes() == before
+
+
 def test_the_data_folder_is_sdp_data_else_the_desktop_folder_else_beside_the_artifacts() -> None:
     assert data_dir({"SDP_DATA": "D:/SDP", "SDP_DESKTOP_DATA": "E:/x"}) == Path("D:/SDP")
     assert data_dir({"SDP_DESKTOP_DATA": "E:/x"}) == Path("E:/x")

@@ -190,6 +190,34 @@ def test_a_batch_writes_solutions_and_refusals_under_the_data_folder_only(folder
     assert (status["frames"], status["solved"], status["refused"], status["to_do"]) == (5, 3, 2, 0)
 
 
+@pytest.mark.req("LOC-004")
+def test_a_changed_or_unreadable_frame_loses_its_old_solution(folder: Folder) -> None:
+    source = LocalSources(folder.data).add("astro", folder.root, 1.65)
+    index = FrameIndex(source, folder.data)
+    index.update()
+    solver = LocalSolver(source, folder.data, lambda n: M31 if n == "M31" else None, lambda _c: folder.reference)
+    first = "M31/night1/img-0001.fits"
+    rows = [r for r in index.rows() if r["path"] == first]
+    assert [o.status for o in solver.run(rows, index.rows())] == ["solved"]
+    # an odd raw axis is binned away for solving, but the solution keeps the frame's own size
+    odd = bayer_frame(folder.root / "M31" / "night1" / "img-0009.fits", width=1801, height=1799, seed=7)
+    index.update()
+    (row,) = [r for r in index.rows() if r["path"] == "M31/night1/img-0009.fits"]
+    assert solver.solve_frame(row, index.rows()).status == "solved"
+    wcs = json.loads(solver.solution_path(row["path"]).read_text())["wcs"]
+    assert (wcs["NAXIS1"], wcs["NAXIS2"]) == (1801, 1799)
+    assert worst_error_arcsec(odd, wcs, 1801, 1799) < 0.5
+    # the same path with new contents is solved again on an ordinary rerun
+    bayer_frame(folder.root / first, rotation_deg=38.0, seed=7)
+    index.update()
+    assert first in [r["path"] for r in solver.select(index.rows())]
+    # a frame that can no longer be read keeps a refusal, never its old solution beside it
+    (folder.root / first).write_bytes(b"SIMPLE  =" + b" " * 3000)
+    (changed,) = [r for r in index.rows() if r["path"] == first]
+    assert solver.solve_frame(changed, index.rows()).status == "refused"
+    assert not solver.solution_path(first).exists() and solver.refusal_path(first).exists()
+
+
 @dataclass(frozen=True)
 class NameOnlyResolver:
     resolver_id: str = "names-only"
