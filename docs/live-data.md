@@ -54,6 +54,21 @@ It takes a few minutes and runs these steps:
 Add `--no-push` to record and check without committing anything. The script exits with status 1 if
 any step failed, and the output names the failing archive.
 
+## Full-size JWST products on your own disk
+
+`sdp integration record` refuses a product over 35 MB, the most a committed reference product may be.
+For a local pull, give `--max-bytes` (`500MB`, `2GB`; 1 MB is 1024² bytes) and an `--out` outside
+`fixtures/`; a larger limit inside `fixtures/` is refused, so a big file is never committed by accident.
+The product is streamed to disk a megabyte at a time and is not kept in a cassette; the output gives its
+bytes, seconds and SHA-256.
+
+```
+cd python
+uv run sdp integration record --obs-id jw01538-o069_t001_nircam_clear-f277w \
+  --filename jw01538-o069_t001_nircam_clear-f277w_i2d.fits --name p177d-f277w-full \
+  --out ../reports/local-products --cassettes ../reports/cassettes --max-bytes 400MB
+```
+
 ## Things only a person can do
 
 None of these can be scripted, because each one rests on human judgement or on your own account.
