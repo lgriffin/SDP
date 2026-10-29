@@ -585,18 +585,31 @@ def plan_approve(plan_id: str, actor: Annotated[str, typer.Option(help="Principa
     plan = _plan_record(plan_id).plan
     entry_id = None
     if plan.requires_signed_approval and plan.approval is None:
-        entry = runtime.ledger.append(
-            kind="approval",
-            subject_id=plan_id,
-            subject_hash=plan_id,
-            signer=actor,
-            payload={
-                "plan_id": plan_id,
-                "total_bytes": plan.cost.total_bytes,
-                "approval_threshold_bytes": plan.budget.approval_threshold_bytes,
-            },
+        # A retry after a failure reuses this actor's approval rather than signing the plan again.
+        signed = next(
+            (
+                e
+                for e in runtime.ledger.entries()
+                if e.kind == "approval" and e.subject_hash == plan_id and e.signer == actor
+            ),
+            None,
         )
-        entry_id = entry.entry_id
+        if signed is None:
+            try:
+                signed = runtime.ledger.append(
+                    kind="approval",
+                    subject_id=plan_id,
+                    subject_hash=plan_id,
+                    signer=actor,
+                    payload={
+                        "plan_id": plan_id,
+                        "total_bytes": plan.cost.total_bytes,
+                        "approval_threshold_bytes": plan.budget.approval_threshold_bytes,
+                    },
+                )
+            except RuntimeError as exc:  # the ledger's own refusal, e.g. no signing key configured
+                raise DomainError(f"cannot sign the approval of {plan_id}: {exc}") from exc
+        entry_id = signed.entry_id
     use_case.execute(ApprovePlanCommand(plan_id, actor, ledger_entry_id=entry_id))
     emit(_plan_summary(_plan_record(plan_id)))
 

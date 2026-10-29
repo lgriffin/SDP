@@ -81,7 +81,7 @@ def test_a_plan_is_drafted_approved_and_executed_and_the_ui_reads_each_state(k: 
 @pytest.mark.req("INT-014")
 def test_above_the_threshold_approval_is_refused_here_and_points_at_the_cli(k: InMemoryKernel) -> None:
     client = TestClient(create_app(k))
-    budget = {**DEFAULT_BUDGET.to_document(), "approval_threshold_bytes": 1000, "min_nas_headroom_bytes": 0}
+    budget = {**DEFAULT_BUDGET.to_document(), "approval_threshold_bytes": 1000}
     plan_id = client.post("/plans", json=body(budget=budget)).json()["plan_id"]
     response = client.post(f"/plans/{plan_id}/approve", json={"actor": "leigh"})
     assert response.status_code == 409
@@ -110,7 +110,36 @@ def test_unknown_plans_malformed_requests_and_an_unwired_planner(k: InMemoryKern
     assert client.post(f"/plans/{missing}/approve", json={"actor": "leigh"}).status_code == 404
     assert client.post(f"/plans/{missing}/execute").status_code == 404
     assert client.post("/plans", json={"profile": {}}).status_code == 400
+    malformed: Any
+    for malformed in ([], None, "plan", 3):
+        assert client.post("/plans", json=malformed).status_code == 400
+        assert client.post(f"/plans/{missing}/approve", json=malformed).status_code == 400
+    for actor in ("", "  ", None, 7):
+        assert client.post("/plans", json=body(actor=actor)).status_code == 400
+        assert client.post(f"/plans/{missing}/refuse", json={"actor": actor, "reason": "r"}).status_code == 400
+        assert client.post(f"/plans/{missing}/execute", json={"actor": actor}).status_code == 400
     assert graphql(client, f'{{ plan(id: "{missing}") {{ id }} }}')["plan"] is None
     bare = TestClient(create_app(build_in_memory_kernel()))
-    assert bare.post("/plans", json=body()).status_code == 503
+    unwired = bare.post("/plans", json=body())
+    assert unwired.status_code == 503 and unwired.json()["type"] == "PlannerUnavailable"
     assert graphql(bare, "{ plans { id } }")["plans"] == []
+
+
+@pytest.mark.req("INT-014")
+def test_a_request_may_tighten_the_servers_budget_but_never_relax_it(k: InMemoryKernel) -> None:
+    client = TestClient(create_app(k))
+    server = DEFAULT_BUDGET.to_document()
+    for name, looser in (
+        ("approval_threshold_bytes", server["approval_threshold_bytes"] + 1),
+        ("max_bytes", server["max_bytes"] * 2),
+        ("max_requests_per_source", server["max_requests_per_source"] + 1),
+        ("max_wall_seconds", server["max_wall_seconds"] + 1),
+        ("min_nas_headroom_bytes", 0),
+    ):
+        response = client.post("/plans", json=body(budget={**server, name: looser}))
+        assert response.status_code == 400 and name in response.json()["error"], name
+    assert client.post("/plans", json=body(budget={})).status_code == 400
+    assert client.post("/plans", json=body(budget=None)).status_code == 400
+    tighter = {**server, "max_bytes": server["max_bytes"] // 2}
+    drafted = client.post("/plans", json=body(budget=tighter))
+    assert drafted.status_code == 200 and drafted.json()["document"]["constraints"]["budget"] == tighter

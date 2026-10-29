@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 from sdp.cli import app as cli
 from sdp.kernel.application.kernel import Kernel
+from sdp.kernel.domain.errors import DomainError
 from sdp.kernel.domain.integration import AcquisitionBudget
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.storage import ArtifactStore
@@ -128,3 +129,37 @@ def test_below_the_threshold_approval_is_automatic_and_signs_nothing(profile: Pa
         assert not [e for e in rt.ledger.entries() if e.kind == "approval"]
     finally:
         cli.use_runtime(cli._production_runtime)
+
+
+@pytest.mark.req("INT-014")
+def test_a_retried_approve_reuses_the_actors_signed_approval(signed: BudgetedRuntime, profile: Path) -> None:
+    plan_id = invoke("plan", "draft", "--region", REGION, "--profile", str(profile))["plan_id"]
+    earlier = signed.ledger.append(
+        kind="approval", subject_id=plan_id, subject_hash=plan_id, signer="leigh", payload={}
+    )
+    assert invoke("plan", "approve", plan_id, "--actor", "leigh")["state"] == "approved"
+    assert [e.entry_id for e in signed.ledger.entries() if e.kind == "approval"] == [earlier.entry_id]
+
+
+@pytest.mark.req("INT-014")
+def test_an_approval_entry_that_does_not_verify_approves_nothing(signed: BudgetedRuntime, profile: Path) -> None:
+    plan_id = invoke("plan", "draft", "--region", REGION, "--profile", str(profile))["plan_id"]
+    entry = signed.ledger.append(kind="approval", subject_id=plan_id, subject_hash=plan_id, signer="leigh", payload={})
+    signed.k.ledger.tamper(entry.sequence, signature="forged")
+    result = runner.invoke(cli.app, ["plan", "approve", plan_id, "--actor", "leigh"])
+    assert result.exit_code != 0 and "does not verify" in str(result.exception)
+    assert invoke("plan", "show", plan_id)["document"]["approval"] is None
+
+
+def test_a_ledger_that_cannot_sign_is_a_handled_error(
+    signed: BudgetedRuntime, profile: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan_id = invoke("plan", "draft", "--region", REGION, "--profile", str(profile))["plan_id"]
+
+    def cannot_sign(**_: Any) -> None:
+        raise RuntimeError("no signing key configured and require_signatures is set")
+
+    monkeypatch.setattr(signed.k.ledger, "append", cannot_sign)
+    result = runner.invoke(cli.app, ["plan", "approve", plan_id, "--actor", "leigh"])
+    assert result.exit_code != 0 and isinstance(result.exception, DomainError)
+    assert "no signing key configured" in str(result.exception)
