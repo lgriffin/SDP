@@ -130,6 +130,9 @@ describe("images", () => {
     expect(seen).toEqual(["http://api.test/artifacts/sha256%3Aab", "http://api.test/artifacts/missing"]);
     const down = new GraphQLEvidenceSource("http://api.test/graphql", async () => new Response("", { status: 500 }));
     await expect(down.preview("x")).rejects.toBeInstanceOf(EvidenceUnavailable);
+    await expect(down.preview("x")).rejects.toThrow("http://api.test/artifacts/x/preview.png answered 500");
+    const gap = new GraphQLEvidenceSource("http://api.test/graphql", async () => Response.json({ error: "stages/test.json is not in the artifact store" }, { status: 409 }));
+    await expect(gap.dossier("invset-1")).rejects.toThrow("stages/test.json is not in the artifact store");
   });
 });
 

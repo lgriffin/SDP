@@ -31,7 +31,7 @@ from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, plan_view
 from sdp.kernel.application.set_bundle import DOSSIER_MEDIA_TYPE
-from sdp.kernel.domain.errors import DomainError
+from sdp.kernel.domain.errors import DomainError, IntegrityError
 from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.integration import AcquisitionBudget
 from sdp.kernel.domain.investigation import Field, TestProfile, parse_region
@@ -396,6 +396,8 @@ def create_app(
             bundle = use_case.build(set_id)
         except KeyError:
             return JSONResponse({"error": f"no investigation set {set_id}"}, status_code=404)
+        except IntegrityError as exc:  # evidence the set records is missing: no partial dossier
+            return JSONResponse({"error": str(exc)}, status_code=409)
         disposition = {"content-disposition": f'attachment; filename="{set_id}-dossier.zip"'}
         return Response(bundle, media_type=DOSSIER_MEDIA_TYPE, headers=disposition)
 

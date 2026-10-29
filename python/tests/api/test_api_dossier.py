@@ -73,3 +73,14 @@ def test_without_investigate_the_dossier_is_unavailable() -> None:
     client = TestClient(create_app(build_in_memory_kernel()))
     assert client.get("/investigations/x/dossier.zip").status_code == 503
     assert client.post("/investigations/x/reproduce").status_code == 503
+
+
+@pytest.mark.req("INV-021")
+def test_a_set_missing_evidence_is_refused_rather_than_saved_in_part() -> None:
+    k = slice_kernel()
+    _, run = run_slice(k)
+    artifact = run["set"].stages[Stage.TEST].artifact_id
+    assert artifact is not None
+    k.store._blobs.pop(artifact.value)
+    refused = TestClient(create_app(k)).get(f"/investigations/{run['set'].set_id}/dossier.zip")
+    assert refused.status_code == 409 and "not in the artifact store" in refused.json()["error"]

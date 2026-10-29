@@ -137,6 +137,11 @@ def test_a_changed_result_is_reported_and_a_broken_dossier_refused(
     manifest["profile"]["version"] = "9.9.9"
     with pytest.raises(IntegrityError, match="does not hash"):
         reproduce(rebuilt(files, **{"manifest.json": json.dumps(manifest).encode()}))
+    del manifest["seed"]
+    with pytest.raises(IntegrityError, match="malformed"):
+        reproduce(rebuilt(files, **{"manifest.json": json.dumps(manifest).encode()}))
+    with pytest.raises(IntegrityError, match="malformed"):
+        reproduce(rebuilt(files, **{"stages/retrieve.json": b"[]"}))
     with pytest.raises(IntegrityError, match="lacks the products"):
         reproduce(rebuilt({p: d for p, d in files.items() if p != fits_path}))
     with pytest.raises(IntegrityError, match=r"no stages/test\.json"):
@@ -183,6 +188,17 @@ def test_every_result_for_one_subject_is_compared() -> None:
     )
     once = {"results": [_result("s", 1.0, k=1)], "null_results": []}
     assert compare_tests(twice, once, {}) == ['a@1 "s": 2 result(s) became 1']
+    # within tolerance the two results swap canonical order (statistic sorts before tag), so sorting
+    # alone would pair x with y; each still has its own partner, so nothing differs
+    close = {"results": [_result("s", 1.0, tag="x"), _result("s", 1.005, tag="y")], "null_results": []}
+    crossed = {"results": [_result("s", 1.009, tag="x"), _result("s", 1.004, tag="y")], "null_results": []}
+    assert compare_tests(close, crossed, {"a@1": (0.01, 0.0)}) == []
+    assert compare_tests(close, crossed, {}) == [
+        'a@1 "s": statistic 1.0 became 1.004',
+        "a@1 \"s\": tag 'x' became 'y'",
+        'a@1 "s": statistic 1.005 became 1.009',
+        "a@1 \"s\": tag 'y' became 'x'",
+    ], "without tolerance nothing pairs, and the leftovers are reported in canonical order"
     moved = {"results": [_result("s", 1.0, k=1), _result("s", 3.0, k=2)], "null_results": []}
     assert any("statistic 2.0 became 3.0" in d for d in compare_tests(twice, moved, {}))
 

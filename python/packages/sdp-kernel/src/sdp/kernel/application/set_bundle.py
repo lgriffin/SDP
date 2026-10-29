@@ -186,8 +186,19 @@ def compare_tests(
             if len(before[key]) != len(after[key]):
                 differences.append(f"{key}: {len(before[key])} result(s) became {len(after[key])}")
                 continue
-            for old, new in zip(before[key], after[key], strict=True):
-                rtol, atol = tolerances.get(f"{old['test_name']}@{old['test_version']}", (0.0, 0.0))
+            first = before[key][0]
+            rtol, atol = tolerances.get(f"{first['test_name']}@{first['test_version']}", (0.0, 0.0))
+            # Pair each recorded result with a reproduced one within tolerance, whatever their order;
+            # only the results left without a partner are differences.
+            unmatched = list(after[key])
+            missed: list[Mapping[str, Any]] = []
+            for old in before[key]:
+                partner = next((new for new in unmatched if _close(old, new, rtol, atol)), None)
+                if partner is None:
+                    missed.append(old)
+                else:
+                    unmatched.remove(partner)
+            for old, new in zip(missed, unmatched, strict=True):
                 for name in sorted(old.keys() | new.keys()):
                     if not _close(old.get(name), new.get(name), rtol, atol):
                         differences.append(f"{key}: {name} {old.get(name)!r} became {new.get(name)!r}")
@@ -362,33 +373,34 @@ def reproduce_dossier(
     for needed in ("manifest.json", "stages/retrieve.json", "stages/test.json"):
         if needed not in files:
             raise IntegrityError(f"the dossier has no {needed}; only a set whose Test stage completed is reproduced")
-    manifest = json.loads(files["manifest.json"])
-    profile = TestProfile.from_document(manifest["profile"])
-    if profile.profile_hash != manifest["profile_hash"]:
-        raise IntegrityError("the recorded profile does not hash to the recorded profile_hash")
-    # The crate's own checksums can be rewritten; the manifest names each stage's output by its hash.
-    recorded_ids = {st["stage"]: st.get("artifact_id") for st in manifest.get("stages", [])}
-    for stage in ("retrieve", "test"):
-        if sha256_id(files[f"stages/{stage}.json"]) != recorded_ids.get(stage):
-            raise IntegrityError(f"stages/{stage}.json is not the {stage} output the manifest records")
-    retrieved = json.loads(files["stages/retrieve.json"])
-    recorded = json.loads(files["stages/test.json"])
-    by_id = {f"sha256:{m.group(1)}": data for path, data in files.items() if (m := _DATA.fullmatch(path))}
-    wanted = {p["artifact_id"] for b in retrieved["bundles"] for p in b["products"]}
-    missing = sorted(wanted - by_id.keys())
-    if missing:
-        raise IntegrityError(f"the dossier lacks the products the tests read: {', '.join(missing)}")
-    result = SetReproduction(
-        manifest["set_id"],
-        int(manifest["seed"]),
-        tolerances={
+    try:
+        manifest = json.loads(files["manifest.json"])
+        profile = TestProfile.from_document(manifest["profile"])
+        profile_hash, set_id, seed = manifest["profile_hash"], manifest["set_id"], int(manifest["seed"])
+        # The crate's own checksums can be rewritten; the manifest names each stage's output by its hash.
+        recorded_ids = {st["stage"]: st.get("artifact_id") for st in manifest.get("stages", [])}
+        retrieved = json.loads(files["stages/retrieve.json"])
+        recorded = json.loads(files["stages/test.json"])
+        wanted = {p["artifact_id"] for b in retrieved["bundles"] for p in b["products"]}
+        policies = {
             f"{t['name']}@{t['version']}": (
                 float((t.get("policy") or {}).get("rtol", 0.0)),
                 float((t.get("policy") or {}).get("atol", 0.0)),
             )
             for t in manifest.get("tests_applied", [])
-        },
-    )
+        }
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:  # checksums agree, but not a dossier's shape
+        raise IntegrityError(f"the dossier's manifest or stage files are malformed: {exc!r}") from exc
+    if profile.profile_hash != profile_hash:
+        raise IntegrityError("the recorded profile does not hash to the recorded profile_hash")
+    for stage in ("retrieve", "test"):
+        if sha256_id(files[f"stages/{stage}.json"]) != recorded_ids.get(stage):
+            raise IntegrityError(f"stages/{stage}.json is not the {stage} output the manifest records")
+    by_id = {f"sha256:{m.group(1)}": data for path, data in files.items() if (m := _DATA.fullmatch(path))}
+    missing = sorted(wanted - by_id.keys())
+    if missing:
+        raise IntegrityError(f"the dossier lacks the products the tests read: {', '.join(missing)}")
+    result = SetReproduction(set_id, seed, tolerances=policies)
     results, nulls = run_tests(
         executor,
         tests,
