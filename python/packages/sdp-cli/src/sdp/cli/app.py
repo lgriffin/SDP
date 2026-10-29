@@ -939,21 +939,39 @@ def integration_record(
     name: Annotated[str, typer.Option(help="Directory name for the reference product")],
     out: Annotated[Path, typer.Option(help="Reference products root")] = Path("../fixtures/reference-products"),
     cassettes: Annotated[Path, typer.Option(help="Where to keep every exchange")] = Path("../reports/cassettes"),
+    max_bytes: Annotated[
+        str,
+        typer.Option(
+            help="Largest product to fetch, e.g. 500MB or 2GB (1 MB = 1024**2 bytes). Above 35MB it is a local "
+            "pull: --out must be outside fixtures/, and the file is streamed to disk, not kept in a cassette"
+        ),
+    ] = "35MB",
 ) -> None:
     """Record MAST's capability descriptor and one product as a to_verify reference product (live)."""
-    from sdp.adapters.archives.reference_recording import describe_mast, record_product
+    from sdp.adapters.archives.reference_recording import describe_mast, parse_size, record_product
     from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, UrllibTransport
 
+    try:
+        limit = parse_size(max_bytes)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--max-bytes") from None
     live = PoliteTransport(UrllibTransport(), min_seconds_between_calls=1.0)
     transport = CassetteTransport(
         cassettes / "integration" / name, "record", inner=live, recorder="integration-recording"
     )
     descriptor = describe_mast(transport, cassettes / "integration")
-    recorded = record_product(transport, obs_id, filename, out / name)
+    recorded = record_product(transport, obs_id, filename, out / name, max_bytes=limit)
     emit(
         {
             "descriptor": {k: descriptor[k] for k in ("ivoid", "product_types", "protocols", "limits")},
-            "product": {"directory": str(recorded.directory), "url": recorded.access_url, "bytes": recorded.size_bytes},
+            "product": {
+                "directory": str(recorded.directory),
+                "url": recorded.access_url,
+                "bytes": recorded.size_bytes,
+                "seconds": recorded.seconds,
+                "sha256": recorded.sha256,
+                "streamed": recorded.streamed,
+            },
         }
     )
 
