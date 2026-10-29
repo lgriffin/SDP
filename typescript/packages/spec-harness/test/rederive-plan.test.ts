@@ -69,6 +69,28 @@ describe("[INT-013] the harness re-derives a plan from what it records", () => {
     const other = clone(plan("synthetic-plan-signed-approval"));
     other.approval = { ...other.approval!, plan_id: "sha256:" + "0".repeat(64), threshold_bytes: 1 };
     expect(rederivePlan(other).disagreements.map((d) => d.subject)).toEqual(["approval.plan_id", "approval.threshold_bytes"]);
+    const refused = clone(plan("synthetic-plan-signed-approval"));
+    refused.approval = { ...refused.approval!, decision: "refused", ledger_entry_id: null, reason: " " };
+    expect(rederivePlan(refused).disagreements.map((d) => d.subject)).toEqual(["approval.reason"]);
+  });
+
+  it("[INT-013] null candidates, or an item recorded twice, disagree", () => {
+    const nulled = clone(plan("synthetic-plan-with-candidates"));
+    (nulled.constraints as Record<string, unknown>).candidates = null;
+    const r = rederivePlan(rehash(nulled));
+    expect([r.itemsRederived, r.disagreements.map((d) => d.subject)]).toEqual([false, ["constraints.candidates"]]);
+    const twice = clone(plan("synthetic-plan-with-candidates"));
+    twice.items.push(twice.items[0]!);
+    expect(rederivePlan(rehash(twice)).disagreements.map((d) => d.subject)).toContain(`item ${twice.items[0]!.item_id}`);
+  });
+
+  it("[INT-013] counts requests for any source name", () => {
+    const p = clone(plan("synthetic-plan-signed-approval"));
+    const [source, n] = Object.entries(p.cost.requests_per_source)[0]!;
+    for (const i of p.items) if (i.source_id === source) i.source_id = "__proto__";
+    const rest = Object.entries(p.cost.requests_per_source).filter(([s]) => s !== source);
+    p.cost.requests_per_source = Object.fromEntries([["__proto__", n], ...rest]) as Record<string, number>;
+    expect(rederivePlan(rehash(p)).disagreements).toEqual([]);
   });
 });
 
@@ -105,5 +127,17 @@ describe("[INT-013] selectItems mirrors the kernel's minimum product set", () =>
     const { items, gaps } = selectItems(requirements.slice(1, 2), matches.slice(2), [item("s3", "r-a", "t"), item("s2", "r-a", "t")]);
     expect(items).toEqual([]);
     expect(gaps).toEqual([{ requirement_id: "r-a", reason: "no source that lists it satisfies it: s2 (unsatisfied), s3 (no registered descriptor)" }]);
+  });
+
+  it("[INT-013] orders by code point and keeps tuple fields apart", () => {
+    const m = [{ source_id: "s", requirement_id: "r-a", status: "satisfied" }];
+    const { items } = selectItems([{ requirement_id: "r-a" }], m, [item("s", "r-a", "\u{10000}"), item("s", "r-a", "\uE000")]);
+    expect(items.map((i) => i.target)).toEqual(["\uE000", "\u{10000}"]);
+    const joined = selectItems(
+      [{ requirement_id: "r" }],
+      [{ source_id: "a\u0000b", requirement_id: "r", status: "satisfied" }],
+      [item("a", "r", "x", "b\u0000download"), item("a\u0000b", "r", "x")],
+    );
+    expect(joined.items.map((i) => i.source_id)).toEqual(["a\u0000b"]);
   });
 });

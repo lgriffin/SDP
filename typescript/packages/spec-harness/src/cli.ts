@@ -92,6 +92,10 @@ async function rederiveCommand(argv: string[]): Promise<number> {
 async function rederivePlanCommand(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { out: { type: "string" } } });
   const results = await rederivePlanAll(new JsonFiles(positionals.length ? positionals : ["plans"]));
+  if (!results.length) {
+    console.error(`no acquisition plans found in ${(positionals.length ? positionals : ["plans"]).join(", ")}`);
+    return 1;
+  }
   for (const r of results) {
     console.log(`${r.state.padEnd(8)} ${r.planId}: ${r.itemsRederived ? "items re-derived" : "no candidates recorded; items not re-derived"} (${r.path})`);
     for (const d of r.disagreements) console.error(`  ${d.subject}: kernel ${JSON.stringify(d.kernel)} harness ${JSON.stringify(d.harness)}`);
