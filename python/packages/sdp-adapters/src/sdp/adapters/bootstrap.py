@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from sdp.adapters.archives import simbad
+from sdp.adapters.archives.benchmarks import VizierKnownClusters
 from sdp.adapters.archives.bulk import BulkCatalogueGateway
 from sdp.adapters.archives.capabilities import VoCapabilityDiscovery
 from sdp.adapters.archives.dasch import DaschDialect, DaschGateway
@@ -158,6 +159,11 @@ def archive_gateways(settings: Settings, store: ArtifactStore | None = None) -> 
 
 def cross_match(settings: Settings) -> CdsXMatchAdapter:
     return CdsXMatchAdapter(archive_transport(settings, "cds-xmatch", 1.0))
+
+
+def known_clusters(settings: Settings) -> VizierKnownClusters:
+    """Catalogues of known clusters from VizieR, for the UC-01 benchmark cross-match (DSI-015)."""
+    return VizierKnownClusters(archive_transport(settings, "vizier", 1.0))
 
 
 def publisher(settings: Settings) -> BundlePublisher:

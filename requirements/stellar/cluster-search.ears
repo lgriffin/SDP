@@ -76,3 +76,13 @@ requirements:
     status: approved
     traces:
       - "python/tests.stellar.test_protocol::test_rejected_candidates_are_retained_with_their_reasons"
+  - id: STL-008
+    pattern: ubiquitous
+    text: "The stellar module shall take the candidate pass marks for member count, stability across the grid and CMD coherence from the predeclaration's parameters."
+    rationale: "The pass marks decide which candidates reach the cross-match; as predeclared parameters they are frozen with the hash, so changing one is a new predeclaration (resolves D15)."
+    verification: test
+    tiers: [T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_protocol::test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the_outcome"
+      - "python/tests.stellar.test_protocol::test_malformed_pass_marks_are_refused_at_planning_not_coerced"

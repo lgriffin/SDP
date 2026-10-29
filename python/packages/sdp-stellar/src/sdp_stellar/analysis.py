@@ -9,7 +9,9 @@ exclusion is recorded.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -26,9 +28,33 @@ from sdp_stellar.null import null_field
 from sdp_stellar.quality import QualityCuts, column
 from sdp_stellar.search import Configuration, configurations, labelling_document, run
 
-MIN_MEMBERS = 10
-MIN_STABILITY = 0.5
-MIN_COHERENCE = 3.0
+
+@dataclass(frozen=True)
+class CandidateChecks:
+    """The pass marks a candidate must meet before it is cross-matched, from the predeclaration's
+    ``parameters.candidate_checks`` (STL-008), so changing one changes the frozen hash."""
+
+    min_members: int
+    min_stability: float
+    min_cmd_coherence: float
+
+    @classmethod
+    def from_parameters(cls, doc: Mapping[str, Any]) -> CandidateChecks:
+        """Read the pass marks as written, refusing rather than coercing: a fractional member count
+        must not be truncated into a different, unfrozen pass mark."""
+        missing = sorted({"min_members", "min_stability", "min_cmd_coherence"} - set(doc))
+        if missing:
+            raise ValueError(f"candidate_checks lacks {missing}")
+        members = doc["min_members"]
+        if isinstance(members, bool) or not isinstance(members, int) or members < 1:
+            raise ValueError(f"candidate_checks.min_members must be a whole number of at least 1, got {members!r}")
+        marks: list[float] = []
+        for key in ("min_stability", "min_cmd_coherence"):
+            value = doc[key]
+            if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or value < 0:
+                raise ValueError(f"candidate_checks.{key} must be a finite number of at least 0, got {value!r}")
+            marks.append(float(value))
+        return cls(members, marks[0], marks[1])
 
 
 def _configs(params: Mapping[str, Any]) -> list[Configuration]:
@@ -119,15 +145,18 @@ def _classify(
     params: Mapping[str, Any],
     seed: int,
 ) -> dict[str, Any]:
+    checks = CandidateChecks.from_parameters(params["candidate_checks"])
     reasons: list[str] = []
     coh = coherence(c.members, colour, mag, seed) if c.members.size else None
     centre = bm.centre(table, c.members) if c.members.size else None
-    if c.stability < MIN_STABILITY:
-        reasons.append(f"unstable across the grid: stability {c.stability:.2f} < {MIN_STABILITY}")
-    if c.members.size < MIN_MEMBERS:
-        reasons.append(f"{c.members.size} members at membership >= 0.5, fewer than {MIN_MEMBERS}")
-    if coh is not None and coh < MIN_COHERENCE:
-        reasons.append(f"colour-magnitude sequence no tighter than the field: coherence {coh:.2f} < {MIN_COHERENCE}")
+    if c.stability < checks.min_stability:
+        reasons.append(f"unstable across the grid: stability {c.stability:.2f} < {checks.min_stability}")
+    if c.members.size < checks.min_members:
+        reasons.append(f"{c.members.size} members at membership >= 0.5, fewer than {checks.min_members}")
+    if coh is not None and coh < checks.min_cmd_coherence:
+        reasons.append(
+            f"colour-magnitude sequence no tighter than the field: coherence {coh:.2f} < {checks.min_cmd_coherence}"
+        )
     crossmatch = []
     if reasons:
         status = "rejected"

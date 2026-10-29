@@ -115,6 +115,10 @@ local_app = typer.Typer(
     "from them goes under SDP's data folder (SDP_DATA).",
     no_args_is_help=True,
 )
+benchmark_app = typer.Typer(
+    help="Catalogues of known star clusters, so a cluster search can tell new from known (UC-01, STL-005).",
+    no_args_is_help=True,
+)
 investigate_app = typer.Typer(
     help="Investigate a field: identify, retrieve, test, candidates (Investigate §1). Results are EXPLORATORY.",
     invoke_without_command=True,
@@ -133,6 +137,7 @@ for name, sub in (
     ("integration", integration_app),
     ("demo", demo_app),
     ("local", local_app),
+    ("benchmark", benchmark_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -1286,6 +1291,100 @@ def _demo_run(path: Path, region: str, label: str, actor: str, register: bool) -
             "candidates": [_investigation_summary(i) for i in found],
         }
     )
+
+
+# --- known-cluster catalogues (UC-01 benchmarks) ------------------------------------------------
+
+
+def _known_clusters() -> Any:
+    from sdp.adapters.bootstrap import known_clusters
+    from sdp.adapters.settings import Settings
+
+    return known_clusters(Settings.from_env())
+
+
+def _benchmark_path(benchmark_id: str, release: str) -> str:
+    return f"benchmarks/{benchmark_id}/{release.replace(':', '_')}.parquet"
+
+
+@benchmark_app.command("fetch")
+def benchmark_fetch(
+    catalogue: Annotated[
+        list[str] | None, typer.Option("--catalogue", help="hr23 or cga20; repeat; both when omitted")
+    ] = None,
+    column: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--column", help="MINE=THEIRS, e.g. name=Cluster, when VizieR's labels do not pick it; one --catalogue only"
+        ),
+    ] = None,
+) -> None:
+    """Download catalogues of known clusters from VizieR and store them as benchmark inputs.
+
+    A candidate cluster is called potentially new only when it matches nothing in both catalogues.
+    Each one is a few hundred kB and takes seconds. Pass the printed --input options to
+    `sdp experiment define uc01-stellar-clusters`.
+    """
+    import io
+
+    import pyarrow.parquet as pq
+
+    from sdp.adapters.archives.benchmarks import CATALOGUES
+
+    chosen = catalogue or sorted(CATALOGUES, reverse=True)
+    unknown = [c for c in chosen if c not in CATALOGUES]
+    if unknown:
+        raise typer.BadParameter(f"unknown {unknown}; known: {sorted(CATALOGUES)}", param_hint="--catalogue")
+    if column and len(chosen) != 1:
+        # each catalogue names its columns after its own paper, so one override fits only one of them
+        raise typer.BadParameter("name exactly one --catalogue to apply column overrides to", param_hint="--column")
+    overrides = dict(_pair(c, "--column") for c in column or [])
+    source = _known_clusters()
+    store = state.runtime().store
+    out = []
+    for benchmark_id in chosen:
+        _say(f"Fetching {benchmark_id} ({CATALOGUES[benchmark_id].description}) from VizieR...")
+        table = source.fetch(benchmark_id, overrides)
+        sink = io.BytesIO()
+        pq.write_table(table, sink, compression="zstd")
+        release = CATALOGUES[benchmark_id].release_label
+        artifact = store.put(sink.getvalue(), "application/vnd.apache.parquet")
+        store.link(_benchmark_path(benchmark_id, release), artifact)
+        meta = {k.decode(): v.decode() for k, v in (table.schema.metadata or {}).items()}
+        out.append(
+            {
+                "benchmark": benchmark_id,
+                "release": release,
+                "clusters": table.num_rows,
+                "artifact": artifact.value,
+                "columns": json.loads(meta["sdp.benchmark.columns"]),
+                "input": f"benchmark:{benchmark_id}={artifact.value}",
+            }
+        )
+    emit(out)
+
+
+@benchmark_app.command("list")
+def benchmark_list() -> None:
+    """The catalogues SDP knows, and the stored copy of each (null until fetched)."""
+    from sdp.adapters.archives.benchmarks import CATALOGUES
+
+    store = state.runtime().store
+    out = []
+    for benchmark_id, c in sorted(CATALOGUES.items()):
+        artifact = store.resolve(_benchmark_path(benchmark_id, c.release_label))
+        out.append(
+            {
+                "benchmark": benchmark_id,
+                "release": c.release_label,
+                "vizier_table": c.vizier_table,
+                "citation": c.citation,
+                "description": c.description,
+                "artifact": artifact.value if artifact else None,
+                "input": f"benchmark:{benchmark_id}={artifact.value}" if artifact else None,
+            }
+        )
+    emit(out)
 
 
 def main() -> None:

@@ -217,6 +217,31 @@ def test_bad_overrides_fail_the_run_at_planning(params: dict[str, Any], message:
     assert message in str(run.experiment.refusal or run.experiment.failure)
 
 
+@pytest.mark.req("STL-008")
+@pytest.mark.parametrize(
+    ("checks", "message"),
+    [
+        ({"min_members": 10.5, "min_stability": 0.5, "min_cmd_coherence": 3.0}, "min_members must be a whole number"),
+        ({"min_members": 0, "min_stability": 0.5, "min_cmd_coherence": 3.0}, "min_members must be a whole number"),
+        ({"min_members": True, "min_stability": 0.5, "min_cmd_coherence": 3.0}, "min_members must be a whole number"),
+        ({"min_members": 10, "min_stability": "0.5", "min_cmd_coherence": 3.0}, "min_stability must be a finite"),
+        ({"min_members": 10, "min_stability": 0.5, "min_cmd_coherence": float("nan")}, "min_cmd_coherence must be"),
+        ({"min_members": 10, "min_stability": -0.1, "min_cmd_coherence": 3.0}, "min_stability must be a finite"),
+        ({"min_members": 10, "min_stability": 0.5}, r"lacks \['min_cmd_coherence'\]"),
+    ],
+)
+def test_malformed_pass_marks_are_refused_at_planning_not_coerced(
+    checks: dict[str, Any], message: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sdp_stellar import protocol as stellar_protocol
+
+    declared = stellar_protocol.load_predeclaration()
+    bad = {**declared, "parameters": {**declared["parameters"], "candidate_checks": checks}}
+    monkeypatch.setattr(stellar_protocol, "load_predeclaration", lambda: bad)
+    with pytest.raises(PlanInvalid, match=message):
+        StellarClusterProtocol().plan(resolved(tables()), {}, 1)
+
+
 def test_the_plan_has_one_branch_per_region() -> None:
     plan = StellarClusterProtocol().plan(resolved(tables()), QUICK, 1)
     ids = [t.task_id for t in plan.tasks]
@@ -239,3 +264,35 @@ class TestStellarClusterProtocol(ScientificProtocolContract):
     @pytest.fixture
     def protocol_services(self) -> dict[str, Any]:
         return {"clusterers": clusterers()}
+
+
+@pytest.mark.req("STL-008")
+def test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the_outcome(
+    clean_run: Run, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sdp_stellar import protocol as stellar_protocol
+
+    declared = stellar_protocol.load_predeclaration()
+    assert declared["parameters"]["candidate_checks"] == {
+        "min_members": 10,
+        "min_stability": 0.5,
+        "min_cmd_coherence": 3.0,
+    }
+    strict = {
+        **declared,
+        "parameters": {
+            **declared["parameters"],
+            "candidate_checks": {"min_members": 10_000, "min_stability": 1.01, "min_cmd_coherence": 1000.0},
+        },
+    }
+    monkeypatch.setattr(stellar_protocol, "load_predeclaration", lambda: strict)
+    assert StellarClusterProtocol().predeclare().compute_hash() != clean_run.experiment.definition.predeclaration_hash
+    run = run_uc01()
+    statuses = {d["status"] for d in run.narrative["dossiers"]}
+    assert statuses == {"rejected"}
+    praesepe = next(d for d in run.narrative["dossiers"] if d["candidate_id"].startswith("praesepe"))
+    assert any(r.endswith("members at membership >= 0.5, fewer than 10000") for r in praesepe["reasons"])
+    assert any(
+        r.endswith("< 1.01") and r.startswith("unstable across the grid: stability ") for r in praesepe["reasons"]
+    )
+    assert any(r.endswith("< 1000.0") for r in praesepe["reasons"])
