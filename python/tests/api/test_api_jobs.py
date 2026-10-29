@@ -13,7 +13,7 @@ from starlette.testclient import TestClient
 from tests.api.test_api_plan_commands import PLAN, body, graphql, k  # noqa: F401  (k is a fixture)
 
 from sdp.api.app import create_app
-from sdp.api.jobs import FAILED, FINISHED, RUNNING, Job, Jobs
+from sdp.api.jobs import FAILED, FINISHED, RUNNING, Job, JobBusy, Jobs
 from sdp.testing.wiring import InMemoryKernel
 
 pytestmark = pytest.mark.tier("T4")
@@ -245,3 +245,16 @@ def test_a_failed_background_run_lets_the_next_run_start(k: InMemoryKernel) -> N
     held.release()
     k.kernel.execute_plan = real
     assert client.post("/investigations", json=body()).status_code == 200
+
+
+def test_a_kind_that_runs_alone_refuses_a_second_key_while_one_runs() -> None:
+    held = Held()
+    jobs = Jobs(spawn=held, now=clock())
+    first, started = jobs.start("kind:a", lambda: 1, alone_among="kind:")
+    assert started and jobs.start("kind:a", lambda: 1, alone_among="kind:") == (first, False)
+    with pytest.raises(JobBusy, match="kind:a is running") as busy:
+        jobs.start("kind:b", lambda: 2, alone_among="kind:")
+    assert busy.value.running == "kind:a" and jobs.get("kind:b") is None
+    assert jobs.start("other:c", lambda: 3, alone_among="other:")[1], "another kind is not held up"
+    held.release()
+    assert jobs.start("kind:b", lambda: 2, alone_among="kind:")[1]

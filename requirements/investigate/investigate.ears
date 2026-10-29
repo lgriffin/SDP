@@ -179,7 +179,7 @@ requirements:
   - id: INV-022
     pattern: event
     text: "When a scientist reproduces a field investigation from its evidence dossier, the system shall verify every file's checksum, re-run the Test stage over the dossier's products with the recorded profile and seed, and report every result that differs from the recorded one beyond the tests' numerical tolerance."
-    rationale: "A saved dossier is reproducible only if the Test stage can be run again from it alone. The rerun reads no database and no archive, so it runs on any installation with the same tests registered; a broken file, a profile that no longer hashes to its recorded hash, or a missing product refuses the reproduction instead of comparing against something else. Re-running the image tests on a real JWST field takes minutes (5.5 for the M92 field), so the API runs the check as a job (INV-018) and the app reads its report when it has finished."
+    rationale: "A saved dossier is reproducible only if the Test stage can be run again from it alone. The rerun reads no database and no archive, so it runs on any installation with the same tests registered; a broken file, a profile that no longer hashes to its recorded hash, or a missing product refuses the reproduction instead of comparing against something else, and so does a stage file that is not the output the manifest names by hash. Each result is compared within its own test's tolerance, and every result for one subject is compared, not only the last. Re-running the image tests on a real JWST field takes minutes (5.5 for the M92 field), so the API runs the check as a job (INV-018), one reproduction at a time, and the app reads its report when it has finished."
     verification: test
     tiers: [T4]
     status: approved

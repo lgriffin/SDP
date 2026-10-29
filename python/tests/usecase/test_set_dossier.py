@@ -11,7 +11,7 @@ from tests.usecase.test_jwst_slice import run_slice, slice_kernel
 
 from sdp.adapters.products.preview import preview_png
 from sdp.kernel.application.rocrate import build_crate_metadata, read_crate, verify_crate, zip_crate
-from sdp.kernel.application.set_bundle import data_path, image_slug, overlay_svg, star_status
+from sdp.kernel.application.set_bundle import compare_tests, data_path, image_slug, overlay_svg, star_status
 from sdp.kernel.domain.canonical import sha256_id
 from sdp.kernel.domain.errors import IntegrityError
 from sdp.kernel.domain.investigation import Stage
@@ -103,7 +103,8 @@ def test_the_test_stage_reproduces_from_the_dossier_alone(world: tuple[InMemoryK
     reproduction = k.kernel.set_dossier.reproduce(bundle)
     assert reproduction.ok and reproduction.results == len(run["results"]) == 12
     doc = reproduction.to_document()
-    assert doc["ok"] and doc["seed"] == 1 and doc["label"] == "EXPLORATORY" and doc["tolerance"]["rtol"] > 0
+    assert doc["ok"] and doc["seed"] == 1 and doc["label"] == "EXPLORATORY"
+    assert doc["tolerances"] and all(t["rtol"] >= 0 and t["atol"] >= 0 for t in doc["tolerances"].values())
 
 
 @pytest.mark.req("INV-022")
@@ -114,11 +115,14 @@ def test_a_changed_result_is_reported_and_a_broken_dossier_refused(
     reproduce = k.kernel.set_dossier.reproduce  # type: ignore[union-attr]
     _, files = read_crate(bundle)
     recorded = json.loads(files["stages/test.json"])
-    recorded["results"][0]["statistic"] = recorded["results"][0]["statistic"] + 1.0
-    del recorded["results"][1]
-    differences = reproduce(rebuilt(files, **{"stages/test.json": json.dumps(recorded).encode()})).differences
+    changed = json.loads(files["stages/test.json"])
+    changed["results"][0]["statistic"] = changed["results"][0]["statistic"] + 1.0
+    del changed["results"][1]
+    differences = compare_tests(recorded, changed, {})
     assert any("statistic" in d for d in differences)
-    assert any("new in the reproduction" in d for d in differences)
+    assert any("missing from the reproduction" in d for d in differences)
+    with pytest.raises(IntegrityError, match=r"stages/test\.json is not the test output the manifest records"):
+        reproduce(rebuilt(files, **{"stages/test.json": json.dumps(changed).encode()}))
 
     with pytest.raises(IntegrityError, match="not an evidence dossier"):
         reproduce(b"not a zip")
@@ -158,3 +162,51 @@ def test_names_and_marks() -> None:
     svg = overlay_svg({"width": 10, "height": 20, "stars": [star, {**star, "ambiguous": True}]}, "p.png")
     assert 'cx="10.00" cy="19.50"' in svg, "FITS (x, y) drawn at (x + 0.5, height - 0.5 - y)"
     assert svg.count("stroke-dasharray") == 1 and "<text" not in svg
+
+
+def _result(subject: str, statistic: float, test: str = "a", **extra: Any) -> dict[str, Any]:
+    return {"test_name": test, "test_version": "1", "subject": subject, "statistic": statistic, **extra}
+
+
+def test_each_test_is_compared_within_its_own_tolerance() -> None:
+    before = {"results": [_result("s", 1.0), _result("s", 1.0, test="b")], "null_results": []}
+    after = {"results": [_result("s", 1.001), _result("s", 1.001, test="b")], "null_results": []}
+    differences = compare_tests(before, after, {"a@1": (0.01, 0.0)})
+    assert differences == ['b@1 "s": statistic 1.0 became 1.001'], "b has no tolerance, so it must match exactly"
+
+
+def test_every_result_for_one_subject_is_compared() -> None:
+    twice = {"results": [_result("s", 1.0, k=1), _result("s", 2.0, k=2)], "null_results": []}
+    assert (
+        compare_tests(twice, {"results": [_result("s", 2.0, k=2), _result("s", 1.0, k=1)], "null_results": []}, {})
+        == []
+    )
+    once = {"results": [_result("s", 1.0, k=1)], "null_results": []}
+    assert compare_tests(twice, once, {}) == ['a@1 "s": 2 result(s) became 1']
+    moved = {"results": [_result("s", 1.0, k=1), _result("s", 3.0, k=2)], "null_results": []}
+    assert any("statistic 2.0 became 3.0" in d for d in compare_tests(twice, moved, {}))
+
+
+def test_a_star_name_cannot_inject_markup_into_the_picture() -> None:
+    star = {
+        "object_key": "<script>x</script>",
+        "predicted_px": [1.0, 1.0],
+        "p_value": 0.01,
+        "counterpart_px": None,
+        "flagged": True,
+        "ambiguous": False,
+    }
+    svg = overlay_svg({"width": 4, "height": 4, "stars": [star]}, 'p".png')
+    assert "<script>" not in svg and "&lt;script&gt;" in svg and 'href="p&quot;.png"' in svg
+
+
+@pytest.mark.req("INV-021")
+def test_a_missing_stage_output_stops_the_dossier() -> None:
+    k = slice_kernel()
+    _, run = run_slice(k)
+    s = run["set"]
+    artifact = s.stages[Stage.TEST].artifact_id
+    assert artifact is not None and k.kernel.set_dossier is not None
+    k.store._blobs.pop(artifact.value)
+    with pytest.raises(IntegrityError, match="not in the artifact store"):
+        k.kernel.set_dossier.build(s.set_id)

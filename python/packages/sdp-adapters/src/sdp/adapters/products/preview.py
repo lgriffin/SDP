@@ -53,18 +53,20 @@ def stretch(pixels: np.ndarray) -> np.ndarray:
 
 
 def binned(pixels: np.ndarray, max_side: int = MAX_SIDE) -> np.ndarray:
-    """Pixels averaged in square blocks so neither side exceeds ``max_side``. The last row and column
-    of blocks are partial rather than dropped, so the picture still spans the whole pixel grid and an
-    overlay stretched over it stays on its stars."""
+    """Pixels averaged in blocks so neither side exceeds ``max_side``. Block edges are spread evenly
+    over the whole grid (each block within one pixel of the same size), so every picture pixel covers
+    the same share of the image and an overlay stretched over the picture stays on its stars."""
     factor = max(1, -(-max(pixels.shape) // max_side))
     if factor == 1:
         return pixels
-    h, w = -(-pixels.shape[0] // factor) * factor, -(-pixels.shape[1] // factor) * factor
-    padded = np.full((h, w), np.nan)
-    padded[: pixels.shape[0], : pixels.shape[1]] = pixels
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # an all-NaN block stays NaN
-        return np.nanmean(padded.reshape(h // factor, factor, w // factor, factor), axis=(1, 3))
+    height, width = pixels.shape
+    rows = np.round(np.linspace(0, height, -(-height // factor) + 1)).astype(int)[:-1]
+    cols = np.round(np.linspace(0, width, -(-width // factor) + 1)).astype(int)[:-1]
+    finite = np.isfinite(pixels)
+    sums = np.add.reduceat(np.add.reduceat(np.where(finite, pixels, 0.0), rows, axis=0), cols, axis=1)
+    counts = np.add.reduceat(np.add.reduceat(finite.astype(float), rows, axis=0), cols, axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(counts > 0, sums / np.where(counts > 0, counts, 1.0), np.nan)
 
 
 def png(grey: np.ndarray) -> bytes:

@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from tests.usecase.test_jwst_slice import run_slice, slice_kernel
 
 from sdp.api.app import create_app
-from sdp.api.jobs import Jobs
+from sdp.api.jobs import Jobs, reproduce_job
 from sdp.kernel.application.rocrate import read_crate, verify_crate
 from sdp.kernel.domain.investigation import Stage, StageState
 from sdp.testing.wiring import build_in_memory_kernel
@@ -40,6 +40,15 @@ def test_the_app_downloads_a_sets_dossier_and_checks_it_reproduces() -> None:
     spawned.pop()()
     run = client.get(f"/investigations/{set_id}/reproduce").json()["reproduction"]
     assert run["state"] == "finished" and run["result"]["ok"] and run["result"]["results_compared"] == 12
+
+    jobs = Jobs(spawn=spawned.append)
+    busy = TestClient(create_app(k, jobs=jobs))
+    jobs.start(reproduce_job("invset-other"), lambda: None)
+    refused = busy.post(f"/investigations/{set_id}/reproduce")
+    assert refused.status_code == 409 and "invset-other is being reproduced" in refused.json()["error"]
+    assert busy.get(f"/investigations/{set_id}/reproduce").json() == {"reproduction": None}, "nothing started"
+    spawned.pop()()
+    assert busy.post(f"/investigations/{set_id}/reproduce").status_code == 202, "free again once it finished"
 
     assert client.get("/investigations/invset-missing/dossier.zip").status_code == 404
     assert client.post("/investigations/invset-missing/reproduce").status_code == 404
