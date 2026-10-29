@@ -1,0 +1,69 @@
+# JWST image check: are Gaia's stars where JWST sees them?
+#
+# For every Gaia star in the field, this profile moves the star along its Gaia proper motion to the
+# date of a JWST NIRCam image, and asks whether the image shows a source there:
+#   image-counterpart -> missing, or displaced by more than the combined uncertainties allow
+# It cuts a small square out of each JWST mosaic (cutout_arcsec) rather than downloading the whole
+# file, so a run reads tens of megabytes, not gigabytes.
+#
+# Try it on the globular cluster M92 with one command: `sdp demo jwst` in the SDP Command Prompt. It uses
+# a patch of M92's outskirts, "icrs;circle(259.323,43.1505,0.004)": the core is so crowded that Gaia
+# measures almost none of its stars cleanly.
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: jwst-image-check
+version: 1.0.0
+description: >-
+  Gaia against JWST. Checks that each Gaia star appears on a NIRCam image where its motion puts it,
+  using a small cutout of each mosaic. Exploratory: a flag is a lead, never a claim.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}               # well-behaved single-star astrometry (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: ">", value: 17.0}   # brighter stars saturate NIRCam's cores, so no clean centroid
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: false                       # SIMBAD adds nothing to a crowded cluster core and costs a request per star
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: mast
+    role: observations
+    release_label: mast:caom
+    columns: []
+    match_radius_arcsec: 180.0         # mosaics whose centre lies within 3 arcmin: a NIRCam mosaic is about 5 arcmin across
+    missions: [JWST]
+    product_types: [image]
+    min_calibration_level: 3           # combined mosaics only (level 3), not every single exposure (level 2)
+    cutout_arcsec: 40.0                # a 40-arcsec square: about 1300 x 1300 NIRCam pixels, 7 MB a cutout
+
+tests:
+  - name: image-counterpart
+    version: 1.0.0
+    thresholds:
+      source_id: gaia
+      fwhm_px: 2.0                     # NIRCam short-wave PSF on the 0.031-arcsec mosaic grid
+      nsigma: 5.0                      # a detection is 5 times the background noise
+      search_radius_arcsec: 0.5        # counterparts within half an arcsecond of the predicted position
+      exclude_percentile: 25.0         # a star cluster fills more than a tenth of each background box with stars
+      align_wcs: true                  # first shift the image onto Gaia: archived JWST astrometry can be off by arcseconds
+      anchor_sigma_arcsec: 0.01        # Gaia position at the JWST date, faint stars after six years of motion
+      min_sigma_arcsec: 0.01           # the floor of a NIRCam mosaic aligned to Gaia (about 10 milliarcseconds)
+    needs_products: [image]            # the test reads JWST images, so the plan must fetch some
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0                       # one test, so a star is a candidate only when it is significant
+
+null_fields:
+  trials: 5

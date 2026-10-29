@@ -45,6 +45,7 @@ describe("environment", () => {
     expect(env.SDP_ARTIFACT_ROOT).toBe("/home/a/.local/share/sdp/artifacts");
     expect(env.SDP_LEDGER_DIR).toBe("/home/a/.local/share/sdp/ledger");
     expect(env.SDP_REPO_ROOT).toBe("/opt/sdp/resources/sdp/repo");
+    expect(env.SDP_PROFILES_DIR).toBe("/home/a/.local/share/sdp/profiles");
     expect(Number(env.SDP_MIN_FREE_BYTES)).toBe(DESKTOP_MIN_FREE_BYTES);
   });
 

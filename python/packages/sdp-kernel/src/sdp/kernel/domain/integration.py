@@ -619,11 +619,14 @@ def match_requirement(
 
     proven = dict(descriptor.adapter.conformance) if descriptor.adapter else {}
     admitted = sorted(t for t in common if proven.get(t, False))
+    # An adapter not yet admitted can still feed an exploratory run, which never issues a verdict;
+    # a verdict on its evidence stays refused until a passing record admits it (INT-016).
     add(
         "adapter.conformance",
-        bool(admitted) if common else False,
+        (True if admitted else None) if common else False,
         f"adapter admitted for {', '.join(admitted)}",
-        "no adapter admitted for the product types needed" if common else "no product type in common",
+        "no product type in common",
+        f"no adapter admitted for {', '.join(common)} yet: exploratory evidence only, no verdict until one is",
     )
 
     outcomes = {r.outcome for r in reasons}

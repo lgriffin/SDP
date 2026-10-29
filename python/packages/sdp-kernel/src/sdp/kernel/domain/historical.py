@@ -54,5 +54,7 @@ class VerificationRecord:
 
 
 def is_verified(record: TranscribedRecord, verifications: tuple[VerificationRecord, ...]) -> bool:
-    """A record is verified when a recorded second pass found it matching."""
-    return any(v.record_id == record.record_id and v.matches for v in verifications)
+    """A record is verified when its latest recorded pass found it matching: a correction made after
+    a matching pass needs a matching pass of its own before the corrected value counts."""
+    passes = sorted((v for v in verifications if v.record_id == record.record_id), key=lambda v: v.verified_at)
+    return bool(passes) and passes[-1].matches

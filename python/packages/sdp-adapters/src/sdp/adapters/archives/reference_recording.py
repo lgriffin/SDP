@@ -22,7 +22,7 @@ from sdp.adapters.archives.mast_inventory import MastProductInventory
 from sdp.adapters.archives.registry import REGTAP
 from sdp.adapters.archives.transport import HttpRequest, Transport
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
-from sdp.kernel.domain.integration import Rights, SourceCapabilityDescriptor
+from sdp.kernel.domain.integration import AdapterInfo, Rights, SourceCapabilityDescriptor
 from sdp.kernel.domain.investigation import ProductRef
 
 #: Every field ``ReferenceRecord`` reads; null until a person fills it from the documentation.
@@ -46,7 +46,7 @@ REFERENCE_FIELDS = (
 )
 
 
-class _Unregistered:
+class Unregistered:
     """Describing reads the VO only; nothing is registered from a recording run."""
 
     def put(self, descriptor: SourceCapabilityDescriptor) -> None:
@@ -78,20 +78,34 @@ def ivoid_request(access_url: str, regtap_url: str = REGTAP) -> HttpRequest:
 
 
 def mast_source(ivoid: str) -> VoSource:
-    """MAST as a VO source. Its ObsCore view has no ``data_rights`` column, and a scan of every
-    collection times out (HTTP 504, checked live 2026-10-28), so only JWST is scanned."""
-    return VoSource("mast", ivoid, MAST_OBSCORE, Rights(LICENCE, CITATION), collections=("JWST",), rights_column=None)
+    """MAST as a VO source, served by the ``mast-observations`` adapter. Its ObsCore view has no
+    ``data_rights`` column, and a scan of every collection times out (HTTP 504, checked live
+    2026-10-28), so only JWST is scanned."""
+    return VoSource(
+        "mast",
+        ivoid,
+        MAST_OBSCORE,
+        Rights(LICENCE, CITATION),
+        adapter=AdapterInfo("mast-observations", "1.0.0"),
+        collections=("JWST",),
+        rights_column=None,
+    )
 
 
-def describe_mast(transport: Transport, out: Path, today: Callable[[], date] | None = None) -> dict[str, Any]:
-    """Find MAST's ObsCore service in the registry by its URL, read its descriptor, and save it."""
+def mast_ivoid(transport: Transport) -> str:
+    """MAST's ObsCore service's registry id, found in the registry by its URL."""
     ivoids = sorted(
         {str(r["ivoid"]).strip() for r in run_sync(transport, ivoid_request(MAST_OBSCORE), "RegTAP").to_pylist()}
     )
     if not ivoids:
         raise LookupError(f"the registry lists no service at {MAST_OBSCORE}")
-    source = mast_source(ivoids[0])
-    discovery = VoCapabilityDiscovery(transport, _Unregistered(), {"mast": source})
+    return ivoids[0]
+
+
+def describe_mast(transport: Transport, out: Path, today: Callable[[], date] | None = None) -> dict[str, Any]:
+    """Find MAST's ObsCore service in the registry by its URL, read its descriptor, and save it."""
+    source = mast_source(mast_ivoid(transport))
+    discovery = VoCapabilityDiscovery(transport, Unregistered(), {"mast": source})
     if today is not None:
         discovery.today = today
     doc = discovery.describe("mast").to_document()

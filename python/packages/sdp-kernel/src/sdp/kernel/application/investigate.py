@@ -917,6 +917,7 @@ class InvestigateFieldUseCase:
                     missions=selection.missions,
                     product_types=selection.product_types,
                     radius_arcsec=radius + selection.match_radius_arcsec,
+                    min_calibration_level=selection.min_calibration_level,
                 )
                 targets = [(ObservationTarget("field", ra, dec), list(keys))]
             else:
@@ -924,6 +925,7 @@ class InvestigateFieldUseCase:
                     missions=selection.missions,
                     product_types=selection.product_types,
                     radius_arcsec=selection.match_radius_arcsec,
+                    min_calibration_level=selection.min_calibration_level,
                 )
                 targets = [
                     (

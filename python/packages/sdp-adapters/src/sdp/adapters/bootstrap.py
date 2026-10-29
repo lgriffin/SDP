@@ -190,18 +190,20 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
     unless ``services`` names another."""
     mast = archive_transport(settings, "mast", 1.0)
     detector = PhotutilsDetector()
+    refiner = TweakwcsRefiner()
     return InvestigatePorts(
         tests=load_investigation_tests(),
         cross_match=cross_match(settings),
         observation_gateways=observation_gateways(settings, mast),
         detector=detector,
-        refiner=TweakwcsRefiner(),
+        refiner=refiner,
         resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
         services={
             "clusterer": SklearnHdbscan(),
             # the image tests' detector and both association methods (v0.4.0 §7, ADR-019)
             "detector": detector,
             "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
+            "refiner": refiner,  # an image test's optional alignment to Gaia
             **services,
         },
         product_dialects={"dasch": DaschDialect()},

@@ -1,0 +1,41 @@
+"""T3: the descriptors a live deployment registers before it can plan (Integration v0.4.0 §2)."""
+
+from __future__ import annotations
+
+from datetime import date
+
+import pytest
+
+from sdp.adapters.archives.registration import catalogue_descriptor, register_defaults
+from sdp.adapters.archives.tap import load_sources
+from sdp.kernel.domain.archive import Cone
+from sdp.kernel.domain.integration import EvidenceRequirement, MatchStatus, Operation, ProductType, match_requirement
+from sdp.testing.fakes.integration import InMemoryCapabilityRegistry
+
+pytestmark = pytest.mark.tier("T3")
+TODAY = date(2026, 10, 29)
+
+
+@pytest.mark.req("INT-003")
+def test_a_packaged_catalogue_is_described_by_hand_and_feeds_exploration_until_admitted() -> None:
+    gaia = catalogue_descriptor(load_sources()["gaia"], TODAY)
+    assert (gaia.source_id, gaia.origin, gaia.verified_on) == ("gaia", "hand-written", TODAY)
+    assert gaia.product_types == {ProductType.CATALOGUE} and Operation.CONE in gaia.operations
+    assert gaia.adapter is not None and not gaia.adapter.conformance, "admission comes only from records"
+    need = EvidenceRequirement(
+        "identify:catalogue:gaia",
+        "identify",
+        frozenset({ProductType.CATALOGUE}),
+        operations=frozenset({Operation.CONE}),
+        needs_bytes=False,
+    )
+    match = match_requirement(gaia, Cone(259.28, 43.14, 0.01), need)
+    assert match.status is MatchStatus.PARTIAL
+
+
+def test_register_defaults_registers_every_packaged_catalogue() -> None:
+    registry = InMemoryCapabilityRegistry()
+    registered = register_defaults(
+        registry, lambda name: pytest.fail(f"no transport for {name}"), mast=False, today=lambda: TODAY
+    )
+    assert {d.source_id for d in registered} == set(load_sources()) == {d.source_id for d in registry.all()}

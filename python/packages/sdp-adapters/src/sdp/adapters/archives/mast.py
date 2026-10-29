@@ -129,6 +129,8 @@ class MastObservationGateway:
             where.append(_in("obs_collection", criteria.missions))
         if criteria.product_types:
             where.append(_in("dataproduct_type", tuple(OBSCORE_TYPES.get(t, t) for t in criteria.product_types)))
+        if criteria.min_calibration_level is not None:
+            where.append(f"calib_level >= {int(criteria.min_calibration_level)}")
         if criteria.epoch_min_mjd is not None:
             where.append(f"t_min >= {float(criteria.epoch_min_mjd)!r}")
         if criteria.epoch_max_mjd is not None:

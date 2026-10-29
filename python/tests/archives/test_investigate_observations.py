@@ -9,6 +9,7 @@ import io
 import json
 import math
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -201,6 +202,9 @@ def test_mast_search_is_bounded_ordered_obscore_adql_with_mission_and_type_filte
     assert "access_url LIKE '%_i2d.fits' OR access_url LIKE '%_cal.fits'" in text
     body = parse_qs(gateway.search_request(TARGET, criteria).body.decode())
     assert body["REQUEST"] == ["doQuery"] and body["LANG"] == ["ADQL"]
+    assert "calib_level" not in text
+    mosaics = gateway.search_query(TARGET, replace(criteria, min_calibration_level=3))
+    assert "calib_level >= 3" in mosaics, "level-3 mosaics only, when the profile asks"
 
 
 def test_mast_records_carry_epochs_sizes_and_no_cloud_uri() -> None:
@@ -303,6 +307,8 @@ def test_dasch_is_skipped_without_a_call_when_the_criteria_exclude_it() -> None:
     gateway = DaschGateway(fake)
     index = gateway.search(TARGET, ObservationCriteria(missions=("TESS",)))
     assert index.records == () and fake.calls == 0
+    floored = gateway.search(TARGET, ObservationCriteria(min_calibration_level=3))
+    assert floored.records == () and fake.calls == 0, "DASCH states no calibration level to meet a floor"
 
 
 def test_dasch_api_errors_raise() -> None:

@@ -4,15 +4,16 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These three profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These four profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
 | [first-look](first-look.yaml) | You are new to a field, or new to SDP | Gaia only | Seconds to a few minutes |
 | [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
+| [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
 
-All three only *suggest* candidates. Every result is labelled EXPLORATORY. A candidate becomes a claim only after a separate, predeclared confirmatory experiment, which you promote in the SDP Command Prompt.
+All of them only *suggest* candidates. Every result is labelled EXPLORATORY. A candidate becomes a claim only after a separate, predeclared confirmatory experiment, which you promote in the SDP Command Prompt.
 
 ## How a run works
 
@@ -44,6 +45,21 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 - **photometric-corroboration: "Do 2MASS infrared colours agree with Gaia's colour?"** 2MASS measured the whole sky in the infrared. A star's infrared colour (J − K) should follow from its optical colour (BP − RP). A mismatch can mean dust, a companion, or a mix-up between two neighbouring stars. Stars are paired across catalogues within 1 arcsecond, a little over 1/3600 of a degree, which comfortably finds the same star.
 - **long-baseline-motion: "Has the star moved as Gaia predicts since about 1890?"** Gaia measures how fast a star crosses the sky. The test uses that motion to predict where the star was on each Harvard plate, then checks the plate positions against the predictions. Plate positions are good to roughly 1–2 arcseconds, so plates are matched within 3 arcseconds. DASCH's own star catalogue records positions from around 2000 to 2016, so SDP uses each star's Gaia motion to look for it along its path over those years. A fast-moving star is still found.
 - **variability: "Has its brightness changed over a century?"** The test asks whether the plate brightness measurements scatter more than their own error bars allow for a constant star (a χ² test). It also reports the strongest repeating period it finds (a Lomb–Scargle search) for you to look at. It needs at least `min_points: 20` measurements: fewer give a weak constancy test and no meaningful period.
+
+- **image-counterpart: "Is each Gaia star on the JWST image where its motion puts it?"** Gaia measured each star around 2016. The test moves every star along its measured motion to the date of the JWST image, then looks for a source on the image at that spot. A star with no source there, or one further away than both telescopes' uncertainties allow, is flagged. Sources are found with photutils, and each pairing is made by two independent methods that must agree.
+  - `fwhm_px: 2.0` is how wide a star looks on NIRCam's mosaic grid, in pixels.
+  - `nsigma: 5.0` means a source must stand five times above the background noise to count.
+  - `search_radius_arcsec: 0.5` is how far from the predicted spot a counterpart may sit. JWST and Gaia both pin stars to a few thousandths of an arcsecond, so half an arcsecond is generous.
+  - `exclude_percentile: 25` lets the background be measured in a crowded cluster, where stars cover more than a tenth of the sky.
+  - `align_wcs: true` first slides the whole image onto Gaia. The archive's own coordinates for these M92 mosaics sit about 2 arcseconds off Gaia, which would leave every star "missing". One shift moves the frame, not a star, so a star that really moved still stands out. The fit is recorded with each result.
+  - `anchor_sigma_arcsec` and `min_sigma_arcsec: 0.01` are the smallest position uncertainties SDP will assume for Gaia and for JWST: about 10 milliarcseconds, the agreement an aligned mosaic reaches with Gaia. Smaller values would flag ordinary stars.
+
+### Archive settings (jwst-image-check)
+
+- **`cutout_arcsec: 40`.** JWST's mosaics are often over a gigabyte. SDP reads only the 40-arcsecond square around your field, about 1,300 by 1,300 pixels (7 MB), straight out of the archive's file. The pixels are not changed.
+- **`min_calibration_level: 3`.** Level 3 means the archive has combined all the exposures into one clean mosaic. Level 2 would add every single exposure, ten times the downloads for the same stars.
+- **`match_radius_arcsec: 180`.** A NIRCam mosaic is about 5 arcminutes across, so its centre can sit a few arcminutes from your field and still cover it.
+- **`phot_g_mean_mag > 17`.** JWST is so sensitive that stars brighter than this saturate its detectors, which leaves no clean centre to compare with Gaia.
 
 ### Ranking
 

@@ -102,10 +102,11 @@ def test_unknown_coverage_is_partial_not_satisfied() -> None:
     assert any(r.field == "coverage.spatial" and r.outcome is MatchStatus.PARTIAL for r in m.reasons)
 
 
-def test_an_unadmitted_adapter_cannot_satisfy_a_requirement() -> None:
+def test_an_unadmitted_adapter_only_partly_satisfies_a_requirement() -> None:
     m = match_requirement(mast_descriptor(admitted=False), REGION, image_requirement())
-    assert m.status is MatchStatus.UNSATISFIED
-    assert any(r.field == "adapter.conformance" and r.outcome is MatchStatus.UNSATISFIED for r in m.reasons)
+    assert m.status is MatchStatus.PARTIAL
+    reason = next(r for r in m.reasons if r.field == "adapter.conformance")
+    assert reason.outcome is MatchStatus.PARTIAL and "exploratory evidence only" in reason.reason
 
 
 def test_matches_order_satisfied_first_then_by_source() -> None:

@@ -81,6 +81,8 @@ class Verification:
     record_id: str
     verifier: str
     matches: bool
+    verified_at: str = ""
+    """ISO 8601 time of the pass; empty in a hand-made bundle, where the listed order stands."""
 
 
 @dataclass(frozen=True)
@@ -137,7 +139,7 @@ def parse_bundle(doc: Mapping[str, Any]) -> ObservationBundle:
     return ObservationBundle(
         sets=tuple(sets),
         verifications=tuple(
-            Verification(str(v["record_id"]), str(v["verifier"]), bool(v["matches"]))
+            Verification(str(v["record_id"]), str(v["verifier"]), bool(v["matches"]), str(v.get("verified_at", "")))
             for v in doc.get("verifications", [])
         ),
         records={str(k): str(v) for k, v in doc.get("records", {}).items()},

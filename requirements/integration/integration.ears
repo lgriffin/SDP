@@ -23,7 +23,7 @@ requirements:
   - id: INT-003
     pattern: event
     text: "When a capability match is requested for a field and an evidence requirement, the system shall return every registered source with a per-field reason."
-    rationale: "A planner and a reviewer read the same explanation. Every requested constraint is a reported field, one-sided bands and calibration levels included; what a source does not publish is partial, never satisfied."
+    rationale: "A planner and a reviewer read the same explanation. Every requested constraint is a reported field, one-sided bands and calibration levels included; what a source does not publish is partial, never satisfied. An adapter not yet admitted is partial too: its evidence may feed an exploratory run, and a verdict on it stays refused (INT-016)."
     verification: test
     tiers: [T1, T4]
     status: approved
@@ -159,7 +159,7 @@ requirements:
   - id: INT-020
     pattern: event
     text: "When an investigation profile reads image products, the image-counterpart test shall detect sources on each image, associate them with the field's Gaia sources propagated to the image epoch by both association methods, and flag a Gaia source with no counterpart or one displaced beyond its combined covariance."
-    rationale: "The JWST vertical slice adds no science algorithm (v0.4.0 §7): detection is the detector service, association is ADR-019's two methods, and every retained hypothesis, including a blended detection's competing members, reaches the dossier with its posteriors."
+    rationale: "The JWST vertical slice adds no science algorithm (v0.4.0 §7): detection is the detector service, association is ADR-019's two methods, and every retained hypothesis, including a blended detection's competing members, reaches the dossier with its posteriors. A profile may first align each image to the propagated Gaia sources (align_wcs), a single shift fitted by the refiner and recorded with the result, because an archived image's absolute astrometry can be off by arcseconds (1.9 arcsec on programme 1334's M92 mosaics, checked live 2026-10-29); a shift moves the frame, so a star displaced from the rest still stands out."
     verification: test
     tiers: [T4]
     status: approved

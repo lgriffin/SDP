@@ -177,12 +177,17 @@ class DaschGateway:
     def search(self, target: ObservationTarget, criteria: ObservationCriteria) -> ObservationIndex:
         """The nearest reference-catalogue star within the radius, offered as a light curve and as a
         position history (both read from its DR7 light curve). A moving target is matched against its
-        path over the reference catalogue's possible epochs, so a fast star is still found."""
+        path over the reference catalogue's possible epochs, so a fast star is still found. DASCH states
+        no ObsCore calibration level, so a search with a calibration floor finds nothing."""
         reach = max(math.hypot(*end) for end in _path(target))
         request = self.querycat_request(target.ra_deg, target.dec_deg, criteria.radius_arcsec + reach)
         wanted = [t for t in PRODUCT_TYPES if not criteria.product_types or t in criteria.product_types]
         records: list[ObservationRecord] = []
-        if wanted and (not criteria.missions or MISSION in criteria.missions):
+        if (
+            wanted
+            and criteria.min_calibration_level is None
+            and (not criteria.missions or MISSION in criteria.missions)
+        ):
             response = self.transport.send(request)
             if response.status != 200:
                 raise TransportError(f"DASCH querycat: HTTP {response.status}", response.status)

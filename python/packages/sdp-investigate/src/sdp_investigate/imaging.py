@@ -8,7 +8,8 @@ whether each Gaia source, propagated to the image epoch, has a counterpart where
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -29,7 +30,7 @@ from sdp.kernel.domain.association import (
 from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.investigation import EvidenceBundle, Subject
 from sdp.kernel.ports.integration import AssociationService
-from sdp.kernel.ports.investigate import DetectionList, ImageFrame, SourceDetector
+from sdp.kernel.ports.investigate import DetectionList, ImageFrame, SourceDetector, WcsRefiner
 from sdp.kernel.science.association import propagate
 from sdp.kernel.science.investigation import product_bytes
 from sdp.kernel.science.plan import TaskContext
@@ -41,6 +42,8 @@ FWHM_PER_SIGMA = 2.0 * math.sqrt(2.0 * math.log(2.0))
 #: The statistic of a Gaia source with no counterpart: larger than any finite d² a test reports,
 #: and finite, because results are canonical JSON.
 MISSING_STATISTIC = 1e9
+#: Detector settings a profile may set for the background mesh.
+DETECTOR_MESH = ("box_size", "filter_size", "exclude_percentile")
 
 
 def epoch_jyear(detections: DetectionList, artifact_id: str) -> float:
@@ -104,6 +107,44 @@ def anchor(bundle: EvidenceBundle, row: Mapping[str, Any], sigma_arcsec: float) 
         float(row.get("epoch_jyear") or 2016.0),
         motion,
     )
+
+
+def align(
+    found: DetectionList,
+    anchors: Iterable[CatalogueSource],
+    epoch: float,
+    thresholds: Mapping[str, Any],
+    context: TaskContext,
+) -> tuple[DetectionList, dict[str, Any]]:
+    """The image's WCS shifted onto the Gaia sources propagated to its epoch, by the ``refiner``.
+
+    An archived image's absolute astrometry can be off by arcseconds (its guide stars, not Gaia,
+    set it), which would leave every source without a counterpart. A single shift fitted to every
+    match moves the frame, not a star, so a star displaced from the rest still stands out. The
+    shift's fit is returned for the details; with too few matches the frame is left as it was.
+    """
+    refiner: WcsRefiner = context.service("refiner")
+    moved = [m for m in (propagate(a, epoch) for a in anchors) if m is not None]
+    scale = float(np.mean(proj_plane_pixel_scales(WCS(_header(found.wcs_header)).celestial))) * 3600.0
+    fwhm_arcsec = float(thresholds.get("fwhm_px", 3.0)) * scale
+    refined = refiner.refine(
+        found,
+        np.array([m.ra_deg for m in moved], dtype=float),
+        np.array([m.dec_deg for m in moved], dtype=float),
+        {
+            "fitgeom": "shift",
+            "searchrad": float(thresholds.get("align_search_arcsec", 5.0)),
+            # Sources closer than two PSF widths are confusable, so the matcher sets them aside.
+            "separation": 2.0 * fwhm_arcsec,
+            # Tight, because a crowded field offers a random detection within an arcsecond of
+            # every star: after the 2-D histogram's first guess, pairs must agree to 0.3 arcsec.
+            "tolerance": float(thresholds.get("align_tolerance_arcsec", 0.3)),
+        },
+    )
+    fit = {"refiner": refined.refiner_id, "matches": refined.matches, "rms_arcsec": refined.rms_arcsec}
+    if not refined.matches:
+        return found, fit
+    return replace(found, detections=refined.detections, wcs_header=refined.wcs_header), fit
 
 
 def counterpart_rows(graph: AssociationGraph, anchor_id: str) -> list[Mapping[str, Any]]:
@@ -174,7 +215,12 @@ class ImageCounterpart(FieldTest):
         detector: SourceDetector = context.service("detector")
         associators: Sequence[AssociationService] = context.service("associators")
         fwhm_px = float(thresholds.get("fwhm_px", 3.0))
-        params = {"fwhm": fwhm_px, "nsigma": float(thresholds.get("nsigma", 5.0))}
+        params = {
+            "fwhm": fwhm_px,
+            "nsigma": float(thresholds.get("nsigma", 5.0)),
+            # The background mesh, passed on only when the profile sets it (a crowded field needs it).
+            **{k: thresholds[k] for k in DETECTOR_MESH if k in thresholds},
+        }
         anchors: dict[str, CatalogueSource] = {}
         images: dict[str, str] = {}
         for b in bundles:
@@ -185,10 +231,13 @@ class ImageCounterpart(FieldTest):
                 if p.product_type == IMAGE:
                     images.setdefault(p.artifact_id.value, p.product.product_id)
         frames: list[tuple[str, list[Detection], WCS, tuple[int, int] | None, float]] = []
+        alignments: dict[str, dict[str, Any]] = {}
         for artifact_id, product_id in sorted(images.items()):
             data = product_bytes(context, artifact_id)
             found = detector.detect(ImageFrame(artifact_id, data, "application/fits"), params)
             epoch = epoch_jyear(found, artifact_id)
+            if thresholds.get("align_wcs"):
+                found, alignments[product_id] = align(found, anchors.values(), epoch, thresholds, context)
             dets, _, shape, wcs = detection_records(
                 found,
                 product_id,
@@ -229,6 +278,7 @@ class ImageCounterpart(FieldTest):
                         d2,
                         {
                             "image": product_id,
+                            **({"alignment": alignments[product_id]} if product_id in alignments else {}),
                             "counterparts": rows,
                             "method": graphs[0].method,
                             "other_methods": {

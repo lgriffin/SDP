@@ -159,12 +159,16 @@ def test_a_source_without_a_registered_descriptor_is_a_gap_not_an_item() -> None
     gap = next(g for g in plan.gaps if g.requirement_id == "pm-excess:product:lightcurve")
     assert gap.reason == "no source that lists it satisfies it: fake-plates (no registered descriptor)"
     assert plates.adapter is not None
+    # Not yet admitted: planned for exploration, with the reason on the match (verdicts stay refused, INT-016).
     unadmitted = replace(plates, adapter=replace(plates.adapter, conformance={}))
     plan = make_world(LIGHTCURVES, descriptors=(gaia, unadmitted)).plan()
-    gap = next(g for g in plan.gaps if g.requirement_id == "pm-excess:product:lightcurve")
-    assert gap.reason == "no source that lists it satisfies it: fake-plates (unsatisfied)"
-    match = next(m for m in plan.matches if m.source_id == "fake-plates")
-    assert any(r.field == "adapter.conformance" and r.outcome.value == "unsatisfied" for r in match.reasons)
+    assert "fake-plates" in {i.source_id for i in plan.items}
+    assert not any(g.requirement_id == "pm-excess:product:lightcurve" for g in plan.gaps)
+    match = next(
+        m for m in plan.matches if m.source_id == "fake-plates" and m.requirement_id == "pm-excess:product:lightcurve"
+    )
+    assert match.status.value == "partial"
+    assert any(r.field == "adapter.conformance" and r.outcome.value == "partial" for r in match.reasons)
 
 
 def test_a_plan_over_the_byte_budget_cannot_be_drafted() -> None:

@@ -163,3 +163,19 @@ def test_a_ledger_that_cannot_sign_is_a_handled_error(
     result = runner.invoke(cli.app, ["plan", "approve", plan_id, "--actor", "leigh"])
     assert result.exit_code != 0 and isinstance(result.exception, DomainError)
     assert "no signing key configured" in str(result.exception)
+
+
+def test_the_demo_finds_its_profile_in_the_profiles_folder_then_the_repository(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = Path(__file__).resolve().parents[3]
+    monkeypatch.delenv("SDP_PROFILES_DIR", raising=False)
+    monkeypatch.setenv("SDP_REPO_ROOT", str(repo))
+    assert cli._demo_profile(None) == repo / "profiles" / cli.DEMO_PROFILE
+    (tmp_path / cli.DEMO_PROFILE).write_text("edited")
+    monkeypatch.setenv("SDP_PROFILES_DIR", str(tmp_path))
+    assert cli._demo_profile(None) == tmp_path / cli.DEMO_PROFILE, "the person's own copy wins"
+    monkeypatch.setenv("SDP_PROFILES_DIR", str(tmp_path / "none"))
+    monkeypatch.setenv("SDP_REPO_ROOT", str(tmp_path / "none"))
+    with pytest.raises(DomainError, match="--profile"):
+        cli._demo_profile(None)

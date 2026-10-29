@@ -97,6 +97,11 @@ plan_app = typer.Typer(
     "budget threshold is a signed ledger entry.",
     no_args_is_help=True,
 )
+demo_app = typer.Typer(
+    help="Guided end-to-end runs on real archives, for learning SDP. Every step is the same one the "
+    "plan and investigate commands take, and every result is EXPLORATORY.",
+    no_args_is_help=True,
+)
 investigate_app = typer.Typer(
     help="Investigate a field: identify, retrieve, test, candidates (Investigate §1). Results are EXPLORATORY.",
     invoke_without_command=True,
@@ -113,6 +118,7 @@ for name, sub in (
     ("investigate", investigate_app),
     ("plan", plan_app),
     ("integration", integration_app),
+    ("demo", demo_app),
 ):
     app.add_typer(sub, name=name)
 
@@ -579,6 +585,11 @@ def plan_show(plan_id: str) -> None:
 def plan_approve(plan_id: str, actor: Annotated[str, typer.Option(help="Principal in allowed_signers")]) -> None:
     """Approve a plan. Below its budget threshold the approval is automatic and recorded; above it,
     this signs a ledger approval of the plan id as ``actor`` first (INT-014)."""
+    _approve(plan_id, actor)
+    emit(_plan_summary(_plan_record(plan_id)))
+
+
+def _approve(plan_id: str, actor: str) -> None:
     runtime = state.runtime()
     use_case = runtime.kernel.approve_plan
     assert use_case is not None
@@ -611,7 +622,6 @@ def plan_approve(plan_id: str, actor: Annotated[str, typer.Option(help="Principa
                 raise DomainError(f"cannot sign the approval of {plan_id}: {exc}") from exc
         entry_id = signed.entry_id
     use_case.execute(ApprovePlanCommand(plan_id, actor, ledger_entry_id=entry_id))
-    emit(_plan_summary(_plan_record(plan_id)))
 
 
 @plan_app.command("refuse")
@@ -747,6 +757,40 @@ def archive_smoke(
         raise SystemExit(1)
 
 
+def _register(mast: bool) -> list[dict[str, Any]]:
+    from sdp.adapters.archives.registration import register_defaults
+    from sdp.adapters.bootstrap import archive_transport
+    from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
+    from sdp.adapters.settings import Settings
+
+    settings = Settings.from_env()
+    registered = register_defaults(
+        PostgresCapabilityRegistry(settings.database_url),
+        lambda name: archive_transport(settings, name, 1.0),
+        mast=mast,
+    )
+    return [
+        {
+            "source_id": d.source_id,
+            "origin": d.origin,
+            "product_types": sorted(t.value for t in d.product_types),
+            "operations": sorted(o.value for o in d.operations),
+            "adapter": d.adapter.name if d.adapter else None,
+            "admitted_for": sorted(t for t, ok in (d.adapter.conformance if d.adapter else {}).items() if ok),
+        }
+        for d in registered
+    ]
+
+
+@integration_app.command("register")
+def integration_register(
+    mast: Annotated[bool, typer.Option(help="Also read MAST's descriptor from the VO (live)")] = True,
+) -> None:
+    """Register the descriptors plans are matched against: every packaged catalogue source, and MAST
+    as the VO describes it. Run once on a new database, and again to refresh them."""
+    emit(_register(mast))
+
+
 @integration_app.command("record")
 def integration_record(
     obs_id: Annotated[str, typer.Option(help="MAST ObsCore obs_id of a public observation")],
@@ -769,6 +813,118 @@ def integration_record(
         {
             "descriptor": {k: descriptor[k] for k in ("ivoid", "product_types", "protocols", "limits")},
             "product": {"directory": str(recorded.directory), "url": recorded.access_url, "bytes": recorded.size_bytes},
+        }
+    )
+
+
+#: A patch of the globular cluster M92's outskirts, on one NIRCam detector of public programme 1334, with
+#: about 50 cleanly measured Gaia stars. The core is too crowded: Gaia measures almost none there cleanly.
+M92_REGION = "icrs;circle(259.323,43.1505,0.004)"
+DEMO_PROFILE = "jwst-image-check.yaml"
+
+
+def _demo_profile(given: Path | None) -> Path:
+    """The profile given, else the one in the person's profiles folder, else the repository's."""
+    import os
+
+    if given is not None:
+        return given
+    for folder in (os.environ.get("SDP_PROFILES_DIR"), os.environ.get("SDP_REPO_ROOT")):
+        if not folder:
+            continue
+        for candidate in (Path(folder) / DEMO_PROFILE, Path(folder) / "profiles" / DEMO_PROFILE):
+            if candidate.is_file():
+                return candidate
+    raise DomainError(f"no {DEMO_PROFILE} found; pass --profile with its path")
+
+
+def _say(text: str) -> None:
+    typer.echo(text, err=True)
+
+
+@demo_app.command("jwst")
+def demo_jwst(
+    region: Annotated[str, typer.Option(help="The patch of sky, as a DS9 region")] = M92_REGION,
+    profile: Annotated[Path | None, typer.Option(help="Test profile; jwst-image-check.yaml by default")] = None,
+    label: Annotated[str, typer.Option()] = "M92 outskirts (JWST demo)",
+    actor: Annotated[str, typer.Option(help="Who the plan's approval is recorded under")] = "demo",
+    register: Annotated[bool, typer.Option(help="Read the sources' descriptors again first")] = False,
+) -> None:
+    """Gaia against JWST on a real field, live: register sources, plan, approve, execute, summarise.
+
+    Defaults to a patch of the globular cluster M92's outskirts and the jwst-image-check profile,
+    which cuts 40-arcsec squares out of JWST's NIRCam mosaics, so a run reads and stores about
+    40 MB. It takes 10 to 20 minutes, mostly waiting for MAST. Running it again picks up the same
+    plan where it stopped, or shows its results if it already finished.
+    """
+    from sdp.adapters.archives.transport import TransportError
+
+    try:
+        _demo_run(_demo_profile(profile), region, label, actor, register)
+    except TransportError as exc:
+        # The archives are public services under load; a busy answer is not the run's fault.
+        raise DomainError(f"an archive did not answer ({exc}); wait a few minutes and run it again") from exc
+
+
+def _demo_run(path: Path, region: str, label: str, actor: str, register: bool) -> None:
+    from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
+    from sdp.adapters.settings import Settings
+
+    registry = PostgresCapabilityRegistry(Settings.from_env().database_url)
+    if register or registry.get("mast") is None or registry.get("gaia") is None:
+        _say("1/4 Registering what each archive can do (MAST is read from the Virtual Observatory, ~5 min)...")
+        _register(mast=True)
+    else:
+        _say("1/4 Archives already registered (pass --register to read them again).")
+
+    runtime = state.runtime()
+    kernel = runtime.kernel
+    if kernel.plan_investigation is None or kernel.approve_plan is None or kernel.execute_plan is None:
+        raise DomainError("the planner is not wired: Investigate and capability discovery are both needed")
+    _say(f"2/4 Planning {region} with {path.name}: what to fetch, from where, and how big...")
+    plan = kernel.plan_investigation.execute(
+        PlanInvestigationCommand(
+            Field(parse_region(region), epoch_jyear=2016.0, label=label),
+            load_profile(path),
+            getattr(runtime, "budget", DEFAULT_BUDGET),
+            actor=actor,
+            seed=0,
+        )
+    )
+    for item in plan.items:
+        _say(f"    {item.source_id:5} {item.operation.value:7} {item.expected_bytes / 1e6:7.1f} MB  {item.target[:90]}")
+    for gap in plan.gaps:
+        _say(f"    gap: {gap.requirement_id}: {gap.reason}")
+    if plan.gaps:
+        raise DomainError(f"plan {plan.plan_id} has gaps, so nothing was fetched; see `sdp plan show {plan.plan_id}`")
+    # The plan id hashes the plan, so a rerun of the same demo meets the same plan: approve it only
+    # once, and execute it only if an earlier attempt did not finish.
+    record = _plan_record(plan.plan_id)
+    if record.plan.approval is None:
+        _say(f"3/4 Approving plan {plan.plan_id[:19]}... ({plan.cost.total_bytes / 1e6:.0f} MB planned)")
+        _approve(plan.plan_id, actor)
+    elif not record.plan.approval.approves:
+        raise DomainError(f"plan {plan.plan_id} was refused, so it is never executed; see `sdp plan show`")
+    else:
+        _say(f"3/4 Plan {plan.plan_id[:19]}... was approved on an earlier run.")
+    if record.execution is None:
+        _say("4/4 Executing: Gaia stars, then JWST cutouts, then the image-counterpart test (10-20 min)...")
+        execution = kernel.execute_plan.execute(ExecutePlanCommand(plan.plan_id, actor))
+    else:
+        _say("4/4 This plan already ran; showing its results.")
+        execution = record.execution
+    record = _plan_record(plan.plan_id)
+    found = sorted(_query().investigations(record.set_id), key=lambda i: -i.rank.score) if record.set_id else []
+    _say(
+        f"Done. {len(execution.acquired)} acquired, {len(execution.unavailable)} unavailable, "
+        f"{len(found)} candidate(s). Open the app's home page, or run `sdp investigate list {record.set_id}`."
+    )
+    emit(
+        {
+            "plan_id": plan.plan_id,
+            "set_id": record.set_id,
+            "execution": execution.to_document(),
+            "candidates": [_investigation_summary(i) for i in found],
         }
     )
 
