@@ -122,6 +122,10 @@ class StellarClusterProtocol:
             value = p[key]
             if isinstance(value, bool) or not isinstance(value, int) or value < least:
                 raise PlanInvalid(f"{key} must be an integer of at least {least}, got {value!r}")
+        try:
+            analysis.CandidateChecks.from_parameters(p["candidate_checks"])
+        except (KeyError, TypeError, ValueError) as err:
+            raise PlanInvalid(str(err)) from err
         roles = self.benchmark_roles()
         common: dict[str, Any] = {
             "feature_space_policy": p["feature_space_policy"],

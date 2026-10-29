@@ -87,6 +87,14 @@ def test_fetch_one_catalogue_with_a_column_override(k: tuple[InMemoryKernel, Fak
     assert fake.asked == [("cga20", {"name": "Cluster"})]
 
 
+def test_a_column_override_needs_exactly_one_catalogue(k: tuple[InMemoryKernel, FakeVizier]) -> None:
+    _, fake = k
+    result = runner.invoke(cli.app, ["benchmark", "fetch", "--column", "name=Cluster"])
+    assert result.exit_code != 0
+    assert "name exactly one --catalogue" in result.output
+    assert fake.asked == []
+
+
 def test_an_unknown_catalogue_is_refused_before_any_download(k: tuple[InMemoryKernel, FakeVizier]) -> None:
     _, fake = k
     result = runner.invoke(cli.app, ["benchmark", "fetch", "--catalogue", "mwsc"])

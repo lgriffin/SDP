@@ -85,3 +85,4 @@ requirements:
     status: approved
     traces:
       - "python/tests.stellar.test_protocol::test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the_outcome"
+      - "python/tests.stellar.test_protocol::test_malformed_pass_marks_are_refused_at_planning_not_coerced"

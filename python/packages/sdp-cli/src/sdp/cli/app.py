@@ -1314,7 +1314,9 @@ def benchmark_fetch(
     ] = None,
     column: Annotated[
         list[str] | None,
-        typer.Option("--column", help="MINE=THEIRS, e.g. name=Cluster, when VizieR's labels do not pick it"),
+        typer.Option(
+            "--column", help="MINE=THEIRS, e.g. name=Cluster, when VizieR's labels do not pick it; one --catalogue only"
+        ),
     ] = None,
 ) -> None:
     """Download catalogues of known clusters from VizieR and store them as benchmark inputs.
@@ -1333,6 +1335,9 @@ def benchmark_fetch(
     unknown = [c for c in chosen if c not in CATALOGUES]
     if unknown:
         raise typer.BadParameter(f"unknown {unknown}; known: {sorted(CATALOGUES)}", param_hint="--catalogue")
+    if column and len(chosen) != 1:
+        # each catalogue names its columns after its own paper, so one override fits only one of them
+        raise typer.BadParameter("name exactly one --catalogue to apply column overrides to", param_hint="--column")
     overrides = dict(_pair(c, "--column") for c in column or [])
     source = _known_clusters()
     store = state.runtime().store

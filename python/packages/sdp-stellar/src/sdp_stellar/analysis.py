@@ -9,6 +9,7 @@ exclusion is recorded.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -39,7 +40,21 @@ class CandidateChecks:
 
     @classmethod
     def from_parameters(cls, doc: Mapping[str, Any]) -> CandidateChecks:
-        return cls(int(doc["min_members"]), float(doc["min_stability"]), float(doc["min_cmd_coherence"]))
+        """Read the pass marks as written, refusing rather than coercing: a fractional member count
+        must not be truncated into a different, unfrozen pass mark."""
+        missing = sorted({"min_members", "min_stability", "min_cmd_coherence"} - set(doc))
+        if missing:
+            raise ValueError(f"candidate_checks lacks {missing}")
+        members = doc["min_members"]
+        if isinstance(members, bool) or not isinstance(members, int) or members < 1:
+            raise ValueError(f"candidate_checks.min_members must be a whole number of at least 1, got {members!r}")
+        marks: list[float] = []
+        for key in ("min_stability", "min_cmd_coherence"):
+            value = doc[key]
+            if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or value < 0:
+                raise ValueError(f"candidate_checks.{key} must be a finite number of at least 0, got {value!r}")
+            marks.append(float(value))
+        return cls(members, marks[0], marks[1])
 
 
 def _configs(params: Mapping[str, Any]) -> list[Configuration]:
