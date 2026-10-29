@@ -100,6 +100,9 @@ class DetectionList:
     background_rms: float
     detector_id: str
     params: Mapping[str, Any] = field(default_factory=dict)
+    epoch_mjd: float | None = None
+    """Mid-exposure time from the image header, when it names one (v0.4.0 §7)."""
+    instrument: str = ""
 
 
 class SourceDetector(Protocol):

@@ -19,6 +19,7 @@ from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteTransport, PoliteTransport, Transport, UrllibTransport
 from sdp.adapters.archives.untrusted import IsolatedVotableParser
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
+from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.compute.clustering import SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
@@ -188,14 +189,21 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
     ``stellar`` policy). The ``clusterer`` a structure test uses is UC-01's CPU reference HDBSCAN
     unless ``services`` names another."""
     mast = archive_transport(settings, "mast", 1.0)
+    detector = PhotutilsDetector()
     return InvestigatePorts(
         tests=load_investigation_tests(),
         cross_match=cross_match(settings),
         observation_gateways=observation_gateways(settings, mast),
-        detector=PhotutilsDetector(),
+        detector=detector,
         refiner=TweakwcsRefiner(),
         resolver=SimbadResolver(archive_transport(settings, "simbad", 1.0)),
-        services={"clusterer": SklearnHdbscan(), **services},
+        services={
+            "clusterer": SklearnHdbscan(),
+            # the image tests' detector and both association methods (v0.4.0 §7, ADR-019)
+            "detector": detector,
+            "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
+            **services,
+        },
         product_dialects={"dasch": DaschDialect()},
         rankers=load_candidate_rankers(),
         product_envelopes=product_envelopes(mast),

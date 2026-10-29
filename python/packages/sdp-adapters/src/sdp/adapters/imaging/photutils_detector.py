@@ -11,6 +11,7 @@ import numpy as np
 import photutils
 from astropy.io import fits
 from astropy.stats import SigmaClip
+from astropy.time import Time
 from astropy.wcs import WCS
 from photutils.background import Background2D, MedianBackground
 from photutils.detection import DAOStarFinder
@@ -20,6 +21,35 @@ from sdp.kernel.domain.errors import DomainError
 from sdp.kernel.ports.investigate import Detection, DetectionList, ImageFrame
 
 DEFAULTS: Mapping[str, Any] = {"fwhm": 3.0, "nsigma": 5.0, "box_size": 64, "filter_size": 3, "hdu": None}
+
+
+#: Header keywords for the mid-exposure time, best first; DATE-OBS is the fallback.
+EPOCH_KEYWORDS = ("MJD-AVG", "MJD-MID", "MJD-BEG", "MJD-OBS")
+
+
+def header_epoch_mjd(*headers: fits.Header) -> float | None:
+    """The observation time a FITS image names, as MJD, or None."""
+    for key in EPOCH_KEYWORDS:
+        for h in headers:
+            if h.get(key) is not None:
+                return float(h[key])
+    for h in headers:
+        if h.get("DATE-OBS"):
+            stamp = str(h["DATE-OBS"])
+            if h.get("TIME-OBS") and "T" not in stamp:
+                stamp = f"{stamp}T{h['TIME-OBS']}"
+            return float(Time(stamp, format="isot", scale="utc").mjd)
+    return None
+
+
+def image_headers(frame: ImageFrame, hdu: int | None = None) -> tuple[fits.Header, fits.Header]:
+    """The primary header and the header of the image read_image reads: the HDU named, else the first 2-D one."""
+    with fits.open(io.BytesIO(frame.data), memmap=False) as hdus:
+        if hdu is not None:
+            image = hdus[hdu]
+        else:
+            image = next((h for h in hdus if h.data is not None and getattr(h.data, "ndim", 0) == 2), hdus[0])
+        return hdus[0].header.copy(), image.header.copy()
 
 
 def read_image(frame: ImageFrame, hdu: int | None = None) -> tuple[np.ndarray, WCS]:
@@ -52,6 +82,7 @@ class PhotutilsDetector:
     def detect(self, frame: ImageFrame, params: Mapping[str, Any]) -> DetectionList:
         p = {**DEFAULTS, **params}
         data, wcs = read_image(frame, p["hdu"])
+        primary, sci = image_headers(frame, p["hdu"])
         finite = np.isfinite(data)
         box = int(min(p["box_size"], *data.shape))
         background = Background2D(
@@ -89,4 +120,6 @@ class PhotutilsDetector:
             background_rms=rms,
             detector_id=self.detector_id,
             params={k: v for k, v in p.items() if v is not None},
+            epoch_mjd=header_epoch_mjd(sci, primary),
+            instrument=str(primary.get("INSTRUME") or sci.get("INSTRUME") or ""),
         )
