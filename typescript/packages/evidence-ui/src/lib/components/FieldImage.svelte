@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A calibrated image, north up, with each Gaia star drawn where its motion puts it on the image's
+  // A calibrated image, pixel y upward as FITS viewers draw it, with each Gaia star drawn where its motion puts it on the image's
   // date (INV-020). The pixels come from the image-counterpart test, in the frame it aligned to Gaia,
   // so nothing here converts coordinates: FITS pixel (x, y) is drawn at (x + 0.5, height - 0.5 - y).
   // Shape carries the status as well as colour: circle where expected, dashed circle ambiguous,
@@ -39,6 +39,8 @@
   });
   // Marker size follows the view, so markers look the same size zoomed in or out.
   const r = $derived(Math.max(box.w, box.h) / 70);
+  // About 44 CSS pixels across on a phone-width picture (~360 px), whatever the zoom.
+  const hit = $derived(Math.max(r * 1.5, (22 / 360) * Math.max(box.w, box.h)));
   const shown = $derived(
     stars.filter((s) => {
       const [x, y] = s.predicted_px;
@@ -66,6 +68,10 @@
           aria-label={s.investigation_id ? words : undefined}
         >
           <title>{words}</title>
+          {#if s.investigation_id}
+            <!-- An invisible ring around the marker, so a finger finds it as easily as a pointer. -->
+            <circle cx={x} cy={y} r={hit} class="hit" />
+          {/if}
           {#if s.counterpart_px && (status !== "matched" || s.object_key === focus)}
             {@const cx = sx(s.counterpart_px[0])}
             {@const cy = sy(s.counterpart_px[1])}
@@ -102,6 +108,7 @@
   .cross { stroke: #9ecbff; stroke-width: 1.6; }
   .focus .mark { stroke-width: 3; }
   a.star { cursor: pointer; }
+  .hit { fill: transparent; stroke: none; }
   a.star:focus-visible .mark, a.star:hover .mark { stroke: #ffffff; stroke-width: 3; }
   a.star:focus { outline: none; }
 </style>

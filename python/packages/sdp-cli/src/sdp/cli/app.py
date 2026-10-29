@@ -22,6 +22,7 @@ from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
+from sdp.kernel.application.set_bundle import SetDossierUseCase
 from sdp.kernel.domain.errors import DomainError
 from sdp.kernel.domain.investigation import (
     STAGES,
@@ -538,6 +539,41 @@ def investigate_dossier(investigation_id: str) -> None:
     if dossier is None:
         raise DomainError(f"no dossier for {investigation_id}")
     emit(dossier)
+
+
+def _set_dossier() -> SetDossierUseCase:
+    use_case = state.runtime().kernel.set_dossier
+    if use_case is None:
+        raise DomainError("Investigate is not wired: no observation archive or cross-match adapters are configured")
+    return use_case
+
+
+@investigate_app.command("bundle")
+def investigate_bundle(
+    set_id: str,
+    out: Annotated[Path | None, typer.Option(help="Where to write the dossier; default <set_id>.zip")] = None,
+) -> None:
+    """Save the set's evidence dossier: one RO-Crate with its stages, plan, candidates, images and data (INV-021)."""
+    try:
+        bundle = _set_dossier().build(set_id)
+    except KeyError:
+        raise DomainError(f"no investigation set {set_id}") from None
+    path = out or Path(f"{set_id}.zip")
+    path.write_bytes(bundle)
+    emit({"set_id": set_id, "path": str(path), "bytes": len(bundle)})
+
+
+@investigate_app.command("reproduce")
+def investigate_reproduce(
+    bundle: Annotated[Path, typer.Argument(help="An evidence dossier from `sdp investigate bundle`")],
+) -> None:
+    """Re-run the Test stage from a dossier alone and compare with what it records (INV-022); exits 1 on a difference."""
+    result = _set_dossier().reproduce(bundle.read_bytes())
+    for difference in result.differences:
+        typer.echo(f"FAIL {difference}", err=True)
+    emit(result.to_document())
+    if not result.ok:
+        raise typer.Exit(1)
 
 
 def _triage(command: TriageCommand) -> None:

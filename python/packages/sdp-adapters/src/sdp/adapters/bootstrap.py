@@ -43,6 +43,7 @@ from sdp.adapters.logs import configure_logging
 from sdp.adapters.postgres import PostgresDatabase
 from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.products import EnvelopeValidator, JwstDialect
+from sdp.adapters.products.preview import preview_png
 from sdp.adapters.publication.zenodo import ZenodoPublisher, creators_from
 from sdp.adapters.settings import Settings
 from sdp.adapters.storage.nas import NasArtifactStore
@@ -258,6 +259,7 @@ def investigate_ports(settings: Settings, services: Mapping[str, Any]) -> Invest
         product_dialects={"dasch": DaschDialect(), **{k: LocalFrameDialect(g) for k, g in local.items()}},
         rankers=load_candidate_rankers(),
         product_envelopes=product_envelopes(mast),
+        picture=preview_png,
     )
 
 

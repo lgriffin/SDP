@@ -8,6 +8,7 @@ import {
   type JobRun,
   type Investigation,
   type PlanState,
+  type ReproductionRun,
   type TriageAction,
   type Workbench,
 } from "../ports.ts";
@@ -149,5 +150,17 @@ export class InMemoryWorkbench implements Workbench {
     const now = this.now();
     this.source.data.archives = { sources: REGISTERED_ARCHIVES.sources, registration: { state: "finished", started_at: now, finished_at: now, error: null } };
     return this.source.data.archives;
+  }
+
+  /** A demonstration check reads as running, then reproduced: its results are recorded, not recomputed. */
+  async reproduceSet(setId: string): Promise<ReproductionRun> {
+    this.commands.push({ command: "reproduce", args: [setId] });
+    const set = this.source.data.investigationSet[setId];
+    if (!set) throw new CommandRefused(`no investigation set ${setId}`, 404);
+    const current = this.source.data.reproductions[setId];
+    if (current?.state === "running") return current;
+    const run: ReproductionRun = { state: "running", started_at: this.now(), finished_at: null, error: null };
+    this.source.data.reproductions[setId] = run;
+    return run;
   }
 }

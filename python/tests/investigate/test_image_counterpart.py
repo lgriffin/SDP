@@ -115,6 +115,10 @@ def test_a_star_found_on_one_image_but_missing_from_another_is_flagged() -> None
     assert {key for key, r in results.items() if r["p_value"] < 0.01} == {VANISHED, FAST}
     fast = results[FAST]["details"]
     assert fast["images"] == 2 and fast["image"] == second and not fast["counterpart_found"]
+    # Each image keeps its own hypotheses (INV-020): the first image's counterpart is not lost to the worst.
+    on = {p["image"]: p for p in fast["per_image"]}
+    assert on[second]["counterparts"] == fast["counterparts"]
+    assert on[PRODUCT_ID]["counterparts"] and on[PRODUCT_ID]["counterparts"] != fast["counterparts"]
 
 
 def test_a_detection_more_probably_unrelated_is_not_a_counterpart() -> None:

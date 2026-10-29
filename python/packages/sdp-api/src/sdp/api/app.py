@@ -26,10 +26,11 @@ from starlette.routing import Mount, Route
 from strawberry.asgi import GraphQL
 
 from sdp.adapters.products.preview import preview_png
-from sdp.api.jobs import REGISTER_JOB, RUNNING, Jobs, plan_job
+from sdp.api.jobs import REGISTER_JOB, RUNNING, Jobs, plan_job, reproduce_job
 from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, plan_view
+from sdp.kernel.application.set_bundle import DOSSIER_MEDIA_TYPE
 from sdp.kernel.domain.errors import DomainError
 from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.integration import AcquisitionBudget
@@ -41,6 +42,7 @@ from sdp.kernel.ports.storage import ArtifactStore
 
 BUSY = "another field run is going on this server; it reads archives for minutes, so start this when it finishes"
 #: Artifacts are content-addressed, so an answer for one never changes.
+PICTURES_KEPT = 32
 IMMUTABLE = {"cache-control": "private, max-age=31536000, immutable"}
 UNSIGNED_TRIAGE = frozenset({"park", "reopen", "close", "annotate"})
 """Triage the UI may send. Promotion is left to the CLI (INV-009)."""
@@ -349,6 +351,8 @@ def create_app(
             runs.release()
         return JSONResponse(job_view(plan_id), status_code=202 if started else 200)
 
+    pictures: dict[str, bytes] = {}
+
     def artifact_of(request: Request) -> ArtifactId | Response:
         try:
             artifact = ArtifactId(request.path_params["artifact_id"])
@@ -366,15 +370,53 @@ def create_app(
         return Response(runtime.store.get(found), media_type=runtime.store.media_type(found), headers=IMMUTABLE)
 
     def preview(request: Request) -> Response:
-        """A FITS image drawn north up for the eye; the overlay comes from the set's ``images`` (INV-020)."""
+        """A FITS image drawn for the eye, pixel y upward; the overlay comes from the set's ``images`` (INV-020)."""
         found = artifact_of(request)
         if isinstance(found, Response):
             return found
-        try:
-            picture = preview_png(runtime.store.get(found))
-        except ValueError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=415)
+        picture = pictures.get(found.value)
+        if picture is None:
+            try:
+                picture = preview_png(runtime.store.get(found))
+            except ValueError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=415)
+            # An artifact never changes, so its picture is drawn once; the oldest is forgotten first.
+            pictures[found.value] = picture
+            while len(pictures) > PICTURES_KEPT:
+                pictures.pop(next(iter(pictures)))
         return Response(picture, media_type="image/png", headers=IMMUTABLE)
+
+    def set_dossier(request: Request) -> Response:
+        """The set's evidence dossier as one RO-Crate, for the app's Save button (INV-021)."""
+        use_case = runtime.kernel.set_dossier
+        if use_case is None:
+            return JSONResponse({"error": "Investigate is not wired on this server"}, status_code=503)
+        set_id = request.path_params["set_id"]
+        try:
+            bundle = use_case.build(set_id)
+        except KeyError:
+            return JSONResponse({"error": f"no investigation set {set_id}"}, status_code=404)
+        disposition = {"content-disposition": f'attachment; filename="{set_id}-dossier.zip"'}
+        return Response(bundle, media_type=DOSSIER_MEDIA_TYPE, headers=disposition)
+
+    def reproduce_set(request: Request) -> Response:
+        """Build the set's dossier and re-run its Test stage from it alone (INV-022). With images that
+        takes minutes, so it runs as a job and the UI reads the report with GET."""
+        use_case, query = runtime.kernel.set_dossier, runtime.kernel.query_investigations
+        if use_case is None or query is None:
+            return JSONResponse({"error": "Investigate is not wired on this server"}, status_code=503)
+        set_id = request.path_params["set_id"]
+        if query.set(set_id) is None:
+            return JSONResponse({"error": f"no investigation set {set_id}"}, status_code=404)
+        if request.method == "GET":
+            job = work.get(reproduce_job(set_id))
+            return JSONResponse({"reproduction": job.to_document() if job else None})
+
+        def reproduce() -> dict[str, Any]:
+            return use_case.reproduce(use_case.build(set_id)).to_document()
+
+        job, started = work.start(reproduce_job(set_id), reproduce)
+        return JSONResponse({"reproduction": job.to_document()}, status_code=202 if started else 200)
 
     def archive_sources(_: Request) -> Response:
         if archives is None:
@@ -404,6 +446,8 @@ def create_app(
             Route("/archives/register", register_archives, methods=["POST"]),
             Route("/investigations", investigate, methods=["POST"]),
             Route("/investigations/{investigation_id}/triage", triage, methods=["POST"]),
+            Route("/investigations/{set_id}/dossier.zip", set_dossier),
+            Route("/investigations/{set_id}/reproduce", reproduce_set, methods=["GET", "POST"]),
             Route("/experiments/{experiment_id}/run", command(run), methods=["POST"]),
             Route("/experiments/{experiment_id}/validate", command(validate), methods=["POST"]),
             Mount("/graphql", _GraphQL(runtime, work, archives)),

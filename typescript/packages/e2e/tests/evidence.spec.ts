@@ -142,6 +142,22 @@ test.describe("investigations", () => {
     await expect(page.getByTestId("evidence-used")).toContainText("gaia:DR3");
   });
 
+  test("[INV-022] a field's evidence can be checked to reproduce from its saved dossier", async ({ page }) => {
+    await page.goto("/investigations/invset-000101");
+    const keep = page.getByTestId("dossier");
+    await expect(keep.getByRole("heading", { name: "Save the evidence" })).toBeVisible();
+    await expect(keep.getByTestId("save-dossier")).toHaveCount(0);
+    await expect(keep).toContainText("has no dossier to save");
+    await expect(keep).toContainText("sdp investigate reproduce invset-000101.zip");
+    await keep.getByRole("button", { name: "Check it reproduces" }).click();
+    await expect(keep.getByTestId("reproducing")).toContainText("Re-running the tests from the saved file");
+    await expect(keep.getByRole("button", { name: "Checking…" })).toBeDisabled();
+    // The page reads the check again every few seconds until it has finished.
+    await expect(keep.getByTestId("reproduced")).toContainText("the tests gave the same 12 results (seed 1)", { timeout: 15_000 });
+    await expect(keep.getByRole("button", { name: "Check again" })).toBeEnabled();
+    expect((await page.request.get("/investigations/invset-000101/dossier.zip")).status()).toBe(404);
+  });
+
   test("[INV-020] a JWST field shows its image with Gaia stars, and zooms in on an ambiguous match", async ({ page }) => {
     await page.goto("/investigations/invset-000101");
     const card = page.getByTestId("set-images").getByRole("link");

@@ -162,8 +162,24 @@ requirements:
     traces: []
   - id: INV-020
     pattern: event
-    text: "When a field investigation has read images, the API shall list each image with its envelope's validation checks and every Gaia star the image-counterpart test placed on it, with the star's predicted and matched pixels, its chance probability and whether the match was ambiguous, and serve the image north up as a picture."
+    text: "When a field investigation has read images, the API shall list each image with its envelope's validation checks and every Gaia star the image-counterpart test placed on it, with the star's predicted and matched pixels, its chance probability and whether the match was ambiguous, and serve the image as a picture with its pixel rows upright (y increasing upward)."
     rationale: "The scientist checks a JWST field by eye: Gaia's stars drawn where their motion puts them on the calibrated image, flagged and ambiguous ones first, beside the checks the FITS file passed (INT-019). The test records the pixels in the aligned frame, so the viewer needs no WCS and draws nothing the test did not compute; the picture is an asinh stretch and is never read by a test."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-021
+    pattern: event
+    text: "When a scientist saves a field investigation's evidence dossier, the system shall write one RO-Crate holding the set manifest, each stage's output as stored, the acquisition plan with its approval, every candidate with its triage history and dossier, each image drawn with its Gaia stars marked, and every artifact the stages name under the SHA-256 of its bytes."
+    rationale: "The journey ends with evidence a colleague can check without SDP's database or any archive (docs/investigate.md: the dossier exports as an RO-Crate). Stage outputs keep their stored bytes so each hashes to the id the manifest records; the images carry the same overlay the app draws (INV-020). The label stays EXPLORATORY. `sdp investigate bundle`, the API and the app's Save button all build it the same way."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces: []
+  - id: INV-022
+    pattern: event
+    text: "When a scientist reproduces a field investigation from its evidence dossier, the system shall verify every file's checksum, re-run the Test stage over the dossier's products with the recorded profile and seed, and report every result that differs from the recorded one beyond the tests' numerical tolerance."
+    rationale: "A saved dossier is reproducible only if the Test stage can be run again from it alone. The rerun reads no database and no archive, so it runs on any installation with the same tests registered; a broken file, a profile that no longer hashes to its recorded hash, or a missing product refuses the reproduction instead of comparing against something else. Re-running the image tests on a real JWST field takes minutes (5.5 for the M92 field), so the API runs the check as a job (INV-018) and the app reads its report when it has finished."
     verification: test
     tiers: [T4]
     status: approved
