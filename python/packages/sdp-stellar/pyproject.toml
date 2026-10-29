@@ -3,7 +3,7 @@ name = "sdp-stellar"
 version = "0.1.0"
 description = "UC-01: open-cluster recovery and candidate search in Gaia DR3 (architecture spec §10)"
 requires-python = ">=3.12"
-license = { text = "See repository LICENSE" }
+license = { text = "GPL-3.0-only" }
 dependencies = ["sdp-kernel", "numpy>=1.26", "scipy>=1.13", "astropy>=6.1", "pyarrow>=16"]
 
 [project.entry-points."sdp.protocols"]

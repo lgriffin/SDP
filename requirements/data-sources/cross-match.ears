@@ -4,8 +4,8 @@ owner: data-sources
 requirements:
   - id: DSI-009
     pattern: ubiquitous
-    text: "A cross-match adapter shall agree with AstropyCrossMatch on the fixture within tolerance before any gate uses it."
-    rationale: "A remote cross-match must agree with the CPU reference before it is trusted."
+    text: "The kernel shall admit a cross-match adapter to a gate only after it agrees with AstropyCrossMatch on the fixture within tolerance."
+    rationale: "A remote cross-match must agree with the CPU reference before it is trusted. For CDS X-Match the contract fixture is answered by the live service (Archive live smoke, tools/record_live_data.py) and replayed in CI; this stays draft until those answers are recorded."
     verification: test
     tiers: [T3]
     status: draft

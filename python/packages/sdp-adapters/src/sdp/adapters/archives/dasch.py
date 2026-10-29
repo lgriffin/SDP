@@ -61,6 +61,9 @@ LIGHTCURVE_COLUMNS = frozenset(
 RMS_FLAG = 99.0
 MJD_OFFSET = 2400000.5
 J2000_JD = 2451545.0
+#: The epochs DASCH's reference catalogues' positions can be at: APASS was observed from about 2009 to
+#: 2015, and ATLAS-RefCat2 is at 2015.5. A moving target is looked for along its path over this span.
+REFCAT_EPOCHS = (2000.0, 2016.0)
 
 
 def csv_lines(body: bytes, what: str) -> list[dict[str, str]]:
@@ -78,6 +81,36 @@ def _separation_arcsec(ra1: float, dec1: float, ra2: float, dec2: float) -> floa
     r1, d1, r2, d2 = map(math.radians, (ra1, dec1, ra2, dec2))
     c = math.sin(d1) * math.sin(d2) + math.cos(d1) * math.cos(d2) * math.cos(r1 - r2)
     return math.degrees(math.acos(max(-1.0, min(1.0, c)))) * 3600.0
+
+
+def _path(target: ObservationTarget) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Where a moving target was at each end of REFCAT_EPOCHS, as offsets in arcsec (east, north)
+    from its position; a still target's path is the point itself."""
+    if not target.moving:
+        return (0.0, 0.0), (0.0, 0.0)
+    assert target.pm_ra_cosdec_masyr is not None and target.pm_dec_masyr is not None
+    assert target.epoch_jyear is not None
+    ends = tuple(
+        (
+            target.pm_ra_cosdec_masyr * (t - target.epoch_jyear) / 1000.0,
+            target.pm_dec_masyr * (t - target.epoch_jyear) / 1000.0,
+        )
+        for t in REFCAT_EPOCHS
+    )
+    return ends[0], ends[1]
+
+
+def _distance_to_path(target: ObservationTarget, ra: float, dec: float) -> float:
+    """How far a catalogue star is, in arcsec, from the nearest point of the target's path."""
+    if not target.moving:
+        return _separation_arcsec(target.ra_deg, target.dec_deg, ra, dec)
+    east = ((ra - target.ra_deg + 180.0) % 360.0 - 180.0) * math.cos(math.radians(target.dec_deg)) * 3600.0
+    north = (dec - target.dec_deg) * 3600.0
+    (x0, y0), (x1, y1) = _path(target)
+    dx, dy = x1 - x0, y1 - y0
+    length2 = dx * dx + dy * dy
+    s = 0.0 if length2 == 0.0 else max(0.0, min(1.0, ((east - x0) * dx + (north - y0) * dy) / length2))
+    return math.hypot(east - (x0 + s * dx), north - (y0 + s * dy))
 
 
 def _float(row: Mapping[str, str], key: str) -> float:
@@ -143,8 +176,10 @@ class DaschGateway:
 
     def search(self, target: ObservationTarget, criteria: ObservationCriteria) -> ObservationIndex:
         """The nearest reference-catalogue star within the radius, offered as a light curve and as a
-        position history (both read from its DR7 light curve)."""
-        request = self.querycat_request(target.ra_deg, target.dec_deg, criteria.radius_arcsec)
+        position history (both read from its DR7 light curve). A moving target is matched against its
+        path over the reference catalogue's possible epochs, so a fast star is still found."""
+        reach = max(math.hypot(*end) for end in _path(target))
+        request = self.querycat_request(target.ra_deg, target.dec_deg, criteria.radius_arcsec + reach)
         wanted = [t for t in PRODUCT_TYPES if not criteria.product_types or t in criteria.product_types]
         records: list[ObservationRecord] = []
         if wanted and (not criteria.missions or MISSION in criteria.missions):
@@ -156,7 +191,7 @@ class DaschGateway:
                 ra, dec = _float(row, "ra_deg"), _float(row, "dec_deg")
                 if not (math.isfinite(ra) and math.isfinite(dec)):
                     continue
-                sep = _separation_arcsec(target.ra_deg, target.dec_deg, ra, dec)
+                sep = _distance_to_path(target, ra, dec)
                 if sep <= criteria.radius_arcsec:
                     stars.append((sep, _int(row, "gsc_bin_index"), _int(row, "ref_number")))
             if stars:

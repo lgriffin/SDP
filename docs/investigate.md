@@ -162,7 +162,7 @@ SDP builds the kernel, the dialects, the test registry, the investigation aggreg
 
 **Not built by SDP:** viewers, archive clients, FITS or ASDF parsers, WCS, detection and photometry, PSF models, calibration pipelines. **Built by SDP:** the evidence kernel, predeclaration and verdict ledger, source dialects, the test registry, the investigation aggregate, and the dossier and provenance UI.
 
-All packages above are BSD-3 or equivalent, compatible with SDP's Apache-2.0 licence; the licence of each binding is recorded in its adapter's metadata and in the release SBOM.
+All packages above are BSD-3 or equivalent, compatible with SDP's GPL-3.0 licence; the licence of each binding is recorded in its adapter's metadata and in the release SBOM.
 
 ## 8. Binding rules
 

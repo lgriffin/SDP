@@ -15,13 +15,18 @@ import pytest
 import yaml
 
 from sdp.adapters.archives.dialect import load_dialects
-from sdp.adapters.archives.tap import load_sources
+from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.bootstrap import clusterers
 from sdp.adapters.compute.clustering import SklearnHdbscan
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
-from sdp.kernel.application.investigate import SIGNIFICANCE_POLICY, load_candidate_rankers
+from sdp.kernel.application.investigate import (
+    SIGNIFICANCE_POLICY,
+    catalogue_query,
+    identify_query,
+    load_candidate_rankers,
+)
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, Stage, StageState, TestProfile
 from sdp.kernel.ports.investigate import InvestigateFieldCommand
@@ -53,7 +58,9 @@ def load(path: Path) -> TestProfile:
 
 
 def test_there_are_default_profiles() -> None:
-    assert {p.stem for p in PROFILES} >= {"first-look", "comoving-group-search", "star-history"}
+    assert {p.stem for p in PROFILES} >= {"first-look", "moving-group-search", "star-history"}
+    # The Start page lists profiles by file name and preselects the first: the quick one to learn on.
+    assert PROFILES[0].stem == "first-look"
 
 
 @pytest.mark.req("INV-001")
@@ -93,6 +100,27 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
             assert all(set(p) <= {"min_cluster_size", "min_samples"} for p in params), "HDBSCAN's parameters"
 
     assert profile.ranking.policy_id in {SIGNIFICANCE_POLICY, *load_candidate_rankers()}
+
+
+@pytest.mark.req("INV-001")
+@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+def test_the_production_archives_accept_a_default_profiles_queries(path: Path) -> None:
+    profile = load(path)
+    adapter = TapArchiveAdapter(sources=load_sources(), transport=None)  # type: ignore[arg-type]
+    queries = [identify_query(synthetic_field(), profile)]
+    queries += [catalogue_query(synthetic_field(), a) for a in profile.archives if a.role is ArchiveRole.CATALOGUE]
+    for q in queries:
+        adapter._check(q, adapter.sources[q.source_id])
+
+
+@pytest.mark.req("INV-001")
+@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+def test_a_default_profiles_group_test_can_reach_its_alpha(path: Path) -> None:
+    """A permutation p-value is at least 1/(trials + 1): too few trials and no group is ever significant."""
+    profile = load(path)
+    for selection in profile.tests:
+        if selection.name == "astrometric-coherence":
+            assert 1 / (int(selection.thresholds["inner_trials"]) + 1) < profile.ranking.alpha
 
 
 def on_synthetic_world(profile: TestProfile) -> TestProfile:

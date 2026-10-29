@@ -32,8 +32,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: .ears compile (spec-harness ears)
+      - name: .ears compile and strict EARS form (spec-harness ears, TST-008)
         run: pnpm harness ears --out reports/requirements
+      - name: Gherkin Rules bound to requirements (spec-harness bdd, TST-010)
+        run: pnpm harness bdd
       - name: ESLint and dependency-cruiser (T0, TST-005)
         run: pnpm lint
 
@@ -69,6 +71,19 @@ jobs:
         with:
           name: junit-python
           path: reports/junit-python.xml
+
+  mutation-fixture:
+    name: fast · mutation pipeline can go red (TST-009)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --python 3.12 --frozen
+      - name: Known-weak fixture leaves a survivor and loses a mutant
+        run: uv run python tools/mutation.py --fixture
 
   python-integration:
     name: integration · real adapters on PostgreSQL (T5, TST-003)
@@ -297,7 +312,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [static-contracts, python-static, python-fast, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace, viewer, desktop-windows]
+    needs: [static-contracts, python-static, python-fast, mutation-fixture, python-integration, contracts-codegen, ts-fast, e2e, cross-language, guard, trace, viewer, desktop-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Every stage passed

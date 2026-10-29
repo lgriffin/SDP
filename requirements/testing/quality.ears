@@ -4,7 +4,7 @@ owner: harness
 requirements:
   - id: TST-001
     pattern: ubiquitous
-    text: "Every approved requirement with verification test shall have at least one passing test marker, and CI shall fail otherwise."
+    text: "The harness shall fail CI when an approved requirement with verification test has no passing test marker."
     rationale: "Requirements become a checkable artifact (ADR-005)."
     verification: test
     tiers: [harness]
@@ -15,7 +15,7 @@ requirements:
       - "typescript/packages/spec-harness/test/coverage-gate.test.ts::[TST-001] fails an approved test requirement with no passing marker"
   - id: TST-002
     pattern: unwanted
-    text: "If a change adds a use case, port, adapter or gate without an .ears change, then CI shall fail."
+    text: "If a change adds a use case, port, adapter or gate without an .ears change, then the harness shall fail CI."
     rationale: "Behaviour without a requirement is unreviewable."
     verification: test
     tiers: [harness]
@@ -26,7 +26,7 @@ requirements:
       - "typescript/packages/spec-harness/test/guard.test.ts::[TST-002] passes the same change when an .ears file changes too"
   - id: TST-003
     pattern: ubiquitous
-    text: "Each driven port shall have one contract suite run against its fake and each available real adapter."
+    text: "The test suite shall run one contract suite per driven port against its fake and each available real adapter."
     rationale: "Fakes must never pass what real adapters fail (ADR-006)."
     verification: test
     tiers: [T3, T5]
@@ -42,7 +42,7 @@ requirements:
       - "python/tests.integration.test_real_adapters.TestPostgresUnitOfWork::test_state_and_events_commit_together"
   - id: TST-004
     pattern: ubiquitous
-    text: "A package's mutation score shall not drop below its high-water mark minus 2 points."
+    text: "The harness shall fail the mutation ratchet when a package's score drops more than 2 points below its high-water mark."
     rationale: "Test strength may not silently erode."
     verification: test
     tiers: [T10]
@@ -53,7 +53,7 @@ requirements:
       - "typescript/packages/spec-harness/test/ratchet.test.ts::[TST-004] fails when a tracked package has no score"
   - id: TST-005
     pattern: ubiquitous
-    text: "Mocks shall not be used under domain, application or science modules."
+    text: "The architecture tests shall reject mocks under domain, application or science modules."
     rationale: "Mock-heavy tests pass while adapters fail (ADR-006)."
     verification: analysis
     tiers: [lint]
@@ -73,7 +73,7 @@ requirements:
       - "typescript/packages/spec-harness/test/report.test.ts::[TST-006] never grants Level 4 without cited independent evidence"
   - id: TST-007
     pattern: unwanted
-    text: "If the harness's re-derived verdict differs from the kernel's, then publication shall be blocked."
+    text: "If the harness's re-derived verdict differs from the kernel's, then the harness shall block publication."
     rationale: "The verdict is computed twice, independently."
     verification: test
     tiers: [T7, harness]
@@ -82,3 +82,24 @@ requirements:
       - "typescript/packages/spec-harness/test/rederive-verdict.test.ts::[TST-007] agrees with the kernel on its candidate manifest"
       - "typescript/packages/spec-harness/test/rederive-verdict.test.ts::[TST-007] agrees with the kernel on its rejected manifest"
       - "typescript/packages/spec-harness/test/rederive-verdict.test.ts::[TST-007] agrees with the kernel on its verified manifest"
+  - id: TST-008
+    pattern: ubiquitous
+    text: "The harness shall reject a requirement whose text does not state exactly one obligation of a named system in an EARS pattern without vague wording."
+    rationale: "A requirement with two obligations, no subject or a word like 'appropriate' cannot be verified by one test (INCOSE GtWR; ESI.ts spec:audit)."
+    verification: test
+    tiers: [harness]
+    status: approved
+  - id: TST-009
+    pattern: ubiquitous
+    text: "The mutation tool shall fail unless its known-weak fixture shows at least one killed and one surviving mutant."
+    rationale: "A mutation run that cannot go red, or cannot show a weak test, manufactures confidence (ESI.ts known-weak fixture)."
+    verification: test
+    tiers: [harness]
+    status: approved
+  - id: TST-010
+    pattern: ubiquitous
+    text: "The harness shall reject a Gherkin Rule that is not titled with the id and exact text of a live requirement or that has no scenario."
+    rationale: "A Rule is the executable form of a requirement; it may neither drift from the .ears text nor stand without a scenario."
+    verification: test
+    tiers: [harness]
+    status: approved

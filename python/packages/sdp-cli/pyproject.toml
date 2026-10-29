@@ -3,8 +3,13 @@ name = "sdp-cli"
 version = "0.1.0"
 description = "The sdp command line: the composition root for signed, command-side workflows (ADR-016)"
 requires-python = ">=3.12"
-license = { text = "See repository LICENSE" }
+license = { text = "GPL-3.0-only" }
 dependencies = ["sdp-kernel", "sdp-adapters", "typer>=0.12", "pyyaml>=6.0"]
+
+[project.optional-dependencies]
+# The science modules: protocols, Investigate field tests and candidate rankers, found by entry point.
+# Without them the kernel runs, and a plan naming one of their plugins is refused before anything runs.
+science = ["sdp-investigate", "sdp-relativity", "sdp-stellar"]
 
 [project.scripts]
 sdp = "sdp.cli.app:main"

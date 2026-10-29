@@ -1,6 +1,7 @@
 {
   "name": "@sdp/contracts",
   "version": "1.0.0",
+  "license": "GPL-3.0-only",
   "private": true,
   "type": "module",
   "description": "Zod schemas generated from contracts/schemas, GraphQL types from contracts/graphql, plus canonical JSON (RFC 8785)",

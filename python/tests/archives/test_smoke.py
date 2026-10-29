@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from sdp.adapters.archives.smoke import run_smoke
 from sdp.adapters.archives.tap import TapSource
-from sdp.adapters.archives.transport import HttpRequest, HttpResponse
+from sdp.adapters.archives.transport import HttpRequest, HttpResponse, TransportError
 from sdp.adapters.archives.votable import to_votable
 from sdp.cli.app import app
 
@@ -53,6 +53,23 @@ def test_the_smoke_records_then_fails_on_drift_naming_the_column(tmp_path: Path)
         "gaia: column ruwe retyped from float to double",
     )
     assert list((tmp_path / "week2" / "gaia").glob("*.json"))
+
+
+@dataclass
+class Unreachable:
+    def send(self, request: HttpRequest) -> HttpResponse:
+        raise TransportError(f"POST {request.url}: Connection reset by peer")
+
+
+@pytest.mark.req("DSI-008")
+def test_an_unreachable_archive_is_reported_and_the_rest_still_record(tmp_path: Path) -> None:
+    # sources are asked in sorted order, so the first one asked is the unreachable 2mass
+    transports: list[Unreachable | FakeLiveTap] = [Unreachable(), FakeLiveTap(DECLARED)]
+    results = run_smoke({"2mass": GAIA, "gaia": GAIA}, lambda s: transports.pop(0), tmp_path / "none", tmp_path / "rec")
+    assert results[0].source_id == "2mass" and results[0].rows is None
+    assert "Connection reset by peer" in results[0].problems[0]
+    assert results[1].problems == () and results[1].rows == 3
+    assert list((tmp_path / "rec" / "gaia").glob("*.json"))
 
 
 def test_the_cli_lists_the_packaged_sources() -> None:

@@ -137,6 +137,10 @@ def identify_query(field_: Field, profile: TestProfile) -> CatalogueQuery:
     )
 
 
+CATALOGUE_ROWS = 50_000
+"""The most rows Retrieve reads from a catalogue archive, in a single call."""
+
+
 def catalogue_query(field_: Field, selection: ArchiveSelection) -> CatalogueQuery:
     """The cone a catalogue archive is read over: the field plus its match radius."""
     return CatalogueQuery(
@@ -144,7 +148,21 @@ def catalogue_query(field_: Field, selection: ArchiveSelection) -> CatalogueQuer
         release_label=selection.release_label,
         region=field_.query_region(selection.match_radius_arcsec / 3600.0),
         columns=selection.columns,
+        # One page: within every declared source's per-call limit, and readable by a source that cannot page.
+        row_cap=CATALOGUE_ROWS,
+        chunk_rows=CATALOGUE_ROWS,
     )
+
+
+def observation_target(key: str, ra_deg: float, dec_deg: float, rows: Sequence[Mapping[str, Any]]) -> ObservationTarget:
+    """An object as an observation search sees it, with the motion and epoch of its Gaia row if any."""
+    row = rows[0] if rows else {}
+    motion = [row.get(c) for c in ("pm_ra_cosdec_masyr", "pm_dec_masyr", "epoch_jyear")]
+    numbers = [float(v) for v in motion if isinstance(v, int | float) and math.isfinite(v)]
+    if len(numbers) < len(motion):
+        return ObservationTarget(key, ra_deg, dec_deg)
+    pm_ra, pm_dec, epoch = numbers
+    return ObservationTarget(key, ra_deg, dec_deg, pm_ra, pm_dec, epoch)
 
 
 def query_operation(query: CatalogueQuery) -> Operation:
@@ -910,7 +928,13 @@ class InvestigateFieldUseCase:
                     min_calibration_level=selection.min_calibration_level,
                 )
                 targets = [
-                    (ObservationTarget(o.object_key, o.ra_deg, o.dec_deg), [o.object_key]) for o in objects.objects
+                    (
+                        observation_target(
+                            o.object_key, o.ra_deg, o.dec_deg, rows[o.object_key].get(identify.source_id, ())
+                        ),
+                        [o.object_key],
+                    )
+                    for o in objects.objects
                 ]
             for target, owners in targets:
                 index = gateway.search(target, criteria)
@@ -1136,7 +1160,10 @@ class InvestigateFieldUseCase:
             raise PlanInvalid(f"{SIGNIFICANCE_POLICY!r} is the kernel's own ranking policy; a ranker cannot replace it")
         rankers: dict[str, CandidateRanker] = {SIGNIFICANCE_POLICY: SignificanceRanker(), **self.ports.rankers}
         if policy.policy_id not in rankers:
-            raise PlanInvalid(f"no ranker for ranking policy {policy.policy_id!r}; registered: {sorted(rankers)}")
+            raise PlanInvalid(
+                f"no ranker for ranking policy {policy.policy_id!r}; registered: {sorted(rankers)} "
+                "(science-module rankers come with the science extra, e.g. sdp-cli[science])"
+            )
         return rankers[policy.policy_id]
 
     def _candidates(

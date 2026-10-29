@@ -45,7 +45,7 @@ ranking:
   policy_id: significance              # score = share of a star's tests that came out significant
   version: 1.0.0
   alpha: 0.01                          # "significant" means p < 0.01
-  threshold: 0.5                       # open an investigation when at least half its tests are significant
+  threshold: 1.0                       # open an investigation only when both tests are significant
 
 null_fields:
   trials: 10                           # shuffled copies of the field, to see how often chance alone flags a star

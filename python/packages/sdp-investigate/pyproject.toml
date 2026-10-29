@@ -3,7 +3,7 @@ name = "sdp-investigate"
 version = "0.1.0"
 description = "Investigate (UC-03): the registered field tests, each a TaskKind with a CPU reference and a null model (Investigate §5)"
 requires-python = ">=3.12"
-license = { text = "See repository LICENSE" }
+license = { text = "GPL-3.0-only" }
 dependencies = ["sdp-kernel", "sdp-stellar", "numpy>=2.0", "scipy>=1.13", "astropy>=6.1"]
 
 [project.entry-points."sdp.investigation_tests"]

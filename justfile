@@ -13,6 +13,18 @@ contracts:
 ears:
     pnpm --silent harness ears --out reports/requirements
 
+# Gherkin Rules bound to their requirements (TST-010); the scenarios themselves run in `just pytest`
+bdd:
+    pnpm --silent harness bdd
+
+# Mutation scores for Python targets (T10); `just mutation sdp-kernel-science --keep /tmp/mut` keeps the run for `mutmut results`
+mutation *args:
+    cd python && uv run python tools/mutation.py --out ../reports/mutation/python.json {{args}}
+
+# The known-weak mutation fixture: the pipeline must be able to go red (TST-009)
+mutation-fixture:
+    cd python && uv run python tools/mutation.py --fixture
+
 # Requirement coverage gate over the JUnit reports in reports/ (TST-001)
 trace *args:
     pnpm --silent harness trace --junit reports {{args}}
@@ -78,7 +90,7 @@ viewer:
     cd viewer/sdp-imviz && uv sync && uv run ruff check . && uv run pytest -q --junitxml=../../reports/junit-viewer.xml
 
 # Stages 1-2 of §11.7
-test: contracts ears codegen-check lint pytest integration ts e2e cross-language viewer trace
+test: contracts ears bdd codegen-check lint pytest integration ts e2e cross-language viewer trace
 
 # Clean-room reproduction of a released experiment in a fresh container (T9, NFR-004)
 reproduce bundle inputs out="reports/reproduction":
@@ -97,4 +109,4 @@ stack *args:
     podman compose -f infrastructure/compose/compose.yaml {{args}}
 
 # The merge stage of §11.7: static checks, every tier CI runs, and the coverage gate
-gate: contracts ears codegen-check lint pytest integration ts cross-language trace
+gate: contracts ears bdd codegen-check lint pytest integration ts cross-language trace

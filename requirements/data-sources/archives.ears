@@ -44,7 +44,7 @@ requirements:
       - "python/tests.usecase.test_acquire_dataset::test_repeated_idempotency_key_returns_existing_artifact_without_a_remote_call"
   - id: DSI-007
     pattern: ubiquitous
-    text: "Archive adapter contract tests shall run from recorded cassettes, and CI shall make no live archive call."
+    text: "The CI pipeline shall run archive adapter contract tests from recorded cassettes without a live archive call."
     rationale: "Live archives are rate-limited and change (ADR-015)."
     verification: test
     tiers: [T5]

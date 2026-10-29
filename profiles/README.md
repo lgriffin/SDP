@@ -4,16 +4,16 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These four profiles ship with SDP. You do not need to edit them to get started.
+These four profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
 | [first-look](first-look.yaml) | You are new to a field, or new to SDP | Gaia only | Seconds to a few minutes |
-| [comoving-group-search](comoving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Several minutes |
+| [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
 
-All three only *suggest* candidates. Every result is labelled EXPLORATORY. A candidate becomes a claim only after a separate, predeclared confirmatory experiment, which you promote in the SDP Command Prompt.
+All of them only *suggest* candidates. Every result is labelled EXPLORATORY. A candidate becomes a claim only after a separate, predeclared confirmatory experiment, which you promote in the SDP Command Prompt.
 
 ## How a run works
 
@@ -29,9 +29,9 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 ### Quality cuts (all profiles)
 
 - **`ruwe < 1.4`.** RUWE measures how well a single, well-behaved star fits Gaia's measurements. Values above about 1.4 usually mean a hidden companion star or a measurement problem, which makes the motion and distance unreliable. The cut-off comes from Lindegren et al. (2021). The SDP Gaia dialect and the UC-01 cluster study use the same value.
-- **`phot_g_mean_mag < 18`** (first-look, comoving-group-search). Magnitudes run backwards: bigger numbers are fainter stars. Fainter than about G = 18, Gaia's distances become too uncertain to compare stars meaningfully. The UC-01 study predeclared this same limit.
+- **`phot_g_mean_mag < 18`** (first-look, moving-group-search). Magnitudes run backwards: bigger numbers are fainter stars. Fainter than about G = 18, Gaia's distances become too uncertain to compare stars meaningfully. The UC-01 study predeclared this same limit.
 - **`phot_g_mean_mag < 15`** (star-history). The Harvard plates record only bright stars well. Each star also costs a request to the DASCH archive, so this cut keeps the work proportionate.
-- **`row_cap`.** This is the most stars SDP will read from Gaia: 5,000 for a first look, 20,000 for a group search, and 300 for a plate history. If a region hits the cap, choose a smaller region.
+- **`row_cap`.** This is the most stars SDP will read from Gaia: 5,000 for a first look or a group search, and 300 for a plate history. The group search reruns its clustering thousands of times, so more stars would make it slow. If a region hits the cap, choose a smaller region.
 
 ### Tests
 
@@ -41,9 +41,9 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
   - `min_cluster_size: 10` is the smallest group it will call a group. Real open clusters usually have tens to hundreds of members.
   - `min_samples: 5` controls how dense a clump must be.
   - The **grid** reruns the search with UC-01's six predeclared settings (`min_cluster_size` 10, 20 or 40, each with `min_samples` 5 or 10). A real group survives all of them, while a coincidence usually appears under only one. This *stability* feeds the score.
-  - `inner_trials: 20` sets how many shuffled copies give the group its own p-value. `magnitude_bins: 4` means motions are shuffled only among stars of similar brightness, because bright and faint stars have different typical errors.
+  - `inner_trials: 199` sets how many shuffled copies give the group its own p-value. With n shuffles the smallest possible p-value is 1/(n + 1), so 199 shuffles let a strong group reach 0.005, which is below `alpha`. With 20 shuffles no group could ever get below 1/21 ≈ 0.05, and none would ever become a candidate. `magnitude_bins: 4` means motions are shuffled only among stars of similar brightness, because bright and faint stars have different typical errors.
 - **photometric-corroboration: "Do 2MASS infrared colours agree with Gaia's colour?"** 2MASS measured the whole sky in the infrared. A star's infrared colour (J − K) should follow from its optical colour (BP − RP). A mismatch can mean dust, a companion, or a mix-up between two neighbouring stars. Stars are paired across catalogues within 1 arcsecond, a little over 1/3600 of a degree, which comfortably finds the same star.
-- **long-baseline-motion: "Has the star moved as Gaia predicts since about 1890?"** Gaia measures how fast a star crosses the sky. The test uses that motion to predict where the star was on each Harvard plate, then checks the plate positions against the predictions. Plate positions are good to roughly 1–2 arcseconds, so plates are matched within 3 arcseconds.
+- **long-baseline-motion: "Has the star moved as Gaia predicts since about 1890?"** Gaia measures how fast a star crosses the sky. The test uses that motion to predict where the star was on each Harvard plate, then checks the plate positions against the predictions. Plate positions are good to roughly 1–2 arcseconds, so plates are matched within 3 arcseconds. DASCH's own star catalogue records positions from around 2000 to 2016, so SDP uses each star's Gaia motion to look for it along its path over those years. A fast-moving star is still found.
 - **variability: "Has its brightness changed over a century?"** The test asks whether the plate brightness measurements scatter more than their own error bars allow for a constant star (a χ² test). It also reports the strongest repeating period it finds (a Lomb–Scargle search) for you to look at. It needs at least `min_points: 20` measurements: fewer give a weak constancy test and no meaningful period.
 
 - **image-counterpart: "Is each Gaia star on the JWST image where its motion puts it?"** Gaia measured each star around 2016. The test moves every star along its measured motion to the date of the JWST image, then looks for a source on the image at that spot. A star with no source there, or one further away than both telescopes' uncertainties allow, is flagged. Sources are found with photutils, and each pairing is made by two independent methods that must agree.
@@ -63,9 +63,11 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 
 ### Ranking
 
-- **`alpha: 0.01`.** A test counts as significant when its p-value is below 0.01, a 1-in-100 chance. A field of 5,000 stars should still produce about 50 chance flags per test. That is why a single test is never enough, and why the null fields matter.
-- **`policy: significance` with `threshold: 0.5`** (first-look, star-history). The score is the share of a star's tests that came out significant. A star needs at least half of its tests to agree before it becomes a candidate.
-- **`policy: stellar` with `threshold: 0.5`** (comoving-group-search). This is the UC-01 cluster study's ranker. A group scores on how strongly its members belong, how tight their colour–magnitude sequence is, and how stable it is across the grid. A group whose own p-value is not below `alpha` scores zero.
+- **`alpha: 0.01`.** A test counts as significant when its p-value is below 0.01, a 1-in-100 chance. A field of 5,000 stars should still produce about 50 chance flags per test. That is why first-look asks for both of its tests, and why the null fields matter.
+- **`policy: significance`** (first-look, star-history). The score is the share of a star's tests that came out significant, counting only the tests that could judge that star.
+  - first-look uses `threshold: 1.0`: both its tests must be significant.
+  - star-history uses `threshold: 0.5`: either plate test is enough on its own, because a star can move oddly without changing brightness, and the reverse. It runs only plate tests, so a star with no usable plates is never a candidate.
+- **`policy: stellar` with `threshold: 0.5`** (moving-group-search). This is the UC-01 cluster study's ranker. A group scores on how strongly its members belong, how tight their colour–magnitude sequence is, and how stable it is across the grid. A group whose own p-value is not below `alpha` scores zero.
 
 ### Null fields
 

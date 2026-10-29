@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { commandPromptEnvironment, DESKTOP_MIN_FREE_BYTES, sdpEnvironment, seedProfiles } from "../src/backend.ts";
+import { commandPromptEnvironment, DESKTOP_MIN_FREE_BYTES, sdpEnvironment, seedProfiles, SHIPPED } from "../src/backend.ts";
 import { defaultDataDir, postgresBin, python } from "../src/layout.ts";
 import { databaseUrl, portFromPid } from "../src/postgres.ts";
 import { choosePort, portIsFree } from "../src/process.ts";
@@ -77,11 +77,37 @@ describe("default profiles", () => {
     await writeFile(join(from, "star-history.yaml"), "shipped");
     await writeFile(join(from, "README.md"), "guide");
     await writeFile(join(from, "notes.txt"), "not a profile");
-    await writeFile(join(to, "first-look.yaml"), "edited by the person");
+    await writeFile(join(to, "first-look.yaml"), "the person's own");
 
     expect(await seedProfiles(from, to)).toEqual(["README.md", "star-history.yaml"]);
-    expect(await readFile(join(to, "first-look.yaml"), "utf8")).toBe("edited by the person");
-    expect((await readdir(to)).sort()).toEqual(["README.md", "first-look.yaml", "star-history.yaml"]);
+    expect(await readFile(join(to, "first-look.yaml"), "utf8")).toBe("the person's own");
+    expect((await readdir(to)).filter((n) => n !== SHIPPED).sort()).toEqual(["README.md", "first-look.yaml", "star-history.yaml"]);
     expect(await seedProfiles(join(from, "missing"), to)).toEqual([]);
+  });
+
+  it("update the defaults the person has not edited, and only those", async () => {
+    const from = await mkdtemp(join(tmpdir(), "bundled-"));
+    const to = await mkdtemp(join(tmpdir(), "mine-"));
+    await writeFile(join(from, "first-look.yaml"), "1.0.0");
+    await writeFile(join(from, "star-history.yaml"), "1.0.0");
+    await seedProfiles(from, to);
+    await writeFile(join(to, "star-history.yaml"), "edited by the person");
+
+    await writeFile(join(from, "first-look.yaml"), "1.1.0");
+    await writeFile(join(from, "star-history.yaml"), "1.1.0");
+    expect(await seedProfiles(from, to)).toEqual(["first-look.yaml"]);
+    expect(await readFile(join(to, "first-look.yaml"), "utf8")).toBe("1.1.0");
+    expect(await readFile(join(to, "star-history.yaml"), "utf8")).toBe("edited by the person");
+    expect(await seedProfiles(from, to)).toEqual([]);
+  });
+
+  it("leave a file of the person's whose name differs only in letter case", async () => {
+    const from = await mkdtemp(join(tmpdir(), "bundled-"));
+    const to = await mkdtemp(join(tmpdir(), "mine-"));
+    await writeFile(join(from, "first-look.yaml"), "shipped");
+    await writeFile(join(to, "FIRST-LOOK.yaml"), "the person's own");
+
+    expect(await seedProfiles(from, to)).toEqual([]);
+    expect((await readdir(to)).filter((n) => n !== SHIPPED)).toEqual(["FIRST-LOOK.yaml"]);
   });
 });

@@ -1,10 +1,12 @@
 """T5 on real archive answers: the cones the live smoke recorded replay through the TAP adapter
 and curate through the packaged dialects. Recordings come only from the live
-smoke workflow; a source without a recorded cone is skipped, never faked."""
+smoke workflow; a source without a recorded cone is skipped, never faked. ``SDP_CASSETTES`` points
+the replay at another recordings directory (tools/record_live_data.py checks a fresh run that way)."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pyarrow as pa
@@ -17,7 +19,7 @@ from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport
 
 pytestmark = pytest.mark.tier("T5")
 
-CASSETTES = Path(__file__).resolve().parents[1] / "cassettes"
+CASSETTES = Path(os.environ.get("SDP_CASSETTES") or Path(__file__).resolve().parents[1] / "cassettes")
 SOURCES = load_sources()
 
 
