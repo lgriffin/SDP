@@ -177,7 +177,11 @@ class FrameIndex:
             except FileNotFoundError:
                 continue  # removed while the scan ran
             previous = known.get(str(relative))
-            if previous is not None and (previous["size"], previous["mtime_ns"]) == (stat.st_size, stat.st_mtime_ns):
+            if (
+                previous is not None
+                and not previous["error"]
+                and (previous["size"], previous["mtime_ns"]) == (stat.st_size, stat.st_mtime_ns)
+            ):
                 rows.append(previous)
                 reused += 1
             else:

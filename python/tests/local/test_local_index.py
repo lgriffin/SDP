@@ -144,14 +144,14 @@ def test_the_index_has_one_row_per_frame_with_its_kind_and_exposure(folder: Path
 def test_a_rerun_reads_only_new_or_changed_files(folder: Path, data: Path) -> None:
     index = FrameIndex(LocalSources(data).add("astro", folder), data)
     index.update()
-    assert index.update().read == 0
+    assert index.update().read == 1, "only the unreadable file is tried again"
     changed = folder / "NGC7000" / "img-0001.FIT"
     changed.write_bytes(fits_bytes(raw_sub(OBJECT="NGC7000", EXPOSURE=60.0)))
     os.utime(changed, ns=(1, 1))
     write(folder / "M31" / "2025-09-15" / "img-0001.fits", raw_sub())
     (folder / "M31" / "darks" / "dark-0001.fits").unlink()
     result = index.update()
-    assert (result.read, result.removed, result.files) == (2, 1, 8)
+    assert (result.read, result.removed, result.files) == (3, 1, 8)
     assert {r["path"]: r for r in index.rows()}["NGC7000/img-0001.FIT"]["exposure_s"] == 60.0
 
 
@@ -230,5 +230,5 @@ def test_the_commands_add_index_and_report_with_no_database(folder: Path, data: 
     assert run("list")["astro"]["path"] == str(folder.resolve())
     indexed = run("index", "astro")
     assert indexed["files"] == 8 and indexed["headers_read"] == 8 and indexed["by_kind"]["stack"] == 2
-    assert run("index", "astro")["unchanged"] == 8
+    assert run("index", "astro")["unchanged"] == 7  # the unreadable file is tried again
     assert run("status", "astro")["targets"]["NGC7000"]["frames"] == 1
