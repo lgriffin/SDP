@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
@@ -245,6 +246,7 @@ class BulkSweep:
                 "citation": self.descriptor.citation,
                 "columns": list(self.columns),
                 "rows": table.num_rows,
+                "bounds": sky_bounds(table),
                 "parquet_bytes": len(data),
                 "download_bytes": size,
                 "parquet_artifact": artifact.value,
@@ -283,6 +285,24 @@ class BulkSweep:
                     self.sleep(2.0 * 2 ** (attempt - 1))
         assert last is not None
         raise last
+
+
+def sky_bounds(table: pa.Table) -> dict[str, float] | None:
+    """The RA/Dec box a file's stars lie in, so a field reads only the files it overlaps. ``ra_min`` above
+    ``ra_max`` means the box runs across RA 0/360."""
+    if table.num_rows == 0 or "ra" not in table.column_names or "dec" not in table.column_names:
+        return None
+    ra = np.asarray(table.column("ra").to_numpy(zero_copy_only=False), dtype=float) % 360.0
+    dec = np.asarray(table.column("dec").to_numpy(zero_copy_only=False), dtype=float)
+    ra, dec = ra[np.isfinite(ra) & np.isfinite(dec)], dec[np.isfinite(ra) & np.isfinite(dec)]
+    if ra.size == 0:
+        return None
+    ordered = np.sort(ra)
+    gaps = np.diff(np.concatenate([ordered, [ordered[0] + 360.0]]))
+    widest = int(np.argmax(gaps))
+    # the RA range is the circle minus its widest empty gap
+    ra_min, ra_max = float(ordered[(widest + 1) % ordered.size]), float(ordered[widest])
+    return {"ra_min": ra_min, "ra_max": ra_max, "dec_min": float(dec.min()), "dec_max": float(dec.max())}
 
 
 def select_files(files: Sequence[BulkFile], first: int | None, count: int | None) -> list[BulkFile]:

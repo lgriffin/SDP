@@ -132,3 +132,15 @@ def test_the_cli_sweeps_then_reports_status(tmp_path: Path, monkeypatch: pytest.
     assert "1/1 GaiaSource_000000-003111.csv.gz stored 2 rows" in run.stderr
     status = runner.invoke(cli.app, ["archive", "bulk", "--base-url", base, "--status"])
     assert '"done": 1' in status.stdout and '"files": 2' in status.stdout
+
+
+def test_a_files_sky_box_runs_across_ra_zero_when_its_stars_do() -> None:
+    import pyarrow as pa
+
+    from sdp.adapters.archives.bulk import sky_bounds
+
+    plain = sky_bounds(pa.table({"ra": [10.0, 12.0, 11.0], "dec": [-1.0, 2.0, 0.0]}))
+    assert plain == {"ra_min": 10.0, "ra_max": 12.0, "dec_min": -1.0, "dec_max": 2.0}
+    across = sky_bounds(pa.table({"ra": [359.0, 1.0, 0.5], "dec": [0.0, 0.0, 0.0]}))
+    assert across is not None and across["ra_min"] == 359.0 and across["ra_max"] == 1.0
+    assert sky_bounds(pa.table({"ra": pa.array([], pa.float64()), "dec": pa.array([], pa.float64())})) is None
