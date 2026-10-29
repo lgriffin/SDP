@@ -51,7 +51,8 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200, planner = tr
       const operation = /query\s+(\w+)/.exec(body.query)?.[1] ?? "";
       if (!planner && operation.startsWith("Plan")) {
         const field = operation === "Plans" ? "plans" : "plan";
-        const errors = [{ message: `Cannot query field "${field}" on type "Query".` }];
+        // The message exactly as sdp-api's graphql-core words it.
+        const errors = [{ message: `Cannot query field '${field}' on type 'Query'.` }];
         return new Response(JSON.stringify({ errors }), { headers: { "content-type": "application/json" } });
       }
       const result = answer(body.query, body.variables);

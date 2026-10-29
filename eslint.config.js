@@ -3,7 +3,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/src/generated/**", "**/dist/**", "**/build/**", "**/.svelte-kit/**", "**/test-results/**", "**/playwright-report/**"] },
+  { ignores: ["**/node_modules/**", "**/src/generated/**", "**/dist/**", "**/build/**", "**/.svelte-kit/**", "**/test-results/**", "**/playwright-report/**", "typescript/apps/sdp-desktop/resources/**", "typescript/apps/sdp-desktop/release/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

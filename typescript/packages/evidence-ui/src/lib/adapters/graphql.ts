@@ -42,7 +42,8 @@ export const QUERIES = {
   plan: `query Plan($id: ID!) { plan(id: $id) { ${PLAN} } }`,
 } as const;
 
-const MISSING_PLANNER = /Cannot query field "plans?" on type "Query"/;
+// sdp-api (graphql-core) quotes names with ' and graphql-js with ", so either is accepted.
+const MISSING_PLANNER = /Cannot query field ["']plans?["'] on type ["']Query["']/;
 
 interface GraphQLResponse<T> {
   data?: T;

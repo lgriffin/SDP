@@ -5,8 +5,7 @@
     ".": {
       "release-type": "simple",
       "package-name": "sdp",
-      "changelog-path": "CHANGELOG.md",
-      "release-as": "0.1.0"
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
