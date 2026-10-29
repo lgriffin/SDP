@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from sdp.adapters.archives import adql, votable
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport, HttpRequest, HttpResponse
-from sdp.kernel.domain.archive import Box, Filter
+from sdp.kernel.domain.archive import Box, Cone, Filter
 from sdp.testing.contracts.archive_gateway import ArchiveGatewayContract, GatewayCase
 from sdp.testing.fakes.archives import apply_query
 
@@ -146,3 +150,71 @@ def test_column_names_folded_by_the_service_come_back_as_declared() -> None:
     folding = TapArchiveAdapter({"gaia": GAIA}, _FoldingTap(tap))
     batches = list(folding.fetch(folding.query(gaia_query())))
     assert batches and batches[0].schema.names == list(gaia_query().columns)
+
+
+@pytest.mark.req("DSI-011")
+def test_a_wide_cone_puts_a_bounding_box_in_front_of_contains() -> None:
+    text = adql.region_clause(Cone(56.75, 24.1167, 3.0), "ra", "dec")
+    lo, hi = 56.75 - 3.2867, 56.75 + 3.2867  # asin(sin 3 / cos 24.1167) = 3.2867 degrees
+    assert text.startswith("ra BETWEEN ")
+    ra_part = text.split(" AND dec BETWEEN ")[0].removeprefix("ra BETWEEN ")
+    bounds = [float(v) for v in ra_part.split(" AND ")]
+    assert bounds == pytest.approx([lo, hi], abs=1e-3)
+    assert _numbers(text.split(" AND dec BETWEEN ")[1].split(" AND 1 = ")[0]) == pytest.approx(
+        [21.1167, 27.1167], abs=2e-6
+    )
+    assert text.endswith("CIRCLE('ICRS', 56.75, 24.1167, 3.0))")
+
+
+def test_a_small_cone_keeps_its_text_and_so_its_cassettes() -> None:
+    assert adql.region_clause(Cone(56.75, 24.12, 0.05), "ra", "dec") == (
+        "1 = CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 0.05))"
+    )
+
+
+def test_a_cone_across_ra_zero_wraps_its_ra_bound() -> None:
+    east = adql.region_clause(Cone(1.0, 0.0, 2.0), "ra", "dec")
+    assert re.match(r"\(ra >= \S+ OR ra <= \S+\) AND dec BETWEEN", east)
+    assert _numbers(east.split(")")[0]) == pytest.approx([359.0, 3.0], abs=2e-6)
+    west = adql.region_clause(Cone(359.0, 0.0, 2.0), "ra", "dec")
+    assert _numbers(west.split(")")[0]) == pytest.approx([357.0, 1.0], abs=2e-6)
+
+
+def test_a_cone_holding_a_pole_bounds_only_dec() -> None:
+    text = adql.region_clause(Cone(10.0, 88.0, 3.0), "ra", "dec")
+    assert re.match(r"dec BETWEEN \S+ AND 90.0 AND 1 = CONTAINS", text)
+    assert _numbers(text.split(" AND 1 = ")[0]) == pytest.approx([85.0, 90.0], abs=2e-6)
+
+
+def _numbers(text: str) -> list[float]:
+    return [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?(?:e-?\d+)?", text)]
+
+
+def _in_bounds(cone: Cone, ra: float, dec: float) -> bool:
+    ra_range, dec_min, dec_max = adql.cone_bounds(cone)
+    if not dec_min <= dec <= dec_max:
+        return False
+    if ra_range is None:
+        return True
+    lo, hi = ra_range
+    return any(lo <= ra + turn <= hi for turn in (-360.0, 0.0, 360.0))
+
+
+@pytest.mark.req("DSI-011")
+@settings(max_examples=300, deadline=None)
+@given(
+    st.floats(0.0, 359.999),
+    st.floats(-89.0, 89.0),
+    st.floats(0.5, 10.0),
+    st.floats(0.0, 1.0),
+    st.floats(0.0, 360.0),
+)
+def test_the_bounding_box_always_holds_the_whole_circle(
+    ra0: float, dec0: float, radius: float, fraction: float, bearing: float
+) -> None:
+    # a point at distance fraction * radius along a bearing from the centre, by the spherical direct formula
+    d, b = math.radians(radius * fraction), math.radians(bearing)
+    phi0, lam0 = math.radians(dec0), math.radians(ra0)
+    phi = math.asin(math.sin(phi0) * math.cos(d) + math.cos(phi0) * math.sin(d) * math.cos(b))
+    lam = lam0 + math.atan2(math.sin(b) * math.sin(d) * math.cos(phi0), math.cos(d) - math.sin(phi0) * math.sin(phi))
+    assert _in_bounds(Cone(ra0, dec0, radius), math.degrees(lam) % 360.0, math.degrees(phi))
