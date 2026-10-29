@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { allScenarios, buildRows, fitBundle, fitRows, type Bundle, type InstrumentSet, type Scenario } from "../src/fit.ts";
+import { SCENARIO_VALUES, allScenarios, buildRows, fitBundle, fitRows, type Bundle, type InstrumentSet, type Scenario } from "../src/fit.ts";
 import { STANDARD_PER_PROBABLE, erf, logGamma, normalQuantile } from "../src/stats.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -64,8 +64,56 @@ describe("special functions", () => {
 });
 
 describe("fitter", () => {
-  it("covers the sixteen predeclared fit scenarios", () => {
-    expect(allScenarios()).toHaveLength(16);
+  it("covers the twenty-four predeclared fit scenarios", () => {
+    expect(allScenarios()).toHaveLength(24);
+  });
+
+  it("[REL-010] recovers alpha under the six-constant model when a plate's x and y scales differ", () => {
+    const data = planted(1.75);
+    const stretched = {
+      ...data,
+      plates: data.plates.map((plate) => ({
+        ...plate,
+        stars: plate.stars.map((s) => ({ ...s, dx_arcsec: (s.dx_arcsec as number) + 0.004 * s.x_arcmin + 0.002 * s.y_arcmin })),
+      })),
+    };
+    const scenario: Scenario = { error_convention: "converted", plate_scale: "solved_affine", error_correlation: "independent", likelihood: "gaussian" };
+    expect(Math.abs(fitRows(buildRows(stretched, scenario), "gaussian").alpha_arcsec - 1.75)).toBeLessThan(1e-9);
+    const conformal = fitRows(buildRows(stretched, { ...scenario, plate_scale: "solved" }), "gaussian");
+    expect(Math.abs(conformal.alpha_arcsec - 1.75)).toBeGreaterThan(1e-3);
+  });
+
+  it("[REL-010] subtracts known terms and solves the rotation when the plate's orientation is unknown", () => {
+    const data = planted(1.2, 5);
+    const terms = { xx: 0.003, xy: -0.001, yx: 0.002, yy: 0.004 };
+    const moved = {
+      ...data,
+      plates: data.plates.map((plate) => ({
+        ...plate,
+        check_terms: terms,
+        check_rotation: null,
+        stars: plate.stars.map((s) => ({
+          ...s,
+          dx_arcsec: (s.dx_arcsec as number) - (plate.check_scale ?? 0) * s.x_arcmin + terms.xx * s.x_arcmin + terms.xy * s.y_arcmin + 0.01 * s.y_arcmin,
+          dy_arcsec: (s.dy_arcsec as number) - (plate.check_scale ?? 0) * s.y_arcmin + terms.yx * s.x_arcmin + terms.yy * s.y_arcmin - 0.01 * s.x_arcmin,
+        })),
+      })),
+    };
+    const scenario: Scenario = { error_convention: "converted", plate_scale: "fixed_from_check_plates", error_correlation: "independent", likelihood: "gaussian" };
+    const rows = buildRows(moved, scenario);
+    expect(rows.design.cols).toBe(3 * moved.plates.length + 1);
+    expect(Math.abs(fitRows(rows, "gaussian").alpha_arcsec - 1.2)).toBeLessThan(1e-9);
+  });
+
+  it("leaves out the constants of a coordinate no plate measured", () => {
+    const data = planted(0.9, 3);
+    const decOnly = { ...data, plates: data.plates.map((plate) => ({ ...plate, stars: plate.stars.map((s) => ({ ...s, dx_arcsec: null })) })) };
+    for (const plate_scale of SCENARIO_VALUES.plate_scale) {
+      const scenario: Scenario = { error_convention: "converted", plate_scale, error_correlation: "independent", likelihood: "gaussian" };
+      const rows = buildRows(decOnly, scenario);
+      expect(rows.design.cols).toBe({ solved: 3, solved_affine: 3, fixed_from_check_plates: 1 }[plate_scale] * 4 + 1);
+      expect(Math.abs(fitRows(rows, "gaussian").alpha_arcsec - 0.9)).toBeLessThan(1e-9);
+    }
   });
 
   it("recovers a planted alpha exactly from noise-free plates under every scenario", () => {

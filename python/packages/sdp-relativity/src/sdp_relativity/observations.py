@@ -44,11 +44,22 @@ class StarMeasurement:
 class Plate:
     plate_id: str
     stars: tuple[StarMeasurement, ...]
-    #: Scale (arcsec of displacement per arcmin of position) and rotation from check plates.
+    #: Scale (arcsec of displacement per arcmin of position) and rotation from check plates. A
+    #: rotation of None is not known apart from the plate itself, so the fixed-scale fit solves it.
     check_scale: float = 0.0
-    check_rotation: float = 0.0
+    check_rotation: float | None = 0.0
     #: Uncertainty of the check-plate scale; plate-correlated errors when the scale is fixed.
     check_scale_sigma: float = 0.0
+    #: Known linear terms (xx, xy, yx, yy) in arcsec per arcmin, when they are not one scale: for
+    #: example differential refraction, which stretches one axis more than the other. They replace
+    #: check_scale: dx_known = xx x + xy y, dy_known = yx x + yy y.
+    check_terms: tuple[float, float, float, float] | None = None
+
+    @property
+    def known_terms(self) -> tuple[float, float, float, float]:
+        if self.check_terms is not None:
+            return self.check_terms
+        return (self.check_scale, 0.0, 0.0, self.check_scale)
 
 
 @dataclass(frozen=True)
@@ -69,7 +80,14 @@ class ObservationSet:
             star = lookup[key]
             by_plate[key[0]].append(StarMeasurement(**{**star.__dict__, "star_id": f"{star.star_id}#{i}"}))
         plates = tuple(
-            Plate(p.plate_id, tuple(by_plate[p.plate_id]), p.check_scale, p.check_rotation, p.check_scale_sigma)
+            Plate(
+                p.plate_id,
+                tuple(by_plate[p.plate_id]),
+                p.check_scale,
+                p.check_rotation,
+                p.check_scale_sigma,
+                p.check_terms,
+            )
             for p in self.plates
             if by_plate[p.plate_id]
         )
@@ -119,6 +137,12 @@ def _star(raw: Mapping[str, Any], solar_radius: float) -> StarMeasurement:
     )
 
 
+def _terms(raw: Mapping[str, Any] | None) -> tuple[float, float, float, float] | None:
+    if raw is None:
+        return None
+    return (float(raw["xx"]), float(raw["xy"]), float(raw["yx"]), float(raw["yy"]))
+
+
 def parse_bundle(doc: Mapping[str, Any]) -> ObservationBundle:
     if doc.get("schema") != BUNDLE_SCHEMA:
         raise ValueError(f"expected an observation bundle {BUNDLE_SCHEMA!r}, got {doc.get('schema')!r}")
@@ -130,8 +154,9 @@ def parse_bundle(doc: Mapping[str, Any]) -> ObservationBundle:
                 plate_id=str(p["plate_id"]),
                 stars=tuple(_star(s, radius) for s in p["stars"]),
                 check_scale=float(p.get("check_scale", 0.0)),
-                check_rotation=float(p.get("check_rotation", 0.0)),
+                check_rotation=None if p.get("check_rotation", 0.0) is None else float(p.get("check_rotation", 0.0)),
                 check_scale_sigma=float(p.get("check_scale_sigma", 0.0)),
+                check_terms=_terms(p.get("check_terms")),
             )
             for p in raw_set["plates"]
         )

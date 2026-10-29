@@ -44,7 +44,9 @@ def bundle_from_records(
             plate = plates.setdefault((instrument, str(f["plate_id"])), {"plate_id": str(f["plate_id"]), "stars": []})
             for key in ("check_scale", "check_rotation", "check_scale_sigma"):
                 if key in f:
-                    plate[key] = float(f[key])
+                    plate[key] = None if f[key] is None else float(f[key])
+            if "check_terms" in f:
+                plate["check_terms"] = {k: float(f["check_terms"][k]) for k in ("xx", "xy", "yx", "yy")}
         elif kind == "star":
             plate = plates.setdefault((instrument, str(f["plate_id"])), {"plate_id": str(f["plate_id"]), "stars": []})
             missing = [k for k in _STAR_FIELDS if k not in f and k not in ("dx_arcsec", "dy_arcsec")]

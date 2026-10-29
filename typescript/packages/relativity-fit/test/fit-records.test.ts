@@ -242,9 +242,9 @@ describe("[UC-02] the rows a plate becomes", () => {
       ],
     };
     const { design, y, cov } = buildRows(two, scenario);
-    expect([design.rows, design.cols]).toEqual([2, 5]);
-    // Columns: P x and y offsets, Q x and y offsets, alpha.
-    close(design.data, [1, 0, 0, 0, 1.92, 0, 0, 1, 0, 0.96]);
+    expect([design.rows, design.cols]).toEqual([2, 3]);
+    // Columns: P x offset, Q x offset, alpha; the y offsets no measurement touches are left out.
+    close(design.data, [1, 0, 1.92, 0, 1, 0.96]);
     close(y, [1 - 0.11, 2]);
     close(cov.data, [0.25 + tau2 * 9, 0, 0, 0.01 + 0.005 ** 2 * 36]);
   });

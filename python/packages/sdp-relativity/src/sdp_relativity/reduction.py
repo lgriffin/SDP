@@ -14,7 +14,7 @@ from typing import Any
 #: The predeclared axes and their values, in the order the predeclaration lists them.
 AXES: Mapping[str, tuple[Any, ...]] = {
     "error_convention": ("probable_as_standard", "converted"),
-    "plate_scale": ("solved", "fixed_from_check_plates"),
+    "plate_scale": ("solved", "solved_affine", "fixed_from_check_plates"),
     "astrographic": ("included", "excluded", "downweighted"),
     "error_correlation": ("independent", "per_plate"),
     "likelihood": ("gaussian", "student_t"),
@@ -67,9 +67,19 @@ class Scenario:
         }
 
 
-#: The 1920 reduction: probable errors used as quoted, plate constants solved from the eclipse plates.
-HISTORICAL = FitScenario("probable_as_standard", "solved", "independent", "gaussian")
+#: The 1920 reduction: probable errors used as quoted, six plate constants solved from each plate.
+HISTORICAL = FitScenario("probable_as_standard", "solved_affine", "independent", "gaussian")
+#: Where the 1920 reduction of an instrument differed: at Principe the scale came from the check
+#: plates and the orientation from each plate's x measures (pp. 321-325), so both are fixed.
+HISTORICAL_BY_INSTRUMENT: Mapping[str, FitScenario] = {
+    "principe-astro": FitScenario("probable_as_standard", "fixed_from_check_plates", "independent", "gaussian"),
+}
 BASELINE = FitScenario()
+
+
+def historical(instrument: str) -> FitScenario:
+    """The scenario that repeats the 1920 reduction of one instrument (REL-G-04)."""
+    return HISTORICAL_BY_INSTRUMENT.get(instrument, HISTORICAL)
 
 
 def axes_from(parameters: Mapping[str, Any]) -> dict[str, tuple[Any, ...]]:

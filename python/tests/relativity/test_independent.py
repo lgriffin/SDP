@@ -31,7 +31,7 @@ def test_the_shared_bundle_is_the_seeded_synthetic_bundle() -> None:
 def test_the_reference_fits_match_a_fresh_run() -> None:
     bundle = parse_bundle(json.loads((FIXTURES / "bundle-seed7.json").read_text()))
     reference = json.loads((FIXTURES / "python-fits-seed7.json").read_text())
-    assert len(reference["fits"]) == 3 * 16
+    assert len(reference["fits"]) == 3 * 24
     for row in reference["fits"]:
         result = fit_set(bundle.instrument(row["instrument"]), FitScenario(**row["scenario"]))
         assert result.alpha == pytest.approx(row["alpha_arcsec"], rel=1e-10, abs=1e-12)

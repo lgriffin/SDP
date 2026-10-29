@@ -15,6 +15,11 @@ from sdp_relativity.synthetic import make_bundle
 pytestmark = pytest.mark.tier("T8")
 
 
+def _value(v: float | None) -> float:
+    assert v is not None
+    return v
+
+
 def sobral(alpha: float = 1.75, seed: int = 3) -> ObservationSet:
     return parse_bundle(make_bundle(alpha, seed)).instrument("sobral-4in")
 
@@ -36,6 +41,92 @@ def test_noise_free_data_is_recovered_exactly() -> None:
     exact = dataclasses.replace(system, observed=system.design @ beta)
     assert fit(exact).alpha == pytest.approx(1.75, abs=1e-10)
     assert fit(exact, "student_t").alpha == pytest.approx(1.75, abs=1e-10)
+
+
+@pytest.mark.req("REL-010")
+def test_the_six_constant_model_absorbs_unequal_plate_scales() -> None:
+    obs = sobral()
+    stretched = dataclasses.replace(
+        obs,
+        plates=tuple(
+            dataclasses.replace(
+                p,
+                stars=tuple(
+                    dataclasses.replace(
+                        s, dx_arcsec=_value(s.dx_arcsec) + 0.004 * s.geometry.x_arcmin + 0.002 * s.geometry.y_arcmin
+                    )
+                    for s in p.stars
+                ),
+            )
+            for p in obs.plates
+        ),
+    )
+    affine = FitScenario(plate_scale="solved_affine")
+    assert build_system(obs, affine).nuisance == 6 * len(obs.plates)
+    assert fit_set(stretched, affine).alpha == pytest.approx(fit_set(obs, affine).alpha, abs=1e-9)
+    assert abs(fit_set(stretched, BASELINE).alpha - fit_set(obs, BASELINE).alpha) > 1e-3
+
+
+@pytest.mark.req("REL-010")
+@pytest.mark.parametrize("plate_scale", ["solved", "solved_affine", "fixed_from_check_plates"])
+def test_a_set_measured_in_one_coordinate_leaves_the_other_constants_out(plate_scale: str) -> None:
+    obs = sobral()
+    dec_only = dataclasses.replace(
+        obs,
+        plates=tuple(
+            dataclasses.replace(p, stars=tuple(dataclasses.replace(s, dx_arcsec=None) for s in p.stars))
+            for p in obs.plates
+        ),
+    )
+    system = build_system(dec_only, FitScenario(plate_scale=plate_scale))
+    per_plate = {"solved": 3, "solved_affine": 3, "fixed_from_check_plates": 1}[plate_scale]
+    assert system.nuisance == per_plate * len(obs.plates)
+    assert fit(system).sigma_alpha is not None
+
+
+@pytest.mark.req("REL-010")
+def test_fixed_scale_subtracts_known_terms_and_solves_an_unknown_rotation() -> None:
+    obs = sobral()
+    fixed = FitScenario(plate_scale="fixed_from_check_plates")
+    terms = (0.003, -0.001, 0.002, 0.004)
+    shifted = dataclasses.replace(
+        obs,
+        plates=tuple(
+            dataclasses.replace(
+                p,
+                check_terms=terms,
+                check_rotation=None,
+                stars=tuple(
+                    dataclasses.replace(
+                        s,
+                        dx_arcsec=_value(s.dx_arcsec)
+                        - p.check_scale * s.geometry.x_arcmin
+                        - _value(p.check_rotation) * s.geometry.y_arcmin
+                        + terms[0] * s.geometry.x_arcmin
+                        + terms[1] * s.geometry.y_arcmin
+                        + 0.01 * s.geometry.y_arcmin,
+                        dy_arcsec=_value(s.dy_arcsec)
+                        - p.check_scale * s.geometry.y_arcmin
+                        + _value(p.check_rotation) * s.geometry.x_arcmin
+                        + terms[2] * s.geometry.x_arcmin
+                        + terms[3] * s.geometry.y_arcmin
+                        - 0.01 * s.geometry.x_arcmin,
+                    )
+                    for s in p.stars
+                ),
+            )
+            for p in obs.plates
+        ),
+    )
+    assert build_system(shifted, fixed).nuisance == 3 * len(obs.plates)
+    rotation_solved = dataclasses.replace(
+        obs, plates=tuple(dataclasses.replace(p, check_rotation=None) for p in obs.plates)
+    )
+    assert fit_set(shifted, fixed).alpha == pytest.approx(fit_set(rotation_solved, fixed).alpha, abs=1e-9)
+    known = dataclasses.replace(
+        shifted, plates=tuple(dataclasses.replace(p, check_rotation=0.01) for p in shifted.plates)
+    )
+    assert build_system(known, fixed).nuisance == 2 * len(obs.plates)
 
 
 def test_student_t_resists_one_wild_measurement() -> None:
