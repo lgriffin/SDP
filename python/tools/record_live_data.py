@@ -9,10 +9,11 @@ It does what the Archive live smoke workflow does, from wherever it runs:
    (Gaia DR3, PS1 DR2, 2MASS), and the Investigate sources. Each answer is saved as a cassette.
 2. The CDS X-Match agreement check (DSI-009): the cross-match contract's fixture is sent to the
    live service and its answers are recorded.
-3. The recordings are copied into ``tests/cassettes`` and the replay tests run on them, so you see
-   straight away what is now covered and what still skips.
-4. With pushing on, it commits only ``tests/cassettes`` on a new ``archive-cassettes/<label>`` branch
-   and pushes it. Open a pull request from that branch; it is reviewed like code.
+3. The replay tests run on this run's recordings alone (``reports/cassettes``), so you see straight
+   away what this run covered and what still skips; an older committed cassette never stands in.
+4. With pushing on, it copies the recordings into ``tests/cassettes``, commits only that directory
+   on a new ``archive-cassettes/<label>`` branch and pushes it. Open a pull request from that branch;
+   it is reviewed like code. With ``--no-push`` the working tree is left as it was.
 
 Recordings are always real answers: nothing here writes a cassette by hand. A source that fails is
 reported and left out; what did record is still pushed. The exit status is 1 if anything failed.
@@ -86,19 +87,22 @@ def main(argv: list[str] | None = None) -> int:
         env={"SDP_XMATCH_RECORD": str(RECORDINGS / "xmatch")},
     )
 
-    shutil.copytree(RECORDINGS, CASSETTES, dirs_exist_ok=True)
     replay = step(
-        "replay the recordings", [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-rs", *REPLAY_TESTS]
+        "replay this run's recordings",
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-rs", *REPLAY_TESTS],
+        env={"SDP_CASSETTES": str(RECORDINGS)},
     )
 
     if args.push:
+        shutil.copytree(RECORDINGS, CASSETTES, dirs_exist_ok=True)
         git("add", "--", str(CASSETTES))
-        if not git("diff", "--cached", "--name-only"):
+        if not git("diff", "--cached", "--name-only", "--", str(CASSETTES)):
             print("\nnothing new was recorded; no branch pushed")
         else:
             branch = f"archive-cassettes/{args.label}"
             git("switch", "-c", branch)
-            git("commit", "-m", f"Archive live recordings ({args.label})")
+            # only the cassettes: anything else already staged stays staged and out of this commit
+            git("commit", "-m", f"Archive live recordings ({args.label})", "--", str(CASSETTES))
             git("push", "-u", "origin", branch)
             print(f"\npushed {branch}; open a pull request from it to merge the recordings")
 

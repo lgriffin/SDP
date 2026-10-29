@@ -46,7 +46,7 @@ It takes a few minutes and runs these steps:
    saved. A column that appeared, vanished or changed type is reported by name.
 2. **X-Match check.** It sends the cross-match test cases to CDS X-Match and keeps its answers. It
    fails if X-Match disagrees with the expected matches.
-3. **Replay.** It copies the recordings into `python/tests/cassettes/` and runs the replay tests. The
+3. **Replay.** It runs the replay tests on this run's recordings alone. The
    summary at the end says what passed and which tests still skip.
 4. **Branch.** It commits only `python/tests/cassettes/` on a new branch,
    `archive-cassettes/local-<date>`, and pushes it. Open a pull request from that branch.

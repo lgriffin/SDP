@@ -25,7 +25,8 @@ from sdp.adapters.archives.transport import (
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
 from sdp.testing.contracts.cross_match import CrossMatchContract
 
-CASSETTES = Path(__file__).resolve().parents[1] / "cassettes" / "xmatch"
+#: ``SDP_CASSETTES`` points the replay at another recordings directory, as for test_recorded_responses.
+CASSETTES = Path(os.environ.get("SDP_CASSETTES") or Path(__file__).resolve().parents[1] / "cassettes") / "xmatch"
 RECORD = os.environ.get("SDP_XMATCH_RECORD")
 
 
