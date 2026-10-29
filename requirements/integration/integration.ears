@@ -103,17 +103,17 @@ requirements:
   - id: INT-013
     pattern: event
     text: "When an investigation is planned, the system shall write a content-addressed AcquisitionPlan naming every item, its expected size, its purpose and its access status before any acquisition."
-    rationale: "Plans become reproducible evidence (ADR-020). The plan's intent document is its artifact, so its artifact id is its plan id; requirements come from the profile's tests, products from each archive's index over the field, and a requirement no source satisfies is a gap with its reason."
+    rationale: "Plans become reproducible evidence (ADR-020). The plan's intent document is its artifact, so its artifact id is its plan id; requirements come from the profile's tests, products from each archive's index over the field, and a requirement no source satisfies is a gap with its reason. The harness re-derives the plan id, the minimum set and the gaps from the candidates the plan records (rederive-plan)."
     verification: test
-    tiers: [T4]
+    tiers: [T4, harness]
     status: approved
     traces: []
   - id: INT-014
     pattern: unwanted
     text: "If a plan exceeds the profile's AcquisitionBudget threshold, then the system shall require a signed ledger approval before execution."
-    rationale: "Large downloads become signed decisions. The approval is the ledger entry itself, bound to the plan id and the actor; an entry id alone, an entry for another plan or an automatic approval approves nothing above the threshold, and every budget limit is checked, not only bytes."
+    rationale: "Large downloads become signed decisions. The approval is the ledger entry itself, bound to the plan id and the actor; an entry id alone, an entry for another plan or an automatic approval approves nothing above the threshold, and every budget limit is checked, not only bytes. The harness refuses an automatic approval above the threshold and an approval without its ledger entry."
     verification: test
-    tiers: [T4]
+    tiers: [T4, harness]
     status: approved
     traces: []
   - id: INT-015

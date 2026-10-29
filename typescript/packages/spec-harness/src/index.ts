@@ -8,5 +8,6 @@ export * from "./junit.ts";
 export type * from "./ports.ts";
 export * from "./ratchet.ts";
 export * from "./rederive.ts";
+export * from "./rederive-plan.ts";
 export * from "./report.ts";
 export * from "./trace.ts";

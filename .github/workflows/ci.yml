@@ -179,6 +179,10 @@ jobs:
         run: pnpm harness admit reports/emitted/experiments contracts/fixtures/valid/evidence-manifest/synthetic-verified-1.4-admitted.json
       - name: No descriptor claim without admission (INT-002)
         run: pnpm harness claims
+      - name: The harness re-derives every acquisition plan (INT-013, INT-014)
+        run: |
+          (cd python && uv run python -m sdp.testing.emit_plans ../reports/emitted/plans)
+          pnpm harness rederive-plan reports/emitted/plans contracts/fixtures/valid/acquisition-plan --out reports/rederive-plan.json
       - name: UC-02 with the independent TypeScript fitter feeding the kernel (REL-007)
         run: |
           mkdir -p reports/uc02

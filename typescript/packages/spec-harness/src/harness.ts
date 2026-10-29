@@ -1,5 +1,5 @@
 // Harness use cases: each composes ports and pure functions; the CLI only parses arguments.
-import { hashDocument, parse, type ContractError } from "@sdp/contracts";
+import { hashDocument, parse, validate, type ContractError } from "@sdp/contracts";
 
 import { admit, checkClaims, type ClaimCheck, type Unadmitted } from "./admit.ts";
 import { readManifest } from "./conform.ts";
@@ -14,6 +14,7 @@ import type {
   TestReportSource,
 } from "./ports.ts";
 import { rederive, type Rederivation } from "./rederive.ts";
+import { rederivePlan, type PlanDocument, type PlanRederivation } from "./rederive-plan.ts";
 import type { Approval } from "./report.ts";
 import { trace, type PredeclaredGates, type Traceability, type TraceOptions } from "./trace.ts";
 
@@ -102,6 +103,14 @@ export async function admitAll(source: ManifestSource): Promise<{ path: string; 
     if (!result.ok) throw new Error(`${path} does not conform: ${result.errors.map((e) => `${e.path} ${e.message}`).join("; ")}`);
     const m = result.manifest;
     return { path, experimentId: m.identity.experiment_id, verdict: m.verdict?.status ?? null, unadmitted: admit(m) };
+  });
+}
+
+export async function rederivePlanAll(source: DocumentSource): Promise<(PlanRederivation & { path: string })[]> {
+  return (await source.documents()).map(({ path, document }) => {
+    const errors = validate("acquisition-plan", document);
+    if (errors.length) throw new Error(`${path} is not a valid acquisition-plan: ${errors.map((e) => `${e.path} ${e.message}`).join("; ")}`);
+    return { ...rederivePlan(document as PlanDocument), path };
   });
 }
 
