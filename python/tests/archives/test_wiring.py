@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from sdp.adapters.archives.transport import CassetteTransport, MirrorTransport, PoliteTransport
-from sdp.adapters.bootstrap import archive_gateways, archive_transport, capability_discovery, cross_match
+from sdp.adapters.archives.xmatch import CdsXMatchAdapter, FallbackCrossMatch, LocalCrossMatch
+from sdp.adapters.bootstrap import (
+    archive_gateways,
+    archive_transport,
+    capability_discovery,
+    cds_cross_match,
+    cross_match,
+)
 from sdp.adapters.postgres.capabilities import PostgresCapabilityRegistry
 from sdp.adapters.settings import Settings, SettingsError
 from sdp.kernel.application.planning import DEFAULT_BUDGET
@@ -27,7 +34,7 @@ def test_replay_mode_puts_every_gateway_on_cassettes(tmp_path: Path) -> None:
         transport = gateway.transport  # type: ignore[attr-defined]
         assert isinstance(transport, CassetteTransport) and transport.mode == "replay"
         assert transport.directory == tmp_path / sid
-    assert isinstance(cross_match(settings).transport, CassetteTransport)
+    assert isinstance(cds_cross_match(settings).transport, CassetteTransport)
 
 
 def test_live_mode_is_polite_and_record_mode_wraps_it(tmp_path: Path) -> None:
@@ -116,3 +123,15 @@ def test_the_plan_budget_comes_from_the_environment_and_the_planner_reads_regist
     assert floor.plan_budget.min_nas_headroom_bytes == 123, "one headroom floor however Settings is built"
     discovery = capability_discovery(settings)
     assert discovery.sources == {} and isinstance(discovery.registry, PostgresCapabilityRegistry)
+
+
+@pytest.mark.req("DSI-018")
+def test_cross_matching_runs_here_unless_cds_is_asked_for() -> None:
+    assert isinstance(cross_match(Settings.from_env(ENV)), LocalCrossMatch)
+    assert isinstance(cross_match(Settings.from_env({**ENV, "SDP_CROSS_MATCH": "cds"})), CdsXMatchAdapter)
+    auto = cross_match(Settings.from_env({**ENV, "SDP_CROSS_MATCH": "auto"}))
+    assert isinstance(auto, FallbackCrossMatch) and isinstance(auto.local, LocalCrossMatch)
+    replayed = cross_match(Settings.from_env({**ENV, "SDP_CROSS_MATCH": "auto", "SDP_ARCHIVE_MODE": "replay"}))
+    assert isinstance(replayed, CdsXMatchAdapter)  # a missing recording fails; it never falls back
+    with pytest.raises(SettingsError, match="SDP_CROSS_MATCH must be one of local, cds, auto"):
+        Settings.from_env({**ENV, "SDP_CROSS_MATCH": "gpu"})

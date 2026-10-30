@@ -45,7 +45,8 @@ It runs four steps and prints a summary:
 4. **Branch:** commits only `python/tests/cassettes/` to a new branch `archive-cassettes/local-<date>`
    and pushes it. Open a pull request from that branch.
 
-Add `--no-push` to record and check without committing anything. **Success:** exit code 0 and a summary
+Add `--no-push` to record and check without committing anything. While CDS is down, add `--skip-xmatch`
+to leave out step 2; everything else still records, and a later run fills in X-Match. **Success:** exit code 0 and a summary
 listing what passed. Exit code 1 names the failing archive or step.
 
 ## What is still missing (29 October 2026)

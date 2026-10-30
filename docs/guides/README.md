@@ -64,8 +64,9 @@ These guides link to the reference pages rather than repeating them:
   add Gaia DataLink and NEOWISE light curves. The [light-curves guide](light-curves.md) works once both merge.
 - **Pull request [#104](https://github.com/lgriffin/SDP/pull/104)** makes the candidate stage fast on very large
   fields (hundreds of thousands of stars). Until it merges, keep fields under a few degrees.
-- **CDS in Strasbourg** (SIMBAD, VizieR and X-Match) was down on 29 October 2026. SIMBAD fails over to
-  Harvard by itself. X-Match and VizieR have no mirror, so the 2MASS cross-check in the cluster search
-  and `sdp benchmark fetch` wait for CDS ([#107](https://github.com/lgriffin/SDP/issues/107)).
+- **CDS in Strasbourg** (SIMBAD, VizieR and X-Match) was down on 29 and 30 October 2026. SIMBAD fails over
+  to Harvard by itself, and `sdp benchmark fetch` to VizieR's mirrors. Cross-matching (the 2MASS cross-check
+  in the cluster search) now runs on your own machine by default, so it never waits for CDS
+  (`SDP_CROSS_MATCH`, [docs/live-data.md](../live-data.md)).
 - **Release 0.3.0** waits in pull request [#53](https://github.com/lgriffin/SDP/pull/53). The last
   published release, v0.2.0, has no installer attached, so the desktop guide takes it from CI.

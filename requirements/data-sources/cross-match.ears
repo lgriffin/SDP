@@ -10,3 +10,24 @@ requirements:
     tiers: [T3]
     status: draft
     traces: []
+  - id: DSI-018
+    pattern: ubiquitous
+    text: "The system shall cross-match two frames on the local machine with the CPU reference join unless SDP_CROSS_MATCH asks for CDS X-Match."
+    rationale: "CDS X-Match has no mirror and was down for days (Leigh's plan execute and record_live_data runs, 2026-10-30), while the work it does (an angular join of two frames SDP already holds) is the CPU reference itself; DSI-009 has not yet admitted X-Match to a gate, so matching here is also the trusted path."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_xmatch_local::test_the_local_join_agrees_with_the_cpu_reference_on_a_crowded_field"
+      - "python/tests.archives.test_wiring::test_cross_matching_runs_here_unless_cds_is_asked_for"
+  - id: DSI-019
+    pattern: event
+    text: "When SDP_CROSS_MATCH is auto, the archives are live and CDS X-Match gives no answer or a server error, the system shall cross-match the two frames on the local machine."
+    rationale: "Asking CDS first keeps X-Match in use when it is up, while an outage never stops a run; a refusal (a 4xx) is still raised, never papered over."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_xmatch_local::test_when_cds_gives_no_answer_or_a_server_error_the_match_runs_here"
+      - "python/tests.archives.test_xmatch_local::test_a_refusal_from_cds_is_raised_and_an_answer_is_used_as_given"
+      - "python/tests.archives.test_wiring::test_cross_matching_runs_here_unless_cds_is_asked_for"

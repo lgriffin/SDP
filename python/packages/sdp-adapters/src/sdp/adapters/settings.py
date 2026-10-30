@@ -41,6 +41,9 @@ class Settings:
     gaia_source: str = "auto"
     #: fail over to an archive's official mirror (SIMBAD and Sesame at Harvard, VizieR's mirrors) when it gives no answer
     archive_mirrors: bool = True
+    #: where two frames are cross-matched: local (this machine, the CPU reference), cds (CDS X-Match) or
+    #: auto (CDS X-Match, on this machine when it does not answer) (DSI-018)
+    cross_match: str = "local"
     #: Zenodo: the token never appears in a repr, a log or a manifest; the sandbox is the default service
     zenodo_token: str | None = field(default=None, repr=False)
     zenodo_url: str = "https://sandbox.zenodo.org"
@@ -88,6 +91,7 @@ class Settings:
             cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
             gaia_source=gaia_source(env.get("SDP_GAIA_SOURCE", "auto")),
             archive_mirrors=_flag(env.get("SDP_ARCHIVE_MIRRORS", "1")),
+            cross_match=cross_match_where(env.get("SDP_CROSS_MATCH", "local")),
             zenodo_token=secret(env, "SDP_ZENODO_TOKEN"),
             zenodo_url=env.get("SDP_ZENODO_URL", "https://sandbox.zenodo.org"),
             zenodo_creators=env.get("SDP_ZENODO_CREATORS", ""),
@@ -130,4 +134,13 @@ GAIA_SOURCES = ("auto", "tap", "bulk")
 def gaia_source(value: str) -> str:
     if value not in GAIA_SOURCES:
         raise SettingsError(f"SDP_GAIA_SOURCE must be one of {', '.join(GAIA_SOURCES)}, got {value!r}")
+    return value
+
+
+CROSS_MATCHES = ("local", "cds", "auto")
+
+
+def cross_match_where(value: str) -> str:
+    if value not in CROSS_MATCHES:
+        raise SettingsError(f"SDP_CROSS_MATCH must be one of {', '.join(CROSS_MATCHES)}, got {value!r}")
     return value

@@ -3,6 +3,7 @@
     cd python
     uv run python tools/record_live_data.py            # record, check, commit and push a branch
     uv run python tools/record_live_data.py --no-push  # record and check only; nothing leaves this machine
+    uv run python tools/record_live_data.py --skip-xmatch  # leave out CDS X-Match while CDS is down
 
 It does what the Archive live smoke workflow does, from wherever it runs:
 1. The live smoke (``sdp archive smoke``): every TAP source's schema and a small Pleiades cone
@@ -57,6 +58,9 @@ def git(*args: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tools/record_live_data.py", description=__doc__.split("\n\n")[0])
     parser.add_argument("--no-push", dest="push", action="store_false", help="record and check, but do not commit")
+    parser.add_argument(
+        "--skip-xmatch", dest="xmatch", action="store_false", help="leave out the CDS X-Match step (CDS is down)"
+    )
     parser.add_argument("--label", default=datetime.now(UTC).strftime("local-%Y%m%d-%H%M%S"), help="branch suffix")
     args = parser.parse_args(argv)
 
@@ -71,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         [str(BIN / "sdp"), "archive", "smoke", "--baseline", "tests/cassettes", "--record", str(RECORDINGS)],
         save=REPO / "reports" / "archive-smoke.json",
     )
-    xmatch = step(
+    xmatch = not args.xmatch or step(
         "CDS X-Match agreement on the cross-match fixture (DSI-009)",
         [
             sys.executable,
@@ -107,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\npushed {branch}; open a pull request from it to merge the recordings")
 
     failed = [name for name, ok in (("live smoke", smoke), ("X-Match", xmatch), ("replay", replay)) if not ok]
-    print("\nall recorded" if not failed else f"\nfailed: {', '.join(failed)} (see the output above)")
+    skipped = "" if args.xmatch else " (X-Match left out)"
+    print(f"\nall recorded{skipped}" if not failed else f"\nfailed: {', '.join(failed)} (see the output above)")
     return 1 if failed else 0
 
 

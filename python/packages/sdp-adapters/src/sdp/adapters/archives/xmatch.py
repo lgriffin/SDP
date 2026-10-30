@@ -1,4 +1,10 @@
-"""CdsXMatchAdapter: CrossMatchService through the CDS X-Match service (§8, DSI-009).
+"""Cross-matching two canonical frames: on this machine, through CDS X-Match, or CDS falling back to this machine.
+
+``LocalCrossMatch`` is the CPU reference (the same nearest-neighbour join as AstropyCrossMatch), so it
+needs no service and is the default. ``CdsXMatchAdapter`` sends both frames to CDS X-Match (§8, DSI-009).
+``FallbackCrossMatch`` asks CDS and, when it gives no answer or a server error, joins locally (DSI-019).
+
+CdsXMatchAdapter:
 
 Both canonical frames are uploaded as CSV with their row index, after the same epoch propagation the
 CPU reference applies, so the service only does the angular join. X-Match returns every pair within
@@ -10,15 +16,19 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import uuid
 from dataclasses import dataclass
 
 import astropy.units as u
 import numpy as np
 import pyarrow as pa
+from astropy.coordinates import SkyCoord
 
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
-from sdp.kernel.ports.archives import CrossMatchResult
+from sdp.kernel.ports.archives import CrossMatchResult, CrossMatchService
+
+log = logging.getLogger("sdp.adapters.xmatch")
 
 SERVICE_URL = "https://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync"
 _MAS_TO_DEG = 1.0 / 3.6e6
@@ -35,6 +45,10 @@ def positions(table: pa.Table, epoch: u.Quantity | None) -> tuple[np.ndarray, np
     dt = epoch.to_value(u.yr) - t0
     dec_new = dec + pmdec * dt * _MAS_TO_DEG
     return (ra + pmra * dt * _MAS_TO_DEG / np.cos(np.radians(dec))) % 360.0, dec_new
+
+
+def _nothing() -> CrossMatchResult:
+    return CrossMatchResult(np.array([], dtype=np.int64), np.array([], dtype=np.int64), np.array([]) * u.arcsec)
 
 
 def _csv(prefix: str, ra: np.ndarray, dec: np.ndarray) -> bytes:
@@ -89,7 +103,7 @@ class CdsXMatchAdapter:
         self, left: pa.Table, right: pa.Table, radius: u.Quantity, *, epoch: u.Quantity | None = None
     ) -> CrossMatchResult:
         if left.num_rows == 0 or right.num_rows == 0:
-            return CrossMatchResult(np.array([], dtype=np.int64), np.array([], dtype=np.int64), np.array([]) * u.arcsec)
+            return _nothing()
         response = self.transport.send(self.request(left, right, radius, epoch))
         if response.status != 200:
             raise TransportError(f"X-Match: HTTP {response.status}: {response.body[:200]!r}", response.status)
@@ -104,3 +118,41 @@ class CdsXMatchAdapter:
             np.asarray([best[i][1] for i in order], dtype=np.int64),
             np.asarray([best[i][0] for i in order]) * u.arcsec,
         )
+
+
+@dataclass
+class LocalCrossMatch:
+    """The nearest right row on the sky for each left row within the radius, computed here."""
+
+    def match(
+        self, left: pa.Table, right: pa.Table, radius: u.Quantity, *, epoch: u.Quantity | None = None
+    ) -> CrossMatchResult:
+        if left.num_rows == 0 or right.num_rows == 0:
+            return _nothing()
+        lra, ldec = positions(left, epoch)
+        rra, rdec = positions(right, epoch)
+        idx, sep, _ = SkyCoord(lra * u.deg, ldec * u.deg).match_to_catalog_sky(SkyCoord(rra * u.deg, rdec * u.deg))
+        keep = sep <= radius
+        return CrossMatchResult(
+            np.nonzero(keep)[0].astype(np.int64), np.asarray(idx)[keep].astype(np.int64), sep[keep].to(u.arcsec)
+        )
+
+
+@dataclass
+class FallbackCrossMatch:
+    """CDS X-Match while it answers; the local join when it gives no answer or a server error. A refusal
+    (a 4xx) is raised, never papered over."""
+
+    remote: CrossMatchService
+    local: CrossMatchService
+
+    def match(
+        self, left: pa.Table, right: pa.Table, radius: u.Quantity, *, epoch: u.Quantity | None = None
+    ) -> CrossMatchResult:
+        try:
+            return self.remote.match(left, right, radius, epoch=epoch)
+        except TransportError as exc:
+            if exc.status is not None and exc.status < 500:
+                raise
+            log.warning("CDS X-Match did not answer (%s); cross-matching on this machine instead", exc)
+            return self.local.match(left, right, radius, epoch=epoch)
