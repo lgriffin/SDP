@@ -22,7 +22,7 @@ requirements:
       - "python/tests.archives.test_wiring::test_cross_matching_runs_here_unless_cds_is_asked_for"
   - id: DSI-019
     pattern: event
-    text: "When SDP_CROSS_MATCH is auto and CDS X-Match gives no answer or a server error, the system shall cross-match the two frames on the local machine."
+    text: "When SDP_CROSS_MATCH is auto, the archives are live and CDS X-Match gives no answer or a server error, the system shall cross-match the two frames on the local machine."
     rationale: "Asking CDS first keeps X-Match in use when it is up, while an outage never stops a run; a refusal (a 4xx) is still raised, never papered over."
     verification: test
     tiers: [T3]
@@ -30,3 +30,4 @@ requirements:
     traces:
       - "python/tests.archives.test_xmatch_local::test_when_cds_gives_no_answer_or_a_server_error_the_match_runs_here"
       - "python/tests.archives.test_xmatch_local::test_a_refusal_from_cds_is_raised_and_an_answer_is_used_as_given"
+      - "python/tests.archives.test_wiring::test_cross_matching_runs_here_unless_cds_is_asked_for"

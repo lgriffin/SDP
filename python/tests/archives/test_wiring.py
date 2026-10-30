@@ -131,5 +131,7 @@ def test_cross_matching_runs_here_unless_cds_is_asked_for() -> None:
     assert isinstance(cross_match(Settings.from_env({**ENV, "SDP_CROSS_MATCH": "cds"})), CdsXMatchAdapter)
     auto = cross_match(Settings.from_env({**ENV, "SDP_CROSS_MATCH": "auto"}))
     assert isinstance(auto, FallbackCrossMatch) and isinstance(auto.local, LocalCrossMatch)
+    replayed = cross_match(Settings.from_env({**ENV, "SDP_CROSS_MATCH": "auto", "SDP_ARCHIVE_MODE": "replay"}))
+    assert isinstance(replayed, CdsXMatchAdapter)  # a missing recording fails; it never falls back
     with pytest.raises(SettingsError, match="SDP_CROSS_MATCH must be one of local, cds, auto"):
         Settings.from_env({**ENV, "SDP_CROSS_MATCH": "gpu"})

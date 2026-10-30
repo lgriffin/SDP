@@ -169,7 +169,8 @@ def cds_cross_match(settings: Settings) -> CdsXMatchAdapter:
 def cross_match(settings: Settings) -> CrossMatchService:
     """Cross-matching per ``SDP_CROSS_MATCH``: on this machine by default, so a CDS outage never stops a
     run (DSI-018); CDS X-Match only when asked, and it is a gate input only once DSI-009 holds."""
-    if settings.cross_match == "cds":
+    if settings.cross_match == "cds" or (settings.cross_match == "auto" and settings.archive_mode == "replay"):
+        # a replay answers from recordings or fails: a missing or corrupt cassette is never an outage
         return cds_cross_match(settings)
     if settings.cross_match == "auto":
         return FallbackCrossMatch(cds_cross_match(settings), LocalCrossMatch())
