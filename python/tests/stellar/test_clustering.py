@@ -53,7 +53,11 @@ def test_fast_hdbscan_gives_scikit_learns_labels(min_cluster_size: int) -> None:
     params = {"min_cluster_size": min_cluster_size, "min_samples": 10}
     fast = FastHdbscan().search(x, params, seed=1)
     ref = SklearnHdbscan().search(x, params, seed=1)
-    assert fast.labels.tolist() == ref.labels.tolist()
+    # the three tight groups come out identically; in the Gaussian background two different spanning
+    # trees can break a near-tie in core distance either way, and which way depends on the CPU's
+    # floating point (it went both ways on CI runners), so a few background stars may swap clusters
+    assert fast.labels[4000:].tolist() == ref.labels[4000:].tolist()
+    assert np.count_nonzero(fast.labels != ref.labels) <= len(x) // 1000
     assert fast.algorithm_id == "fast-hdbscan" and fast.n_clusters == ref.n_clusters
 
 
