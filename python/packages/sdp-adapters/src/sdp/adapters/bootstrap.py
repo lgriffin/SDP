@@ -31,7 +31,7 @@ from sdp.adapters.archives.transport import (
     UrllibTransport,
 )
 from sdp.adapters.archives.untrusted import IsolatedVotableParser
-from sdp.adapters.archives.xmatch import CdsXMatchAdapter
+from sdp.adapters.archives.xmatch import CdsXMatchAdapter, FallbackCrossMatch, LocalCrossMatch
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.compute.clustering import FastHdbscan, SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
@@ -61,7 +61,7 @@ from sdp.kernel.application.investigate import (
 from sdp.kernel.application.kernel import Kernel, KernelPorts
 from sdp.kernel.application.plugins import EntryPointProtocolRegistry
 from sdp.kernel.domain.integration import AcquisitionBudget
-from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
+from sdp.kernel.ports.archives import ArchiveGateway, CrossMatchService, DialectCurator
 from sdp.kernel.ports.evidence import ExperimentTracker
 from sdp.kernel.ports.investigate import ObservationArchiveGateway
 from sdp.kernel.ports.plugins import ProtocolRegistry
@@ -162,8 +162,18 @@ def archive_gateways(settings: Settings, store: ArtifactStore | None = None) -> 
     return gateways
 
 
-def cross_match(settings: Settings) -> CdsXMatchAdapter:
+def cds_cross_match(settings: Settings) -> CdsXMatchAdapter:
     return CdsXMatchAdapter(archive_transport(settings, "cds-xmatch", 1.0))
+
+
+def cross_match(settings: Settings) -> CrossMatchService:
+    """Cross-matching per ``SDP_CROSS_MATCH``: on this machine by default, so a CDS outage never stops a
+    run (DSI-018); CDS X-Match only when asked, and it is a gate input only once DSI-009 holds."""
+    if settings.cross_match == "cds":
+        return cds_cross_match(settings)
+    if settings.cross_match == "auto":
+        return FallbackCrossMatch(cds_cross_match(settings), LocalCrossMatch())
+    return LocalCrossMatch()
 
 
 def known_clusters(settings: Settings) -> VizierKnownClusters:

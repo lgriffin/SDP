@@ -50,10 +50,8 @@ sdp investigate list <set_id>
 - `execute` ends with every stage `completed` and about 4,099 objects examined.
 - Praesepe comes out as a strong **group** candidate.
 
-**Known blocker:** the 2MASS cross-check goes through CDS X-Match in Strasbourg, which has no mirror.
-While CDS is down the run stops in the retrieve stage with a `TransportError` naming
-`cdsxmatch.u-strasbg.fr` ([#66](https://github.com/lgriffin/SDP/issues/66#issuecomment-6507826795)).
-Run `plan execute` again once CDS answers; everything already fetched is reused.
+The 2MASS cross-check pairs each Gaia star with its 2MASS counterpart on your own machine, so it needs
+no service beyond Gaia and IRSA. Setting `SDP_CROSS_MATCH=cds` sends that step to CDS X-Match instead.
 
 ## Part 2: all of Gaia on your own disk
 

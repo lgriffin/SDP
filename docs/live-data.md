@@ -51,8 +51,8 @@ It takes a few minutes and runs these steps:
 4. **Branch.** It commits only `python/tests/cassettes/` on a new branch,
    `archive-cassettes/local-<date>`, and pushes it. Open a pull request from that branch.
 
-Add `--no-push` to record and check without committing anything. The script exits with status 1 if
-any step failed, and the output names the failing archive.
+Add `--no-push` to record and check without committing anything, and `--skip-xmatch` to leave out step 2
+while CDS is down. The script exits with status 1 if any step failed, and the output names the failing archive.
 
 ## Measuring a pull
 
@@ -288,3 +288,16 @@ Only the files whose sky box overlaps the field are opened. `SDP_GAIA_SOURCE` ch
 
 A dataset read from the copy records its query as `BULK SELECT ...`, so it never passes for an archive
 read and is not reused for one.
+
+## Cross-matching without CDS
+
+Pairing the stars of one catalogue with another (Gaia with 2MASS in a run, detections with Gaia in a
+JWST field) runs on your own machine by default, with the same join the tests use as the reference.
+`SDP_CROSS_MATCH` chooses:
+
+- `local` (the default): on this machine; no service is called.
+- `cds`: CDS X-Match in Strasbourg, which has no mirror.
+- `auto`: CDS X-Match, and on this machine whenever CDS gives no answer or a server error.
+
+CDS X-Match counts as a gate input only once its recorded answers agree with the local join
+(requirement DSI-009), so `local` is also the trusted choice (DSI-018, DSI-019).
