@@ -4,7 +4,7 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These seven profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These eight profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|

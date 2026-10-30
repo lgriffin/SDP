@@ -205,8 +205,15 @@ class LocalImageGateway:
             return []
         if criteria.missions and "light" not in criteria.missions:
             return []
+        if criteria.min_calibration_level is not None and CALIBRATION["light"] < criteria.min_calibration_level:
+            return []
         records = []
         for name, star in self.curves():
+            first, last = star.get("first_mjd"), star.get("last_mjd")
+            if criteria.epoch_min_mjd is not None and last is not None and last < criteria.epoch_min_mjd:
+                continue
+            if criteria.epoch_max_mjd is not None and first is not None and first > criteria.epoch_max_mjd:
+                continue
             separation = _separation_deg(target.ra_deg, target.dec_deg, star["ra_deg"], star["dec_deg"])
             if separation * 3600.0 > criteria.radius_arcsec:
                 continue

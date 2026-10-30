@@ -536,11 +536,18 @@ def scale_from_header(header: Mapping[str, Any]) -> float | None:
 
 
 def sky_to_pixel(wcs: Mapping[str, Any], ra: np.ndarray, dec: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """1-based FITS pixels of sky positions under a solution, SIP's inverse (AP, BP) included."""
+    """1-based FITS pixels of sky positions under a solution, SIP's inverse (AP, BP) included; with only
+    the forward terms, the forward polynomial is inverted by iteration."""
     xi, eta = project(np.asarray(ra, dtype=float), np.asarray(dec, dtype=float), wcs["CRVAL1"], wcs["CRVAL2"])
     cd = np.array([[wcs["CD1_1"], wcs["CD1_2"]], [wcs["CD2_1"], wcs["CD2_2"]]], dtype=float)
     u, v = np.linalg.solve(cd, np.vstack([xi, eta]))
     if "AP_ORDER" in wcs:
         f, g = sip_offsets(wcs, u, v, "AP")
         u, v = u + f, v + g
+    elif "A_ORDER" in wcs:
+        # solve (u', v') + f(u', v') = (u, v); the offsets are small, so this settles in a few steps
+        target_u, target_v = u, v
+        for _ in range(20):
+            f, g = sip_offsets(wcs, u, v)
+            u, v = target_u - f, target_v - g
     return u + wcs["CRPIX1"], v + wcs["CRPIX2"]

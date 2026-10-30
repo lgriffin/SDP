@@ -15,10 +15,20 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from sdp.adapters.local.catalogue import Catalogue, descriptor
+from sdp.adapters.local.catalogue import Catalogue, LocalDiscovery, descriptor
 from sdp.adapters.local.gateway import CURVE_PREFIX, LocalFrameDialect, LocalImageGateway
 from sdp.adapters.local.index import FrameIndex
-from sdp.adapters.local.lightcurves import Field, LightCurves, busiest_target, field_cone, green
+from sdp.adapters.local.lightcurves import (
+    Field,
+    LightCurves,
+    _saturation,
+    bayer_pattern,
+    busiest_target,
+    field_cone,
+    file_stem,
+    green,
+    measure_frame,
+)
 from sdp.adapters.local.solver import sky_to_pixel
 from sdp.adapters.local.sources import LocalSource, LocalSources
 from sdp.cli import app as cli
@@ -129,6 +139,49 @@ def test_the_green_cells_of_a_gbrg_frame_are_the_mean_of_its_two_greens() -> Non
         green(raw, "RGB")
 
 
+def test_a_saturated_green_is_not_hidden_by_its_dimmer_partner() -> None:
+    data = np.random.default_rng(1).normal(1000.0, 5.0, (120, 120)).astype(np.float32)
+    data[60:64, 60:64] = 20000.0
+    data[60, 61] = 65000.0  # one green of the RGGB cell at raw (61, 61) clipped; its partner is not
+    header = {"BITPIX": 16, "BZERO": 32768}
+    flux, _ = measure_frame(data, header, "RGGB", np.array([61.5, 30.5]), np.array([61.5, 30.5]), 3.0)
+    assert math.isnan(flux[0]) and np.isfinite(flux[1])
+
+
+def test_saturation_follows_the_integer_type_and_the_bayer_offsets_shift_the_pattern() -> None:
+    assert _saturation({"BITPIX": 16, "BZERO": 32768}) == 65535.0
+    assert _saturation({"BITPIX": 16}) == 32767.0
+    assert _saturation({"BITPIX": 8}) == 255.0
+    assert _saturation({"BITPIX": -32}) == math.inf
+    assert _saturation({"BITPIX": 16, "SATURATE": 4095}) == 4095.0
+    assert bayer_pattern({"BAYERPAT": "RGGB"}) == "RGGB"
+    assert bayer_pattern({"BAYERPAT": "RGGB", "XBAYROFF": 1}) == "GRBG"
+    assert bayer_pattern({"BAYERPAT": "RGGB", "YBAYROFF": 1}) == "GBRG"
+    assert bayer_pattern({"BAYERPAT": "RGGB", "XBAYROFF": 1, "YBAYROFF": 1}) == "BGGR"
+    assert bayer_pattern({}) is None
+
+
+def test_a_target_name_becomes_a_safe_file_name(tmp_path: Path) -> None:
+    assert file_stem("NGC 7000/IC 5070") == "NGC 7000_IC 5070"
+    assert file_stem("Sh2-155: Cave") == "Sh2-155_ Cave"
+    assert file_stem("../x") == "_x" and file_stem("M31") == "M31" == file_stem(file_stem("M31"))
+    (tmp_path / "frames").mkdir()
+    source = LocalSources(tmp_path / "data").add("astro", tmp_path / "frames", 1.65)
+    curves = LightCurves(source, tmp_path / "data", "NGC 7000/IC 5070")
+    assert curves.stars_path.parent == curves.path.parent == curves.root
+
+
+def test_sky_to_pixel_inverts_a_forward_only_distortion() -> None:
+    from sdp.adapters.local.solver import pixel_to_sky
+
+    wcs = {"CRVAL1": 10.0, "CRVAL2": 41.0, "CRPIX1": 450.5, "CRPIX2": 450.5,
+           "CD1_1": -4e-4, "CD1_2": 0.0, "CD2_1": 0.0, "CD2_2": 4e-4,
+           "A_ORDER": 2, "B_ORDER": 2, "A_2_0": 2e-6, "A_0_2": -1e-6, "B_1_1": 3e-6}  # fmt: skip
+    x, y = np.array([1.0, 300.0, 899.0]), np.array([1.0, 650.0, 20.0])
+    back = sky_to_pixel(wcs, *pixel_to_sky(wcs, x, y))
+    assert np.allclose(back[0], x, atol=1e-4) and np.allclose(back[1], y, atol=1e-4)
+
+
 def test_sky_to_pixel_inverts_the_solution() -> None:
     from sdp.adapters.local.solver import pixel_to_sky
 
@@ -223,6 +276,30 @@ def test_the_gateway_offers_each_measured_star_as_a_light_curve(built: tuple[Nig
     assert len(images) == NIGHTS * PER_NIGHT and {r.product_type for r in images} == {"image"}
     d = descriptor(w.source, Catalogue(w.source, w.data).rows(), date(2026, 10, 30), True)
     assert ProductType.TIMESERIES in d.product_types
+    first, last = record.epoch_mjd, record.epoch_end_mjd
+    assert first is not None and last is not None
+    for outside in (
+        ObservationCriteria(radius_arcsec=2.0, product_types=("lightcurve",), epoch_max_mjd=first - 1.0),
+        ObservationCriteria(radius_arcsec=2.0, product_types=("lightcurve",), epoch_min_mjd=last + 1.0),
+        ObservationCriteria(radius_arcsec=2.0, product_types=("lightcurve",), min_calibration_level=2),
+    ):
+        assert g.search(target, outside).records == ()
+
+
+@pytest.mark.req("LOC-022")
+def test_a_build_with_no_stars_does_not_offer_time_series(
+    built: tuple[Nights, dict[str, Any]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sdp.adapters.local.lightcurves as lightcurves
+
+    w, _ = built
+    discovery = LocalDiscovery(None, {w.source.source_id: (w.source, w.data)})
+    assert ProductType.TIMESERIES in discovery._descriptor(w.source.source_id).product_types
+    empty = tmp_path / "Empty-stars.json"
+    empty.write_text(json.dumps({"stars": 0, "all_stars": []}), "utf-8")
+    monkeypatch.setattr(lightcurves, "stars_files", lambda _source, _data: [empty])
+    discovery = LocalDiscovery(None, {w.source.source_id: (w.source, w.data)})
+    assert ProductType.TIMESERIES not in discovery._descriptor(w.source.source_id).product_types
 
 
 def variability_profile() -> TestProfile:

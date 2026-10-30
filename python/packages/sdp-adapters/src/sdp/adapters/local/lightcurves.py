@@ -99,22 +99,44 @@ class Field:
         return ra % 360.0, dec
 
 
-def green(data: np.ndarray, bayer: str) -> np.ndarray:
-    """The mean of each 2 x 2 colour cell's green pixels: one value per cell."""
+def _greens(data: np.ndarray, bayer: str) -> tuple[np.ndarray, np.ndarray]:
     pattern = bayer.strip().upper()
     if len(pattern) != 4 or pattern.count("G") != 2:
         raise ValueError(f"Bayer pattern {bayer!r} is not a 2 x 2 pattern with two greens")
     h, w = (data.shape[0] // 2) * 2, (data.shape[1] // 2) * 2
     cells = [data[r:h:2, c:w:2] for r, c in ((0, 0), (0, 1), (1, 0), (1, 1))]
     picked = [cell for cell, colour in zip(cells, pattern, strict=True) if colour == "G"]
-    return np.asarray((picked[0] + picked[1]) / 2.0, dtype=np.float32)
+    return picked[0], picked[1]
+
+
+def green(data: np.ndarray, bayer: str) -> np.ndarray:
+    """The mean of each 2 x 2 colour cell's green pixels: one value per cell."""
+    first, second = _greens(data, bayer)
+    return np.asarray((first + second) / 2.0, dtype=np.float32)
+
+
+def bayer_pattern(header: dict[str, Any]) -> str | None:
+    """BAYERPAT as it lies from the first pixel: an odd XBAYROFF swaps its columns, an odd YBAYROFF its rows."""
+    pattern = str(header.get("BAYERPAT") or "").strip().upper()
+    if len(pattern) != 4:
+        return pattern or None
+    if int(header.get("XBAYROFF") or 0) % 2:
+        pattern = pattern[1] + pattern[0] + pattern[3] + pattern[2]
+    if int(header.get("YBAYROFF") or 0) % 2:
+        pattern = pattern[2:] + pattern[:2]
+    return pattern
 
 
 def _saturation(header: dict[str, Any]) -> float:
+    """SATURATE, or the top of the integer type: unsigned when BZERO is 2^(BITPIX-1), as it is for the
+    usual 16-bit camera file, and signed otherwise."""
     if isinstance(header.get("SATURATE"), int | float):
         return float(header["SATURATE"])
     bits = int(header.get("BITPIX", 16))
-    return float(2 ** abs(bits) - 1) if bits > 0 else math.inf
+    if bits <= 0:
+        return math.inf
+    unsigned = bits == 8 or header.get("BZERO") == 2 ** (bits - 1)
+    return float(2**bits - 1 if unsigned else 2 ** (bits - 1) - 1)
 
 
 def measure_frame(
@@ -125,7 +147,9 @@ def measure_frame(
     from astropy.stats import SigmaClip
     from photutils.aperture import ApertureStats, CircularAnnulus, CircularAperture, aperture_photometry
 
-    cells = green(data, bayer)
+    first, second = _greens(data, bayer)
+    cells = np.asarray((first + second) / 2.0, dtype=np.float32)
+    brightest = np.maximum(first, second)  # a saturated green is not hidden by its dimmer partner
     # raw 0-based pixel p lies in cell p // 2, whose centre is raw 2c + 0.5: cell coordinate (p - 0.5) / 2
     cx, cy = (x - 1 - 0.5) / 2, (y - 1 - 0.5) / 2
     radius = max(1.5, 1.5 * fwhm_px / 2)
@@ -140,7 +164,7 @@ def measure_frame(
     apertures = CircularAperture(positions, r=radius)
     annuli = CircularAnnulus(positions, r_in=inner, r_out=outer)
     sky = ApertureStats(cells, annuli, sigma_clip=SigmaClip(sigma=3.0))
-    peak = ApertureStats(cells, apertures).max
+    peak = ApertureStats(brightest, apertures).max
     total = np.asarray(aperture_photometry(cells, apertures)["aperture_sum"], dtype=float)
     area = math.pi * radius**2
     background = np.asarray(sky.median, dtype=float)
@@ -182,6 +206,13 @@ def _night(mjd: float) -> str:
     return (when - timedelta(hours=12)).date().isoformat()
 
 
+def file_stem(target: str) -> str:
+    """A target's name as a file name: anything but letters, digits, space, ``.``, ``_``, ``+`` and ``-``
+    becomes ``_``, and it never starts with a dot (so ``NGC 7000/IC 5070`` stays in the folder)."""
+    stem = "".join(c if c.isascii() and (c.isalnum() or c in " ._+-") else "_" for c in target)
+    return stem.strip(" ").lstrip(".") or "_"
+
+
 @dataclass
 class LightCurves:
     source: LocalSource
@@ -194,15 +225,15 @@ class LightCurves:
 
     @property
     def path(self) -> Path:
-        return self.root / f"{self.target}.parquet"
+        return self.root / f"{file_stem(self.target)}.parquet"
 
     @property
     def nights_path(self) -> Path:
-        return self.root / f"{self.target}-nights.parquet"
+        return self.root / f"{file_stem(self.target)}-nights.parquet"
 
     @property
     def stars_path(self) -> Path:
-        return self.root / f"{self.target}-stars.json"
+        return self.root / f"{file_stem(self.target)}-stars.json"
 
     @staticmethod
     def frames_of(rows: Iterable[dict[str, Any]], target: str) -> list[dict[str, Any]]:
@@ -228,13 +259,14 @@ class LightCurves:
                 data, header = read_frame(io.BytesIO((self.source.path / frame["path"]).read_bytes()))
             except OSError:  # moved or deleted since it was catalogued: leave it out
                 continue
-            if data.ndim != 2 or not header.get("BAYERPAT"):
+            bayer = bayer_pattern(header)
+            if data.ndim != 2 or not bayer:
                 continue
             jyear = 2000.0 + (frame["mjd"] - 51544.5) / 365.25
             ra, dec = field.at(jyear)
             x, y = sky_to_pixel(solution["wcs"], ra, dec)
             fwhm_px = float((solution.get("quality") or {}).get("fwhm_arcsec") or 6.0) / float(solution["scale_arcsec"])
-            flux, err = measure_frame(data, header, str(header["BAYERPAT"]), x, y, fwhm_px)
+            flux, err = measure_frame(data, header, bayer, x, y, fwhm_px)
             seconds = float(frame["exposure_s"] or 1.0)
             ok = flux > 0
             instrumental = np.where(ok, -2.5 * np.log10(np.where(ok, flux, 1.0) / seconds), math.nan)
@@ -281,7 +313,7 @@ class LightCurves:
         self.root.mkdir(parents=True, exist_ok=True)
         _write(table, self.path)
         _write(per_night(table), self.nights_path)
-        stars = summarise(table, field)
+        stars = {"target": self.target, **summarise(table, field)}
         tmp = self.stars_path.with_name(self.stars_path.name + ".tmp")
         tmp.write_text(json.dumps(stars, indent=2) + "\n", "utf-8")
         tmp.replace(self.stars_path)

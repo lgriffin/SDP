@@ -346,7 +346,8 @@ class LocalDiscovery:
             source, data = self.sources[source_id]
             from sdp.adapters.local.lightcurves import stars_files
 
-            curves = bool(stars_files(source, data))
+            # a build that calibrated no frame writes a summary with no stars: that is no time series
+            curves = any(json.loads(path.read_text("utf-8"))["all_stars"] for path in stars_files(source, data))
             built = (now, descriptor(source, Catalogue(source, data).build(), self.today(), curves))
             self._built[source_id] = built
         return built[1]
