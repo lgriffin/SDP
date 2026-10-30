@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
 from sdp.kernel.application.acquisition import raw_part_path
 from sdp.kernel.application.media import PARQUET, decode_artifact
-from sdp.kernel.domain.archive import CatalogueQuery, Cone
+from sdp.kernel.domain.archive import AcquisitionHandle, CatalogueQuery, Cone
 from sdp.kernel.domain.dataset import ArtifactKind, DatasetStatus
 from sdp.kernel.domain.errors import (
     CurationBlocked,
@@ -82,6 +83,36 @@ def test_repeated_idempotency_key_returns_existing_artifact_without_a_remote_cal
 
     assert again.reused and again.raw == first.raw and again.curated == first.curated
     assert archive.fetch_calls == calls
+
+
+class _OtherRoute:
+    """The same archive reached another way, as the local Gaia bulk copy is: the same rows under another
+    idempotency key and rendered text."""
+
+    def __init__(self, inner: FakeArchive) -> None:
+        self.inner = inner
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+    def query(self, q: CatalogueQuery) -> AcquisitionHandle:
+        handle = self.inner.query(q)
+        return replace(handle, rendered_text="BULK " + handle.rendered_text, idempotency_key="sha256:" + "0" * 64)
+
+
+@pytest.mark.tier("T3")
+@pytest.mark.req("KRN-014", "DSI-004")
+def test_the_same_rows_by_another_route_reuse_the_record_already_held() -> None:
+    archive = FakeArchive(FAKE_GAIA, fixture_catalogue())
+    k = kernel_with(archive)
+    first = k.kernel.acquire_dataset.execute(AcquireDatasetCommand(QUERY))
+    datasets = len(k.kernel.query_evidence.datasets())
+
+    by_bulk = replace(k.kernel.acquire_dataset, gateways={"fake-gaia": _OtherRoute(archive)})
+    again = by_bulk.execute(AcquireDatasetCommand(QUERY))
+
+    assert again.reused and again.raw == first.raw and again.curated == first.curated
+    assert len(k.kernel.query_evidence.datasets()) == datasets, "no second record under the same id"
 
 
 @pytest.mark.tier("T5")
