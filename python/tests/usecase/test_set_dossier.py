@@ -22,7 +22,9 @@ from sdp.testing.wiring import InMemoryKernel
 pytestmark = pytest.mark.tier("T4")
 
 
-@pytest.fixture(scope="module")
+# Per test, not per module: mutmut credits a fixture's calls to the first test that builds it, so a
+# shared run would hide the mutants every later test checks (docs/testing.md).
+@pytest.fixture
 def world() -> tuple[InMemoryKernel, dict[str, Any], bytes]:
     k = slice_kernel()
     assert k.kernel.set_dossier is not None
