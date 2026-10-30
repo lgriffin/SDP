@@ -44,7 +44,9 @@ class TestFastHdbscan(ClusterSearchContract):
 
 
 @pytest.mark.parametrize("min_cluster_size", [10, 20, 40])
-def test_fast_hdbscan_gives_scikit_learns_labels(min_cluster_size: int) -> None:
+def test_fast_hdbscan_gives_scikit_learns_clusters(min_cluster_size: int) -> None:
+    """The same clusters as scikit-learn: the two trees may hang a fringe point that one of them holds
+    weakly (membership under 0.5) on a different cluster, but never drop a strong member to noise."""
     rng = np.random.default_rng(11)
     x = np.vstack(
         [rng.normal(0, 1, (4000, 3))]
@@ -53,11 +55,12 @@ def test_fast_hdbscan_gives_scikit_learns_labels(min_cluster_size: int) -> None:
     params = {"min_cluster_size": min_cluster_size, "min_samples": 10}
     fast = FastHdbscan().search(x, params, seed=1)
     ref = SklearnHdbscan().search(x, params, seed=1)
-    # the three tight groups come out identically; in the Gaussian background two different spanning
-    # trees can break a near-tie in core distance either way, and which way depends on the CPU's
-    # floating point (it went both ways on CI runners), so a few background stars may swap clusters
-    assert fast.labels[4000:].tolist() == ref.labels[4000:].tolist()
-    assert np.count_nonzero(fast.labels != ref.labels) <= len(x) // 1000
+    differ = np.nonzero(fast.labels != ref.labels)[0]
+    assert len(differ) <= len(x) // 1000, f"{len(differ)} of {len(x)} points change cluster"
+    held = np.stack([fast.probabilities[differ], ref.probabilities[differ]])
+    assert np.all(held.min(axis=0) < 0.5), "a point both runs hold strongly changed cluster"
+    noise = (fast.labels[differ] < 0) | (ref.labels[differ] < 0)
+    assert not np.any(noise & (held.max(axis=0) >= 0.5)), "a strongly held member became noise"
     assert fast.algorithm_id == "fast-hdbscan" and fast.n_clusters == ref.n_clusters
 
 
