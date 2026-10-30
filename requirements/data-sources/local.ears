@@ -99,8 +99,8 @@ requirements:
       - "python/tests.local.test_offline_solving::test_a_folder_chains_each_frame_from_its_solved_neighbour_and_falls_back_to_triangles"
   - id: LOC-009
     pattern: event
-    text: "When local frames are solved by several workers, the system shall solve or refuse the same frames as one worker would."
-    rationale: "20,773 frames are solved overnight on several cores; the number of workers changes the time taken, not the results (#71)."
+    text: "When local frames are solved by several workers, the system shall accept each frame only on the match-count and RMS tests that one worker applies."
+    rationale: "20,773 frames are solved overnight on several cores. A frame at the start of a worker's run may begin from a different solved neighbour than with one worker, so its fit can differ in the last decimals, but no frame is accepted on a weaker test (#71)."
     verification: test
     tiers: [T3]
     status: approved

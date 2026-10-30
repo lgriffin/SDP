@@ -1065,8 +1065,13 @@ def local_names(
         resolve = _name_resolver()
         if resolve is None:
             raise DomainError("no SIMBAD resolver is wired; give the positions with --centre NAME=RA,DEC instead")
+        failed: dict[str, str] = {}
         for each in unknown:
-            found = resolve(each)
+            try:
+                found = resolve(each)
+            except Exception as exc:  # SIMBAD unreachable: keep what was found, report the rest
+                failed[each] = f"{type(exc).__name__}: {exc}"
+                continue
             if found is None:
                 not_found.append(each)
             else:
@@ -1078,6 +1083,7 @@ def local_names(
             "known": book.entries(),
             "frames_name_these_unknown_targets": unknown,
             **({"simbad_does_not_know": not_found} if not_found else {}),
+            **({"simbad_failed": failed} if fetch and unknown and failed else {}),
         }
     )
 
