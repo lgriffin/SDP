@@ -26,6 +26,11 @@ pytestmark = pytest.mark.tier("T4")
 # shared run would hide the mutants every later test checks (docs/testing.md).
 @pytest.fixture
 def world() -> tuple[InMemoryKernel, dict[str, Any], bytes]:
+    return dossier_world()
+
+
+def dossier_world() -> tuple[InMemoryKernel, dict[str, Any], bytes]:
+    """The slice run, its one candidate annotated, and the set's dossier."""
     k = slice_kernel()
     assert k.kernel.set_dossier is not None
     k.kernel.set_dossier.ports.picture = preview_png
