@@ -1028,9 +1028,13 @@ def local_solve(
     }
     # the run itself is kept as an artifact, like every other step's record
     record = state.runtime().store.put(json.dumps(run, sort_keys=True).encode(), "application/json")
+    from sdp.adapters.local.quality import grade_source
+
+    graded = grade_source(source, data, FrameIndex(source, data).rows())
     emit(
         {
             **{k: v for k, v in run.items() if k != "frames"},
+            "graded_poor": sum(1 for g in graded if g["grade"] == "poor"),
             "run_artifact": record.value,
             **solver.status(FrameIndex(source, data)),
         }
@@ -1149,6 +1153,38 @@ def local_solved(name: Annotated[str, typer.Argument(help="The source's name")])
     source = LocalSources(data).get(name)
     solver = LocalSolver(source, data, None, lambda _c: None)  # type: ignore[arg-type,return-value]
     emit(solver.status(FrameIndex(source, data)))
+
+
+@local_app.command("quality")
+def local_quality(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    target: Annotated[str | None, typer.Option(help="Only summarise this OBJECT or top folder, e.g. M31")] = None,
+) -> None:
+    """Grade every solved frame good, usable or poor against the other frames of its session (its folder),
+    with the reasons, and summarise each night. Solving measures the frames; this compares them. The
+    grades go to <data>/quality/<source>/grades.parquet, and investigations leave out poor frames. Needs
+    no database."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.quality import GOOD, POOR, USABLE, Grades, grade_source, nights
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    rows = FrameIndex(source, data).rows()
+    graded = grade_source(source, data, rows)
+    summary = nights(graded, rows)
+    if target is not None:
+        wanted = target.replace(" ", "").lower()
+        summary = [n for n in summary if n["target"].replace(" ", "").lower() == wanted]
+    counts = {g: sum(1 for f in graded if f["grade"] == g) for g in (GOOD, USABLE, POOR)}
+    emit(
+        {
+            "frames": len(graded),
+            "by_grade": {g: n for g, n in counts.items() if n},
+            "nights": summary,
+            "grades": str(Grades(source, data).path),
+        }
+    )
 
 
 @local_app.command("sidecars")

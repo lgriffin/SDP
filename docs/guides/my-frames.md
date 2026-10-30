@@ -58,6 +58,17 @@ that cannot be solved with confidence is refused, with its reason, in `<frame>.u
 **Success:** `solved` lists most stacks as solved. A refusal says why, for example too few stars
 matched, or no target name to start from.
 
+## Step 2b: see how good each night was
+
+```bat
+sdp local quality astro --target M31
+```
+
+Solving measures every frame: star width, roundness, sky brightness, how much light got through (cloud
+or haze), how faint it reaches, and satellite trails. `quality` grades each frame good, usable or poor
+against the other frames of the same night's folder, with the reason in words, and lists each night with
+its frames by grade, hours and median star width. Poor frames are left out of the checks below.
+
 ## Step 3: check a target against Gaia
 
 ```bat

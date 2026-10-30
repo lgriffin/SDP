@@ -19,6 +19,7 @@ from typing import Any
 from sdp.adapters.local.distortion import fit_distortion
 from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.local.names import FROM_SIMBAD, NameBook
+from sdp.adapters.local.quality import measure
 from sdp.adapters.local.solver import (
     SOLVER_VERSION,
     Reference,
@@ -292,6 +293,7 @@ class LocalSolver:
             solution, how = self._solve(stars, reference, centre, scale, self.neighbour(row, rows))
             context["start"] = how
             solution, context["distortion"] = fit_distortion(solution, stars, reference, self.config)
+            context["quality"] = measure(stars, solution, scale, row.get("exposure_s"))
             # binning drops an odd last row or column; the frame keeps it
             solution.wcs.update(NAXIS1=int(data.shape[-1]), NAXIS2=int(data.shape[-2]))
         except Unsolved as refused:

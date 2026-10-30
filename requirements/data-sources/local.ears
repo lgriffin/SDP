@@ -156,3 +156,33 @@ requirements:
     traces:
       - "python/tests.local.test_sidecars::test_a_solved_copy_has_the_wcs_in_its_header_and_the_original_pixel_bytes"
       - "python/tests.local.test_sidecars::test_an_export_into_the_source_or_of_changed_bytes_is_refused"
+  - id: LOC-015
+    pattern: event
+    text: "When a local frame is solved, the system shall record with its solution the frame's star width, ellipticity, sky background and gradient, zero point against Gaia G, limiting magnitude, star counts and trails, measured from the solving pass."
+    rationale: "Clouds, wind, dew, moonlight and satellites spoil frames without stopping them solving; measuring them from the stars already found costs no extra read of the file (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_quality::test_a_solved_frame_records_its_sharpness_sky_transparency_and_depth"
+      - "python/tests.local.test_quality::test_cloud_wind_and_a_satellite_show_in_the_measures"
+  - id: LOC-016
+    pattern: event
+    text: "When a local source is graded, the system shall grade each solved frame good, usable or poor against the other frames of its session with the reasons in words, and grade a refused frame poor with its refusal."
+    rationale: "A 10 s sub and a three-hour stack share no fixed limits, so a frame is judged against its own night's frames; fewer than five frames are not compared (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_quality::test_a_frame_is_graded_against_its_own_session_with_its_reasons"
+      - "python/tests.local.test_quality::test_a_small_session_is_not_compared"
+      - "python/tests.local.test_quality::test_the_quality_command_grades_every_session_and_summarises_each_night"
+  - id: LOC-017
+    pattern: event
+    text: "When a graded local source is offered as an observation archive, the system shall leave out its frames graded poor unless asked to include them."
+    rationale: "A blurred or cloudy frame would flag Gaia stars it simply failed to show; leaving it out keeps a flag a lead rather than noise (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_quality::test_the_image_gateway_leaves_out_poor_frames"
