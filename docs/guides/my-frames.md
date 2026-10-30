@@ -91,7 +91,21 @@ limit. Ctrl+C is safe: running it again skips every frame already solved or refu
 `--retry-refused` tries the refused ones again; `--max-rms` and `--min-matches` loosen or tighten the fit.
 Change the profile's `missions` from `[stack]` to `[light]` to check every solved sub instead of the stacks.
 
-## Step 5: check your originals are intact
+## Step 5 (optional): open the solutions in other software
+
+Every solved frame gets a `.wcs` file beside its solution in `<data>\solutions\astro\`, which astropy and
+other tools that accept an external WCS header can read. For software that reads only a frame's own
+header, export solved copies; the pixels are copied byte for byte and your originals are not touched:
+
+```bat
+sdp local sidecars astro
+sdp local export astro --kind stack
+```
+
+The copies go to `<data>\exports\astro\` at the same relative paths. A sub is about 28 MB, so export
+stacks, or one `--target`, rather than everything.
+
+## Step 6: check your originals are intact
 
 ```bat
 sdp local verify astro

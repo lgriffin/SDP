@@ -113,6 +113,14 @@ def canonical_image(
     cards["CRPIX2"] = (wcs["CRPIX2"] - y0 + (binning - 1) / 2) / binning
     for key in ("CD1_1", "CD1_2", "CD2_1", "CD2_2"):
         cards[key] = wcs[key] * binning
+    # a distortion polynomial in raw pixel offsets u = b * u' becomes, in binned ones, A'_pq = A_pq b^(p+q-1)
+    for key, value in wcs.items():
+        head, _, rest = key.partition("_")
+        if head in ("A", "B", "AP", "BP") and rest == "ORDER":
+            cards[key] = value
+        elif head in ("A", "B", "AP", "BP") and rest.count("_") == 1 and rest.replace("_", "").isdigit():
+            p, q = (int(n) for n in rest.split("_"))
+            cards[key] = float(value) * binning ** (p + q - 1)
     out = fits.Header()
     for key, value in cards.items():
         out[key] = value

@@ -1151,6 +1151,54 @@ def local_solved(name: Annotated[str, typer.Argument(help="The source's name")])
     emit(solver.status(FrameIndex(source, data)))
 
 
+@local_app.command("sidecars")
+def local_sidecars(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
+    """Write a .wcs header file beside every solution that has none or an older one (frames solved before
+    SDP wrote them). Solving writes them itself. Needs no database."""
+    from sdp.adapters.local.sidecars import write_sidecars
+    from sdp.adapters.local.solving import LocalSolver
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    solver = LocalSolver(LocalSources(data).get(name), data, None, lambda _c: None)  # type: ignore[arg-type,return-value]
+    emit({"written": write_sidecars(solver), "solutions": str(solver.root)})
+
+
+@local_app.command("export")
+def local_export(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    kind: Annotated[str | None, typer.Option(help="Only this kind: stack or light")] = None,
+    target: Annotated[str | None, typer.Option(help="Only frames of this OBJECT or folder, e.g. M31")] = None,
+    to: Annotated[Path | None, typer.Option(help="Where the copies go; default <data>/exports/<source>")] = None,
+    overwrite: Annotated[bool, typer.Option("--overwrite", help="Write copies that are already there again")] = False,
+) -> None:
+    """Copy solved frames with their WCS written into the header, for software that reads only the FITS
+    header. The pixel bytes are copied unchanged; the source folder is never written to. A sub is about
+    28 MB, so pick a --kind or --target. Needs no database."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.sidecars import export
+    from sdp.adapters.local.solving import SOLVABLE_KINDS, LocalSolver
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    if kind is not None and kind not in SOLVABLE_KINDS:
+        raise typer.BadParameter("light or stack", param_hint="--kind")
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    solver = LocalSolver(source, data, None, lambda _c: None)  # type: ignore[arg-type,return-value]
+    rows = solver.select(FrameIndex(source, data).rows(), kind=kind, target=target, resolve=True)
+    out = to or source.output_dir(data, "exports")
+    result = export(source, solver, rows, out, overwrite=overwrite, progress=lambda p: typer.echo(p, err=True))
+    emit(
+        {
+            "to": str(out),
+            "written": len(result.written),
+            "skipped": len(result.skipped),
+            "bytes": result.bytes,
+            "skipped_paths": result.skipped[:50],
+        }
+    )
+
+
 # --- archives -----------------------------------------------------------------------------------
 
 

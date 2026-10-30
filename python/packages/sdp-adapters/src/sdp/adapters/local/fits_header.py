@@ -65,3 +65,17 @@ def read_header(handle: IO[bytes]) -> dict[str, Any]:
 def read_header_file(path: Path) -> dict[str, Any]:
     with path.open("rb") as handle:
         return read_header(handle)
+
+
+def header_size(head: bytes) -> int:
+    """How many bytes the primary header takes, its padding included: where the pixels start."""
+    if not head.startswith(b"SIMPLE  ="):
+        raise NotFits("no SIMPLE card: not a FITS file")
+    for block_number in range(MAX_BLOCKS):
+        block = head[block_number * BLOCK : (block_number + 1) * BLOCK]
+        if len(block) < BLOCK:
+            break
+        for start in range(0, BLOCK, CARD):
+            if block[start : start + 8] == b"END     ":
+                return (block_number + 1) * BLOCK
+    raise NotFits("no END card in the header")

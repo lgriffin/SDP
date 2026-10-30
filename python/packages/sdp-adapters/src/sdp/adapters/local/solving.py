@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from sdp.adapters.local.distortion import fit_distortion
 from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.local.names import FROM_SIMBAD, NameBook
 from sdp.adapters.local.solver import (
@@ -32,6 +33,7 @@ from sdp.adapters.local.solver import (
     solving_image,
 )
 from sdp.adapters.local.sources import LocalSource
+from sdp.adapters.local.wcs_file import WCS_SUFFIX, write_wcs_file
 
 SOLVED, REFUSED = ".wcs.json", ".unsolved.json"
 SOLVABLE_KINDS = ("light", "stack")
@@ -95,6 +97,10 @@ class LocalSolver:
 
     def refusal_path(self, relative: str) -> Path:
         return self.root / (relative + REFUSED)
+
+    def wcs_path(self, relative: str) -> Path:
+        """The solution as a header-only FITS file, for software other than SDP."""
+        return self.root / (relative + WCS_SUFFIX)
 
     def select(
         self,
@@ -285,6 +291,7 @@ class LocalSolver:
             stars = detect(image, self.config, binning)
             solution, how = self._solve(stars, reference, centre, scale, self.neighbour(row, rows))
             context["start"] = how
+            solution, context["distortion"] = fit_distortion(solution, stars, reference, self.config)
             # binning drops an odd last row or column; the frame keeps it
             solution.wcs.update(NAXIS1=int(data.shape[-1]), NAXIS2=int(data.shape[-2]))
         except Unsolved as refused:
@@ -293,6 +300,7 @@ class LocalSolver:
             return self._refuse(folder, relative, {**context, "reason": f"the frame could not be read: {exc}"}, started)
         document = {**context, **solution.to_document(), "config": self.config.to_document()}
         self._write(self.solution_path(relative), document)
+        write_wcs_file(self.wcs_path(relative), document)
         self.refusal_path(relative).unlink(missing_ok=True)
         with self._lock:
             self._solved[folder][relative] = document
@@ -307,6 +315,7 @@ class LocalSolver:
     def _refuse(self, folder: str, relative: str, document: dict[str, Any], started: float) -> Outcome:
         self._write(self.refusal_path(relative), document)
         self.solution_path(relative).unlink(missing_ok=True)
+        self.wcs_path(relative).unlink(missing_ok=True)
         with self._lock:
             self._solved[folder].pop(relative, None)
         return Outcome(relative, "refused", document["reason"], seconds=time.monotonic() - started)

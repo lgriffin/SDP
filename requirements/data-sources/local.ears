@@ -63,6 +63,7 @@ requirements:
       - "python/tests.local.test_local_gateway::test_the_dialect_curates_a_whole_solved_frame_and_leaves_the_rest"
       - "python/tests.local.test_local_gateway::test_bootstrap_offers_each_indexed_local_source"
       - "python/tests.local.test_local_gateway::test_the_my_frames_profile_finds_the_one_gaia_star_the_frames_do_not_show"
+      - "python/tests.local.test_sidecars::test_a_binned_image_keeps_the_frames_distortion"
   - id: LOC-006
     pattern: event
     text: "When a local frame has no solved frame in its folder and no OBJECT name with a known position, the system shall start its solution from the header's RA and DEC pointing, rounded to 0.1 degree."
@@ -124,3 +125,34 @@ requirements:
     traces:
       - "python/tests.local.test_offline_solving::test_verify_finds_missing_modified_and_corrupted_frames_and_keeps_the_first_fingerprints"
       - "python/tests.local.test_offline_solving::test_the_verify_and_manifest_commands"
+  - id: LOC-012
+    pattern: event
+    text: "When a local frame is solved, the system shall write its solution beside the solution file as a header-only FITS .wcs file that gives the same sky positions as SDP's own solution."
+    rationale: "Siril, ASTAP, DS9 and astropy read FITS WCS headers, not SDP's JSON; the frame itself is never written to, so the header travels beside it (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_sidecars::test_each_solution_has_a_wcs_file_that_astropy_reads_as_sdp_does"
+      - "python/tests.local.test_sidecars::test_the_sidecars_command_writes_missing_wcs_files_and_a_refusal_removes_one"
+  - id: LOC-013
+    pattern: event
+    text: "When a solved local frame has at least the configured number of matched stars, the system shall add a SIP distortion polynomial only if it lowers the RMS on held-out stars below nine tenths of a TAN fit's."
+    rationale: "A 1.6 degree field bends by an arcsecond or more at its corners; holding every fourth star out of the fit keeps noise from being taken for distortion (#71). Defaults: 40 stars, order 2 or 3."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_sidecars::test_a_bent_field_gets_a_distortion_polynomial_that_follows_it"
+      - "python/tests.local.test_sidecars::test_a_straight_field_keeps_its_plain_tan_solution"
+      - "python/tests.local.test_sidecars::test_a_frame_with_few_stars_is_not_given_a_polynomial"
+  - id: LOC-014
+    pattern: event
+    text: "When solved local frames are exported, the system shall write each copy outside the source with the solution in its header and the original's pixel bytes unchanged, skipping any frame whose bytes differ from the ones solved."
+    rationale: "Some software reads only a frame's own header; a copy must never change the data or describe a file other than the one solved, and the original is never written to (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_sidecars::test_a_solved_copy_has_the_wcs_in_its_header_and_the_original_pixel_bytes"
+      - "python/tests.local.test_sidecars::test_an_export_into_the_source_or_of_changed_bytes_is_refused"
