@@ -1,0 +1,22 @@
+{
+ "recorded_at": "2026-10-29T22:07:18.934574Z",
+ "recorder": "sdp gaia-datalink recording 2026-10-29",
+ "request": {
+  "body": {
+   "text": ""
+  },
+  "headers": {},
+  "method": "GET",
+  "url": "https://gea.esac.esa.int/data-server/datalink/links?ID=Gaia+DR3+66526127137440128"
+ },
+ "response": {
+  "body": {
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VOTABLE version=\"1.4\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.4 http://www.ivoa.net/xml/VOTable/v1.4\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.4\">\n\t<RESOURCE type=\"results\">\n\t\t<INFO name=\"standardID\" value=\"ivo://ivoa.net/std/DataLink#links-1.0\"/>\n\t\t<INFO name=\"QUERY_STATUS\" value=\"OK\" />\n\t\t<INFO name=\"JOBID\" value=\"1b6e2143-d3e5-11f1-b333-005056a04b55-ODL\"><![CDATA[1b6e2143-d3e5-11f1-b333-005056a04b55-ODL]]></INFO>\n\t\t<INFO name=\"JOBNAME\" value=\"\"><![CDATA[Datalink job for user anonymous]]></INFO>\n\t\t<TABLE>\n\t\t<FIELD name=\"ID\" ucd=\"meta.id;meta.main\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"linking_parameter\" ucd=\"meta.id.assoc\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"access_url\" ucd=\"meta.ref.url\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"service_def\" ucd=\"meta.ref\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"error_message\" ucd=\"meta.code.error\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"semantics\" ucd=\"meta.code\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"description\" ucd=\"meta.note\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"content_type\" ucd=\"meta.code.mime\" datatype=\"char\" arraysize=\"*\"/>\n\t\t<FIELD name=\"content_length\" ucd=\"phys.size;meta.file\" datatype=\"long\" unit=\"byte\"/>\n\t\t<DATA>\n\t\t<TABLEDATA>\n\t\t<TR>\n\t\t<TD>Gaia DR3 66526127137440128</TD>\n\t\t<TD>SOURCE_ID</TD>\n\t\t<TD><![CDATA[https://gea.esac.esa.int/data-server/data?ID=Gaia+DR3+66526127137440128&RETRIEVAL_TYPE=MCMC_MSC&LINKING_PARAMETER=SOURCE_ID]]></TD>\n\t\t<TD></TD>\n\t\t<TD></TD>\n\t\t<TD>#this</TD>\n\t\t<TD><![CDATA[MCMC MSC, source Gaia DR3 66526127137440128, linking_parameter SOURCE_ID]]></TD>\n\t\t<TD>application/x-votable+xml</TD>\n\t\t<TD></TD>\n\t\t</TR>\n\t\t<TR>\n\t\t<TD>Gaia DR3 66526127137440128</TD>\n\t\t<TD>SOURCE_ID</TD>\n\t\t<TD><![CDATA[https://gea.esac.esa.int/data-server/data?ID=Gaia+DR3+66526127137440128&RETRIEVAL_TYPE=MCMC_GSPPHOT&LINKING_PARAMETER=SOURCE_ID]]></TD>\n\t\t<TD></TD>\n\t\t<TD></TD>\n\t\t<TD>#this</TD>\n\t\t<TD><![CDATA[MCMC GSP-Phot, source Gaia DR3 66526127137440128, linking_parameter SOURCE_ID]]></TD>\n\t\t<TD>application/x-votable+xml</TD>\n\t\t<TD></TD>\n\t\t</TR>\n\t\t</TABLEDATA>\n\t\t</DATA>\n\t\t</TABLE>\n\t</RESOURCE>\n</VOTABLE>\n"
+  },
+  "headers": {
+   "Content-Type": "application/x-votable+xml;content=datalink;charset=iso-8859-1"
+  },
+  "sha256": "bd0a3fe08e7433904422eda238dea31d3742ac878905a3d27bc091e32aa16b1d",
+  "status": 200
+ }
+}

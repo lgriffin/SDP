@@ -28,6 +28,7 @@ from sdp.kernel.application.media import JSON
 from sdp.kernel.domain import events as ev
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.canonical import canonical_json
+from sdp.kernel.domain.dataset import ADMITTED_AS
 from sdp.kernel.domain.errors import IntegrityError, InvariantViolation
 from sdp.kernel.domain.integration import (
     AccessStatus,
@@ -58,13 +59,13 @@ from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.repositories import UnitOfWork
 from sdp.kernel.ports.storage import ArtifactStore
 from sdp.kernel.science.investigation import InvestigationTest
-from sdp.kernel.science.products import ASTROMETRY, LIGHTCURVE
 
 PLANNER_ID = "minimum-product-set"
 PLANNER_VERSION = "1.0.0"
 
 #: Investigate's canonical product kinds as the ObsCore product types a source declares.
-PRODUCT_KINDS = {LIGHTCURVE: ProductType.TIMESERIES, ASTROMETRY: ProductType.MEASUREMENTS}
+#: The one mapping admission also reads (``dataset.ADMITTED_AS``), so planning and admission agree.
+PRODUCT_KINDS = {kind: ProductType(admitted) for kind, admitted in ADMITTED_AS.items()}
 
 #: Estimates where a source publishes nothing better; each is recorded in the plan's constraints.
 UNKNOWN_SIZE_BYTES = 1_000_000

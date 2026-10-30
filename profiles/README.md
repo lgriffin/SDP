@@ -4,11 +4,12 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These five profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These six profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
 | [first-look](first-look.yaml) | You are new to a field, or new to SDP | Gaia only | Seconds to a few minutes |
+| [gaia-light-curves](gaia-light-curves.yaml) | You want to know which stars changed brightness while Gaia watched | Gaia and Gaia's DataLink light curves | About two minutes for a small field: each star is looked up once |
 | [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
@@ -46,6 +47,8 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 - **photometric-corroboration: "Do 2MASS infrared colours agree with Gaia's colour?"** 2MASS measured the whole sky in the infrared. A star's infrared colour (J − K) should follow from its optical colour (BP − RP). A mismatch can mean dust, a companion, or a mix-up between two neighbouring stars. Stars are paired across catalogues within 1 arcsecond, a little over 1/3600 of a degree, which comfortably finds the same star.
 - **long-baseline-motion: "Has the star moved as Gaia predicts since about 1890?"** Gaia measures how fast a star crosses the sky. The test uses that motion to predict where the star was on each Harvard plate, then checks the plate positions against the predictions. Plate positions are good to roughly 1–2 arcseconds, so plates are matched within 3 arcseconds. DASCH's own star catalogue records positions from around 2000 to 2016, so SDP uses each star's Gaia motion to look for it along its path over those years. A fast-moving star is still found.
 - **variability: "Has its brightness changed over a century?"** The test asks whether the plate brightness measurements scatter more than their own error bars allow for a constant star (a χ² test). It also reports the strongest repeating period it finds (a Lomb–Scargle search) for you to look at. It needs at least `min_points: 20` measurements: fewer give a weak constancy test and no meaningful period.
+
+- **variability on Gaia's light curves** (gaia-light-curves). The same test, on the light curves Gaia itself measured between 2014 and 2017. SDP uses the G band, Gaia's main, broad filter, and drops the measurements Gaia's own processing rejected. Times are in Gaia's barycentric time scale (TCB), which differs from ordinary UTC by about a minute, far less than the days between measurements. It needs at least `min_points: 10` measurements; most Gaia light curves have 20 to 70. Gaia's error bars on each measurement are tiny (about a thousandth of a magnitude for a bright star) and leave out a small calibration floor, so a bright star with only slight scatter can still come out significant. Look at the reported period and the light curve before reading much into it.
 
 - **image-counterpart: "Is each Gaia star on the JWST image where its motion puts it?"** Gaia measured each star around 2016. The test moves every star along its measured motion to the date of the JWST image, then looks for a source on the image at that spot. A star with no source there, or one further away than both telescopes' uncertainties allow, is flagged. Sources are found with photutils, and each pairing is made by two independent methods that must agree.
   - `fwhm_px: 2.0` is how wide a star looks on NIRCam's mosaic grid, in pixels.

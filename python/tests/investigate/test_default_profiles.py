@@ -50,9 +50,15 @@ from sdp_investigate.astrometry import AstrometricCoherence
 pytestmark = pytest.mark.tier("T4")
 
 PROFILES = sorted((Path(__file__).resolve().parents[3] / "profiles").glob("*.yaml"))
-OBSERVATION_ARCHIVES = {"mast", "dasch"}
+OBSERVATION_ARCHIVES = {"mast", "dasch", "gaia-datalink"}
 """The ObservationArchiveGateways the production composition root wires (bootstrap.observation_gateways)."""
-SYNTHETIC = {"gaia": "synthetic-gaia", "2mass": "synthetic-2mass", "dasch": "fake-plates", "mast": MAST}
+SYNTHETIC = {
+    "gaia": "synthetic-gaia",
+    "2mass": "synthetic-2mass",
+    "dasch": "fake-plates",
+    "gaia-datalink": "fake-plates",
+    "mast": MAST,
+}
 SYNTHETIC_RELEASES = {"2mass:psc": "twomass:psc"}
 
 

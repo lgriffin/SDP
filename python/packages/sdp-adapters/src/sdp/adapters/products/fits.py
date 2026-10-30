@@ -23,6 +23,8 @@ class HduInfo:
     shape: tuple[int, ...] = ()
     columns: tuple[str, ...] = ()
     column_units: Mapping[str, str] = field(default_factory=dict)
+    column_ucds: Mapping[str, str] = field(default_factory=dict)
+    """A table column's UCD where the format carries one (VOTable does; FITS tables do not)."""
 
     @property
     def has_data(self) -> bool:

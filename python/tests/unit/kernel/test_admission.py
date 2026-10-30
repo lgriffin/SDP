@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import pytest
 
 from sdp.contracts import validate
-from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, DialectRef, ProductUse
+from sdp.kernel.domain.dataset import AcquisitionRecord, DatasetArtifact, DialectRef, ProductUse, admission_type
 from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.integration import (
     AdapterCompatibilityRecord,
@@ -150,3 +150,22 @@ def test_a_curated_artifact_keeps_the_product_use_of_its_raw_parent() -> None:
         media_type="text/csv",
     )
     assert curated.product == USE
+
+
+@pytest.mark.req("INT-016", "INT-022")
+@pytest.mark.parametrize(
+    ("product_type", "admitted"),
+    [
+        ("lightcurve", "timeseries"),
+        ("astrometry", "measurements"),
+        ("image", "image"),
+        ("timeseries", "timeseries"),
+        ("thumbnail", None),
+        ("preview", None),
+        ("unknown", None),
+    ],
+)
+def test_a_canonical_product_is_admitted_as_its_obscore_type(product_type: str, admitted: str | None) -> None:
+    assert admission_type(product_type) == admitted
+    if admitted is not None:
+        assert ProductUse("adapter", "1.0.0", admitted).product_type == admitted
