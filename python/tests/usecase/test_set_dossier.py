@@ -142,6 +142,16 @@ def test_a_changed_result_is_reported_and_a_broken_dossier_refused(
         reproduce(rebuilt(files, **{"manifest.json": json.dumps(manifest).encode()}))
     with pytest.raises(IntegrityError, match="malformed"):
         reproduce(rebuilt(files, **{"stages/retrieve.json": b"[]"}))
+    empty = json.loads(files["manifest.json"])
+    empty["profile"]["tests"] = []
+    with pytest.raises(IntegrityError, match="malformed"):
+        reproduce(rebuilt(files, **{"manifest.json": json.dumps(empty).encode()}))
+    shapeless = json.loads(files["manifest.json"])
+    for st in shapeless["stages"]:
+        if st["stage"] == "test":
+            st["artifact_id"] = sha256_id(b"{}")
+    with pytest.raises(IntegrityError, match="malformed"):
+        reproduce(rebuilt(files, **{"stages/test.json": b"{}", "manifest.json": json.dumps(shapeless).encode()}))
     with pytest.raises(IntegrityError, match="lacks the products"):
         reproduce(rebuilt({p: d for p, d in files.items() if p != fits_path}))
     with pytest.raises(IntegrityError, match=r"no stages/test\.json"):
@@ -199,6 +209,11 @@ def test_every_result_for_one_subject_is_compared() -> None:
         'a@1 "s": statistic 1.005 became 1.009',
         "a@1 \"s\": tag 'y' became 'x'",
     ], "without tolerance nothing pairs, and the leftovers are reported in canonical order"
+    # the first recorded result fits both reproduced ones, the second only one: pairing the first
+    # greedily would strand the second, a full matching pairs both
+    recorded = {"results": [_result("s", 0.0, z=0.0), _result("s", 1.0, z=2.0)], "null_results": []}
+    rerun = {"results": [_result("s", 0.5, z=1.0), _result("s", 0.8, z=0.0)], "null_results": []}
+    assert compare_tests(recorded, rerun, {"a@1": (0.0, 1.0)}) == []
     moved = {"results": [_result("s", 1.0, k=1), _result("s", 3.0, k=2)], "null_results": []}
     assert any("statistic 2.0 became 3.0" in d for d in compare_tests(twice, moved, {}))
 

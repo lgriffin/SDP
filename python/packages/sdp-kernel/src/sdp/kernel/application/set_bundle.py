@@ -36,7 +36,7 @@ from sdp.kernel.application.media import CSV, JSON, PARQUET
 from sdp.kernel.application.planning import plan_view
 from sdp.kernel.application.rocrate import build_crate_metadata, read_crate, verify_crate, zip_crate
 from sdp.kernel.domain.canonical import canonical_json, sha256_id
-from sdp.kernel.domain.errors import IntegrityError
+from sdp.kernel.domain.errors import DomainError, IntegrityError
 from sdp.kernel.domain.ids import ArtifactId
 from sdp.kernel.domain.investigation import (
     EXPLORATORY,
@@ -171,6 +171,30 @@ def _grouped(docs: Sequence[Mapping[str, Any]], *, null: bool) -> dict[str, list
     return groups
 
 
+def _unpaired(
+    before: Sequence[Mapping[str, Any]], after: Sequence[Mapping[str, Any]], rtol: float, atol: float
+) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]]]:
+    """The recorded and reproduced results left over once as many as possible are paired one to one
+    within tolerance, whatever their order (a maximum bipartite matching by augmenting paths)."""
+    fits = [[j for j, new in enumerate(after) if _close(old, new, rtol, atol)] for old in before]
+    partner: dict[int, int] = {}  # reproduced index -> recorded index
+
+    def place(i: int, seen: set[int]) -> bool:
+        for j in fits[i]:
+            if j not in seen:
+                seen.add(j)
+                if j not in partner or place(partner[j], seen):
+                    partner[j] = i
+                    return True
+        return False
+
+    paired = {i for i in range(len(before)) if place(i, set())}
+    return (
+        [old for i, old in enumerate(before) if i not in paired],
+        [new for j, new in enumerate(after) if j not in partner],
+    )
+
+
 def compare_tests(
     original: Mapping[str, Any], reproduced: Mapping[str, Any], tolerances: Mapping[str, Tolerance]
 ) -> list[str]:
@@ -188,16 +212,7 @@ def compare_tests(
                 continue
             first = before[key][0]
             rtol, atol = tolerances.get(f"{first['test_name']}@{first['test_version']}", (0.0, 0.0))
-            # Pair each recorded result with a reproduced one within tolerance, whatever their order;
-            # only the results left without a partner are differences.
-            unmatched = list(after[key])
-            missed: list[Mapping[str, Any]] = []
-            for old in before[key]:
-                partner = next((new for new in unmatched if _close(old, new, rtol, atol)), None)
-                if partner is None:
-                    missed.append(old)
-                else:
-                    unmatched.remove(partner)
+            missed, unmatched = _unpaired(before[key], after[key], rtol, atol)
             for old, new in zip(missed, unmatched, strict=True):
                 for name in sorted(old.keys() | new.keys()):
                     if not _close(old.get(name), new.get(name), rtol, atol):
@@ -381,6 +396,8 @@ def reproduce_dossier(
         recorded_ids = {st["stage"]: st.get("artifact_id") for st in manifest.get("stages", [])}
         retrieved = json.loads(files["stages/retrieve.json"])
         recorded = json.loads(files["stages/test.json"])
+        for part, null in (("results", False), ("null_results", True)):
+            _grouped(recorded[part], null=null)  # every record names its test and subject
         wanted = {p["artifact_id"] for b in retrieved["bundles"] for p in b["products"]}
         policies = {
             f"{t['name']}@{t['version']}": (
@@ -389,7 +406,13 @@ def reproduce_dossier(
             )
             for t in manifest.get("tests_applied", [])
         }
-    except (KeyError, TypeError, ValueError, AttributeError) as exc:  # checksums agree, but not a dossier's shape
+    except (
+        KeyError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        DomainError,
+    ) as exc:  # checksums agree, but not a dossier's shape
         raise IntegrityError(f"the dossier's manifest or stage files are malformed: {exc!r}") from exc
     if profile.profile_hash != profile_hash:
         raise IntegrityError("the recorded profile does not hash to the recorded profile_hash")

@@ -179,7 +179,10 @@ export class GraphQLEvidenceSource implements EvidenceSource {
     if (response.status === 404 || response.status === 415) return null;
     if (!response.ok) {
       // sdp-api says why it refused (a dossier whose evidence is missing answers 409).
-      const reason = await response.json().then((b: { error?: string }) => b.error, () => undefined);
+      const reason = await response.json().then(
+        (b: unknown) => (typeof b === "object" && b !== null && "error" in b && typeof b.error === "string" ? b.error : undefined),
+        () => undefined,
+      );
       throw new EvidenceUnavailable(reason ?? `${url} answered ${response.status}`);
     }
     return { body: new Uint8Array(await response.arrayBuffer()), mediaType: response.headers.get("content-type") ?? "application/octet-stream" };

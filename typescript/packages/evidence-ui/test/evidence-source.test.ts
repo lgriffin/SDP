@@ -133,6 +133,8 @@ describe("images", () => {
     await expect(down.preview("x")).rejects.toThrow("http://api.test/artifacts/x/preview.png answered 500");
     const gap = new GraphQLEvidenceSource("http://api.test/graphql", async () => Response.json({ error: "stages/test.json is not in the artifact store" }, { status: 409 }));
     await expect(gap.dossier("invset-1")).rejects.toThrow("stages/test.json is not in the artifact store");
+    const odd = new GraphQLEvidenceSource("http://api.test/graphql", async () => Response.json(null, { status: 500 }));
+    await expect(odd.dossier("invset-1")).rejects.toThrow("http://api.test/investigations/invset-1/dossier.zip answered 500");
   });
 });
 
