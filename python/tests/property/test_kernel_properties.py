@@ -78,9 +78,14 @@ def test_codec_round_trips_arrays_bit_for_bit(array: np.ndarray) -> None:
     assert back.tobytes() == array.tobytes()
 
 
+#: Plain keys only: hypothesis draws string constants from the code under test, so it finds the codec's
+#: reserved "__sdp__" tag, which the codec refuses by design (test_application_records covers that).
+plain_keys = keys.filter(lambda key: key != "__sdp__")
+
+
 @given(
     st.dictionaries(
-        keys,
+        plain_keys,
         st.one_of(finite, st.integers(-(2**53), 2**53), st.text(max_size=8), st.tuples(finite, finite)),
         max_size=6,
     )

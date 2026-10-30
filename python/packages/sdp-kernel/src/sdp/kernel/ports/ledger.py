@@ -57,7 +57,7 @@ class LedgerEntry:
             kind=doc["kind"],
             subject_id=doc["subject_id"],
             subject_hash=doc["subject_hash"],
-            recorded_at=datetime.fromisoformat(doc["recorded_at"].replace("Z", "+00:00")),
+            recorded_at=datetime.fromisoformat(doc["recorded_at"]),
             signer=doc["signer"],
             signature_method=doc["signature"]["method"],
             signature=doc["signature"]["value"],
