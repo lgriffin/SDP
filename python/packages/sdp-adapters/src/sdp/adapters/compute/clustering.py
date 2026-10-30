@@ -100,8 +100,8 @@ class FastHdbscan:
     rather than rebuilding it. ``reproducible`` makes the tree independent of thread scheduling.
 
     ``min_samples`` means what it means to scikit-learn (the point itself counts), so the same grid
-    gives the same labels as ``SklearnHdbscan``: fast_hdbscan does not count the point, so it is asked
-    for one fewer."""
+    gives the same clusters as ``SklearnHdbscan`` (a weakly held fringe point may land on a different
+    one): fast_hdbscan does not count the point, so it is asked for one fewer."""
 
     algorithm_id: str = "fast-hdbscan"
     backend: Backend = Backend.CPU
