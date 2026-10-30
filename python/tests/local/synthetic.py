@@ -75,6 +75,9 @@ def bayer_frame(
     header: dict[str, Any] | None = None,
     stack: bool = False,
     distortion: dict[str, float] | None = None,
+    flux_scale: float = 1.0,
+    sigma_px: tuple[float, float] = (1.7, 1.7),
+    trail: bool = False,
 ) -> Truth:
     """A raw GBRG frame centred ``centre_offset`` degrees (RA, Dec) off M31 at the given rotation, with
     the reference Gaia sees (G < 15) in a 1.5 degree cone about M31. ``only`` keeps that many stars."""
@@ -95,17 +98,26 @@ def bayer_frame(
         inside[keep] = True
     rng = np.random.default_rng(seed + 1)
     image = np.full((height, width), 600.0)
-    sigma = 1.7  # raw pixels: 2.8 arcsec seeing at 1.65 arcsec a pixel
+    gx, gy = sigma_px  # raw pixels: 1.7 is 6.6 arcsec FWHM at 1.65 arcsec a pixel
     yy, xx = np.mgrid[-8:9, -8:9]
     for xs, ys, m in zip(x[inside], y[inside], mag[inside], strict=True):
-        flux = 4.0e5 * 10 ** (-0.4 * (m - 10.0))
+        flux = flux_scale * 4.0e5 * 10 ** (-0.4 * (m - 10.0))
         ix, iy = round(xs), round(ys)
-        stamp = flux / (2 * math.pi * sigma**2) * np.exp(-((xx + ix - xs) ** 2 + (yy + iy - ys) ** 2) / (2 * sigma**2))
+        stamp = (
+            flux
+            / (2 * math.pi * gx * gy)
+            * np.exp(-((xx + ix - xs) ** 2) / (2 * gx**2) - ((yy + iy - ys) ** 2) / (2 * gy**2))
+        )
         x0, y0 = ix - 8, iy - 8
         sx = slice(max(0, x0), min(width, x0 + 17))
         sy = slice(max(0, y0), min(height, y0 + 17))
         if sx.start < sx.stop and sy.start < sy.stop:
             image[sy, sx] += stamp[sy.start - y0 : sy.stop - y0, sx.start - x0 : sx.stop - x0]
+    if trail:
+        # a satellite crossing the frame: a straight line three pixels wide
+        t = np.linspace(0.1, 0.9, 4000)
+        for offset in (-1, 0, 1):
+            image[(t * height).astype(int), np.clip((0.2 + 0.6 * t) * width + offset, 0, width - 1).astype(int)] += 400
     if stack:
         # a Siril master: three float colour planes of the same sky
         cube = np.stack([image * g + rng.normal(0.0, 3.0, image.shape) for g in (0.6, 1.0, 0.5)]) / 60.0

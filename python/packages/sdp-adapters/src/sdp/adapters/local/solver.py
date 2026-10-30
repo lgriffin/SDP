@@ -68,6 +68,11 @@ class Stars:
     height: int
     #: raw pixels per solving pixel (2 for a binned Bayer frame)
     binning: int = 1
+    #: the sky the stars were found on, in solving pixels: median, rms and gradient_percent (5 to 95 per
+    #: cent of the background map, over its median)
+    sky: dict[str, float] = field(default_factory=lambda: {"median": 0.0, "rms": 0.0, "gradient_percent": 0.0})
+    #: the sky-subtracted solving image, kept for measuring the frame (quality); not compared
+    subtracted: np.ndarray | None = field(default=None, compare=False, repr=False)
 
     def __len__(self) -> int:
         return int(self.x.size)
@@ -93,8 +98,10 @@ class Solution:
     mirrored: bool
     centre: tuple[float, float]
     detected: int
-    #: the matched stars: raw FITS pixels (1-based) x, y and their Gaia ra, dec in degrees
-    matches: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = field(default=None, compare=False)
+    #: the matched stars: raw FITS pixels (1-based) x, y and their Gaia ra, dec in degrees and G magnitude
+    matches: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = field(
+        default=None, compare=False
+    )
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -164,17 +171,21 @@ def detect(image: np.ndarray, config: SolverConfig, binning: int = 1) -> Stars:
         exclude_percentile=25.0,
     )
     subtracted = np.where(finite, image - background.background, 0.0)
-    finder = DAOStarFinder(fwhm=config.fwhm_px, threshold=config.nsigma * float(background.background_rms_median))
+    rms = float(background.background_rms_median)
+    median = float(background.background_median)
+    low, high = np.percentile(background.background_mesh, [5, 95])
+    sky = {"median": median, "rms": rms, "gradient_percent": 100 * float(high - low) / median if median > 0 else 0.0}
+    finder = DAOStarFinder(fwhm=config.fwhm_px, threshold=config.nsigma * rms)
     with np.errstate(divide="ignore", invalid="ignore"):
         table = finder(subtracted, mask=~finite)
     if table is None or len(table) == 0:
         empty = np.zeros(0)
-        return Stars(empty, empty, empty, image.shape[1], image.shape[0], binning)
+        return Stars(empty, empty, empty, image.shape[1], image.shape[0], binning, sky, subtracted)
     x = np.asarray(table["x_centroid"], dtype=float)
     y = np.asarray(table["y_centroid"], dtype=float)
     flux = np.asarray(table["flux"], dtype=float)
     order = np.lexsort((y, x, -flux))[: config.max_stars]
-    return Stars(x[order], y[order], flux[order], image.shape[1], image.shape[0], binning)
+    return Stars(x[order], y[order], flux[order], image.shape[1], image.shape[0], binning, sky, subtracted)
 
 
 # -- the tangent plane ----------------------------------------------------------------------------
@@ -486,6 +497,7 @@ def _fit(
             b * stars.y[star_i] + (b - 1) / 2 + 1,
             reference.ra[ref_i],
             reference.dec[ref_i],
+            reference.mag[ref_i],
         ),
     )
 

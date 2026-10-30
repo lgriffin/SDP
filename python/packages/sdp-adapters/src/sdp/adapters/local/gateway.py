@@ -25,6 +25,7 @@ import astropy.units as u
 import numpy as np
 
 from sdp.adapters.local.index import FrameIndex
+from sdp.adapters.local.quality import POOR, Grades
 from sdp.adapters.local.solver import Unsolved, project, read_frame, solving_image
 from sdp.adapters.local.solving import SOLVED, LocalSolver
 from sdp.adapters.local.sources import LocalSource
@@ -143,6 +144,8 @@ class LocalImageGateway:
 
     source: LocalSource
     data: Path
+    #: offer frames graded poor too (LOC-017); by default they are left out once the source is graded
+    include_poor: bool = False
     _frames: list[SolvedFrame] | None = field(default=None, repr=False)
 
     @property
@@ -161,8 +164,11 @@ class LocalImageGateway:
         """Solved light and stack frames, read once from the index and the solutions folder."""
         if self._frames is None:
             root = self.source.output_dir(self.data, "solutions")
+            grades = {} if self.include_poor else Grades(self.source, self.data).by_path()
             frames = []
             for row in FrameIndex(self.source, self.data).rows():
+                if grades.get(row["path"], {}).get("grade") == POOR:
+                    continue
                 path = root / (row["path"] + SOLVED)
                 # a solution written for the file as it is now, not before it was replaced
                 if row["kind"] in ("light", "stack") and LocalSolver.current(path, row):

@@ -123,6 +123,25 @@ its reason. Solutions go to `<data>/solutions/astro/<frame>.wcs.json`, refusals 
 redoes solved frames, `--retry-refused` the refused ones. `--workers` (default 4) solves runs of up to 100
 frames of a folder side by side, with the same results as one worker. The frames themselves are only read.
 
+### How good each frame is
+
+Solving also measures each frame from the stars it found (LOC-015) and writes `quality` into its
+`.wcs.json`: `fwhm_arcsec` and `ellipticity` (medians over matched stars, from Gaussian-windowed moments),
+`background`, `background_rms` and `gradient_percent`, `zero_point` (Gaia G of one count a second),
+`limiting_mag` (5 sigma), `detected`, `matched` and `trails`.
+
+```
+sdp local quality astro               # grade every frame, summarise each night
+sdp local quality astro --target M31
+```
+
+Each frame is graded against the other frames of its session, its folder and kind (LOC-016): poor when its
+stars are 1.5 times wider, 0.15 more elongated, it lets through 0.5 mag less light than the session's
+clearest frames, its sky is twice as bright, or it matched half as many stars; usable at 1.25, 0.08, 0.2,
+1.4 and 0.75 of those, or when a trail crosses it. A session of fewer than 5 frames is not compared; a
+refused frame is poor. Grades go to `<data>/quality/astro/grades.parquet`; `sdp local solve` regrades at
+the end of each run, and the `local:astro` archive leaves poor frames out (LOC-017). Frames solved before SDP measured quality are graded on their matched stars only; `sdp local solve astro --resolve` measures them.
+
 ### Using the solutions in other software
 
 Each solution also gets `<frame>.wcs` beside its `.wcs.json`: a header-only FITS file with the WCS
