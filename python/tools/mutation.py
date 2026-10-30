@@ -36,6 +36,8 @@ class Target:
     do_not_mutate: tuple[str, ...] = ()
     #: the directory holding ``src`` and the tests, relative to ``python/``; packages/<package> by default
     root: str = ""
+    #: how many times its tests' measured time a mutant may run before mutmut stops it as a timeout
+    timeout_multiplier: float = 5
 
 
 #: The v0.4.0 integration cores (association and the product model) are scored as a target of their
@@ -72,6 +74,10 @@ RELATIVITY_SHARDS = (
     ("models", "measurement", "transcription", "oracles"),
     ("paper1920",),
 )
+#: On v0.4.0 the analysis shard still reached only 557 of its 740 mutants in 300 minutes, 388 of them
+#: timeouts at about two minutes each and none surviving. A hang is stopped at 2x its tests' measured time
+#: instead of 5x: a timeout counts as detected either way, so the score is unchanged and the shard fits.
+ANALYSIS_TIMEOUT = 2
 STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd"),
     ("protocol", "features", "quality", "ranking"),
@@ -156,7 +162,13 @@ TARGETS = {
             ("tests/investigate", "tests/local"),
         ),
         *(
-            Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
+            Target(
+                f"sdp-relativity-{i}",
+                "sdp-relativity",
+                modules("sdp_relativity", group),
+                ("tests/relativity",),
+                timeout_multiplier=ANALYSIS_TIMEOUT if group == ("analysis",) else 5,
+            )
             for i, group in enumerate(RELATIVITY_SHARDS, 1)
         ),
         *(
@@ -196,7 +208,7 @@ def setup_cfg(target: Target) -> str:
         "also_copy =\n    tests\n    pytest.ini\n"
         # mutmut's default stops a hanging mutant at 30x its tests' CPU time, about five minutes for
         # these suites; 5x still separates a hang from a slow pass and keeps timeouts affordable
-        "timeout_multiplier = 5\n"
+        f"timeout_multiplier = {target.timeout_multiplier:g}\n"
         + (f"do_not_mutate =\n    {skip}\n" if (skip := "\n    ".join(target.do_not_mutate)) else "")
     )
 
