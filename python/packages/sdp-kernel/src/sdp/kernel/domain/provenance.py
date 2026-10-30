@@ -31,6 +31,11 @@ class ProvGraph:
     activities: dict[str, dict[str, Any]] = field(default_factory=dict)
     agents: dict[str, dict[str, Any]] = field(default_factory=dict)
     relations: dict[str, list[tuple[str, str]]] = field(default_factory=lambda: {r: [] for r in RELATIONS})
+    #: each relation's pairs as a set (with the list length it was built from), so adding one is not a scan
+    #: of the list; rebuilt when the list changed behind its back (loaders append to ``relations`` directly)
+    _seen: dict[str, tuple[int, set[tuple[str, str]]]] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
     def entity(self, identifier: str, **attributes: Any) -> str:
         key = qualified(identifier)
@@ -52,9 +57,17 @@ class ProvGraph:
     def relate(self, relation: str, subject: str, obj: str) -> None:
         if relation not in _RELATION_KEYS:
             raise ValueError(f"unknown PROV relation {relation}")
-        pair = (qualified(subject), qualified(obj))
-        if pair not in self.relations[relation]:
-            self.relations[relation].append(pair)
+        self._add(relation, (qualified(subject), qualified(obj)))
+
+    def _add(self, relation: str, pair: tuple[str, str]) -> None:
+        pairs = self.relations[relation]
+        built_from, seen = self._seen.get(relation, (-1, set()))
+        if built_from != len(pairs):
+            seen = set(pairs)
+        if pair not in seen:
+            pairs.append(pair)
+            seen.add(pair)
+        self._seen[relation] = (len(pairs), seen)
 
     def merge(self, other: ProvGraph) -> None:
         for key, attrs in other.entities.items():
@@ -65,8 +78,7 @@ class ProvGraph:
             self.agents.setdefault(key, {}).update(attrs)
         for relation, pairs in other.relations.items():
             for pair in pairs:
-                if pair not in self.relations[relation]:
-                    self.relations[relation].append(pair)
+                self._add(relation, pair)
 
     def ancestors(self, identifier: str) -> list[str]:
         """Every entity and activity upstream of ``identifier``, nearest first."""

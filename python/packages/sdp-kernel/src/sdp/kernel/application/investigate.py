@@ -1310,6 +1310,7 @@ class InvestigateFieldUseCase:
             investigation.link("dossier_id", dossier_id.value)
             investigations.append(investigation)
 
+        by_id = {b.bundle_id: b for b in bundles}  # a candidate's bundles by id, not a scan of every bundle
         with self.uow() as uow:
             graph = ProvGraph()
             activity = graph.activity(f"investigation/{investigation_set.set_id}")
@@ -1319,7 +1320,7 @@ class InvestigateFieldUseCase:
                 graph.entity(investigation.investigation_id, type="Investigation", label=EXPLORATORY)
                 graph.relate("wasGeneratedBy", investigation.investigation_id, activity)
                 for artifact in {
-                    a for b in bundles if b.bundle_id in investigation.evidence_bundle_ids for a in b.artifact_ids()
+                    a for bundle_id in investigation.evidence_bundle_ids for a in by_id[bundle_id].artifact_ids()
                 }:
                     graph.entity(artifact.value)
                     graph.relate("wasDerivedFrom", investigation.investigation_id, artifact.value)
