@@ -141,7 +141,10 @@ class Field:
         return TaskContext("t", 1, DEFAULT_POLICY, Backend.CPU, services)
 
     def run(self, **thresholds: Any) -> dict[str, Any]:
-        results = ExposureCounterpart().run(self.bundles, thresholds, self.context())
+        return self.run_bundles(self.bundles, **thresholds)
+
+    def run_bundles(self, bundles: list[EvidenceBundle], **thresholds: Any) -> dict[str, Any]:
+        results = ExposureCounterpart().run(bundles, thresholds, self.context())
         return {str(r.subject.object_key): r for r in results}
 
 
@@ -163,7 +166,7 @@ def test_exposures_on_their_star_are_not_flagged_and_both_methods_agree() -> Non
     assert d["counterpart_found"] and d["exposures"] == d["matched"] == 60 and d["roles"] == {"alone": 60}
     assert d["other_methods"] == {"likelihood-ratio": 1.0} and d["method"] == "bayes-factor"
     assert d["blend_of"] == [] and d["search_radius_arcsec"] == BEAM and len(d["graph_ids"]) == 2
-    assert d["products"] == ["WISE gaia:1/0"]
+    assert d["products"] == ["irsa-wise/WISE gaia:1/0"]
     assert result.effect_size == pytest.approx(math.hypot(*d["mean_offset_arcsec"]))
     assert all(0.2 < s < 0.4 for s in d["scatter_arcsec"])
 
@@ -229,7 +232,7 @@ def test_half_the_exposures_must_be_the_star() -> None:
         result = field.run(min_matched_fraction=fraction)["gaia:1"]
         assert result.details["exposures"] == 60 and result.details["matched"] == 30
         assert result.details["counterpart_found"] is found
-    assert result.details["products"] == ["WISE gaia:1/0", "WISE gaia:1/1"]
+    assert result.details["products"] == ["irsa-wise/WISE gaia:1/0", "irsa-wise/WISE gaia:1/1"]
 
 
 def test_three_matched_exposures_are_enough_and_two_are_not() -> None:
@@ -373,21 +376,31 @@ def test_a_product_listed_twice_is_read_once_and_bad_positions_are_counted_not_r
     rng = np.random.default_rng(12)
     star = gaia_row("gaia:1")
     rows = exposures_at([star], [1.0], rng).decode().splitlines()
-    for i, bad in ((1, "95.0"), (2, "nan")):  # a declination off the sky, and no position at all
+    # column 3 is ra_deg, 4 dec_deg, 1 mag: off the sky, no position at all, an empty cell, and a
+    # visit with no magnitude, which is not an epoch of the light curve at all
+    for i, column, bad in ((1, 4, "95.0"), (2, 4, "nan"), (3, 3, "-1.0"), (4, 3, "360.0"), (5, 3, ""), (6, 1, "nan")):
         cells = rows[i].split(",")
-        cells[4] = bad
+        cells[column] = bad
         rows[i] = ",".join(cells)
     field = Field()
     field.add(star, ("\n".join(rows).encode(),))
     bundle = field.bundles[0]
-    twice = replace(bundle, products=(bundle.products[0], bundle.products[0]))
-    dets, unusable = exposure_records(twice, field.context())
-    assert len(dets) == 58 and unusable == 2 and len({d.record_id for d in dets}) == 58
-    for sigma, beam in ((0.0, BEAM), (0.3, 0.0)):
+    first = bundle.products[0]
+    elsewhere = replace(first, product=replace(first.product, archive="other-archive"))
+    listed = replace(bundle, products=(first, first, elsewhere))
+    dets, unusable = exposure_records(listed, field.context())
+    assert unusable == 2 * 5 and len(dets) == 2 * 54, "the other archive's product is its own"
+    assert len({d.record_id for d in dets}) == len(dets)
+    assert {d.instrument for d in dets} == {"irsa-wise", "other-archive"}
+    both = field.run_bundles([listed])["gaia:1"].details["products"]
+    assert both == [f"irsa-wise/{first.product.product_id}", f"other-archive/{first.product.product_id}"]
+    assert dets[0].record_id == f"irsa-wise/{first.product.product_id}#0005", "the first five epochs have no position"
+    for sigma, beam in ((0.0, BEAM), (0.3, 0.0), (math.inf, BEAM), (0.3, math.inf)):
         assert not usable(10.0, 20.0, sigma, 0.3, beam)
+        assert not usable(10.0, 20.0, 0.3, sigma, beam)
     assert usable(0.0, -90.0, 0.3, 0.3, BEAM) and not usable(360.0, 0.0, 0.3, 0.3, BEAM)
     result = field.run()["gaia:1"]
-    assert result.details["exposures"] == 58 and result.details["without_position"] == 2
+    assert result.details["exposures"] == 54 and result.details["without_position"] == 5
 
 
 def test_epochs_without_a_position_count_against_the_matched_fraction() -> None:
