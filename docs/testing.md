@@ -324,6 +324,7 @@ Coverage says a line ran. Mutation says a test would notice if the line were wro
 | `sdp-kernel-ports` | `sdp/kernel/ports/*`: the commands, results and records the ports exchange | `KERNEL_TESTS` |
 | `sdp-adapters-datalink` | the Gaia DataLink adapters: `gaia_dr3`, `archives/gaia_datalink`, `products/votable`, `products/gaia` | `tests/products`, `tests/archives` |
 | `sdp-adapters-wise` | the WISE adapters: `wise`, `archives/irsa_wise`, `products/wise` | `tests/products`, `tests/archives` |
+| `sdp-investigate-exposures` | the exposure-counterpart test (INT-024): `sdp_investigate/exposures` | `tests/investigate`, `tests/local` (which the profile tests import) |
 | `sdp-relativity-1..5` | `sdp_relativity` in five module shards | `tests/relativity` |
 | `sdp-stellar-1..3` | `sdp_stellar` in three module shards | `tests/stellar` |
 | `@sdp/spec-harness`, `@sdp/relativity-fit` | `src/**` | the package's vitest suite |

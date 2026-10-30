@@ -5,12 +5,14 @@ from __future__ import annotations
 
 from sdp.kernel.science.investigation import InvestigationTest
 from sdp_investigate.astrometry import AstrometricCoherence, LongBaselineMotion, ParallaxConsistency
+from sdp_investigate.exposures import ExposureCounterpart
 from sdp_investigate.imaging import ImageCounterpart
 from sdp_investigate.photometry import ColourMagnitudeCoherence, PhotometricCorroboration, Variability
 
 __all__ = [
     "AstrometricCoherence",
     "ColourMagnitudeCoherence",
+    "ExposureCounterpart",
     "ImageCounterpart",
     "LongBaselineMotion",
     "ParallaxConsistency",
@@ -29,4 +31,5 @@ def registered_tests() -> tuple[InvestigationTest, ...]:
         PhotometricCorroboration(),
         AstrometricCoherence(),
         ImageCounterpart(),
+        ExposureCounterpart(),
     )

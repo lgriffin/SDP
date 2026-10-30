@@ -148,6 +148,12 @@ TARGETS = {
         Target("sdp-kernel-ports", "sdp-kernel", ("src/sdp/kernel/ports/*",), KERNEL_TESTS),
         Target("sdp-adapters-datalink", "sdp-adapters", DATALINK_ADAPTERS, DATALINK_TESTS),
         Target("sdp-adapters-wise", "sdp-adapters", WISE_ADAPTERS, DATALINK_TESTS),
+        Target(
+            "sdp-investigate-exposures",
+            "sdp-investigate",
+            ("src/sdp_investigate/exposures.py",),
+            ("tests/investigate", "tests/local"),
+        ),
         *(
             Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
             for i, group in enumerate(RELATIVITY_SHARDS, 1)

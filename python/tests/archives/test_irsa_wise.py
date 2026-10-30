@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 from astropy.io.votable import from_table
 from astropy.table import MaskedColumn, Table
+from tests.investigate.test_exposure_counterpart import Field
 
 from sdp.adapters.archives.irsa_wise import (
     IrsaWiseGateway,
@@ -34,6 +35,7 @@ from sdp.adapters.archives.untrusted import UntrustedInput
 from sdp.adapters.archives.votable import TapQueryError
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
 from sdp.adapters.products import EnvelopeValidator, WiseLightCurveDialect
+from sdp.adapters.products.votable import parse_table
 from sdp.adapters.products.wise import clean, w1_detections, w1_lightcurve
 from sdp.adapters.wise import (
     ACKNOWLEDGEMENT,
@@ -50,7 +52,7 @@ from sdp.kernel.domain.integration import AccessStatus, PayloadExtension, Produc
 from sdp.kernel.domain.investigation import ObservationCriteria, ProductRef
 from sdp.kernel.ports.integration import RawProduct
 from sdp.kernel.ports.investigate import ObservationTarget
-from sdp.kernel.science.products import parse_lightcurve
+from sdp.kernel.science.products import parse_exposures, parse_lightcurve
 
 pytestmark = [pytest.mark.tier("T5"), pytest.mark.req("INT-023")]
 
@@ -426,10 +428,17 @@ def test_each_clean_exposure_is_an_association_record_at_its_own_epoch() -> None
     )
     epochs = exposures()
     epochs.rename_columns(["w1mpro", "w1sigmpro"], ["w1mpro_ep", "w1sigmpro_ep"])
-    allwise = w1_detections(votable_bytes(epochs), product_id(DESIGNATION, *SOURCE, "ALLWISE"))
-    assert (allwise[0].covariance.sigma_ra_arcsec, allwise[0].covariance.sigma_dec_arcsec) == pytest.approx(
-        (beam, beam)
-    ), "AllWISE has no sigra"
+    with pytest.raises(ValueError, match=r"^allwise_p3as_mep repeats the source's coadded position; its exposures"):
+        w1_detections(votable_bytes(epochs), product_id(DESIGNATION, *SOURCE, "ALLWISE"))
+
+
+@pytest.mark.req("INT-024")
+def test_allwise_exposures_all_carry_the_source_position_so_its_light_curve_has_no_positions() -> None:
+    table = parse_table(raw("ALLWISE").fetched.data)
+    assert len({(float(r), float(d)) for r, d in zip(table["ra"], table["dec"], strict=True)}) == 1
+    assert parse_exposures(w1_lightcurve(raw("ALLWISE").fetched.data, WISE_TABLES["ALLWISE"])) is None
+    neowise = parse_table(raw("NEOWISE").fetched.data)
+    assert len({float(r) for r in neowise["ra"]}) > 100, "NEOWISE measures each exposure"
 
 
 def gaia_pair() -> list[CatalogueSource]:
@@ -460,9 +469,8 @@ def gaia_pair() -> list[CatalogueSource]:
 
 
 @pytest.mark.tier("T3")
-@pytest.mark.parametrize("key", ["NEOWISE", "ALLWISE"])
-def test_both_methods_reconcile_wise_exposures_with_the_gaia_pair_its_beam_blends(key: str) -> None:
-    dets = w1_detections(raw(key).fetched.data, ref(key).product_id)
+def test_both_methods_reconcile_neowise_exposures_with_the_gaia_pair_its_beam_blends() -> None:
+    dets = w1_detections(raw("NEOWISE").fetched.data, ref("NEOWISE").product_id)
     policy = AssociationPolicy("wise-gaia", "1.0.0", 2016.0, search_radius_arcsec=6.1)
     roles = []
     for service in (BayesFactorAssociation(), LikelihoodRatioAssociation()):
@@ -506,3 +514,41 @@ def test_a_fast_star_light_curve_url_is_the_wider_cone() -> None:
     assert radius > 10.0
     query = lightcurve_query(WISE_TABLES["NEOWISE"], ra, dec, radius)
     assert f"{radius / 3600.0!r}))" in query and f"{ra:.7f}" in query
+
+
+def gaia_rows() -> list[dict[str, Any]]:
+    """The Gaia pair as the canonical rows an evidence bundle carries."""
+    return [
+        {
+            "source_key": s.record_id,
+            "release_label": s.release_label,
+            "ra_deg": s.ra_deg,
+            "dec_deg": s.dec_deg,
+            "epoch_jyear": s.epoch_jyear,
+            "pm_ra_cosdec_masyr": s.motion.pmra_mas_yr,
+            "pm_dec_masyr": s.motion.pmdec_mas_yr,
+            "parallax_mas": s.motion.parallax_mas,
+        }
+        for s in gaia_pair()
+        if s.motion is not None
+    ]
+
+
+@pytest.mark.tier("T3")
+@pytest.mark.req("INT-024")
+def test_the_exposure_counterpart_test_finds_the_variable_in_every_exposure_as_the_blend_it_is() -> None:
+    curated = WiseLightCurveDialect().curate("lightcurve", raw("NEOWISE").fetched)
+    assert curated is not None
+    exposures = parse_exposures(curated.data)
+    assert exposures is not None and set(exposures.beam_arcsec) == {6.1}
+    assert len(exposures.mjd) == len(parse_lightcurve(curated.data).mjd)
+    field = Field()
+    variable, neighbour = gaia_rows()
+    field.add(variable, (curated.data,))
+    field.add(neighbour, ())
+    result = field.run(search_radius_arcsec=6.1)[variable["source_key"]]
+    d = result.details
+    assert d["counterpart_found"] and d["blend_of"] == sorted([variable["source_key"], neighbour["source_key"]])
+    assert d["roles"].get("blend", 0) >= 0.9 * d["exposures"] and set(d["roles"]) <= {"blend", "no-counterpart"}
+    assert d["other_methods"]["likelihood-ratio"] == 1.0, "the two methods agree on every exposure"
+    assert result.p_value is not None and result.p_value > 0.01, "the light falls between the pair, as a blend allows"

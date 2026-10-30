@@ -54,7 +54,9 @@ class WiseTable:
     quality: tuple[str, ...]
     """Columns the curation reads to drop bad exposures; they are the light curve's quality flags."""
     position_errors: tuple[str, ...] = ()
-    """The per-exposure positional sigmas in RA and Dec (arcsec), where the table has them."""
+    """The per-exposure positional sigmas in RA and Dec (arcsec). Empty for a table whose ``ra`` and
+    ``dec`` are not measured per exposure: AllWISE's repeats the source's coadded position (checked
+    live 2026-10-30), so its exposures say nothing about where the source was at each visit."""
 
     def columns(self) -> tuple[str, ...]:
         return (

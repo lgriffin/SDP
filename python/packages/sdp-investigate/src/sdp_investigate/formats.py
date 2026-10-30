@@ -4,9 +4,11 @@ so the product dialects in sdp.adapters write exactly what these tests parse."""
 from sdp.kernel.science.products import (
     ASTROMETRY,
     LIGHTCURVE,
+    Exposures,
     LightCurve,
     PositionHistory,
     lightcurve_csv,
+    parse_exposures,
     parse_lightcurve,
     parse_positions,
     positions_csv,
@@ -15,9 +17,11 @@ from sdp.kernel.science.products import (
 __all__ = [
     "ASTROMETRY",
     "LIGHTCURVE",
+    "Exposures",
     "LightCurve",
     "PositionHistory",
     "lightcurve_csv",
+    "parse_exposures",
     "parse_lightcurve",
     "parse_positions",
     "positions_csv",

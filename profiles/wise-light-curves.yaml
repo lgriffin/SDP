@@ -4,7 +4,8 @@
 # revisiting every patch of sky for about a day every six months until 2024. IRSA, NASA's infrared
 # archive, publishes every one of those exposures. SDP cuts each star's light curve out of them.
 #
-#   variability -> do the W1 (3.4 micron) measurements scatter more than the field's own stars do?
+#   variability          -> do the W1 (3.4 micron) measurements scatter more than the field's own stars do?
+#   exposure-counterpart -> is the source NEOWISE saw at every visit sitting where Gaia puts the star?
 #
 # NEOWISE's quoted error bars are smaller than the scatter it shows even for steady stars (1.3 to 1.8
 # times in the Pleiades, checked live 2026-10-29), so the test scales them by what the field's own stars
@@ -16,10 +17,11 @@
 # Changing anything here makes a new profile: raise `version` (the run records this file's hash).
 schema_version: "1.0.0"
 profile_id: wise-light-curves
-version: 1.0.0
+version: 1.1.0
 description: >-
   Infrared light curves from WISE and NEOWISE, 2010 to 2024: flags stars whose brightness at 3.4 microns
-  changed more than their neighbours' does. A light curve is fetched for each star WISE saw.
+  changed more than their neighbours' does, and checks that what WISE saw at each visit is the Gaia star.
+  A light curve is fetched for each star WISE saw.
 
 identify:
   route: catalogue
@@ -49,6 +51,12 @@ tests:
   - name: variability
     version: 1.0.0
     thresholds: {min_points: 20, error_scale: field}   # NEOWISE gives about 200 exposures; 20 keeps patchy ones out
+    needs_products: [lightcurve]
+  - name: exposure-counterpart
+    version: 1.0.0
+    # 6.1 arcsec is WISE's W1 beam; 0.05 arcsec is how far NEOWISE's positions sit from Gaia's on average
+    # (0.02 to 0.045 arcsec for four Pleiades stars, measured live 2026-10-30)
+    thresholds: {min_exposures: 20, search_radius_arcsec: 6.1, systematic_arcsec: 0.05}
     needs_products: [lightcurve]
 
 ranking:

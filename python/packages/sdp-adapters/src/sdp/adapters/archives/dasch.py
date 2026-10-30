@@ -324,7 +324,8 @@ class DaschDialect:
             mag, err = _float(row, "magcal_magdep"), _float(row, "magcal_magdep_rms")
             if math.isfinite(mag) and math.isfinite(err) and 0 < err < RMS_FLAG:
                 kept.append((_float(row, "date_jd") - MJD_OFFSET, mag, err))
-        return products.lightcurve_csv(*_columns(kept, 3))
+        times, mags, errs = _columns(kept, 3)
+        return products.lightcurve_csv(times, mags, errs)
 
     def astrometry(self, raw: bytes) -> bytes:
         kept: list[tuple[float, float, float, float]] = []
