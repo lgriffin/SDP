@@ -4,6 +4,7 @@ source at that visit, reconciled with the field's Gaia stars by both association
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -35,7 +36,7 @@ from sdp.kernel.science.plan import Backend, TaskContext
 from sdp.kernel.science.products import EXPOSURE_COLUMNS, lightcurve_csv, parse_exposures, parse_lightcurve
 from sdp_investigate import ExposureCounterpart, registered_tests
 from sdp_investigate.base import DEFAULT_POLICY
-from sdp_investigate.exposures import MIN_MATCHED, chosen_option, mean_offset_f
+from sdp_investigate.exposures import MIN_MATCHED, chosen_option, exposure_records, mean_offset_f, nearby, usable
 from sdp_investigate.imaging import MISSING_STATISTIC
 
 pytestmark = [pytest.mark.tier("T1"), pytest.mark.req("INT-024")]
@@ -355,3 +356,69 @@ def test_the_canonical_light_curve_carries_exposure_positions_when_given() -> No
     assert parse_exposures(lightcurve_csv(mjd, mjd, mjd)) is None
     with pytest.raises(ValueError, match=r"^exposures are the columns \('ra_deg'"):
         lightcurve_csv(mjd, mjd, mjd, columns[:4])
+
+
+def test_a_neighbour_is_offered_if_it_is_near_at_the_first_middle_or_last_exposure() -> None:
+    star = anchor_of(gaia_row("gaia:1", pm=(0.0, 0.0)))
+    # 1.5 arcsec a year eastward, 15 arcsec west of the star in 2016: 2.6 arcsec off by 2024
+    runner = anchor_of(gaia_row("gaia:2", east=-15.0, pm=(1500.0, 0.0)))
+    anchors = {"gaia:1": star, "gaia:2": runner}
+    assert nearby(star, anchors, (2016.0,), 10.0) == [star]
+    assert nearby(star, anchors, (2014.0, 2016.0, 2024.0), 10.0) == [star, runner]
+    still = anchor_of({**gaia_row("gaia:3"), "pm_ra_cosdec_masyr": 0.0})
+    assert nearby(replace(still, motion=None), anchors, (2024.0,), 10.0) == [], "Gaia's epoch is too far away"
+
+
+def test_a_product_listed_twice_is_read_once_and_bad_positions_are_counted_not_raised() -> None:
+    rng = np.random.default_rng(12)
+    star = gaia_row("gaia:1")
+    rows = exposures_at([star], [1.0], rng).decode().splitlines()
+    for i, bad in ((1, "95.0"), (2, "nan")):  # a declination off the sky, and no position at all
+        cells = rows[i].split(",")
+        cells[4] = bad
+        rows[i] = ",".join(cells)
+    field = Field()
+    field.add(star, ("\n".join(rows).encode(),))
+    bundle = field.bundles[0]
+    twice = replace(bundle, products=(bundle.products[0], bundle.products[0]))
+    dets, unusable = exposure_records(twice, field.context())
+    assert len(dets) == 58 and unusable == 2 and len({d.record_id for d in dets}) == 58
+    for sigma, beam in ((0.0, BEAM), (0.3, 0.0)):
+        assert not usable(10.0, 20.0, sigma, 0.3, beam)
+    assert usable(0.0, -90.0, 0.3, 0.3, BEAM) and not usable(360.0, 0.0, 0.3, 0.3, BEAM)
+    result = field.run()["gaia:1"]
+    assert result.details["exposures"] == 58 and result.details["without_position"] == 2
+
+
+def test_epochs_without_a_position_count_against_the_matched_fraction() -> None:
+    rng = np.random.default_rng(13)
+    star = gaia_row("gaia:1")
+    rows = exposures_at([star], [1.0], rng, mjd=MJD[:10]).decode().splitlines()
+    for i in range(1, 6):
+        cells = rows[i].split(",")
+        cells[3] = "nan"
+        rows[i] = ",".join(cells)
+    field = Field()
+    field.add(star, ("\n".join(rows).encode(),))
+    assert field.run(min_matched_fraction=0.5)["gaia:1"].details["counterpart_found"]
+    assert not field.run(min_matched_fraction=0.51)["gaia:1"].details["counterpart_found"]
+
+
+def test_null_fields_draw_the_same_statistic_with_the_systematic_floor() -> None:
+    rng = np.random.default_rng(14)
+    field = Field()
+    for i in range(5):
+        row = gaia_row(f"gaia:{i}", east=30.0 * i)
+        field.add(row, (exposures_at([row], [1.0], rng),))
+    test = ExposureCounterpart()
+    features = test.features(field.bundles, {"systematic_arcsec": 0.5}, field.context())
+    assert all(s is not None and s[0].shape == (60, 2) for s in features.arrays["samples"])
+    draws = [
+        f
+        for seed in range(100)
+        for f in test.null_features(features, {"systematic_arcsec": 0.5}, np.random.default_rng(seed)).arrays["f"]
+    ]
+    # a 0.5-arcsec floor dwarfs a 0.04-arcsec scatter of the mean: the statistic is chi-squared over 2
+    # with F's small-sample factor, never the far larger values F(2, 58) allows without the floor
+    assert np.mean(draws) == pytest.approx(1.0 * 58 / 59, rel=0.15)
+    assert np.mean([stats.f.sf(f, 2, 58) < 0.01 for f in draws]) < 0.02
