@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
 import re
 import threading
 import time
@@ -43,6 +44,8 @@ SOLVABLE_KINDS = ("light", "stack")
 CHAIN = 100
 #: header pointings are rounded to this many degrees, so that the frames of one target share a Gaia read
 POINTING_GRID_DEG = 0.1
+#: a solved neighbour whose centre is further than this from a frame's header pointing is another target's
+NEIGHBOUR_REACH_DEG = 3.0
 _UUID = re.compile(r"^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$", re.IGNORECASE)
 
 #: A rough centre for a name (SIMBAD through Sesame), or None when the name is unknown; it raises when
@@ -60,6 +63,16 @@ class Outcome:
     matched: int = 0
     rms_arcsec: float | None = None
     seconds: float = 0.0
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _separation(ra1: float, dec1: float, ra2: float, dec2: float) -> float:
+    r1, d1, r2, d2 = map(math.radians, (ra1, dec1, ra2, dec2))
+    c = math.sin(d1) * math.sin(d2) + math.cos(d1) * math.cos(d2) * math.cos(r1 - r2)
+    return math.degrees(math.acos(max(-1.0, min(1.0, c))))
 
 
 def usable_name(text: str | None) -> str | None:
@@ -146,6 +159,17 @@ class LocalSolver:
 
     # -- what each frame needs ----------------------------------------------------------------------
 
+    def _first_fingerprint(self, relative: str) -> dict[str, Any] | None:
+        """The first SHA-256 an earlier result of this frame recorded, so solving it again never replaces
+        the fingerprint ``sdp local verify`` checks against."""
+        for path in (self.solution_path(relative), self.refusal_path(relative)):
+            if path.exists():
+                doc = json.loads(path.read_text("utf-8"))
+                file = doc.get("first_file") or doc.get("file") or {}
+                if file.get("sha256"):
+                    return {"since": doc.get("written_at", ""), **file}
+        return None
+
     def _named(self, name: str) -> tuple[float, float] | None:
         """The names file's position; else SIMBAD's, once, kept in the names file for later runs."""
         assert self.names is not None
@@ -182,16 +206,22 @@ class LocalSolver:
                     paths.sort()
             if folder not in self._solved:
                 found: dict[str, dict[str, Any]] = {}
+                indexed = {r["path"]: r for r in rows}
                 for path in self._folders[folder]:
                     solution = self.solution_path(path)
-                    if solution.exists():
+                    # a solution of a file that has changed since is no start for its neighbours
+                    if path in indexed and self.current(solution, indexed[path]):
                         found[path] = json.loads(solution.read_text("utf-8"))
                 self._solved[folder] = found
         return folder
 
     def neighbour(self, row: dict[str, Any], rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any]] | None:
-        """The solved frame of the same folder nearest this one in path order (the earlier on a tie)."""
+        """The solved frame of the same folder nearest this one in path order (the earlier on a tie), of the
+        same target: a frame whose OBJECT names another target, or whose header points more than
+        ``NEIGHBOUR_REACH_DEG`` away, is not used."""
         folder = self._folder(row["path"], rows)
+        own = usable_name(row["object"])
+        objects = {r["path"]: usable_name(r["object"]) for r in rows}
         with self._lock:
             solved = self._solved[folder]
             if not solved:
@@ -200,8 +230,17 @@ class LocalSolver:
             here = paths.index(row["path"])
             for step in range(1, len(paths)):
                 for i in (here - step, here + step):
-                    if 0 <= i < len(paths) and paths[i] in solved:
-                        return paths[i], solved[paths[i]]
+                    if not (0 <= i < len(paths) and paths[i] in solved):
+                        continue
+                    other = objects.get(paths[i])
+                    if own is not None and other is not None and own != other:
+                        continue
+                    centre = solved[paths[i]].get("centre") or {}
+                    if row.get("ra_deg") is not None and centre.get("ra_deg") is not None:
+                        away = _separation(row["ra_deg"], row["dec_deg"], centre["ra_deg"], centre["dec_deg"])
+                        if away > NEIGHBOUR_REACH_DEG:
+                            continue
+                    return paths[i], solved[paths[i]]
             return None
 
     def rough_centre(self, row: dict[str, Any], rows: list[dict[str, Any]]) -> tuple[tuple[float, float], str]:
@@ -276,6 +315,9 @@ class LocalSolver:
             "file": {"size": row["size"], "mtime_ns": row["mtime_ns"]},
         }
         folder = self._folder(relative, rows)
+        first = self._first_fingerprint(relative)
+        if first is not None:
+            context["first_file"] = first
         try:
             centre, centre_from = self.rough_centre(row, rows)
             scale, scale_from = self.scale(row)
@@ -286,6 +328,7 @@ class LocalSolver:
             # one read of the bytes both fingerprints the file and gives the pixels
             raw = (self.source.path / relative).read_bytes()
             context["file"]["sha256"] = hashlib.sha256(raw).hexdigest()
+            context.setdefault("first_file", {**context["file"], "since": _now()})
             data, _ = read_frame(io.BytesIO(raw))
             del raw
             image, binning = solving_image(data, row["bayer"] if row["kind"] != "stack" else None)
@@ -305,7 +348,10 @@ class LocalSolver:
             return self._refuse(folder, relative, {**context, "reason": f"the frame could not be read: {exc}"}, started)
         document = {**context, **solution.to_document(), "config": self.config.to_document()}
         self._write(self.solution_path(relative), document)
-        write_wcs_file(self.wcs_path(relative), document)
+        try:
+            write_wcs_file(self.wcs_path(relative), document)
+        except (OSError, ValueError):  # the solution stands; sdp local sidecars writes the file again
+            self.wcs_path(relative).unlink(missing_ok=True)
         self.refusal_path(relative).unlink(missing_ok=True)
         with self._lock:
             self._solved[folder][relative] = document

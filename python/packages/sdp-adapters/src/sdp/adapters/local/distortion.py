@@ -85,7 +85,8 @@ def _fit(u: np.ndarray, v: np.ndarray, ra: np.ndarray, dec: np.ndarray, start: _
 
 def _rms(model: _Model, u: np.ndarray, v: np.ndarray, ra: np.ndarray, dec: np.ndarray) -> float:
     sra, sdec = model.sky(u, v)
-    d = np.hypot((sra - ra) * np.cos(np.radians(dec)), sdec - dec) * ARCSEC
+    dra = (sra - ra + 180.0) % 360.0 - 180.0  # across RA 0 the short way
+    d = np.hypot(dra * np.cos(np.radians(dec)), sdec - dec) * ARCSEC
     return float(np.sqrt(np.mean(d**2)))
 
 
@@ -174,7 +175,14 @@ def fit_distortion(
         sip[f"AP_{p}_{q}"], sip[f"BP_{p}_{q}"] = float(a), float(b)
     final = _rms(model, u, v, ra, dec)
     tan_all = _rms(_fit(u, v, ra, dec, start, None), u, v, ra, dec)
-    kept = replace(solution, wcs={**wcs, **sip}, rms_arcsec=final)
+    if final > config.max_rms_arcsec:
+        return solution, {**info, "kept": False, "reason": f"the SIP fit's RMS {final:.2f} arcsec is over the limit"}
+    # the solution now describes the rematched stars: their count, and the scale and rotation of the new CD
+    scale = math.sqrt(abs(np.linalg.det(model.cd))) * ARCSEC
+    rotation = round(math.degrees(math.atan2(model.cd[0, 1], model.cd[1, 1])), 6) % 360.0  # as solver._fit
+    kept = replace(
+        solution, wcs={**wcs, **sip}, rms_arcsec=final, matched=int(u.size), scale_arcsec=scale, rotation_deg=rotation
+    )
     return kept, {
         **info,
         "kept": True,

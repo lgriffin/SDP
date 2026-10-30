@@ -41,7 +41,13 @@ def wcs_cards(solution: Mapping[str, Any]) -> list[tuple[str, Any, str]]:
         cards.append(("SDPSHA", str(file["sha256"]), ""))
     if solution.get("written_at"):
         cards.append(("SDPDATE", str(solution["written_at"]), ""))
-    return cards
+    # a FITS text card holds printable ASCII only: a folder named Andromède is written Androm\xe8de
+    return [(k, _ascii(v) if isinstance(v, str) else v, c) for k, v, c in cards]
+
+
+def _ascii(text: str) -> str:
+    safe = text.encode("ascii", "backslashreplace").decode("ascii")
+    return "".join(ch if 32 <= ord(ch) < 127 else "?" for ch in safe)
 
 
 def write_wcs_file(path: Path, solution: Mapping[str, Any]) -> Path:

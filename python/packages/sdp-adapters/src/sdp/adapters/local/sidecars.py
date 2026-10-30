@@ -35,7 +35,10 @@ def write_sidecars(solver: LocalSolver, paths: Iterable[str] | None = None) -> i
             continue
         if target.exists() and target.stat().st_mtime_ns >= solution_file.stat().st_mtime_ns:
             continue
-        write_wcs_file(target, json.loads(solution_file.read_text("utf-8")))
+        try:
+            write_wcs_file(target, json.loads(solution_file.read_text("utf-8")))
+        except (OSError, ValueError):
+            continue
         written += 1
     return written
 
@@ -46,7 +49,8 @@ def solved_copy(original: bytes, solution: Mapping[str, Any]) -> bytes:
 
     start = header_size(original)
     header = fits.Header.fromstring(original[:start].decode("ascii"))
-    for key in [k for k in header if is_wcs(k)]:
+    # the header changes, so a checksum of the original no longer holds
+    for key in [k for k in header if is_wcs(k) or k in ("CHECKSUM", "DATASUM")]:
         del header[key]
     header.add_history("WCS from SDP's plate solver; pixels copied unchanged")
     for key, value, comment in wcs_cards(solution):
@@ -87,16 +91,24 @@ def export(
             result.skipped.append(relative)
             continue
         solution = json.loads(solution_file.read_text("utf-8"))
-        original = (source.path / relative).read_bytes()
         recorded = (solution.get("file") or {}).get("sha256")
-        if recorded and hashlib.sha256(original).hexdigest() != recorded:
-            result.skipped.append(relative)  # the bytes are not the ones that were solved
+        if not recorded:  # solved before SDP fingerprinted frames: solve it again (--resolve) to export it
+            result.skipped.append(relative)
             continue
-        body = solved_copy(original, solution)
-        target.parent.mkdir(parents=True, exist_ok=True)
         tmp = target.with_name(target.name + ".tmp")
-        tmp.write_bytes(body)
-        tmp.replace(target)
+        try:
+            original = (source.path / relative).read_bytes()
+            if hashlib.sha256(original).hexdigest() != recorded:
+                result.skipped.append(relative)  # the bytes are not the ones that were solved
+                continue
+            body = solved_copy(original, solution)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_bytes(body)
+            tmp.replace(target)
+        except (OSError, ValueError):  # an unreadable frame or header skips that frame, not the export
+            tmp.unlink(missing_ok=True)
+            result.skipped.append(relative)
+            continue
         result.written.append(relative)
         result.bytes += len(body)
         if progress is not None:
