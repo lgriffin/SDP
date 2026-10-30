@@ -293,7 +293,10 @@ class LocalSolver:
             solution, how = self._solve(stars, reference, centre, scale, self.neighbour(row, rows))
             context["start"] = how
             solution, context["distortion"] = fit_distortion(solution, stars, reference, self.config)
-            context["quality"] = measure(stars, solution, scale, row.get("exposure_s"))
+            try:
+                context["quality"] = measure(stars, solution, scale, row.get("exposure_s"))
+            except Exception as exc:  # a measure that fails never costs the frame its solution
+                context["quality"] = {"error": f"{type(exc).__name__}: {exc}"}
             # binning drops an odd last row or column; the frame keeps it
             solution.wcs.update(NAXIS1=int(data.shape[-1]), NAXIS2=int(data.shape[-2]))
         except Unsolved as refused:

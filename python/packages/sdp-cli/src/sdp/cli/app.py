@@ -1172,10 +1172,19 @@ def local_quality(
     source = LocalSources(data).get(name)
     rows = FrameIndex(source, data).rows()
     graded = grade_source(source, data, rows)
-    summary = nights(graded, rows)
     if target is not None:
+        from pathlib import PurePosixPath
+
+        from sdp.adapters.local.solving import usable_name
+
         wanted = target.replace(" ", "").lower()
-        summary = [n for n in summary if n["target"].replace(" ", "").lower() == wanted]
+
+        def named(g: dict[str, Any]) -> bool:
+            names = {usable_name(g.get("object")) or "", PurePosixPath(g["path"]).parts[0]}
+            return wanted in {n.replace(" ", "").lower() for n in names}
+
+        graded = [g for g in graded if named(g)]
+    summary = nights(graded, rows)
     counts = {g: sum(1 for f in graded if f["grade"] == g) for g in (GOOD, USABLE, POOR)}
     emit(
         {

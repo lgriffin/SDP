@@ -140,7 +140,7 @@ stars are 1.5 times wider, 0.15 more elongated, it lets through 0.5 mag less lig
 clearest frames, its sky is twice as bright, or it matched half as many stars; usable at 1.25, 0.08, 0.2,
 1.4 and 0.75 of those, or when a trail crosses it. A session of fewer than 5 frames is not compared; a
 refused frame is poor. Grades go to `<data>/quality/astro/grades.parquet`; `sdp local solve` regrades at
-the end of each run, and the `local:astro` archive leaves poor frames out (LOC-017).
+the end of each run, and the `local:astro` archive leaves poor frames out (LOC-017). Frames solved before SDP measured quality are graded on their matched stars only; `sdp local solve astro --resolve` measures them.
 
 ### Using the solutions in other software
 
