@@ -109,14 +109,33 @@ sdp local solve astro --target M31 --limit 50       # then the subs, a target at
 sdp local solved astro                              # solved, refused (and why), still to do
 ```
 
-For each frame it takes a rough centre from `OBJECT` (looked up in SIMBAD; a frame with an empty or UUID
-`OBJECT` borrows its folder's), the pixel scale from `FOCALLEN` and `XPIXSZ` or the source's `--scale`,
+For each frame it takes a rough centre from the nearest solved frame in its folder, else `OBJECT` (from
+the names file `<data>/index/astro/names.yaml`, else SIMBAD once, kept in the file), else the header's
+`RA`/`DEC` or `OBJCTRA`/`OBJCTDEC` pointing, else a folder neighbour's `OBJECT`. With every target in the
+names file (`sdp local names astro --fetch`, or `--centre M31=10.68,41.27`) no network is needed. A frame
+with a solved neighbour starts from that solution (LOC-008) and falls back to the triangle search only if
+the start fails the limits. The pixel scale from `FOCALLEN` and `XPIXSZ` or the source's `--scale`,
 bins a raw Bayer frame 2 x 2, finds the stars, and matches triangles of them against Gaia (G < 15 in a
 2 degree cone) whatever the frame's rotation or mirror image. A TAN fit is accepted with at least 12
 stars and an RMS under 1.5 arcsec (`--min-matches`, `--max-rms`); otherwise the frame is refused with
 its reason. Solutions go to `<data>/solutions/astro/<frame>.wcs.json`, refusals to
-`<frame>.unsolved.json`. A rerun skips both; `--resolve` redoes solved frames, `--retry-refused` the
-refused ones. The frames themselves are only read.
+`<frame>.unsolved.json`; each records the SHA-256 of the bytes read. A rerun skips both; `--resolve`
+redoes solved frames, `--retry-refused` the refused ones. `--workers` (default 4) solves runs of up to 100
+frames of a folder side by side, with the same results as one worker. The frames themselves are only read.
+
+### Checking the originals are intact
+
+```
+sdp local verify astro            # every frame's SHA-256 against the first one recorded
+sdp local verify astro --quick    # sizes and dates only
+sdp local manifest astro          # path, size and SHA-256 of every frame, as CSV
+```
+
+The first fingerprint of each frame comes from the solver or from the first `verify`, and is kept in
+`<data>/index/astro/fingerprints.parquet`. `verify` lists frames missing, new, modified (size or date
+changed too) and corrupted (same size and date, other bytes), writes the full list beside the
+fingerprints, and exits 1 unless all are intact. `--accept` takes changed frames' bytes as their new
+fingerprints; nothing else replaces one (LOC-011).
 
 ### Checking them against Gaia
 

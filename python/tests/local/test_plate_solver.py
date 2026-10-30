@@ -170,7 +170,7 @@ def test_a_batch_writes_solutions_and_refusals_under_the_data_folder_only(folder
     assert "no rough centre" in outcomes["Orphan/img-0001.fits"].reason
     solution = json.loads((folder.data / "solutions" / "astro" / "M31/night1/img-0003.fits.wcs.json").read_text())
     assert solution["rough_centre"]["from"].startswith("solved neighbour M31/night1/")
-    assert solution["gaia"]["artifact_id"] == "sha256:synthetic-gaia" and solution["solver"] == "sdp-solve 1"
+    assert solution["gaia"]["artifact_id"] == "sha256:synthetic-gaia" and solution["solver"] == "sdp-solve 2"
     refusal = json.loads((folder.data / "solutions" / "astro" / "M31/night2/cloudy.fits.unsolved.json").read_text())
     assert "stars were found" in refusal["reason"]
     assert snapshot(folder.root) == before, "the frames are never written to"

@@ -63,3 +63,64 @@ requirements:
       - "python/tests.local.test_local_gateway::test_the_dialect_curates_a_whole_solved_frame_and_leaves_the_rest"
       - "python/tests.local.test_local_gateway::test_bootstrap_offers_each_indexed_local_source"
       - "python/tests.local.test_local_gateway::test_the_my_frames_profile_finds_the_one_gaia_star_the_frames_do_not_show"
+  - id: LOC-006
+    pattern: event
+    text: "When a local frame has no solved frame in its folder and no OBJECT name with a known position, the system shall start its solution from the header's RA and DEC pointing, rounded to 0.1 degree."
+    rationale: "Some frames carry a UUID where the target's name belongs but still say where the telescope pointed; rounding lets the frames of one target share one Gaia read (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_offline_solving::test_the_headers_pointing_is_read_as_degrees_or_sexagesimal"
+      - "python/tests.local.test_offline_solving::test_an_index_from_before_the_pointing_columns_is_read_again"
+      - "python/tests.local.test_offline_solving::test_a_frame_with_no_usable_name_solves_from_its_headers_pointing"
+  - id: LOC-007
+    pattern: event
+    text: "When a local frame's OBJECT name is not in the source's names file, the system shall ask SIMBAD for it at most once per run and keep the answer in the names file, never replacing a position the person gave."
+    rationale: "Gaia is local (216 GB), so the names of a few dozen targets were the only reason solving needed the network; once they are in the file, solving runs offline (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_offline_solving::test_each_name_is_asked_of_simbad_once_and_later_runs_need_no_network"
+      - "python/tests.local.test_offline_solving::test_an_unreachable_simbad_refuses_with_how_to_give_the_centre"
+      - "python/tests.local.test_offline_solving::test_a_centre_you_give_is_kept_and_simbad_never_overwrites_it"
+      - "python/tests.local.test_offline_solving::test_the_names_command_keeps_centres_you_give"
+  - id: LOC-008
+    pattern: event
+    text: "When a frame in the same folder is already solved, the system shall start from the nearest such frame's solution and use the triangle search only if that start fails the limits of LOC-003."
+    rationale: "Subs a few seconds apart differ by a small turn of the field; starting from the last one skips the triangle search, and the same limits keep a wrong start from being accepted (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_offline_solving::test_a_neighbours_solution_refines_to_the_frame_or_is_refused"
+      - "python/tests.local.test_offline_solving::test_a_folder_chains_each_frame_from_its_solved_neighbour_and_falls_back_to_triangles"
+  - id: LOC-009
+    pattern: event
+    text: "When local frames are solved by several workers, the system shall solve or refuse the same frames as one worker would."
+    rationale: "20,773 frames are solved overnight on several cores; the number of workers changes the time taken, not the results (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_offline_solving::test_several_workers_solve_the_same_frames_as_one"
+  - id: LOC-010
+    pattern: event
+    text: "When a local frame is solved or refused after being read, the system shall record the SHA-256 of the bytes it read with the result."
+    rationale: "Solving reads every pixel anyway, so the fingerprint that later shows the original is intact costs no extra pass over 575 GB (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_offline_solving::test_a_solution_records_the_fingerprint_of_the_bytes_it_read"
+  - id: LOC-011
+    pattern: event
+    text: "When a local source is verified, the system shall report each frame that is missing, new, modified or corrupted against its first recorded SHA-256 and keep that fingerprint unless asked to accept the change."
+    rationale: "Size and date catch edits but not bits gone bad on a drive; a fingerprint that followed every change could never show one (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_offline_solving::test_verify_finds_missing_modified_and_corrupted_frames_and_keeps_the_first_fingerprints"
+      - "python/tests.local.test_offline_solving::test_the_verify_and_manifest_commands"

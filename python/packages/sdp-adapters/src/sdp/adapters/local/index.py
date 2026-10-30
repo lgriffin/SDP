@@ -52,6 +52,8 @@ SCHEMA = pa.schema(
         ("focal_mm", pa.float64()),
         ("pixel_um", pa.float64()),
         ("has_wcs", pa.bool_()),
+        ("ra_deg", pa.float64()),  # where the header says the telescope pointed, if it says
+        ("dec_deg", pa.float64()),
         ("error", pa.string()),
     ]
 )
@@ -76,6 +78,31 @@ def _text(header: dict[str, Any], *keys: str) -> str | None:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return None
+
+
+def _sexagesimal(text: str | None, unit: float) -> float | None:
+    """``"00 42 44.3"`` or ``"+41:16:09"`` as a number of ``unit`` (15 for hours of RA, 1 for degrees)."""
+    parts = (text or "").replace(":", " ").split()
+    try:
+        values = [float(p) for p in parts]
+    except ValueError:
+        return None
+    if not 1 <= len(values) <= 3:
+        return None
+    sign = -1.0 if parts[0].startswith("-") else 1.0
+    magnitude = sum(abs(v) / 60.0**i for i, v in enumerate(values))
+    return sign * magnitude * unit
+
+
+def pointing(header: dict[str, Any]) -> tuple[float | None, float | None]:
+    """The header's pointing in degrees: RA and DEC as numbers (degrees), else OBJCTRA and OBJCTDEC
+    (hours and degrees, sexagesimal); None for each unless both are there and on the sky."""
+    ra, dec = _number(header, "RA"), _number(header, "DEC")
+    if ra is None or dec is None:
+        ra, dec = _sexagesimal(_text(header, "OBJCTRA"), 15.0), _sexagesimal(_text(header, "OBJCTDEC"), 1.0)
+    if ra is None or dec is None or not (0 <= ra < 360 and -90 <= dec <= 90):
+        return None, None
+    return ra, dec
 
 
 def frame_kind(header: dict[str, Any], relative: PurePosixPath) -> str:
@@ -116,6 +143,8 @@ def frame_row(relative: PurePosixPath, size: int, mtime_ns: int, header: dict[st
         "focal_mm": _number(header, "FOCALLEN"),
         "pixel_um": _number(header, "XPIXSZ", "PIXSIZE1"),
         "has_wcs": "CTYPE1" in header and "CRVAL1" in header,
+        "ra_deg": pointing(header)[0],
+        "dec_deg": pointing(header)[1],
         "error": None,
     }
 
@@ -180,6 +209,7 @@ class FrameIndex:
             if (
                 previous is not None
                 and not previous["error"]
+                and set(SCHEMA.names) <= previous.keys()  # an index from before a column was added
                 and (previous["size"], previous["mtime_ns"]) == (stat.st_size, stat.st_mtime_ns)
             ):
                 rows.append(previous)
