@@ -106,18 +106,22 @@ def _trails(image: np.ndarray, rms: float, binning: int) -> int:
     from scipy import ndimage
 
     mask = image > 3 * rms
-    labels, count = ndimage.label(mask)
+    # eight-connected, so a one-pixel-wide diagonal trail stays one feature
+    labels, count = ndimage.label(mask, structure=np.ones((3, 3), dtype=bool))
     if not count:
         return 0
     sizes = ndimage.sum_labels(mask, labels, index=np.arange(1, count + 1))
+    boxes = ndimage.find_objects(labels)
     trails = 0
     for label in np.flatnonzero(sizes >= TRAIL_LENGTH_PX / binning) + 1:
-        ys, xs = np.nonzero(labels == label)
+        box = boxes[label - 1]
+        assert box is not None
+        ys, xs = np.nonzero(labels[box] == label)
         cov = np.cov(np.vstack([xs, ys]).astype(float))
         values = np.linalg.eigvalsh(cov)
         if values[0] <= 0:
             values[0] = 1.0 / 12  # one pixel wide
-        length = 4 * math.sqrt(values[1]) * binning
+        length = math.sqrt(12 * values[1]) * binning  # a uniform line of length L has variance L^2 / 12
         if length >= TRAIL_LENGTH_PX and math.sqrt(values[1] / values[0]) >= TRAIL_ASPECT:
             trails += 1
     return trails
@@ -157,7 +161,8 @@ def measure(stars: Stars, solution: Solution, scale_arcsec: float, exposure_s: f
         zp = float(np.median(mag[ok] + 2.5 * np.log10(flux[ok] / seconds)))
         out["zero_point"] = round(zp, 3)
         noise = stars.sky["rms"] * math.sqrt(math.pi * radius**2)
-        out["limiting_mag"] = round(zp - 2.5 * math.log10(5 * noise / seconds), 2)
+        if math.isfinite(noise) and noise > 0:  # a sky with no noise has no limit to measure
+            out["limiting_mag"] = round(zp - 2.5 * math.log10(5 * noise / seconds), 2)
     out["trails"] = _trails(image, stars.sky["rms"], b)
     return out
 

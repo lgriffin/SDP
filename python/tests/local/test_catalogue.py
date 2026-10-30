@@ -189,3 +189,47 @@ def test_coverage_counts_only_light_and_stack_frames() -> None:
     ]  # fmt: skip
     (m31,) = coverage(rows)
     assert (m31["stacks"], m31["lights"], m31["hours"], m31["good_share"]) == (1, 0, 0.0, 1.0)
+
+
+def test_a_folder_spread_over_the_sky_gets_a_cone_per_frame() -> None:
+    from sdp.adapters.local.catalogue import sessions
+
+    rows = [
+        {"status": SOLVED, "path": f"mosaic/img-{i}.fits", "ra_deg": 10.0 + 15 * i, "dec_deg": 20.0, "radius_deg": 0.6}
+        for i in range(3)
+    ]
+    assert [round(c.ra_deg) for c in sessions(rows)] == [10, 25, 40]
+    assert len(sessions(rows[:1])) == 1
+
+
+@pytest.mark.req("LOC-020")
+def test_the_planner_is_told_only_of_frames_the_gateway_offers(tmp_path: Path) -> None:
+    solver, data = night(tmp_path)
+    rows = Catalogue(solver.source, data).build()
+    poor = [{**r, "grade": "poor"} for r in rows]
+    assert descriptor(solver.source, poor, date(2026, 10, 30)).product_types == frozenset()
+    undated = [{**r, "mjd": None} for r in rows]
+    assert descriptor(solver.source, undated, date(2026, 10, 30)).product_types == frozenset()
+
+
+def test_a_changed_frame_loses_its_old_grade(tmp_path: Path) -> None:
+    from sdp.adapters.local.quality import Grades, grade_source
+
+    solver, data = night(tmp_path)
+    grade_source(solver.source, data, FrameIndex(solver.source, data).rows())
+    assert Grades(solver.source, data).by_path()
+    path = solver.source.path / "M31" / "night1" / "img-0001.fits"
+    path.write_bytes(path.read_bytes() + bytes(2880))
+    FrameIndex(solver.source, data).update()
+    row = next(r for r in Catalogue(solver.source, data).build() if r["path"] == "M31/night1/img-0001.fits")
+    assert (row["status"], row["grade"]) == (TO_DO, None)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["--at", "999,10"], ["--at", "nan,nan"], ["--at", "M31", "--kind", "lights"], ["--at", "M31", "--radius", "-1"]],
+)
+def test_find_refuses_a_place_kind_or_radius_that_cannot_be(tmp_path: Path, args: list[str]) -> None:
+    _, data = night(tmp_path)
+    result = runner.invoke(cli.app, ["local", "find", "astro", *args], env={"SDP_DATA": str(data)})
+    assert result.exit_code == 2, result.output

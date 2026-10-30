@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import json
 import math
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -151,8 +152,12 @@ class LocalImageGateway:
     data: Path
     #: offer frames graded poor too (LOC-017); by default they are left out once the source is graded
     include_poor: bool = False
+    #: a long-running app reads the solutions again this often, so newly solved frames are offered
+    fresh_seconds: float = 60.0
     _frames: list[SolvedFrame] | None = field(default=None, repr=False)
+    _read_at: float = field(default=0.0, repr=False)
     _curves: list[tuple[str, dict[str, Any]]] | None = field(default=None, repr=False)
+    _curves_at: float = field(default=0.0, repr=False)
 
     @property
     def archive_id(self) -> str:
@@ -167,8 +172,9 @@ class LocalImageGateway:
         return f"Own observations, {self.source.path} ({self.source.source_id})"
 
     def frames(self) -> list[SolvedFrame]:
-        """Solved light and stack frames, read once from the index and the solutions folder."""
-        if self._frames is None:
+        """Solved light and stack frames, from the index and the solutions folder (read again after
+        ``fresh_seconds``)."""
+        if self._frames is None or time.monotonic() - self._read_at > self.fresh_seconds:
             root = self.source.output_dir(self.data, "solutions")
             grades = {} if self.include_poor else Grades(self.source, self.data).by_path()
             frames = []
@@ -179,12 +185,14 @@ class LocalImageGateway:
                 # a solution written for the file as it is now, not before it was replaced
                 if row["kind"] in ("light", "stack") and LocalSolver.current(path, row):
                     frames.append(SolvedFrame(row, json.loads(path.read_text("utf-8"))))
-            self._frames = frames
+            self._frames, self._read_at = frames, time.monotonic()
         return self._frames
 
     def curves(self) -> list[tuple[str, dict[str, Any]]]:
-        """(target, star) for each star ``sdp local lightcurve`` measured, read once."""
-        if self._curves is None:
+        """(target, star) for each star ``sdp local lightcurve`` measured (read again after
+        ``fresh_seconds``)."""
+        if self._curves is None or time.monotonic() - self._curves_at > self.fresh_seconds:
+            self._curves_at = time.monotonic()
             self._curves = [
                 (path.name.removesuffix("-stars.json"), star)
                 for path in stars_files(self.source, self.data)

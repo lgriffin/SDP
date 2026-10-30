@@ -38,6 +38,8 @@ from sdp.kernel.domain.integration import (
 
 SOLVED, REFUSED, TO_DO, NOT_SOLVED = "solved", "refused", "to_do", "not_solvable"
 _MJD_UNIX = 40587.0
+#: the widest cone the domain allows (Cone)
+MAX_CONE_DEG = 10.0
 
 SCHEMA = pa.schema(
     [
@@ -124,7 +126,8 @@ class Catalogue:
             else:
                 entry["status"] = TO_DO
             graded = grades.get(row["path"])
-            if graded is not None:
+            # a grade belongs to the file that was solved or refused; a changed file waits for a new one
+            if graded is not None and entry["status"] in (SOLVED, REFUSED):
                 entry["grade"], entry["reasons"] = graded["grade"], list(graded["reasons"] or [])
             out.append(entry)
         out.sort(key=lambda r: r["path"])
@@ -267,7 +270,10 @@ def sessions(rows: Iterable[dict[str, Any]]) -> list[Cone]:
         ra_c = math.degrees(math.atan2(v[1], v[0])) % 360.0
         dec_c = math.degrees(math.asin(v[2] / np.linalg.norm(v)))
         reach = max(_separation(ra_c, dec_c, f["ra_deg"], f["dec_deg"]) + f["radius_deg"] for f in frames)
-        cones.append(Cone(ra_c, dec_c, min(reach, 180.0)))
+        if reach <= MAX_CONE_DEG:
+            cones.append(Cone(ra_c, dec_c, reach))
+        else:  # a folder spread over the sky: a cone for each frame
+            cones.extend(Cone(f["ra_deg"], f["dec_deg"], min(f["radius_deg"], MAX_CONE_DEG)) for f in frames)
     return cones
 
 
@@ -276,8 +282,9 @@ def descriptor(
 ) -> SourceCapabilityDescriptor:
     """The solved frames as the planner sees any archive: images of the kinds solved, covering each
     session's cone, between the first and last frame's dates, cut out per product; and time series
-    once ``sdp local lightcurve`` has measured some."""
-    solved = [r for r in rows if r["status"] == SOLVED]
+    once ``sdp local lightcurve`` has measured some. Only the frames the gateway offers count: dated,
+    and not graded poor."""
+    solved = [r for r in rows if r["status"] == SOLVED and r["mjd"] is not None and r["grade"] != POOR]
     types = {ProductType.IMAGE} if solved else set()
     if solved and light_curves:
         types.add(ProductType.TIMESERIES)

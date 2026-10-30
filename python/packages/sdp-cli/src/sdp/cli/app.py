@@ -8,6 +8,7 @@ an in-memory kernel.
 from __future__ import annotations
 
 import json
+import math
 import mimetypes
 import sys
 import time
@@ -1069,8 +1070,13 @@ def local_names(
         resolve = _name_resolver()
         if resolve is None:
             raise DomainError("no SIMBAD resolver is wired; give the positions with --centre NAME=RA,DEC instead")
+        failed: dict[str, str] = {}
         for each in unknown:
-            found = resolve(each)
+            try:
+                found = resolve(each)
+            except Exception as exc:  # SIMBAD unreachable: keep what was found, report the rest
+                failed[each] = f"{type(exc).__name__}: {exc}"
+                continue
             if found is None:
                 not_found.append(each)
             else:
@@ -1082,6 +1088,7 @@ def local_names(
             "known": book.entries(),
             "frames_name_these_unknown_targets": unknown,
             **({"simbad_does_not_know": not_found} if not_found else {}),
+            **({"simbad_failed": failed} if fetch and unknown and failed else {}),
         }
     )
 
@@ -1172,10 +1179,19 @@ def local_quality(
     source = LocalSources(data).get(name)
     rows = FrameIndex(source, data).rows()
     graded = grade_source(source, data, rows)
-    summary = nights(graded, rows)
     if target is not None:
+        from pathlib import PurePosixPath
+
+        from sdp.adapters.local.solving import usable_name
+
         wanted = target.replace(" ", "").lower()
-        summary = [n for n in summary if n["target"].replace(" ", "").lower() == wanted]
+
+        def named(g: dict[str, Any]) -> bool:
+            names = {usable_name(g.get("object")) or "", PurePosixPath(g["path"]).parts[0]}
+            return wanted in {n.replace(" ", "").lower() for n in names}
+
+        graded = [g for g in graded if named(g)]
+    summary = nights(graded, rows)
     counts = {g: sum(1 for f in graded if f["grade"] == g) for g in (GOOD, USABLE, POOR)}
     emit(
         {
@@ -1194,9 +1210,13 @@ def _position(source: Any, data: Path, at: str) -> tuple[float, float]:
     ra_text, comma, dec_text = at.partition(",")
     if comma:
         try:
-            return float(ra_text), float(dec_text)
+            ra, dec = float(ra_text), float(dec_text)
         except ValueError:
             pass
+        else:
+            if not (math.isfinite(ra) and math.isfinite(dec) and 0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0):
+                raise typer.BadParameter("RA from 0 to 360 and DEC from -90 to 90 degrees", param_hint="--at")
+            return ra, dec
     found = NameBook(source, data).get(at.strip())
     if found is None:
         raise DomainError(
@@ -1245,6 +1265,10 @@ def local_find(
 
     if grade is not None and grade not in (GOOD, USABLE, POOR):
         raise typer.BadParameter("good, usable or poor", param_hint="--grade")
+    if kind is not None and kind not in ("light", "stack"):
+        raise typer.BadParameter("light or stack", param_hint="--kind")
+    if not (math.isfinite(radius) and radius >= 0):
+        raise typer.BadParameter("zero or more degrees", param_hint="--radius")
     data = data_dir()
     source = LocalSources(data).get(name)
     ra, dec = _position(source, data, at)
