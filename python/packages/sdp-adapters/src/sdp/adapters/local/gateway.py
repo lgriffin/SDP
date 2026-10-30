@@ -25,6 +25,7 @@ import astropy.units as u
 import numpy as np
 
 from sdp.adapters.local.index import FrameIndex
+from sdp.adapters.local.lightcurves import curve_csv, stars_files
 from sdp.adapters.local.quality import POOR, Grades
 from sdp.adapters.local.solver import Unsolved, project, read_frame, solving_image
 from sdp.adapters.local.solving import SOLVED, LocalSolver
@@ -42,9 +43,13 @@ from sdp.kernel.ports.investigate import (
     ObservationTarget,
     cutout_product_id,
 )
+from sdp.kernel.science.products import LIGHTCURVE
 
 IMAGE = "image"
 FITS = "application/fits"
+CSV = "text/csv"
+#: a light curve's product id: ``lightcurve/<target>/<Gaia DR3 source_id>``
+CURVE_PREFIX = "lightcurve/"
 LICENCE = "The person's own frames: used locally, never published by SDP"
 MJD_UNIX = 40587.0
 #: A frame kind as an ObsCore calibration level: a raw sub is level 1, a stacked master is combined (3)
@@ -147,6 +152,7 @@ class LocalImageGateway:
     #: offer frames graded poor too (LOC-017); by default they are left out once the source is graded
     include_poor: bool = False
     _frames: list[SolvedFrame] | None = field(default=None, repr=False)
+    _curves: list[tuple[str, dict[str, Any]]] | None = field(default=None, repr=False)
 
     @property
     def archive_id(self) -> str:
@@ -176,6 +182,43 @@ class LocalImageGateway:
             self._frames = frames
         return self._frames
 
+    def curves(self) -> list[tuple[str, dict[str, Any]]]:
+        """(target, star) for each star ``sdp local lightcurve`` measured, read once."""
+        if self._curves is None:
+            self._curves = [
+                (path.name.removesuffix("-stars.json"), star)
+                for path in stars_files(self.source, self.data)
+                for star in json.loads(path.read_text("utf-8"))["all_stars"]
+            ]
+        return self._curves
+
+    def _curve_records(self, target: ObservationTarget, criteria: ObservationCriteria) -> list[ObservationRecord]:
+        if criteria.product_types and LIGHTCURVE not in criteria.product_types:
+            return []
+        if criteria.missions and "light" not in criteria.missions:
+            return []
+        records = []
+        for name, star in self.curves():
+            separation = _separation_deg(target.ra_deg, target.dec_deg, star["ra_deg"], star["dec_deg"])
+            if separation * 3600.0 > criteria.radius_arcsec:
+                continue
+            product_id = f"{CURVE_PREFIX}{name}/{star['source_id']}"
+            uri = (self.source.output_dir(self.data, "lightcurves") / f"{name}.parquet").as_uri()
+            records.append(
+                ObservationRecord(
+                    ProductRef(self.archive_id, product_id, uri),
+                    mission="light",
+                    instrument="green pixels",
+                    product_type=LIGHTCURVE,
+                    epoch_mjd=star.get("first_mjd"),
+                    epoch_end_mjd=star.get("last_mjd"),
+                    size_bytes=None,
+                    licence=LICENCE,
+                    citation=self.citation,
+                )
+            )
+        return records
+
     def _ref(self, frame: SolvedFrame) -> ProductRef:
         return ProductRef(self.archive_id, frame.row["path"], (self.source.path / frame.row["path"]).as_uri())
 
@@ -187,7 +230,7 @@ class LocalImageGateway:
 
     def search(self, target: ObservationTarget, criteria: ObservationCriteria) -> ObservationIndex:
         reach = criteria.radius_arcsec / 3600.0
-        records = []
+        records = self._curve_records(target, criteria)
         for frame in self.frames():
             if _separation_deg(target.ra_deg, target.dec_deg, *frame.centre) > frame.radius_deg + reach:
                 continue
@@ -237,7 +280,11 @@ class LocalImageGateway:
         return path
 
     def fetch(self, product: ProductRef) -> FetchedProduct:
-        """The frame's bytes as they are on disk (read-only)."""
+        """The frame's bytes as they are on disk (read-only), or a star's light curve as canonical CSV."""
+        if product.product_id.startswith(CURVE_PREFIX):
+            name, _, source_id = product.product_id.removeprefix(CURVE_PREFIX).rpartition("/")
+            body = curve_csv(self.source, self.data, name, int(source_id))
+            return FetchedProduct(product, body, CSV, self.release_label, LICENCE, self.citation, product.uri)
         path = self._path(product)
         try:
             body = path.read_bytes()
@@ -287,6 +334,8 @@ class LocalFrameDialect:
     dialect_version: str = "1.0.0"
 
     def curate(self, product_type: str, raw: FetchedProduct) -> CuratedProduct | None:
+        if product_type == LIGHTCURVE and raw.product.product_id.startswith(CURVE_PREFIX):
+            return CuratedProduct(raw.data, CSV)  # written canonical by LightCurves
         if product_type != IMAGE:
             return None
         try:

@@ -145,10 +145,27 @@ that a backup tool can check a copy against.
 **Success:** `verify` ends with `"intact": true`. It only reads; a fingerprint changes only if you run it
 with `--accept`.
 
-## Not yet
+## Step 7 (optional): light curves from your subs
 
-- A light-curve test over many subs of one target is planned, not built
-  ([#71](https://github.com/lgriffin/SDP/issues/71)).
+Once the subs of a target are solved and graded (Step 4, then `sdp local quality astro`):
+
+```bat
+sdp local lightcurve astro
+sdp investigate --region "icrs;circle(10.6847,41.2687,0.3)" --profile ..\profiles\my-frames-variability.yaml --label m31-variables
+```
+
+`sdp local lightcurve` picks the target whose subs cover the most nights (or give `--target M31`),
+fetches the Gaia stars of G 9 to 15 over those subs, and measures each star on every solved sub not
+graded poor. It uses the green pixels of the raw frame, the colour closest to Gaia's G band, and places
+each star from the frame's solution, so no star finding is needed. Each frame is calibrated against the
+field's steadiest stars, so haze and the target's height in the sky cancel out. The curves go to
+`<data>\lightcurves\astro\M31.parquet`, with a nightly average and a summary beside it.
+
+**Success:** the result lists `precision_by_g`, how much the steady stars scatter at each brightness.
+Expect about 0.01 to 0.02 mag at G 10 to 12 on a clear night. `candidates` lists the stars that scatter at
+least three times more than stars of their brightness. The investigate run then tests every star the
+same way it tests WISE's light curves, against the scatter its neighbours show. A flag is a lead: check
+that the star is not at the edge of the frames or next to a brighter star.
 
 More detail on indexing, solving and the cutouts is in
 [docs/live-data.md](../live-data.md#your-own-frames).

@@ -271,10 +271,16 @@ def sessions(rows: Iterable[dict[str, Any]]) -> list[Cone]:
     return cones
 
 
-def descriptor(source: LocalSource, rows: list[dict[str, Any]], today: date) -> SourceCapabilityDescriptor:
+def descriptor(
+    source: LocalSource, rows: list[dict[str, Any]], today: date, light_curves: bool = False
+) -> SourceCapabilityDescriptor:
     """The solved frames as the planner sees any archive: images of the kinds solved, covering each
-    session's cone, between the first and last frame's dates, cut out per product."""
+    session's cone, between the first and last frame's dates, cut out per product; and time series
+    once ``sdp local lightcurve`` has measured some."""
     solved = [r for r in rows if r["status"] == SOLVED]
+    types = {ProductType.IMAGE} if solved else set()
+    if solved and light_curves:
+        types.add(ProductType.TIMESERIES)
     epochs = [r["mjd"] for r in solved if r["mjd"] is not None]
     return SourceCapabilityDescriptor(
         source_id=source.source_id,
@@ -282,7 +288,7 @@ def descriptor(source: LocalSource, rows: list[dict[str, Any]], today: date) -> 
         publisher="the person who took them",
         verified_on=today,
         origin="hand-written",
-        product_types=frozenset({ProductType.IMAGE}) if solved else frozenset(),
+        product_types=frozenset(types),
         missions=tuple(sorted({r["kind"] for r in solved})),
         calibration_levels=frozenset({1 if r["kind"] == "light" else 3 for r in solved}),
         coverage=Coverage(
@@ -294,7 +300,7 @@ def descriptor(source: LocalSource, rows: list[dict[str, Any]], today: date) -> 
         operations=frozenset({Operation.CONE, Operation.CUTOUT, Operation.DOWNLOAD}),
         cutout_support={"image": "per-product"},
         rights=Rights("own observations", f"Own observations, {source.path} ({source.source_id})"),
-        adapter=AdapterInfo("local-frames", "1.0.0", today, {"image": True}),
+        adapter=AdapterInfo("local-frames", "1.0.0", today, {"image": True, "lightcurve": light_curves}),
     )
 
 
@@ -331,7 +337,10 @@ class LocalDiscovery:
         built = self._built.get(source_id)
         if built is None or now - built[0] > self.fresh_seconds:
             source, data = self.sources[source_id]
-            built = (now, descriptor(source, Catalogue(source, data).build(), self.today()))
+            from sdp.adapters.local.lightcurves import stars_files
+
+            curves = bool(stars_files(source, data))
+            built = (now, descriptor(source, Catalogue(source, data).build(), self.today(), curves))
             self._built[source_id] = built
         return built[1]
 

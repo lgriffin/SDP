@@ -533,3 +533,14 @@ def scale_from_header(header: Mapping[str, Any]) -> float | None:
     if isinstance(focal, int | float) and isinstance(pixel, int | float) and focal > 0 and pixel > 0:
         return 206.264806 * float(pixel) / float(focal)
     return None
+
+
+def sky_to_pixel(wcs: Mapping[str, Any], ra: np.ndarray, dec: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """1-based FITS pixels of sky positions under a solution, SIP's inverse (AP, BP) included."""
+    xi, eta = project(np.asarray(ra, dtype=float), np.asarray(dec, dtype=float), wcs["CRVAL1"], wcs["CRVAL2"])
+    cd = np.array([[wcs["CD1_1"], wcs["CD1_2"]], [wcs["CD2_1"], wcs["CD2_2"]]], dtype=float)
+    u, v = np.linalg.solve(cd, np.vstack([xi, eta]))
+    if "AP_ORDER" in wcs:
+        f, g = sip_offsets(wcs, u, v, "AP")
+        u, v = u + f, v + g
+    return u + wcs["CRPIX1"], v + wcs["CRPIX2"]
