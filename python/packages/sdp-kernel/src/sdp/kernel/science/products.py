@@ -53,7 +53,15 @@ class PositionHistory:
     pos_err_mas: np.ndarray
 
 
-def _rows(data: bytes, columns: tuple[str, ...]) -> list[dict[str, float]]:
+def _float(text: str | None) -> float:
+    try:
+        return float(text or "nan")
+    except ValueError:
+        return math.nan
+
+
+def _rows(data: bytes, columns: tuple[str, ...], finite: tuple[str, ...] | None = None) -> list[dict[str, float]]:
+    """The rows whose ``finite`` columns (all ``columns`` by default) are all finite numbers."""
     lines = [line for line in data.decode().splitlines() if not line.startswith("#")]
     reader = csv.DictReader(lines)
     missing = [c for c in columns if c not in (reader.fieldnames or [])]
@@ -61,8 +69,8 @@ def _rows(data: bytes, columns: tuple[str, ...]) -> list[dict[str, float]]:
         raise ValueError(f"product lacks columns {missing}")
     out = []
     for row in reader:
-        values = {c: float(row[c]) for c in columns}
-        if all(math.isfinite(v) for v in values.values()):
+        values = {c: _float(row[c]) for c in columns}
+        if all(math.isfinite(values[c]) for c in (finite or columns)):
             out.append(values)
     return out
 
@@ -76,11 +84,12 @@ def parse_lightcurve(data: bytes) -> LightCurve:
 
 
 def parse_exposures(data: bytes) -> Exposures | None:
-    """The light curve's per-epoch positions, or None for a light curve that has none."""
+    """The light curve's per-epoch positions, or None for a light curve that has none. Its epochs are
+    exactly those ``parse_lightcurve`` reads; an epoch without a position has NaN there."""
     header = next((line for line in data.decode().splitlines() if not line.startswith("#")), "")
     if not set(EXPOSURE_COLUMNS) <= {c.strip() for c in header.split(",")}:
         return None
-    rows = _rows(data, ("mjd", *EXPOSURE_COLUMNS))
+    rows = _rows(data, ("mjd", "mag", "mag_err", *EXPOSURE_COLUMNS), finite=("mjd", "mag", "mag_err"))
     rows.sort(key=lambda r: r["mjd"])
     return Exposures(*(np.array([r[c] for r in rows]) for c in ("mjd", *EXPOSURE_COLUMNS)))
 
