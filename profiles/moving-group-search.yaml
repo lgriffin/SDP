@@ -54,7 +54,8 @@ tests:
         - {min_cluster_size: 40, min_samples: 5}
         - {min_cluster_size: 40, min_samples: 10}
       # Shuffled fields for the group's own p-value. The smallest p-value n trials can give is 1/(n+1),
-      # so 199 lets a strong group reach 0.005, below alpha (0.01); with 20 no group could ever qualify.
+      # so 199 lets a strong group reach 0.005; p <= alpha (0.01) qualifies, so at most one shuffle may
+      # match or beat it. With 20 no group could ever qualify.
       inner_trials: 199
       magnitude_bins: 4                # shuffle motions only among stars of similar brightness
   - name: parallax-consistency

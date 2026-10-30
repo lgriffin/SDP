@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from sdp.kernel.domain.investigation import EvidenceBundle, NullFieldResult, Subject, TestResult
+from sdp.kernel.domain.investigation import EvidenceBundle, NullFieldResult, Subject, TestResult, significant
 from sdp.kernel.domain.policy import NumericalPolicy
 from sdp.kernel.science.plan import TaskContext
 
@@ -120,5 +120,5 @@ class FieldTest(ABC):
         for _ in range(trials):
             scored = self.evaluate(self.null_features(features, thresholds, rng), thresholds, rng)
             examined += len(scored)
-            positives += sum(1 for s in scored if s.p_value is not None and s.p_value < alpha)
+            positives += sum(1 for s in scored if significant(s.p_value, alpha))
         return NullFieldResult(self.name, self.version, trials, examined, positives, alpha, self.null_model)

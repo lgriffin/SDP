@@ -15,7 +15,7 @@ from typing import Any
 
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.ids import ArtifactId
-from sdp.kernel.domain.investigation import Investigation, InvestigationSet, Stage
+from sdp.kernel.domain.investigation import Investigation, InvestigationSet, Stage, significant
 from sdp.kernel.ports.storage import ArtifactStore
 
 IMAGE = "image"
@@ -156,7 +156,7 @@ def field_images(
                     "counterpart_px": on["counterpart_px"],
                     "d2": on["d2"],
                     "p_value": p,
-                    "flagged": p < alpha,
+                    "flagged": significant(p, alpha),
                     "ambiguous": on["ambiguous"],
                     # Each image's own competing hypotheses; a result from before they were kept per
                     # image has them only for the image its details describe.

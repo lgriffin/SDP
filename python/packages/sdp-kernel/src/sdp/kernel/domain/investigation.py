@@ -1125,6 +1125,18 @@ class Rank:
         return cls(float(doc["score"]), doc["policy_id"], doc["policy_version"])
 
 
+def significant(p_value: float | None, alpha: float) -> bool:
+    """Whether a p-value rejects its null at ``alpha``: ``p <= alpha``, the one rule every ranking and
+    false-positive count uses.
+
+    The permutation p-values SDP computes, (1 + exceedances) / (1 + trials), are valid exactly when
+    ``P(p <= alpha) <= alpha`` under the null, so ``<=`` keeps the declared size. A strict ``<`` would
+    quietly halve it on a coarse grid: with 199 shuffles and alpha 0.01, ``p < alpha`` admits only
+    p = 0.005, a test of size 0.005, while ``p <= alpha`` admits 0.005 and 0.010, size exactly 0.01
+    (#66). Continuous p-values almost never sit on alpha, so for them the two rules agree."""
+    return p_value is not None and p_value <= alpha
+
+
 @dataclass(frozen=True)
 class RankedCandidate:
     subject: Subject
@@ -1147,11 +1159,7 @@ def rank_by_significance(results: Sequence[TestResult], policy: RankingPolicy) -
     ranked = []
     for key, rs in by_subject.items():
         judged = [r for r in rs if r.p_value is not None]
-        score = (
-            sum(1 for r in judged if r.p_value is not None and r.p_value < policy.alpha) / len(judged)
-            if judged
-            else 0.0
-        )
+        score = sum(1 for r in judged if significant(r.p_value, policy.alpha)) / len(judged) if judged else 0.0
         ranked.append(RankedCandidate(subjects[key], score, tuple(rs)))
     ranked.sort(key=lambda c: (-c.score, c.subject.key))
     return ranked

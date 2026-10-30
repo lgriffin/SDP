@@ -377,7 +377,9 @@ def synthetic_profile(
     *,
     route: IdentifyRoute = IdentifyRoute.CATALOGUE,
     threshold: float = 1.0,
-    alpha: float = 0.1,
+    # off the rank grid k/60 of the 60-object synthetic field: p <= alpha admits exactly the five planted
+    # runaways (5/60 = 0.083), where 0.1 = 6/60 would admit the sixth-most-extreme field star too
+    alpha: float = 0.09,
     with_observations: bool = True,
     needs_products: tuple[str, ...] = (),
     version: str = "1.0.0",

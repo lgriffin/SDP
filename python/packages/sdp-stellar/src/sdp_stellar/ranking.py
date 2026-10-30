@@ -6,7 +6,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sdp.kernel.domain.investigation import RankedCandidate, RankingPolicy, TestResult, rank_by_significance
+from sdp.kernel.domain.investigation import (
+    RankedCandidate,
+    RankingPolicy,
+    TestResult,
+    rank_by_significance,
+    significant,
+)
 
 WEIGHTS = {"membership": 0.35, "coherence": 0.25, "stability": 0.25, "novelty": 0.15}
 
@@ -59,7 +65,7 @@ class StellarCandidateRanker:
                 continue
             structure = next((r for r in candidate.results if r.test_name == self.structure_test), None)
             value = 0.0
-            if structure is not None and structure.p_value is not None and structure.p_value < policy.alpha:
+            if structure is not None and significant(structure.p_value, policy.alpha):
                 membership = subject.membership or ()
                 coherence, stability = structure.details.get("cmd_coherence"), structure.details.get("stability")
                 assessed = WEIGHTS["membership"]

@@ -1264,7 +1264,7 @@ def test_the_tests_run_as_a_plan_of_one_run_and_one_null_task_each(monkeypatch: 
         ("run:pm-excess@1.0.0", PM_POLICY),
         ("null:pm-excess@1.0.0", PM_POLICY),
     ]
-    assert plan.tasks[1].params["trials"] == 5 and plan.tasks[1].params["alpha"] == 0.1
+    assert plan.tasks[1].params["trials"] == 5 and plan.tasks[1].params["alpha"] == 0.09
     assert services[PRODUCTS_SERVICE] == {}
 
 
