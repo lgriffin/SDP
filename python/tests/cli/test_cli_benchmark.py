@@ -128,7 +128,8 @@ def test_list_shows_what_is_stored(k: tuple[InMemoryKernel, FakeVizier]) -> None
 
 #: a table saved from a VizieR page: every FIELD carries its UCD and unit
 SAVED = (
-    b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3"><RESOURCE><TABLE>'
+    b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3"><RESOURCE>'
+    b'<TABLE ID="J_A_A_673_A114_clusters" name="J/A+A/673/A114/clusters">'
     b'<FIELD name="Name" ucd="meta.id;meta.main" unit="" datatype="char" arraysize="*"/>'
     b'<FIELD name="RA_ICRS" ucd="pos.eq.ra;meta.main" unit="deg" datatype="double"/>'
     b'<FIELD name="DE_ICRS" ucd="pos.eq.dec;meta.main" unit="deg" datatype="double"/>'
@@ -159,3 +160,24 @@ def test_a_file_names_its_own_catalogue(k: tuple[InMemoryKernel, FakeVizier], tm
     )
     assert result.exit_code != 0
     assert "--file names its own catalogue" in _plain(result.output)
+
+
+def test_a_file_that_cannot_be_read_is_a_plain_error_not_a_traceback(
+    k: tuple[InMemoryKernel, FakeVizier], tmp_path: Path
+) -> None:
+    result = runner.invoke(cli.app, ["benchmark", "fetch", "--file", f"hr23={tmp_path / 'missing.vot'}"], env=WIDE)
+    assert result.exit_code == 2
+    assert "cannot read" in _plain(result.output) and "missing.vot" in _plain(result.output)
+
+
+@pytest.mark.req("DSI-017")
+def test_a_file_of_another_catalogue_is_not_stored_under_this_one(
+    k: tuple[InMemoryKernel, FakeVizier], tmp_path: Path
+) -> None:
+    saved = tmp_path / "cga20.vot"
+    saved.write_bytes(SAVED)  # hr23's table, offered as cga20
+    result = runner.invoke(cli.app, ["benchmark", "fetch", "--file", f"cga20={saved}"], env=WIDE)
+    assert result.exit_code != 0
+    assert isinstance(result.exception, ValueError)
+    assert "not J/A+A/640/A1/table1" in str(result.exception)
+    assert invoke("benchmark", "list")[0]["artifact"] is None

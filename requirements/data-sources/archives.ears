@@ -135,8 +135,8 @@ requirements:
       - "python/tests.archives.test_dialect_columnar::test_a_native_table_lacking_a_column_is_refused_by_name"
   - id: DSI-017
     pattern: event
-    text: "When TAPVizieR gives no answer or a server error for a known-cluster catalogue, the system shall read the same table from the first VizieR mirror that answers, or from a VOTable file the user saved, choosing its columns by the UCDs and units its fields carry, and record which service or file it came from."
-    rationale: "CDS outages blocked the UC-01 benchmarks for a day (#107); VizieR's mirrors and its saved VOTables describe every column with the same UCDs, so the DSI-015 checks still hold, while a refusal (a 4xx or a missing column) is never papered over by asking elsewhere."
+    text: "When TAPVizieR gives no answer or a server error for a known-cluster catalogue, the system shall read the same table from the first VizieR mirror that answers, or from a VOTable file the user saved, choosing its columns by the UCDs and units its fields carry, refusing a VOTable whose first table is not that catalogue, and record which service or file it came from."
+    rationale: "CDS outages blocked the UC-01 benchmarks for a day (#107); VizieR's mirrors and its saved VOTables describe every column with the same UCDs, so the DSI-015 checks still hold, while a refusal (a 4xx, a VOTable whose QUERY_STATUS is ERROR, or a missing column) is never papered over by asking elsewhere, and a saved file of another catalogue never becomes this benchmark."
     verification: test
     tiers: [T3, T4]
     status: approved
@@ -147,3 +147,6 @@ requirements:
       - "python/tests.archives.test_benchmarks::test_when_nothing_answers_every_service_tried_is_named"
       - "python/tests.archives.test_benchmarks::test_a_saved_votable_reads_its_units_as_written_and_becomes_the_same_benchmark"
       - "python/tests.cli.test_cli_benchmark::test_a_saved_votable_is_stored_without_any_download"
+      - "python/tests.cli.test_cli_benchmark::test_a_file_of_another_catalogue_is_not_stored_under_this_one"
+      - "python/tests.archives.test_benchmarks::test_a_votable_of_another_or_an_unnamed_table_is_refused"
+      - "python/tests.archives.test_benchmarks::test_a_query_a_mirror_refuses_in_its_votable_is_not_asked_elsewhere"

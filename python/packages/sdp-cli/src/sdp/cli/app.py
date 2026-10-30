@@ -1409,7 +1409,11 @@ def benchmark_fetch(
             path = Path(files[benchmark_id])
             _say(f"Reading {benchmark_id} ({CATALOGUES[benchmark_id].description}) from {path}...")
             vizier = CATALOGUES[benchmark_id].vizier_table
-            table = from_votable(benchmark_id, path.read_bytes(), overrides, f"VizieR {vizier} from file {path.name}")
+            try:
+                body = path.read_bytes()
+            except OSError as exc:
+                raise typer.BadParameter(f"cannot read {path}: {exc.strerror or exc}", param_hint="--file") from exc
+            table = from_votable(benchmark_id, body, overrides, f"VizieR {vizier} from file {path.name}")
         else:
             assert source is not None
             _say(f"Fetching {benchmark_id} ({CATALOGUES[benchmark_id].description}) from VizieR...")
