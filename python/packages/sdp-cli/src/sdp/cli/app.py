@@ -1368,20 +1368,32 @@ def benchmark_fetch(
             "--column", help="MINE=THEIRS, e.g. name=Cluster, when VizieR's labels do not pick it; one --catalogue only"
         ),
     ] = None,
+    file: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--file",
+            help="ID=PATH: a VOTable saved from any VizieR page or mirror, read instead of downloading; repeat",
+        ),
+    ] = None,
 ) -> None:
     """Download catalogues of known clusters from VizieR and store them as benchmark inputs.
 
     A candidate cluster is called potentially new only when it matches nothing in both catalogues.
-    Each one is a few hundred kB and takes seconds. Pass the printed --input options to
-    `sdp experiment define uc01-stellar-clusters`.
+    Each one is a few hundred kB and takes seconds. When CDS does not answer, VizieR's mirrors
+    (Harvard, India, China, South Africa, Japan) are tried in turn. When none answers, save the table
+    as a VOTable from any VizieR page in a browser and pass it with --file. Pass the printed --input
+    options to `sdp experiment define uc01-stellar-clusters`.
     """
     import io
 
     import pyarrow.parquet as pq
 
-    from sdp.adapters.archives.benchmarks import CATALOGUES
+    from sdp.adapters.archives.benchmarks import CATALOGUES, from_votable
 
-    chosen = catalogue or sorted(CATALOGUES, reverse=True)
+    files = dict(_pair(f, "--file") for f in file or [])
+    if files and catalogue:
+        raise typer.BadParameter("--file names its own catalogue; leave out --catalogue", param_hint="--file")
+    chosen = sorted(files) if files else catalogue or sorted(CATALOGUES, reverse=True)
     unknown = [c for c in chosen if c not in CATALOGUES]
     if unknown:
         raise typer.BadParameter(f"unknown {unknown}; known: {sorted(CATALOGUES)}", param_hint="--catalogue")
@@ -1389,12 +1401,19 @@ def benchmark_fetch(
         # each catalogue names its columns after its own paper, so one override fits only one of them
         raise typer.BadParameter("name exactly one --catalogue to apply column overrides to", param_hint="--column")
     overrides = dict(_pair(c, "--column") for c in column or [])
-    source = _known_clusters()
+    source = None if files else _known_clusters()
     store = state.runtime().store
     out = []
     for benchmark_id in chosen:
-        _say(f"Fetching {benchmark_id} ({CATALOGUES[benchmark_id].description}) from VizieR...")
-        table = source.fetch(benchmark_id, overrides)
+        if benchmark_id in files:
+            path = Path(files[benchmark_id])
+            _say(f"Reading {benchmark_id} ({CATALOGUES[benchmark_id].description}) from {path}...")
+            vizier = CATALOGUES[benchmark_id].vizier_table
+            table = from_votable(benchmark_id, path.read_bytes(), overrides, f"VizieR {vizier} from file {path.name}")
+        else:
+            assert source is not None
+            _say(f"Fetching {benchmark_id} ({CATALOGUES[benchmark_id].description}) from VizieR...")
+            table = source.fetch(benchmark_id, overrides)
         sink = io.BytesIO()
         pq.write_table(table, sink, compression="zstd")
         release = CATALOGUES[benchmark_id].release_label

@@ -211,3 +211,110 @@ def test_an_http_error_names_the_table() -> None:
     fake.raw(source.schema_request(CATALOGUES["hr23"]), b"busy", status=503)
     with pytest.raises(TransportError, match=r"^VizieR J/A\+A/673/A114/clusters: HTTP 503$"):
         source.fetch("hr23")
+
+
+# --- when TAPVizieR does not answer: VizieR's mirrors, then a saved file -----------------------------
+
+MIRRORS = ("https://vizier.one.example", "https://vizier.two.example")
+
+
+def asu_votable(schema: list[dict[str, str]] = SCHEMA, rows: list[list[str]] | None = None) -> bytes:
+    """A whole-table VOTable as VizieR's ASU interface writes one: every FIELD carries its UCD and unit."""
+    fields = "".join(
+        f'<FIELD name="{f["column_name"]}" ucd="{f["ucd"]}" unit="{f["unit"]}" '
+        + ('datatype="char" arraysize="*"/>' if f["column_name"] in ("Name",) else 'datatype="double"/>')
+        for f in schema
+    )
+    rows = rows or [
+        ["1", "Fixture_B", "56.75", "24.12", "0.1", "19.9", "-45.4", "7.36"],
+        ["2", "Fixture_A", "130.1", "19.67", "0.1", "-36.0", "-12.9", "5.37"],
+    ]
+    data = "".join("<TR>" + "".join(f"<TD>{v}</TD>" for v in r) + "</TR>" for r in rows)
+    return (
+        '<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">'
+        f'<RESOURCE><TABLE name="J/A+A/673/A114/clusters">{fields}<DATA><TABLEDATA>{data}</TABLEDATA></DATA>'
+        "</TABLE></RESOURCE></VOTABLE>"
+    ).encode()
+
+
+def mirrored(fake: PrimedService) -> VizierKnownClusters:
+    return VizierKnownClusters(fake, mirrors=MIRRORS)
+
+
+@pytest.mark.req("DSI-017")
+def test_when_tapvizier_gives_no_answer_the_first_mirror_that_answers_serves_the_same_benchmark() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), asu_votable(), content_type="application/x-votable+xml")
+    table = source.fetch("hr23")  # TAPVizieR and the first mirror were never primed: no answer from either
+    assert table.column_names == list(CHOSEN)
+    assert table.column("name").to_pylist() == ["Fixture_A", "Fixture_B"]
+    assert table.column("pm_ra_cosdec_masyr").to_pylist() == [-36.0, 19.9]
+    meta = {k.decode(): v.decode() for k, v in table.schema.metadata.items()}
+    assert meta["sdp.benchmark.source"] == f"VizieR J/A+A/673/A114/clusters via {MIRRORS[1]}"
+    assert meta["sdp.benchmark.columns"] == json.dumps(CHOSEN, sort_keys=True)
+    assert benchmark_from("hr23", table).problems("hr23:v1.0") == []
+
+
+@pytest.mark.req("DSI-017")
+def test_the_mirror_query_asks_for_the_whole_table_in_decimal_degrees() -> None:
+    request = VizierKnownClusters(PrimedService()).mirror_request(CATALOGUES["cga20"], "https://vizier.cfa.harvard.edu")
+    assert request.method == "GET"
+    base, _, query = request.url.partition("?")
+    assert base == "https://vizier.cfa.harvard.edu/viz-bin/votable"
+    assert parse_qs(query) == {
+        "-source": ["J/A+A/640/A1/table1"],
+        "-out.max": ["100000"],
+        "-oc.form": ["dec"],
+        "-out.all": ["1"],
+    }
+    assert bm.VIZIER_MIRRORS[:2] == ("https://vizier.cds.unistra.fr", "https://vizier.cfa.harvard.edu")
+
+
+@pytest.mark.req("DSI-017")
+def test_a_server_error_moves_on_but_a_refusal_does_not() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    fake.raw(source.schema_request(hr23), b"down", status=503)
+    fake.raw(source.mirror_request(hr23, MIRRORS[0]), b"<html>maintenance</html>", content_type="text/html")
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), asu_votable(), content_type="application/x-votable+xml")
+    assert source.fetch("hr23").num_rows == 2
+    refused = PrimedService()
+    fake_source = mirrored(refused)
+    refused.raw(fake_source.schema_request(hr23), b"bad query", status=400)
+    with pytest.raises(TransportError, match=r"HTTP 400$"):
+        fake_source.fetch("hr23")
+    assert refused.calls == 1
+
+
+@pytest.mark.req("DSI-017")
+def test_when_nothing_answers_every_service_tried_is_named() -> None:
+    with pytest.raises(TransportError) as caught:
+        mirrored(PrimedService()).fetch("hr23")
+    message = str(caught.value)
+    assert message.startswith("no VizieR service answered for J/A+A/673/A114/clusters: TAPVizieR: ")
+    assert all(f"{m}: " in message for m in MIRRORS)
+
+
+def test_a_mirror_table_lacking_a_column_is_refused_not_skipped() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    schema = [f for f in SCHEMA if f["column_name"] != "pmDE"]
+    rows = [["1", "Fixture_A", "130.1", "19.67", "0.1", "-36.0", "5.37"]]
+    fake.raw(source.mirror_request(CATALOGUES["hr23"], MIRRORS[0]), asu_votable(schema, rows))
+    with pytest.raises(CatalogueSchemaError, match=r"^pm_dec_masyr: no column with UCD"):
+        source.fetch("hr23")
+
+
+@pytest.mark.req("DSI-017")
+def test_a_saved_votable_reads_its_units_as_written_and_becomes_the_same_benchmark() -> None:
+    body = asu_votable()
+    assert bm.votable_columns(body) == SCHEMA
+    table = bm.from_votable("hr23", body, source="VizieR J/A+A/673/A114/clusters from file hr23.vot")
+    assert table.column("name").to_pylist() == ["Fixture_A", "Fixture_B"]
+    assert table.schema.metadata[b"sdp.benchmark.source"] == b"VizieR J/A+A/673/A114/clusters from file hr23.vot"
+    wrong = [{**f, "unit": "arcsec/yr"} if f["column_name"] == "pmDE" else f for f in SCHEMA]
+    with pytest.raises(CatalogueSchemaError, match=r"^pm_dec_masyr: column pmDE is in 'arcsec/yr'"):
+        bm.from_votable("hr23", asu_votable(wrong))

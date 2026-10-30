@@ -133,3 +133,17 @@ requirements:
       - "python/tests.archives.test_dialect_columnar::test_gaia_rows_with_nulls_curate_identically_and_faster"
       - "python/tests.archives.test_dialect_columnar::test_rows_without_an_epoch_are_excluded_and_counted_as_the_row_path_does"
       - "python/tests.archives.test_dialect_columnar::test_a_native_table_lacking_a_column_is_refused_by_name"
+  - id: DSI-017
+    pattern: event
+    text: "When TAPVizieR gives no answer or a server error for a known-cluster catalogue, the system shall read the same table from the first VizieR mirror that answers, or from a VOTable file the user saved, choosing its columns by the UCDs and units its fields carry, and record which service or file it came from."
+    rationale: "CDS outages blocked the UC-01 benchmarks for a day (#107); VizieR's mirrors and its saved VOTables describe every column with the same UCDs, so the DSI-015 checks still hold, while a refusal (a 4xx or a missing column) is never papered over by asking elsewhere."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.archives.test_benchmarks::test_when_tapvizier_gives_no_answer_the_first_mirror_that_answers_serves_the_same_benchmark"
+      - "python/tests.archives.test_benchmarks::test_the_mirror_query_asks_for_the_whole_table_in_decimal_degrees"
+      - "python/tests.archives.test_benchmarks::test_a_server_error_moves_on_but_a_refusal_does_not"
+      - "python/tests.archives.test_benchmarks::test_when_nothing_answers_every_service_tried_is_named"
+      - "python/tests.archives.test_benchmarks::test_a_saved_votable_reads_its_units_as_written_and_becomes_the_same_benchmark"
+      - "python/tests.cli.test_cli_benchmark::test_a_saved_votable_is_stored_without_any_download"
