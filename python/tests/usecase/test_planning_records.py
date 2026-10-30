@@ -17,6 +17,7 @@ from sdp.kernel.application.media import JSON
 from sdp.kernel.application.planning import (
     CUTOUT_HEADER_BYTES,
     PRODUCT_KINDS,
+    THROUGHPUT_BYTES_PER_S,
     cutout_bytes,
     derive_requirements,
     plan_path,
@@ -222,13 +223,23 @@ def test_without_a_store_capacity_there_is_no_headroom() -> None:
     assert make_world().plan().cost.nas_headroom_after_bytes is None
 
 
-def test_a_source_without_a_descriptor_is_costed_at_the_default_throughput() -> None:
-    gaia, twomass, _ = planning_descriptors()
-    world = make_world(descriptors=(twomass,))
-    plan = world.plan()
+def test_a_candidate_without_a_descriptor_has_no_registered_licence() -> None:
+    _, twomass, _ = planning_descriptors()
+    plan = make_world(descriptors=(twomass,)).plan()
     candidates = plan.constraints["candidates"]
     assert candidates[0]["source_id"] == "synthetic-gaia" and candidates[0]["licence"] == "not registered"
-    assert gaia.source_id == "synthetic-gaia"
+
+
+def test_a_source_without_a_descriptor_or_a_measured_rate_is_costed_at_the_default_throughput() -> None:
+    gaia, twomass, plates = planning_descriptors()
+    unmeasured = replace(twomass, limits=replace(twomass.limits, throughput_bytes_per_s=None))
+    planner = make_world(descriptors=(gaia, unmeasured)).k.kernel.plan_investigation
+    assert planner is not None
+    assert planner._throughput(plates.source_id) == THROUGHPUT_BYTES_PER_S == 1_000_000.0, "not registered"
+    assert planner._throughput(twomass.source_id) == THROUGHPUT_BYTES_PER_S, "registered without a rate"
+    assert planner._throughput(gaia.source_id) == 2_000_000.0
+    item = replace(make_world().plan().items[0], source_id=plates.source_id, expected_bytes=2_000_000)
+    assert planner._cost([item]).estimated_wall_seconds == 1.0 + 2.0
 
 
 def test_the_index_is_searched_around_the_field_for_the_selection(monkeypatch: pytest.MonkeyPatch) -> None:
