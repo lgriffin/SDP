@@ -10,6 +10,7 @@ import pytest
 from sdp.adapters.compute.clustering import (
     ClusteringUnavailable,
     CumlHdbscan,
+    FastHdbscan,
     SklearnDbscan,
     SklearnHdbscan,
     agreement,
@@ -30,6 +31,57 @@ class TestSklearnHdbscan(ClusterSearchContract):
     @pytest.fixture
     def cluster_params(self) -> dict[str, Any]:
         return {"min_cluster_size": 10, "min_samples": 5}
+
+
+class TestFastHdbscan(ClusterSearchContract):
+    @pytest.fixture
+    def clusterer(self) -> FastHdbscan:
+        return FastHdbscan()
+
+    @pytest.fixture
+    def cluster_params(self) -> dict[str, Any]:
+        return {"min_cluster_size": 10, "min_samples": 5}
+
+
+@pytest.mark.parametrize("min_cluster_size", [10, 20, 40])
+def test_fast_hdbscan_gives_scikit_learns_labels(min_cluster_size: int) -> None:
+    rng = np.random.default_rng(11)
+    x = np.vstack(
+        [rng.normal(0, 1, (4000, 3))]
+        + [c + rng.normal(0, 0.05, (60, 3)) for c in ([2.0, 2.0, 0.0], [-2.0, 1.0, 1.0], [0.0, -2.5, -1.0])]
+    )
+    params = {"min_cluster_size": min_cluster_size, "min_samples": 10}
+    fast = FastHdbscan().search(x, params, seed=1)
+    ref = SklearnHdbscan().search(x, params, seed=1)
+    assert fast.labels.tolist() == ref.labels.tolist()
+    assert fast.algorithm_id == "fast-hdbscan" and fast.n_clusters == ref.n_clusters
+
+
+def test_fast_hdbscan_builds_one_tree_per_min_samples(monkeypatch: pytest.MonkeyPatch) -> None:
+    import fast_hdbscan.hdbscan as fh
+
+    builds: list[int] = []
+    real = fh.compute_minimum_spanning_tree
+
+    def counted(data: np.ndarray, min_samples: int, **kwargs: Any) -> Any:
+        builds.append(min_samples)
+        return real(data, min_samples=min_samples, **kwargs)
+
+    monkeypatch.setattr(fh, "compute_minimum_spanning_tree", counted)
+    x, _ = blobs()
+    clusterer = FastHdbscan()
+    for size in (10, 20, 40):
+        clusterer.search(x, {"min_cluster_size": size, "min_samples": 5}, seed=1)
+    assert builds == [4], "the grid over min_cluster_size condenses one tree (min_samples 5 is 4 neighbours)"
+    clusterer.search(x, {"min_cluster_size": 10, "min_samples": 8}, seed=1)
+    clusterer.search(x + 1.0, {"min_cluster_size": 10, "min_samples": 8}, seed=1)
+    assert builds == [4, 7, 7], "a new min_samples or new features build a new tree"
+
+
+def test_fast_hdbscan_condenses_a_tree_too_deep_for_the_main_threads_stack() -> None:
+    x = np.random.default_rng(0).normal(size=(700_000, 3))  # overflowed Windows' 1 MB stack (#133)
+    result = FastHdbscan().search(x, {"min_cluster_size": 40, "min_samples": 10}, seed=1)
+    assert result.labels.shape == (700_000,)
 
 
 class TestSklearnDbscan(ClusterSearchContract):

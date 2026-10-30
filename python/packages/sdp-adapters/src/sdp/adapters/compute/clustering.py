@@ -1,5 +1,5 @@
 """ClusterSearchAlgorithm adapters (§10): scikit-learn HDBSCAN and DBSCAN as the CPU references, cuML
-HDBSCAN on the DGX Spark.
+HDBSCAN on the DGX Spark, and fast_hdbscan's Boruvka HDBSCAN for the whole-sky sweep.
 
 Labels are renumbered in order of each cluster's first row, so equal partitions give equal arrays.
 A GPU adapter's results reach a gate only after ``agreement`` with the CPU reference on the fixed
@@ -9,8 +9,10 @@ run the same code.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass
+import hashlib
+import threading
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -61,6 +63,83 @@ class SklearnHdbscan:
         labels = canonical_labels(model.labels_)
         probabilities = np.where(labels >= 0, np.asarray(model.probabilities_, dtype=np.float64), 0.0)
         return ClusterLabels(labels, probabilities, self.algorithm_id, dict(params))
+
+
+#: fast_hdbscan condenses its tree recursively, which overflows Windows' 1 MB main-thread stack from
+#: about 600,000 points; Python caps a thread's stack just under 256 MB on Windows
+_STACK_BYTES = 200 * 1024 * 1024
+
+
+def _with_big_stack[T](fn: Callable[[], T]) -> T:
+    out: list[T] = []
+    errors: list[BaseException] = []
+
+    def target() -> None:
+        try:
+            out.append(fn())
+        except BaseException as exc:  # re-raised in the caller's thread
+            errors.append(exc)
+
+    previous = threading.stack_size(_STACK_BYTES)
+    try:
+        worker = threading.Thread(target=target, name="fast-hdbscan")
+        worker.start()
+    finally:
+        threading.stack_size(previous)
+    worker.join()
+    if errors:
+        raise errors[0]
+    return out[0]
+
+
+@dataclass
+class FastHdbscan:
+    """HDBSCAN on a Boruvka minimum spanning tree (fast_hdbscan): roughly n log n in a few dimensions,
+    where scikit-learn's Prim tree grows about as n squared (#133). The tree depends only on
+    ``min_samples``, so the last one is kept and a grid over ``min_cluster_size`` condenses it again
+    rather than rebuilding it. ``reproducible`` makes the tree independent of thread scheduling.
+
+    ``min_samples`` means what it means to scikit-learn (the point itself counts), so the same grid
+    gives the same labels as ``SklearnHdbscan``: fast_hdbscan does not count the point, so it is asked
+    for one fewer."""
+
+    algorithm_id: str = "fast-hdbscan"
+    backend: Backend = Backend.CPU
+    #: numba threads per search; sweep workers are processes already, so one each
+    threads: int = 1
+    _tree: tuple[tuple[str, int], Any] | None = field(default=None, init=False, repr=False, compare=False)
+
+    def search(self, features: np.ndarray, params: Mapping[str, Any], seed: int) -> ClusterLabels:
+        x = _check(features)
+        min_cluster_size = int(params.get("min_cluster_size", 10))
+        min_samples = min_cluster_size if params.get("min_samples") is None else int(params["min_samples"])
+        if min_samples < 2:
+            raise ValueError("fast-hdbscan needs min_samples of at least 2 (the point itself and one neighbour)")
+        key = (hashlib.blake2b(x.tobytes() + repr(x.shape).encode(), digest_size=16).hexdigest(), min_samples)
+        labels, strengths = _with_big_stack(lambda: self._labels(x, key, min_cluster_size, params))
+        labels = canonical_labels(np.asarray(labels))
+        probabilities = np.where(labels >= 0, np.asarray(strengths, dtype=np.float64), 0.0)
+        return ClusterLabels(labels, probabilities, self.algorithm_id, dict(params))
+
+    def _labels(
+        self, x: np.ndarray, key: tuple[str, int], min_cluster_size: int, params: Mapping[str, Any]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        import numba
+        from fast_hdbscan.hdbscan import clusters_from_spanning_tree, compute_minimum_spanning_tree
+
+        numba.set_num_threads(max(1, min(self.threads, int(getattr(numba.config, "NUMBA_NUM_THREADS", 1)))))
+        if self._tree is None or self._tree[0] != key:
+            tree, _, _ = compute_minimum_spanning_tree(
+                np.ascontiguousarray(x), min_samples=key[1] - 1, reproducible=True
+            )
+            self._tree = (key, tree)
+        labels, strengths, *_ = clusters_from_spanning_tree(
+            self._tree[1],
+            min_cluster_size=min_cluster_size,
+            cluster_selection_method=str(params.get("cluster_selection_method", "eom")),
+            cluster_selection_epsilon=float(params.get("cluster_selection_epsilon", 0.0)),
+        )
+        return labels, strengths
 
 
 @dataclass

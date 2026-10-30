@@ -1,11 +1,12 @@
 {
-  "notes": "Settings of the exploratory whole-sky sweep (STL-009). Cuts, feature policy, pass marks and the cross-match window come from the UC-01 predeclaration; these are the sweep's own. Three HDBSCAN grid points give each candidate a stability; one null field per tile gives the false-positive rate.",
+  "notes": "Settings of the exploratory whole-sky sweep (STL-009). Cuts, feature policy, pass marks and the cross-match window come from the UC-01 predeclaration; these are the sweep's own. Three HDBSCAN grid points give each candidate a stability; one null field per tile gives the false-positive rate. The sweep clusters with fast_hdbscan's Boruvka HDBSCAN, which matches scikit-learn's labels on the fixtures but grows about n log n rather than n squared with the stars in a tile (#133); the predeclared UC-01 run keeps sklearn-hdbscan. A tile with more stars than max_tile_stars after the cuts is skipped with that reason rather than searched.",
   "tile_deg": 2.0,
   "margin_deg": 0.5,
-  "algorithms": ["sklearn-hdbscan"],
+  "algorithms": ["fast-hdbscan"],
   "hyperparameter_grid": {
-    "sklearn-hdbscan": {"min_cluster_size": [10, 20, 40], "min_samples": [10]}
+    "fast-hdbscan": {"min_cluster_size": [10, 20, 40], "min_samples": [10]}
   },
   "null_fields_per_tile": 1,
+  "max_tile_stars": 3000000,
   "seed": 2026
 }
