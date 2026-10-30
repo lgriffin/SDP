@@ -142,6 +142,21 @@ clearest frames, its sky is twice as bright, or it matched half as many stars; u
 refused frame is poor. Grades go to `<data>/quality/astro/grades.parquet`; `sdp local solve` regrades at
 the end of each run, and the `local:astro` archive leaves poor frames out (LOC-017). Frames solved before SDP measured quality are graded on their matched stars only; `sdp local solve astro --resolve` measures them.
 
+### Finding frames on the sky
+
+```
+sdp local catalogue astro                                # one row per frame, <data>/catalogue/astro/frames.parquet
+sdp local find astro --at "10.68,41.27" --radius 0.2 --kind light --grade usable --from 2025-09-01
+sdp local coverage astro                                 # nights, frames and hours per target
+```
+
+The catalogue (LOC-018) joins the index, solutions and grades: status (solved, refused, to_do or
+not_solvable), night (the evening's date), MJD, and for a solved frame its centre, four corners, radius,
+rotation, scale, RMS, SIP, star width, zero point, depth and SHA-256. `find` (LOC-019) tests each
+footprint's corners, not a circle about the centre. The planner describes each indexed local source from
+its catalogue (LOC-020): images of the kinds solved, one cone per session, between the first and last
+dates, so `sdp plan draft` plans cutouts of your frames like any archive's.
+
 ### Using the solutions in other software
 
 Each solution also gets `<frame>.wcs` beside its `.wcs.json`: a header-only FITS file with the WCS

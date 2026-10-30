@@ -8,6 +8,7 @@ an in-memory kernel.
 from __future__ import annotations
 
 import json
+import math
 import mimetypes
 import sys
 import time
@@ -1200,6 +1201,116 @@ def local_quality(
             "grades": str(Grades(source, data).path),
         }
     )
+
+
+def _position(source: Any, data: Path, at: str) -> tuple[float, float]:
+    """``RA,DEC`` in degrees, or a name from the source's names file."""
+    from sdp.adapters.local.names import NameBook
+
+    ra_text, comma, dec_text = at.partition(",")
+    if comma:
+        try:
+            ra, dec = float(ra_text), float(dec_text)
+        except ValueError:
+            pass
+        else:
+            if not (math.isfinite(ra) and math.isfinite(dec) and 0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0):
+                raise typer.BadParameter("RA from 0 to 360 and DEC from -90 to 90 degrees", param_hint="--at")
+            return ra, dec
+    found = NameBook(source, data).get(at.strip())
+    if found is None:
+        raise DomainError(
+            f"{at!r} is neither RA,DEC in degrees nor in the names file; add it with "
+            f'sdp local names {source.name} --centre "{at.strip()}=RA,DEC"'
+        )
+    return found
+
+
+@local_app.command("catalogue")
+def local_catalogue(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
+    """Rebuild the source's catalogue: one row per frame with its sky footprint, date, night, status and
+    grade, in <data>/catalogue/<source>/frames.parquet (readable by pandas, DuckDB or a spreadsheet tool).
+    Needs no database."""
+    from sdp.adapters.local.catalogue import Catalogue
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    catalogue = Catalogue(LocalSources(data).get(name), data)
+    rows = catalogue.build()
+    by_status: dict[str, int] = {}
+    for row in rows:
+        by_status[row["status"]] = by_status.get(row["status"], 0) + 1
+    emit({"frames": len(rows), "by_status": dict(sorted(by_status.items())), "catalogue": str(catalogue.path)})
+
+
+@local_app.command("find")
+def local_find(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    at: Annotated[str, typer.Option(help='Where: "RA,DEC" in degrees, or a name in the names file, e.g. M31')],
+    radius: Annotated[float, typer.Option(help="Also frames within this many degrees of it")] = 0.0,
+    kind: Annotated[str | None, typer.Option(help="Only this kind: stack or light")] = None,
+    grade: Annotated[str | None, typer.Option(help="This grade or better: good, usable or poor")] = None,
+    since: Annotated[str | None, typer.Option("--from", help="First night, YYYY-MM-DD")] = None,
+    until: Annotated[str | None, typer.Option("--to", help="Last night, YYYY-MM-DD")] = None,
+    csv_out: Annotated[Path | None, typer.Option("--csv", help="Also write the frames to this CSV")] = None,
+) -> None:
+    """The solved frames that cover a place on the sky, oldest first: path, night, exposure, grade and how
+    far the place is from the frame's edge. Rebuilds the catalogue first. Needs no database."""
+    import csv
+    from datetime import date
+
+    from sdp.adapters.local.catalogue import Catalogue, find
+    from sdp.adapters.local.quality import GOOD, POOR, USABLE
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    if grade is not None and grade not in (GOOD, USABLE, POOR):
+        raise typer.BadParameter("good, usable or poor", param_hint="--grade")
+    if kind is not None and kind not in ("light", "stack"):
+        raise typer.BadParameter("light or stack", param_hint="--kind")
+    if not (math.isfinite(radius) and radius >= 0):
+        raise typer.BadParameter("zero or more degrees", param_hint="--radius")
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    ra, dec = _position(source, data, at)
+    found = find(
+        Catalogue(source, data).build(),
+        ra,
+        dec,
+        radius,
+        kind=kind,
+        grade=grade,
+        since=date.fromisoformat(since) if since else None,
+        until=date.fromisoformat(until) if until else None,
+    )
+    columns = ("path", "kind", "night", "date_obs", "exposure_s", "grade", "fwhm_arcsec", "distance_deg")
+    frames = [{c: f[c] for c in columns} for f in found]
+    if csv_out is not None:
+        csv_out.parent.mkdir(parents=True, exist_ok=True)
+        with csv_out.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(frames)
+    emit(
+        {
+            "at": {"ra_deg": ra, "dec_deg": dec, "radius_deg": radius},
+            "frames": len(frames),
+            "nights": len({f["night"] for f in frames if f["night"]}),
+            "hours": round(sum((f["exposure_s"] or 0.0) for f in found if f["kind"] == "light") / 3600, 2),
+            "found": frames[:200],
+            **({"csv": str(csv_out)} if csv_out is not None else {}),
+        }
+    )
+
+
+@local_app.command("coverage")
+def local_coverage(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
+    """Each target: nights, lights and stacks, solved, refused and still to do, hours of exposure, and the
+    share graded good. Rebuilds the catalogue first. Needs no database."""
+    from sdp.adapters.local.catalogue import Catalogue, coverage
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    emit({"targets": coverage(Catalogue(LocalSources(data).get(name), data).build())})
 
 
 @local_app.command("sidecars")

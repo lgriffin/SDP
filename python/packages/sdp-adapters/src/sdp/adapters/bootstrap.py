@@ -38,6 +38,7 @@ from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
+from sdp.adapters.local.catalogue import LocalDiscovery
 from sdp.adapters.local.gateway import LocalFrameDialect, LocalImageGateway
 from sdp.adapters.local.index import FrameIndex
 from sdp.adapters.local.sources import LocalSourceError, LocalSources, data_dir
@@ -307,6 +308,13 @@ def capability_discovery(settings: Settings) -> VoCapabilityDiscovery:
     )
 
 
+def with_local_sources(discovery: Any, local: Mapping[str, LocalImageGateway]) -> Any:
+    """The planner's discovery, with each indexed local source described from its catalogue (#71)."""
+    if not local:
+        return discovery
+    return LocalDiscovery(discovery, {k: (g.source, g.data) for k, g in local.items()})
+
+
 def artifact_store(root: Path) -> NasArtifactStore:
     """The artifact store alone, for commands that need no database (``sdp archive bulk``)."""
     return NasArtifactStore(root)
@@ -338,7 +346,7 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         services={"clusterers": clusterers(), **overrides.services},
         min_free_bytes=settings.min_free_bytes,
         investigate=overrides.investigate or investigate_ports(settings, overrides.services),
-        discovery=capability_discovery(settings),
+        discovery=with_local_sources(capability_discovery(settings), local_image_gateways(settings)),
     )
     return Application(settings, Kernel.build(ports), database, store, ledger)
 

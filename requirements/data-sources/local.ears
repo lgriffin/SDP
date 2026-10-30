@@ -186,3 +186,32 @@ requirements:
     status: approved
     traces:
       - "python/tests.local.test_quality::test_the_image_gateway_leaves_out_poor_frames"
+  - id: LOC-018
+    pattern: event
+    text: "When a local source's catalogue is built, the system shall write one row per indexed frame with its status, night, exposure and grade, and for a solved frame its centre, corners, radius and solution quality."
+    rationale: "One table answers what was taken, where, when and how well, for SDP and for any tool that reads Parquet; it is rebuilt from the index, solutions and grades, so it never disagrees with them (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_catalogue::test_the_catalogue_has_every_frame_with_its_footprint_status_and_night"
+  - id: LOC-019
+    pattern: event
+    text: "When local frames are searched for a place on the sky, the system shall list the solved frames whose four-cornered footprint reaches within the given radius of it, filtered by kind, grade and night."
+    rationale: "Which frames cover this spot, and when, is the first question of any follow-up; testing the footprint rather than a circle about the centre keeps a star near a corner from being missed or wrongly offered (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_catalogue::test_find_lists_the_solved_frames_over_a_place_by_kind_grade_and_night"
+      - "python/tests.local.test_catalogue::test_the_find_and_coverage_commands"
+  - id: LOC-020
+    pattern: event
+    text: "When the planner matches a requirement, the system shall describe each indexed local source from its catalogue as an image archive covering its sessions' cones and dates."
+    rationale: "sdp plan could not see the person's frames because no descriptor named them; described from the catalogue, the frames are planned and costed like any archive's images (#71)."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.local.test_catalogue::test_the_solved_frames_are_described_like_any_archive"
+      - "python/tests.local.test_catalogue::test_the_planner_plans_cutouts_of_the_frames_over_a_field"
