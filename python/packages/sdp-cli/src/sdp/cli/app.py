@@ -8,6 +8,7 @@ an in-memory kernel.
 from __future__ import annotations
 
 import json
+import math
 import mimetypes
 import sys
 import time
@@ -1194,9 +1195,13 @@ def _position(source: Any, data: Path, at: str) -> tuple[float, float]:
     ra_text, comma, dec_text = at.partition(",")
     if comma:
         try:
-            return float(ra_text), float(dec_text)
+            ra, dec = float(ra_text), float(dec_text)
         except ValueError:
             pass
+        else:
+            if not (math.isfinite(ra) and math.isfinite(dec) and 0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0):
+                raise typer.BadParameter("RA from 0 to 360 and DEC from -90 to 90 degrees", param_hint="--at")
+            return ra, dec
     found = NameBook(source, data).get(at.strip())
     if found is None:
         raise DomainError(
@@ -1245,6 +1250,10 @@ def local_find(
 
     if grade is not None and grade not in (GOOD, USABLE, POOR):
         raise typer.BadParameter("good, usable or poor", param_hint="--grade")
+    if kind is not None and kind not in ("light", "stack"):
+        raise typer.BadParameter("light or stack", param_hint="--kind")
+    if not (math.isfinite(radius) and radius >= 0):
+        raise typer.BadParameter("zero or more degrees", param_hint="--radius")
     data = data_dir()
     source = LocalSources(data).get(name)
     ra, dec = _position(source, data, at)
