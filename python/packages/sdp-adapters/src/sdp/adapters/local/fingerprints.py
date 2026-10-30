@@ -90,14 +90,15 @@ class Fingerprints:
                 if not result.name.endswith((SOLVED, REFUSED)):
                     continue
                 doc = json.loads(result.read_text("utf-8"))
-                file = doc.get("file") or {}
+                # the first fingerprint, carried over when the frame was solved again
+                file = doc.get("first_file") or doc.get("file") or {}
                 if file.get("sha256") and doc.get("frame"):
                     found[doc["frame"]] = {
                         "path": doc["frame"],
                         "size": file["size"],
                         "mtime_ns": file["mtime_ns"],
                         "sha256": file["sha256"],
-                        "since": doc.get("written_at", ""),
+                        "since": file.get("since") or doc.get("written_at", ""),
                         "by": "solve",
                     }
         if self.path.exists():
@@ -137,7 +138,8 @@ class Fingerprints:
             report.checked += 1
             before = known.get(key)
             same_stat = before is not None and (before["size"], before["mtime_ns"]) == (stat.st_size, stat.st_mtime_ns)
-            if before is not None and quick:
+            # quick compares sizes and dates; a changed frame is hashed when it is to be accepted
+            if before is not None and quick and (same_stat or not accept):
                 (report.ok if same_stat else report.modified).append(key)
             else:
                 digest = sha256_of(path)
@@ -148,6 +150,8 @@ class Fingerprints:
                     rows[key] = {**row, "since": now, "by": "verify"}
                 elif digest == before["sha256"]:
                     report.ok.append(key)
+                    if not same_stat:  # copied or touched, same bytes: later quick checks use the new date
+                        rows[key] = {**before, "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
                 else:
                     (report.corrupted if same_stat else report.modified).append(key)
                     if accept:

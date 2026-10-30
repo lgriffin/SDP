@@ -46,6 +46,9 @@ class SolverConfig:
     max_scale_error: float = 0.03
     min_matches: int = 12
     max_rms_arcsec: float = 1.5
+    #: a distortion polynomial (SIP) is fitted only with this many matched stars, up to this order
+    min_sip_matches: int = 40
+    sip_order: int = 3
     fwhm_px: float = 3.0
     nsigma: float = 5.0
     background_box: int = 128
@@ -90,6 +93,8 @@ class Solution:
     mirrored: bool
     centre: tuple[float, float]
     detected: int
+    #: the matched stars: raw FITS pixels (1-based) x, y and their Gaia ra, dec in degrees
+    matches: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = field(default=None, compare=False)
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -466,6 +471,7 @@ def _fit(
         "NAXIS1": raw_w,
         "NAXIS2": raw_h,
     }
+    star_i, ref_i = (np.array(v, dtype=int) for v in zip(*pairs, strict=True))
     return Solution(
         wcs=wcs,
         matched=len(pairs),
@@ -475,12 +481,35 @@ def _fit(
         mirrored=det > 0,
         centre=(ra0, dec0),
         detected=len(stars),
+        matches=(
+            b * stars.x[star_i] + (b - 1) / 2 + 1,
+            b * stars.y[star_i] + (b - 1) / 2 + 1,
+            reference.ra[ref_i],
+            reference.dec[ref_i],
+        ),
     )
 
 
+def sip_offsets(wcs: Mapping[str, Any], u: np.ndarray, v: np.ndarray, prefix: str = "") -> tuple[Any, Any]:
+    """The SIP polynomials' pixel offsets f(u, v), g(u, v) of a WCS (``prefix`` "A" for the forward ones,
+    "AP" for the inverse); zero when it has none."""
+    a, b = (prefix or "A"), ("BP" if prefix == "AP" else "B")
+    f, g = np.zeros_like(u, dtype=float), np.zeros_like(v, dtype=float)
+    for key, value in wcs.items():
+        for name, out in ((a, f), (b, g)):
+            head, _, rest = key.partition("_")
+            if head == name and rest.count("_") == 1 and rest != "ORDER":
+                p, q = (int(n) for n in rest.split("_"))
+                out += float(value) * u**p * v**q
+    return f, g
+
+
 def pixel_to_sky(wcs: Mapping[str, Any], x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """A solution's sky position of 1-based FITS pixels, without astropy."""
+    """A solution's sky position of 1-based FITS pixels, without astropy (SIP distortion included)."""
     dx, dy = x - wcs["CRPIX1"], y - wcs["CRPIX2"]
+    if "A_ORDER" in wcs:
+        f, g = sip_offsets(wcs, dx, dy)
+        dx, dy = dx + f, dy + g
     xi = wcs["CD1_1"] * dx + wcs["CD1_2"] * dy
     eta = wcs["CD2_1"] * dx + wcs["CD2_2"] * dy
     return deproject(xi, eta, wcs["CRVAL1"], wcs["CRVAL2"])

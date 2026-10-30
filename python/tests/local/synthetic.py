@@ -74,12 +74,18 @@ def bayer_frame(
     seed: int = 7,
     header: dict[str, Any] | None = None,
     stack: bool = False,
+    distortion: dict[str, float] | None = None,
 ) -> Truth:
     """A raw GBRG frame centred ``centre_offset`` degrees (RA, Dec) off M31 at the given rotation, with
     the reference Gaia sees (G < 15) in a 1.5 degree cone about M31. ``only`` keeps that many stars."""
     centre = (M31[0] + centre_offset[0] / math.cos(math.radians(M31[1])), M31[1] + centre_offset[1])
     ra, dec, mag = gaia_field(M31, 1.5, per_deg2, seed)
     wcs_doc = truth_wcs(centre, width, height, scale_arcsec, rotation_deg, mirrored)
+    if distortion:
+        # a lens that bends the field: SIP terms, so the frame is not a pure TAN projection
+        order = max(int(k.split("_")[1]) + int(k.split("_")[2]) for k in distortion)
+        wcs_doc |= {"CTYPE1": "RA---TAN-SIP", "CTYPE2": "DEC--TAN-SIP", "A_ORDER": order, "B_ORDER": order}
+        wcs_doc |= distortion
     wcs = WCS(wcs_doc)
     x, y = wcs.all_world2pix(ra, dec, 0)
     inside = (x > -10) & (x < width + 10) & (y > -10) & (y < height + 10)

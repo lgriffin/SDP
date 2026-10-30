@@ -123,6 +123,24 @@ its reason. Solutions go to `<data>/solutions/astro/<frame>.wcs.json`, refusals 
 redoes solved frames, `--retry-refused` the refused ones. `--workers` (default 4) solves runs of up to 100
 frames of a folder side by side, with the same results as one worker. The frames themselves are only read.
 
+### Using the solutions in other software
+
+Each solution also gets `<frame>.wcs` beside its `.wcs.json`: a header-only FITS file with the WCS
+keywords (astrometry.net's convention; `IMAGEW` and `IMAGEH` give the frame's size, `SDPSHA` the original's
+SHA-256). When at least 40 stars match, SDP fits the TAN projection and a SIP distortion polynomial of
+order 2 or 3 together, holding every fourth star out of the fit, and keeps the polynomial only if it beats
+plain TAN on those stars by a tenth (LOC-013); `distortion` in the `.wcs.json` says what was tried.
+
+```
+sdp local sidecars astro                                 # .wcs files for frames solved before they existed
+sdp local export astro --kind stack                      # solved copies in <data>/exports/astro
+sdp local export astro --target M31 --to E:\m31-solved   # anywhere outside the source
+```
+
+An export copies each frame with the solution written into its header and its pixel bytes unchanged
+(LOC-014). A frame whose bytes differ from the ones solved is skipped. Copies already there are kept
+unless `--overwrite`.
+
 ### Checking the originals are intact
 
 ```

@@ -36,7 +36,7 @@ def data_dir(env: Mapping[str, str] | None = None) -> Path:
     raise LocalSourceError("set SDP_DATA (or SDP_ARTIFACT_ROOT) to say where SDP keeps its data")
 
 
-def _inside(child: Path, parent: Path) -> bool:
+def inside(child: Path, parent: Path) -> bool:
     try:
         child.resolve().relative_to(parent.resolve())
     except ValueError:
@@ -96,9 +96,9 @@ class LocalSources:
             raise LocalSourceError(f"{name!r}: a source name is lower-case letters, digits, - and _ (e.g. astro)")
         if not path.is_dir():
             raise LocalSourceError(f"{path} is not a folder")
-        if _inside(self.data, path):
+        if inside(self.data, path):
             raise LocalSourceError(f"SDP's data folder {self.data} is inside {path}; SDP never writes into a source")
-        if _inside(path, self.data):
+        if inside(path, self.data):
             raise LocalSourceError(f"{path} is inside SDP's data folder {self.data}; keep sources outside it")
         if scale_arcsec is not None and not 0 < scale_arcsec < 3600:
             raise LocalSourceError("--scale is arcseconds per pixel, such as 1.65")
