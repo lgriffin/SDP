@@ -55,9 +55,10 @@ def chosen_option(graph: AssociationGraph, record_id: str) -> tuple[str, ...]:
 
 def usable(ra: float, dec: float, ra_err: float, dec_err: float, beam: float) -> bool:
     """Whether an exposure's position can be an association record: on the sky, with positive
-    sigmas and beam (NaN fails every comparison). Anything else is counted as an exposure without a
+    finite sigmas and beam (NaN fails every comparison). Anything else is counted as an exposure without a
     usable position."""
-    return 0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0 and ra_err > 0 and dec_err > 0 and beam > 0
+    positive = all(math.isfinite(v) and v > 0 for v in (ra_err, dec_err, beam))
+    return positive and 0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0
 
 
 def exposure_records(bundle: EvidenceBundle, context: TaskContext) -> tuple[list[Detection], int]:
@@ -214,7 +215,7 @@ class ExposureCounterpart(FieldTest):
                 "matched": n,
                 "roles": dict(sorted(roles.items())),
                 "blend_of": list(blends.most_common(1)[0][0]) if blends else [],
-                "products": sorted({d.product_id for d in dets}),
+                "products": sorted({f"{d.instrument}/{d.product_id}" for d in dets}),
                 "search_radius_arcsec": radius,
                 "method": graphs[0].method,
                 "other_methods": {g.method: a / len(dets) for g, a in zip(graphs[1:], agree, strict=True)},
