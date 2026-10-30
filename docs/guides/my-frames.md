@@ -58,6 +58,19 @@ that cannot be solved with confidence is refused, with its reason, in `<frame>.u
 **Success:** `solved` lists most stacks as solved. A refusal says why, for example too few stars
 matched, or no target name to start from.
 
+## Step 2a: find your frames on the sky
+
+```bat
+sdp local coverage astro
+sdp local find astro --at M31 --radius 0.5 --from 2025-09-01 --grade usable --csv D:\SDP\m31-frames.csv
+```
+
+`coverage` lists each target with its nights, frames solved, refused and still to do, and hours. `find`
+lists the solved frames that cover a place, oldest first, with each frame's night, grade and star width.
+`--at` takes a name from the names file or `RA,DEC` in degrees. Both rebuild the catalogue,
+`<data>\catalogue\astro\frames.parquet`, which any tool that reads Parquet can open. `sdp plan` now sees
+your frames too, so it can plan an investigation over them and show what it would read.
+
 ## Step 2b: see how good each night was
 
 ```bat
@@ -134,7 +147,6 @@ with `--accept`.
 
 ## Not yet
 
-- `sdp plan` cannot plan local frames yet; run them with `sdp investigate` as above.
 - A light-curve test over many subs of one target is planned, not built
   ([#71](https://github.com/lgriffin/SDP/issues/71)).
 
