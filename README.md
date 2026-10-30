@@ -21,6 +21,10 @@ Two programmes run on the kernel:
 | `profiles/` | Default Investigate test profiles, with a plain-language guide to every setting |
 | `infrastructure/` | Quadlet units, developer compose stack, Grafana |
 
+## Getting started
+
+New to SDP? The [user guides](docs/guides/README.md) take you from installing it (the Windows desktop app, the developer tools, containers or pip) to real science, one journey at a time: a first look at a field, hunting for star clusters, a star's history on Harvard's plates, reproducing Einstein's 1919 eclipse test, a JWST field end to end, your own telescope frames, light curves, recording live data, and checking a release or a result. Each guide gives the exact commands and says what success looks like.
+
 ## Developer loop
 
 ```bash
