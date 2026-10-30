@@ -513,9 +513,11 @@ class Run:
         return self.run.investigation_set.set_id
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def full() -> Run:
-    """A run that fetches light curves and curates them, with the fixture resolver."""
+    """A run that fetches light curves and curates them, with the fixture resolver. Built per test: mutmut
+    credits a module-scoped fixture's calls to the first test that builds it, so later tests would never
+    run against the mutants they check."""
     world = make_world(
         ProperMotionExcessTest(needs_products=LIGHTCURVES), product_dialects={"fake-plates": ThinningDialect()}
     )
