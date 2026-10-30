@@ -49,8 +49,10 @@ BLOCK = 2880
 
 
 def image_size(data: bytes) -> tuple[int, int] | None:
-    """Width and height of a FITS file's science image, read from its header cards alone: the HDU
-    named SCI, else the first with two axes. None when the bytes hold no such image."""
+    """Width and height of a FITS file's science image, read from its header cards alone, choosing as
+    the picture does: the HDU named SCI, else the first image with two axes. A tile-compressed image
+    (a binary table with ZIMAGE = T) is measured by its ZNAXIS cards; other tables are skipped. None
+    when the bytes hold no such image."""
     at, first = 0, None
     while at + BLOCK <= len(data):
         cards: dict[str, str] = {}
@@ -65,15 +67,29 @@ def image_size(data: bytes) -> tuple[int, int] | None:
         try:
             axes = [int(cards.get(f"NAXIS{n}", "0")) for n in range(1, int(cards.get("NAXIS", "0")) + 1)]
             bits = abs(int(cards.get("BITPIX", "8")))
-        except ValueError:
+            heap = int(cards.get("PCOUNT", "0"))
+            table = cards.get("XTENSION", "IMAGE").upper() in {"BINTABLE", "TABLE"}
+            compressed = table and cards.get("ZIMAGE") == "T"
+            image = [int(cards[f"ZNAXIS{n}"]) for n in range(1, int(cards["ZNAXIS"]) + 1)] if compressed else axes
+        except (KeyError, ValueError):
             return first
-        if len(axes) == 2 and min(axes) > 0:
+        if (compressed or not table) and len(image) == 2 and min(image) > 0:
             if cards.get("EXTNAME") == "SCI":
-                return axes[0], axes[1]
-            first = first or (axes[0], axes[1])
-        size = bits // 8 * math.prod(axes) if axes else 0
+                return image[0], image[1]
+            first = first or (image[0], image[1])
+        size = bits // 8 * math.prod(axes) + heap if axes else 0
         at += -(-size // BLOCK) * BLOCK
     return first
+
+
+_sizes: dict[str, tuple[int, int] | None] = {}
+
+
+def _image_size(store: ArtifactStore, artifact_id: str) -> tuple[int, int] | None:
+    """An artifact's image size, measured once: artifacts never change, and a mosaic is large to read."""
+    if artifact_id not in _sizes:
+        _sizes[artifact_id] = image_size(store.get(ArtifactId(artifact_id)))
+    return _sizes[artifact_id]
 
 
 def _stage(store: ArtifactStore, s: InvestigationSet, stage: Stage) -> Any:
@@ -104,7 +120,7 @@ def field_images(
             envelope = _envelope(store, p.get("envelope_artifact_id"))
             metadata: Mapping[str, Any] = envelope["metadata"] if envelope else {}
             validation = envelope.get("validation") if envelope else None
-            size = image_size(store.get(ArtifactId(p["artifact_id"])))
+            size = _image_size(store, p["artifact_id"])
             images[p["product"]["product_id"]] = {
                 "product_id": p["product"]["product_id"],
                 "width": size[0] if size else None,
@@ -142,8 +158,11 @@ def field_images(
                     "p_value": p,
                     "flagged": p < alpha,
                     "ambiguous": on["ambiguous"],
-                    # The competing hypotheses are kept for the image the result's details describe.
-                    "counterparts": details["counterparts"] if details.get("image") == on["image"] else None,
+                    # Each image's own competing hypotheses; a result from before they were kept per
+                    # image has them only for the image its details describe.
+                    "counterparts": on["counterparts"]
+                    if "counterparts" in on
+                    else (details["counterparts"] if details.get("image") == on["image"] else None),
                 }
             )
     for image in images.values():

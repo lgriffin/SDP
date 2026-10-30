@@ -9,6 +9,7 @@ import {
   type InvestigateRequest,
   type JobRun,
   type PlanState,
+  type ReproductionRun,
   type TriageAction,
   type Workbench,
 } from "../ports.ts";
@@ -118,5 +119,10 @@ export class RestWorkbench implements Workbench {
   async registerArchives(): Promise<ArchivesStatus> {
     const r = await this.post("/archives/register", {}, true);
     return { sources: (r.sources ?? []) as ArchiveSource[], registration: (r.registration ?? null) as JobRun | null };
+  }
+
+  async reproduceSet(setId: string): Promise<ReproductionRun> {
+    const r = await this.post(`/investigations/${encodeURIComponent(setId)}/reproduce`);
+    return r.reproduction as ReproductionRun;
   }
 }

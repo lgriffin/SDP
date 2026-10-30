@@ -11,7 +11,7 @@ import json
 import mimetypes
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Protocol
@@ -22,7 +22,8 @@ from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
-from sdp.kernel.domain.errors import DomainError
+from sdp.kernel.application.set_bundle import SetDossierUseCase, reproduce_dossier
+from sdp.kernel.domain.errors import DomainError, IntegrityError
 from sdp.kernel.domain.investigation import (
     STAGES,
     Field,
@@ -31,6 +32,7 @@ from sdp.kernel.domain.investigation import (
     TestProfile,
     parse_region,
 )
+from sdp.kernel.ports.compute import ComputeExecutor
 from sdp.kernel.ports.driving import (
     ApproveVerdictCommand,
     AssembleDossierCommand,
@@ -46,6 +48,7 @@ from sdp.kernel.ports.integration import (
 from sdp.kernel.ports.investigate import InvestigateFieldCommand, TriageCommand
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.storage import ArtifactStore
+from sdp.kernel.science.investigation import InvestigationTestRegistry
 from sdp.kernel.science.plan import Backend
 
 
@@ -84,6 +87,24 @@ state = _State()
 def use_runtime(factory: Callable[[], Runtime]) -> None:
     """Point the CLI at another composition root (tests, notebooks)."""
     state.factory, state._runtime = factory, None
+
+
+ReproductionTools = tuple[ComputeExecutor, InvestigationTestRegistry, Mapping[str, Any]]
+
+
+def _production_reproduction_tools() -> ReproductionTools:
+    from sdp.adapters.bootstrap import reproduction_tools as installed
+
+    return installed()
+
+
+reproduction_tools: Callable[[], ReproductionTools] = _production_reproduction_tools
+
+
+def use_reproduction_tools(factory: Callable[[], ReproductionTools]) -> None:
+    """Point ``sdp investigate reproduce`` at other tests and services (tests)."""
+    global reproduction_tools
+    reproduction_tools = factory
 
 
 app = typer.Typer(
@@ -538,6 +559,47 @@ def investigate_dossier(investigation_id: str) -> None:
     if dossier is None:
         raise DomainError(f"no dossier for {investigation_id}")
     emit(dossier)
+
+
+def _set_dossier() -> SetDossierUseCase:
+    use_case = state.runtime().kernel.set_dossier
+    if use_case is None:
+        raise DomainError("Investigate is not wired: no observation archive or cross-match adapters are configured")
+    return use_case
+
+
+@investigate_app.command("bundle")
+def investigate_bundle(
+    set_id: str,
+    out: Annotated[Path | None, typer.Option(help="Where to write the dossier; default <set_id>.zip")] = None,
+) -> None:
+    """Save the set's evidence dossier: one RO-Crate with its stages, plan, candidates, images and data (INV-021)."""
+    try:
+        bundle = _set_dossier().build(set_id)
+    except KeyError:
+        raise DomainError(f"no investigation set {set_id}") from None
+    path = out or Path(f"{set_id}.zip")
+    path.write_bytes(bundle)
+    emit({"set_id": set_id, "path": str(path), "bytes": len(bundle)})
+
+
+@investigate_app.command("reproduce")
+def investigate_reproduce(
+    bundle: Annotated[Path, typer.Argument(help="An evidence dossier from `sdp investigate bundle`")],
+) -> None:
+    """Re-run the Test stage from a dossier alone and compare with what it records (INV-022); exits 1 on a difference.
+
+    Needs no database and no archive: only the installed tests and the services they call."""
+    try:
+        result = reproduce_dossier(bundle.read_bytes(), *reproduction_tools())
+    except IntegrityError as exc:
+        typer.echo(f"FAIL {exc}", err=True)
+        raise typer.Exit(2) from exc
+    for difference in result.differences:
+        typer.echo(f"FAIL {difference}", err=True)
+    emit(result.to_document())
+    if not result.ok:
+        raise typer.Exit(1)
 
 
 def _triage(command: TriageCommand) -> None:

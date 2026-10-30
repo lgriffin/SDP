@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,8 @@ import yaml
 from typer.testing import CliRunner
 
 from sdp.cli import app as cli
+from sdp.kernel.application.rocrate import build_crate_metadata, zip_crate
+from sdp.kernel.domain.canonical import sha256_id
 from sdp.testing.investigate import (
     FIELD_CENTRE,
     PLANTED,
@@ -136,3 +139,55 @@ def test_a_run_that_fills_its_row_cap_warns_and_names_the_source(k: InMemoryKern
     source = doc["identify"]["source_id"]
     assert json.loads(result.stdout)["row_cap_reached"] == {source: 20}
     assert f"warning: {source} had at least 20 rows here" in result.stderr
+
+
+@pytest.mark.req("INV-021")
+@pytest.mark.req("INV-022")
+def test_a_set_is_saved_as_a_dossier_and_reproduced_from_it(k: InMemoryKernel, profile: Path, tmp_path: Path) -> None:
+    run = invoke("investigate", "--region", REGION, "--profile", str(profile), "--seed", "3")
+    out = tmp_path / "dossier.zip"
+    saved = invoke("investigate", "bundle", run["set_id"], "--out", str(out))
+    assert saved == {"set_id": run["set_id"], "path": str(out), "bytes": out.stat().st_size}
+
+    def no_database() -> InMemoryKernel:
+        raise AssertionError("reproducing a dossier must not open the database")
+
+    dossiers = k.kernel.set_dossier
+    assert dossiers is not None
+    cli.use_runtime(no_database)
+    cli.use_reproduction_tools(lambda: (dossiers.executor, dossiers.ports.tests, dossiers.ports.services))
+    reproduced = invoke("investigate", "reproduce", str(out))
+    assert reproduced["ok"] and reproduced["differences"] == [] and reproduced["results_compared"] > 0
+
+    with zipfile.ZipFile(out) as zf:
+        files = {name: zf.read(name) for name in zf.namelist()}
+    recorded = json.loads(files["stages/test.json"])
+    recorded["results"][0]["p_value"] = 0.123456
+    parts = {p: (d, "", "") for p, d in files.items() if p != "ro-crate-metadata.json"}
+    parts["stages/test.json"] = (json.dumps(recorded).encode(), "", "")
+    forged = tmp_path / "forged.zip"
+    metadata = build_crate_metadata(
+        name="x", description="x", licence="x", files=parts, authors=[], date_published="2026-01-01", citations=[]
+    )
+    forged.write_bytes(zip_crate(metadata, parts))
+    refused = runner.invoke(cli.app, ["investigate", "reproduce", str(forged)])
+    assert refused.exit_code == 2 and "not the test output the manifest records" in refused.stderr
+
+    manifest = json.loads(files["manifest.json"])
+    for stage in manifest["stages"]:
+        if stage["stage"] == "test":
+            stage["artifact_id"] = sha256_id(parts["stages/test.json"][0])
+    parts["manifest.json"] = (json.dumps(manifest).encode(), "", "")
+    metadata = build_crate_metadata(
+        name="x", description="x", licence="x", files=parts, authors=[], date_published="2026-01-01", citations=[]
+    )
+    changed = tmp_path / "changed.zip"
+    changed.write_bytes(zip_crate(metadata, parts))
+    result = runner.invoke(cli.app, ["investigate", "reproduce", str(changed)])
+    assert result.exit_code == 1 and "FAIL" in result.stderr and "p_value" in result.stderr
+    assert not json.loads(result.stdout)["ok"]
+
+    cli.use_reproduction_tools(cli._production_reproduction_tools)
+    cli.use_runtime(lambda: k)
+    missing = runner.invoke(cli.app, ["investigate", "bundle", "invset-missing"])
+    assert missing.exit_code != 0 and "no investigation set invset-missing" in str(missing.exception)

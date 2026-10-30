@@ -8,9 +8,12 @@ import {
   type JobRun,
   type Investigation,
   type PlanState,
+  type ReproductionRun,
   type TriageAction,
   type Workbench,
 } from "../ports.ts";
+import { EXAMPLES } from "../examples.ts";
+import { coneRegion } from "../plain.ts";
 import { type InMemoryEvidenceSource, REGISTERED_ARCHIVES } from "./fixtures.ts";
 
 const TRIAGE: Record<Exclude<TriageAction, "annotate">, { to: string; from: string[] }> = {
@@ -108,6 +111,26 @@ export class InMemoryWorkbench implements Workbench {
 
   async planInvestigation(request: InvestigateRequest): Promise<{ planId: string }> {
     this.commands.push({ command: "plan", args: [request] });
+    // The JWST example gets a fresh draft of the synthetic JWST plan, so the demonstration walks the
+    // whole JWST journey: plan, approve, download, images, candidates and dossier. Any other field
+    // that reads MAST is refused, rather than answered with a plan made for a different field.
+    const archives = (request.profile.archives ?? []) as { source_id?: string }[];
+    if (archives.some((a) => a.source_id === "mast")) {
+      const example = EXAMPLES.find((e) => e.key === "jwst-m92")!;
+      const asked = request.region === coneRegion(Number(example.ra), Number(example.dec), Number(example.radius));
+      const template = this.source.data.plans.find((p) => p.setId && p.document.items.some((i) => i.source_id.endsWith("mast")));
+      if (!asked || request.profile.profile_id !== example.profile || !template) {
+        throw new CommandRefused("The demonstration has one JWST field: choose the example \"JWST: the outskirts of M92\" as it is.", 409);
+      }
+      const plan = structuredClone(template);
+      const n = this.source.data.plans.length;
+      plan.id = plan.document.plan_id = `sha256:${n.toString(16).padStart(8, "0")}${"d".repeat(56)}`;
+      Object.assign(plan, { state: "drafted", setId: null, execution: null, run: null });
+      plan.document.approval = null;
+      this.source.data.plans.push(plan);
+      this.source.demoSets[plan.id] = template.setId!;
+      return { planId: plan.id };
+    }
     const drafted = this.source.data.plans.find((p) => p.state === "drafted");
     if (!drafted) throw new CommandRefused("the demonstration server has no plan to draft", 409);
     return { planId: drafted.id };
@@ -149,5 +172,17 @@ export class InMemoryWorkbench implements Workbench {
     const now = this.now();
     this.source.data.archives = { sources: REGISTERED_ARCHIVES.sources, registration: { state: "finished", started_at: now, finished_at: now, error: null } };
     return this.source.data.archives;
+  }
+
+  /** A demonstration check reads as running, then reproduced: its results are recorded, not recomputed. */
+  async reproduceSet(setId: string): Promise<ReproductionRun> {
+    this.commands.push({ command: "reproduce", args: [setId] });
+    const set = this.source.data.investigationSet[setId];
+    if (!set) throw new CommandRefused(`no investigation set ${setId}`, 404);
+    const current = this.source.data.reproductions[setId];
+    if (current?.state === "running") return current;
+    const run: ReproductionRun = { state: "running", started_at: this.now(), finished_at: null, error: null };
+    this.source.data.reproductions[setId] = run;
+    return run;
   }
 }

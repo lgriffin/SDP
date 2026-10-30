@@ -27,6 +27,13 @@ def plan_job(plan_id: str) -> str:
     return f"plan:{plan_id}"
 
 
+REPRODUCE_JOBS = "reproduce:"
+
+
+def reproduce_job(set_id: str) -> str:
+    return f"{REPRODUCE_JOBS}{set_id}"
+
+
 @dataclass
 class Job:
     key: str
@@ -34,14 +41,25 @@ class Job:
     state: str = RUNNING
     finished_at: datetime | None = None
     error: str | None = None
+    result: Any = None
+    """What the work returned, for a job whose answer the UI shows (a reproduction's report)."""
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        doc = {
             "state": self.state,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "error": self.error,
         }
+        return doc if self.result is None else {**doc, "result": self.result}
+
+
+class JobBusy(Exception):
+    """Another job of the same kind is running, and the kind runs one at a time."""
+
+    def __init__(self, running: str) -> None:
+        super().__init__(f"{running} is running")
+        self.running = running
 
 
 def _thread(work: Callable[[], None]) -> None:
@@ -65,25 +83,30 @@ class Jobs:
         with self._lock:
             return self._jobs.get(key)
 
-    def start(self, key: str, work: Callable[[], Any]) -> tuple[Job, bool]:
-        """The job for ``key`` and whether this call started it; a running job is never started twice."""
+    def start(self, key: str, work: Callable[[], Any], *, alone_among: str | None = None) -> tuple[Job, bool]:
+        """The job for ``key`` and whether this call started it; a running job is never started twice.
+        With ``alone_among``, ``JobBusy`` while any other running job's key starts with that prefix."""
         with self._lock:
             current = self._jobs.get(key)
             if current is not None and current.state == RUNNING:
                 return current, False
+            if alone_among is not None:
+                for other, job in self._jobs.items():
+                    if other.startswith(alone_among) and job.state == RUNNING:
+                        raise JobBusy(other)
             job = Job(key, self._now())
             self._jobs[key] = job
 
         def run() -> None:
             try:
-                work()
+                result = work()
             except Exception as exc:  # the job reports every failure; nothing is left to raise to
                 log.exception("job failed", extra={"job": key})
                 with self._lock:
                     job.state, job.error = FAILED, f"{type(exc).__name__}: {exc}"
             else:
                 with self._lock:
-                    job.state = FINISHED
+                    job.state, job.result = FINISHED, result
             finally:
                 with self._lock:
                     job.finished_at = self._now()

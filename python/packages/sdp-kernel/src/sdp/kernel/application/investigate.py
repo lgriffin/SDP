@@ -83,7 +83,7 @@ from sdp.kernel.domain.investigation import (
 from sdp.kernel.domain.provenance import ProvGraph
 from sdp.kernel.domain.sources import SourceKind, SourceRef
 from sdp.kernel.ports.archives import CrossMatchService
-from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe
+from sdp.kernel.ports.compute import CheckpointSink, ComputeExecutor, EnvironmentProbe
 from sdp.kernel.ports.determinism import Clock, IdGenerator
 from sdp.kernel.ports.driving import AcquireDatasetCommand
 from sdp.kernel.ports.integration import ProductInventory, ProductNormalizer, ProductValidator, RawProduct
@@ -301,6 +301,9 @@ class InvestigatePorts:
     """Normaliser, validator and inventory by archive source id. A source listed here has every
     product normalised and validated before any curation, and curation is refused when either fails
     (INT-006, INT-007); its normaliser is also its product dialect."""
+    picture: Callable[[bytes], bytes] | None = None
+    """Draws a FITS image as a PNG, pixel y upward, for a set's evidence dossier (INV-021); without it the
+    dossier carries the images' data but no pictures."""
 
 
 def load_investigation_tests(group: str = TEST_ENTRY_POINT_GROUP) -> InvestigationTestRegistry:
@@ -383,6 +386,44 @@ def build_set_manifest(
         "candidates_opened": len(investigation_set.investigation_ids),
     }
     return doc
+
+
+def run_tests(
+    executor: ComputeExecutor,
+    registry: InvestigationTestRegistry,
+    profile: TestProfile,
+    bundle_docs: Sequence[Mapping[str, Any]],
+    products: Mapping[str, bytes],
+    *,
+    seed: int,
+    sink: CheckpointSink,
+    services: Mapping[str, Any],
+) -> tuple[list[TestResult], list[NullFieldResult]]:
+    """The Test stage's computation: each profile test and its null comparison over the evidence
+    bundles, with the products' bytes by artifact id. A set's run and its reproduction from a
+    dossier (INV-022) both call this, so they cannot drift apart."""
+    tasks = []
+    for selection in profile.tests:
+        test = registry.get(selection.name, selection.version)
+        common = {"bundles": list(bundle_docs), "thresholds": dict(selection.thresholds)}
+        tasks.append(
+            ComputeTask(f"run:{selection.key}", task_kind(test.name, test.version), test.policy, params=common)
+        )
+        tasks.append(
+            ComputeTask(
+                f"null:{selection.key}",
+                null_task_kind(test.name, test.version),
+                test.policy,
+                params={**common, "trials": profile.null_fields.trials, "alpha": profile.ranking.alpha},
+            )
+        )
+    plan = ComputePlan(tuple(tasks), outputs=tuple(t.task_id for t in tasks))
+    values = executor.execute(
+        plan, registry.task_kinds(), seed=seed, sink=sink, services={**services, PRODUCTS_SERVICE: dict(products)}
+    )
+    results = [TestResult.from_document(doc) for s in profile.tests for doc in values[f"run:{s.key}"]]
+    nulls = [NullFieldResult.from_document(values[f"null:{s.key}"]) for s in profile.tests]
+    return results, nulls
 
 
 @dataclass
@@ -1152,33 +1193,18 @@ class InvestigateFieldUseCase:
             return [TestResult.from_document(r) for r in done["results"]], nulls
         profile = investigation_set.profile
         registry = self.ports.tests
-        bundle_docs = [b.to_document() for b in bundles]
-        tasks = []
-        for selection in profile.tests:
-            test = registry.get(selection.name, selection.version)
-            common = {"bundles": bundle_docs, "thresholds": dict(selection.thresholds)}
-            tasks.append(
-                ComputeTask(f"run:{selection.key}", task_kind(test.name, test.version), test.policy, params=common)
-            )
-            tasks.append(
-                ComputeTask(
-                    f"null:{selection.key}",
-                    null_task_kind(test.name, test.version),
-                    test.policy,
-                    params={**common, "trials": profile.null_fields.trials, "alpha": profile.ranking.alpha},
-                )
-            )
-        plan = ComputePlan(tuple(tasks), outputs=tuple(t.task_id for t in tasks))
         sink = _StoreCheckpoints(self.store, self.uow, self.clock, investigation_set.set_id)
         products = {p.artifact_id.value: self.store.get(p.artifact_id) for b in bundles for p in b.products}
-        services = {**self.ports.services, PRODUCTS_SERVICE: products}
-        values = self.executor.execute(
-            plan, registry.task_kinds(), seed=investigation_set.seed, sink=sink, services=services
+        results, nulls = run_tests(
+            self.executor,
+            registry,
+            profile,
+            [b.to_document() for b in bundles],
+            products,
+            seed=investigation_set.seed,
+            sink=sink,
+            services=self.ports.services,
         )
-        results = [
-            TestResult.from_document(doc) for selection in profile.tests for doc in values[f"run:{selection.key}"]
-        ]
-        nulls = [NullFieldResult.from_document(values[f"null:{s.key}"]) for s in profile.tests]
         investigation_set.null_results = tuple(nulls)
         investigation_set.tests_applied = tuple(
             {
