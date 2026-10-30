@@ -1,0 +1,92 @@
+# Journey: your own telescope frames
+
+**Time:** a minute to index; seconds per stacked frame and 1 to 2 seconds per sub to solve ·
+**Written to disk:** under 1 GB · **Needs:** a folder of FITS frames, the
+[developer tools](install-dev-tools.md) or the desktop app's SDP Command Prompt, and the database
+running (for solving and checking)
+
+This journey plugs your own pictures into SDP. It indexes the folder, works out exactly where on the sky
+each frame points (plate solving, with SDP's own solver), and then asks of your frames what the
+[JWST journey](jwst-field.md) asks of JWST's: is each Gaia star where its motion puts it on the night you
+took the frame?
+
+**SDP only reads your folder.** It never writes, moves or renames anything there. Everything it makes
+goes under SDP's data folder (`SDP_DATA`): the index in `<data>\index\<name>`, the sky solutions in
+`<data>\solutions\<name>`, and run outputs in the artifact store. The data folder may not be inside your
+frames folder.
+
+The examples use Leigh's Vaonis Vespera Pro frames in `D:\astrophotography` (about 20,000 FITS files;
+1.65 arcseconds per pixel). Issue [#90](https://github.com/lgriffin/SDP/issues/90) is the same journey as
+a checklist. On the developer-tools route, run everything with `uv run` from `D:\code\SDP\python` after
+`call D:\SDP\sdp-env.cmd`.
+
+## Step 1: add and index (no database needed)
+
+```bat
+sdp local add astro D:\astrophotography --scale 1.65
+sdp local index astro
+sdp local status astro
+```
+
+- `add` names the folder `astro`. `--scale` is your camera's arcseconds per pixel, used when a frame's
+  header has no focal length. For another telescope: 206.265 × pixel size in µm ÷ focal length in mm.
+- `index` reads only each file's header, never its pixels: a few minutes per 10,000 frames on a USB
+  drive. Running it again reads only new or changed files.
+
+**Success:** `status` shows your frames by kind (light, dark, flat, bias, stack), your targets with frame
+counts and exposure hours, and no errors, or only a handful.
+
+## Step 2: solve the stacks
+
+```bat
+sdp local solve astro --kind stack
+sdp local solved astro
+```
+
+For each frame SDP takes a rough centre from the target name in its header (looked up in SIMBAD), finds
+the stars, and matches the triangles they make against Gaia stars brighter than G = 15 in a 2° circle,
+whatever the frame's rotation or mirroring. It accepts a fit with at least 12 matched stars and an error
+under 1.5 arcseconds. Each solution is written as `<data>\solutions\astro\<frame>.wcs.json`. A frame
+that cannot be solved with confidence is refused, with its reason, in `<frame>.unsolved.json`.
+
+**Success:** `solved` lists most stacks as solved. A refusal says why, for example too few stars
+matched, or no target name to start from.
+
+## Step 3: check a target against Gaia
+
+```bat
+sdp investigate --region "icrs;circle(10.6847,41.2687,0.2)" --profile ..\profiles\my-frames.yaml --label m31-frames
+```
+
+In the desktop app's SDP Command Prompt the profile is `"%SDP_DATA%\profiles\my-frames.yaml"`. The region
+is the core of M31, the Andromeda galaxy, radius 0.2°. SDP cuts a 30-arcminute square around it out of
+each solved, dated frame, so keep the radius at 0.25° or less.
+
+**Success:** every stage `completed`, and the `timing` block shows the retrieve stage reading your
+stacks. Very few stars, ideally none, should be flagged. A flag is a lead, not a claim: it is often a
+satellite trail, the frame's edge, or a star lost in M31's bright core. Open the candidate to see why.
+
+The profile's settings (stars between G = 9 and 14, the 3-pixel star width, the 4-arcsecond search
+radius) assume a Vespera Pro. For another telescope, copy `my-frames.yaml` and change them, as the
+[profiles guide](../../profiles/README.md#my-frames-your-own-frames) explains.
+
+## Step 4 (optional, long): solve the subs
+
+```bat
+sdp local solve astro --target M31 --limit 50
+sdp local solved astro
+```
+
+Try 50 first to see the time per frame, then drop `--limit` for the rest (7,745 M31 subs at 1 to 2 s each
+is 2 to 4 hours). Ctrl+C is safe: running it again skips every frame already solved or refused.
+`--retry-refused` tries the refused ones again; `--max-rms` and `--min-matches` loosen or tighten the fit.
+Change the profile's `missions` from `[stack]` to `[light]` to check every solved sub instead of the stacks.
+
+## Not yet
+
+- `sdp plan` cannot plan local frames yet; run them with `sdp investigate` as above.
+- A light-curve test over many subs of one target is planned, not built
+  ([#71](https://github.com/lgriffin/SDP/issues/71)).
+
+More detail on indexing, solving and the cutouts is in
+[docs/live-data.md](../live-data.md#your-own-frames).
