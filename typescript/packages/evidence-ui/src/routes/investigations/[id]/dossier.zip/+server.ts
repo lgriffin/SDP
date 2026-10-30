@@ -2,12 +2,19 @@
 // and data, which `sdp investigate reproduce` re-runs from alone (INV-021, INV-022).
 import { error } from "@sveltejs/kit";
 
+import { EvidenceUnavailable } from "$lib/ports.ts";
 import { evidence } from "$lib/server/source.ts";
 
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ params }) => {
-  const found = await evidence().dossier(params.id);
+  let found;
+  try {
+    found = await evidence().dossier(params.id);
+  } catch (e) {
+    if (e instanceof EvidenceUnavailable) error(502, `The evidence dossier could not be saved: ${e.message}`);
+    throw e;
+  }
   if (!found) error(404, `No evidence dossier for ${params.id} on this server`);
   return new Response(found.body, {
     headers: {
