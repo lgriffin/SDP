@@ -15,8 +15,10 @@ native column filled each one.
 
 from __future__ import annotations
 
+import io
 import json
 import logging
+import re
 import urllib.parse
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping, Sequence
@@ -153,24 +155,56 @@ def _float(table: pa.Table, name: str) -> pa.Array:
     return pa.array(values, mask=~np.isfinite(values), type=pa.float64())
 
 
-def votable_columns(body: bytes) -> list[dict[str, str]]:
-    """Each FIELD of a VOTable's first table as a ``TAP_SCHEMA.columns``-shaped row (column_name, ucd,
-    unit), the unit exactly as written: a VizieR page or mirror describes its columns this way."""
+@dataclass(frozen=True)
+class FirstTable:
+    """What a VOTable says about its first table before any row is read: the names it goes by (its
+    ``name`` and ``ID`` attributes) and each FIELD as a ``TAP_SCHEMA.columns``-shaped row."""
+
+    names: tuple[str, ...]
+    columns: list[dict[str, str]]
+
+
+def first_table(body: bytes) -> FirstTable:
+    """Read a VOTable only as far as its first table's rows, streaming, so a large document is not held
+    as a tree: a QUERY_STATUS of ERROR raises TapQueryError, as it does over TAP."""
     validate_votable(body)
-    rows: list[dict[str, str]] = []
-    for element in ET.fromstring(body).iter():
+    names: tuple[str, ...] = ()
+    columns: list[dict[str, str]] = []
+    inside = False
+    for event, element in ET.iterparse(io.BytesIO(body), events=("start", "end")):
         tag = element.tag.rsplit("}", 1)[-1]
-        if tag == "FIELD":
-            rows.append(
-                {
-                    "column_name": element.get("name") or element.get("ID") or "",
-                    "ucd": element.get("ucd") or "",
-                    "unit": element.get("unit") or "",
-                }
-            )
-        elif tag == "DATA" and rows:  # the first table's fields are all read
+        if event == "start":
+            if tag == "TABLE" and not inside:
+                inside = True
+                names = tuple(n for n in (element.get("name"), element.get("ID")) if n)
+            elif tag == "FIELD" and inside:
+                columns.append(
+                    {
+                        "column_name": element.get("name") or element.get("ID") or "",
+                        "ucd": element.get("ucd") or "",
+                        "unit": element.get("unit") or "",
+                    }
+                )
+            elif tag == "DATA" and inside:  # every field of the first table comes before its rows
+                break
+            continue
+        if tag == "INFO" and element.get("name") == "QUERY_STATUS" and (element.get("value") or "").upper() == "ERROR":
+            raise TapQueryError((element.text or "VizieR query failed").strip())
+        if tag == "TABLE":
             break
-    return rows
+        element.clear()
+    return FirstTable(names, columns)
+
+
+def votable_columns(body: bytes) -> list[dict[str, str]]:
+    """Each FIELD of a VOTable's first table as a ``TAP_SCHEMA.columns`` row, the unit exactly as written."""
+    return first_table(body).columns
+
+
+def _names(catalogue: KnownClusterCatalogue) -> set[str]:
+    """How VizieR names a table in a VOTable: ``name`` is the table itself, ``ID`` the same with every
+    character an XML ID cannot hold written as ``_``."""
+    return {catalogue.vizier_table, re.sub(r"[^A-Za-z0-9_.-]", "_", catalogue.vizier_table)}
 
 
 @dataclass
@@ -208,8 +242,8 @@ class VizierKnownClusters:
             if not (self.mirrors and _down(exc.status)):
                 raise
             failures = [f"TAPVizieR: {exc}"]
-        # Only a service that is down moves on; a catalogue a mirror describes without a needed column
-        # is refused, as it would be everywhere.
+        # Only a service that is down moves on: a query the mirror refuses in its VOTable, or a catalogue
+        # it describes without a needed column, is refused, as it would be everywhere.
         for base in self.mirrors:
             try:
                 response = self.transport.send(self.mirror_request(catalogue, base))
@@ -221,7 +255,7 @@ class VizierKnownClusters:
                     raise
                 failures.append(f"{base}: {exc}")
                 continue
-            except (TapQueryError, UntrustedInput, ET.ParseError) as exc:  # an error page instead of the table
+            except (UntrustedInput, ET.ParseError) as exc:  # an error page instead of the table
                 failures.append(f"{base}: {exc}")
                 continue
             log.warning("TAPVizieR did not answer; %s read from %s", catalogue.vizier_table, base)
@@ -260,11 +294,20 @@ def from_votable(
     page), columns chosen by the UCDs and units its FIELDs carry, exactly as over TAP (DSI-015)."""
     if isinstance(catalogue, str):
         catalogue = _catalogue(catalogue)
-    described = votable_columns(body)
-    if not described:
+    table = first_table(body)
+    if not _names(catalogue) & set(table.names):
+        called = " or ".join(repr(n) for n in table.names) if table.names else "nothing"
+        raise CatalogueSchemaError(
+            f"the VOTable's first table is called {called}, not {catalogue.vizier_table}: "
+            "save the catalogue's own table from VizieR as a VOTable"
+        )
+    if not table.columns:
         raise CatalogueSchemaError(f"the VOTable for {catalogue.vizier_table} has no columns")
-    columns = choose_columns(described, overrides)
-    native = votable.parse(body)
+    columns = choose_columns(table.columns, overrides)
+    try:
+        native = votable.parse(body)
+    except ValueError as exc:  # rows cut off or malformed after the fields: not a whole table
+        raise UntrustedInput(f"the VOTable for {catalogue.vizier_table} is not well formed: {exc}") from exc
     if native.num_rows >= MAXREC:
         raise CatalogueSchemaError(f"{catalogue.vizier_table} filled the {MAXREC}-row limit; it was cut off")
     raw = pa.table({mine: native.column(theirs) for mine, theirs in columns.items()})

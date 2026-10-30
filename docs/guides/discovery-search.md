@@ -127,7 +127,7 @@ sdp benchmark fetch --file hr23=C:\Users\you\Downloads\hr23.vot --file cga20=C:\
 ```
 
 Columns are still chosen by what each one measures and its unit, so a file with a column in the wrong unit is
-refused, never guessed ([#107](https://github.com/lgriffin/SDP/issues/107)).
+refused, never guessed, and so is a file whose table is not the catalogue named before the `=` ([#107](https://github.com/lgriffin/SDP/issues/107)).
 
 ## Part 4: sweep the whole sky
 

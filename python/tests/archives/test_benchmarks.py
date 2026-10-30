@@ -19,6 +19,7 @@ from sdp.adapters.archives.benchmarks import (
     choose_columns,
 )
 from sdp.adapters.archives.transport import TransportError
+from sdp.adapters.archives.votable import TapQueryError
 from sdp_stellar.benchmark import benchmark_from
 
 from .vo_fakes import PrimedService
@@ -218,7 +219,11 @@ def test_an_http_error_names_the_table() -> None:
 MIRRORS = ("https://vizier.one.example", "https://vizier.two.example")
 
 
-def asu_votable(schema: list[dict[str, str]] = SCHEMA, rows: list[list[str]] | None = None) -> bytes:
+def asu_votable(
+    schema: list[dict[str, str]] = SCHEMA,
+    rows: list[list[str]] | None = None,
+    table: str = 'ID="J_A_A_673_A114_clusters" name="J/A+A/673/A114/clusters"',
+) -> bytes:
     """A whole-table VOTable as VizieR's ASU interface writes one: every FIELD carries its UCD and unit."""
     fields = "".join(
         f'<FIELD name="{f["column_name"]}" ucd="{f["ucd"]}" unit="{f["unit"]}" '
@@ -232,7 +237,7 @@ def asu_votable(schema: list[dict[str, str]] = SCHEMA, rows: list[list[str]] | N
     data = "".join("<TR>" + "".join(f"<TD>{v}</TD>" for v in r) + "</TR>" for r in rows)
     return (
         '<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">'
-        f'<RESOURCE><TABLE name="J/A+A/673/A114/clusters">{fields}<DATA><TABLEDATA>{data}</TABLEDATA></DATA>'
+        f"<RESOURCE><TABLE {table}>{fields}<DATA><TABLEDATA>{data}</TABLEDATA></DATA>"
         "</TABLE></RESOURCE></VOTABLE>"
     ).encode()
 
@@ -318,3 +323,54 @@ def test_a_saved_votable_reads_its_units_as_written_and_becomes_the_same_benchma
     wrong = [{**f, "unit": "arcsec/yr"} if f["column_name"] == "pmDE" else f for f in SCHEMA]
     with pytest.raises(CatalogueSchemaError, match=r"^pm_dec_masyr: column pmDE is in 'arcsec/yr'"):
         bm.from_votable("hr23", asu_votable(wrong))
+
+
+@pytest.mark.req("DSI-017")
+def test_a_votable_of_another_or_an_unnamed_table_is_refused() -> None:
+    with pytest.raises(CatalogueSchemaError, match=r"called 'J/A\+A/673/A114/clusters'.*, not J/A\+A/640/A1/table1"):
+        bm.from_votable("cga20", asu_votable())
+    with pytest.raises(CatalogueSchemaError, match=r"called nothing, not J/A\+A/673/A114/clusters"):
+        bm.from_votable("hr23", asu_votable(table=""))
+    by_id = bm.from_votable("hr23", asu_votable(table='ID="J_A_A_673_A114_clusters"'))
+    assert by_id.num_rows == 2
+
+
+@pytest.mark.req("DSI-017")
+def test_a_query_a_mirror_refuses_in_its_votable_is_not_asked_elsewhere() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    refusal = (
+        b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3"><RESOURCE>'
+        b'<INFO name="QUERY_STATUS" value="ERROR">unknown catalogue</INFO>'
+        b'<TABLE name="J/A+A/673/A114/clusters"><FIELD name="Name" datatype="char" arraysize="*"/></TABLE>'
+        b"</RESOURCE></VOTABLE>"
+    )
+    fake.raw(source.mirror_request(hr23, MIRRORS[0]), refusal)
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), asu_votable())
+    with pytest.raises(TapQueryError, match=r"^unknown catalogue$"):
+        source.fetch("hr23")
+
+
+def test_only_the_first_tables_fields_are_read_even_when_it_has_no_rows() -> None:
+    body = asu_votable().replace(
+        b"<RESOURCE>",
+        b'<RESOURCE><TABLE name="J/A+A/673/A114/clusters"><FIELD name="Other" ucd="meta.id" unit=""'
+        b' datatype="char" arraysize="*"/></TABLE>',
+        1,
+    )
+    first = bm.first_table(body)
+    assert first.names == ("J/A+A/673/A114/clusters",)
+    assert [c["column_name"] for c in first.columns] == ["Other"]
+
+
+@pytest.mark.req("DSI-017")
+def test_a_mirror_reply_cut_off_in_its_rows_moves_on_to_the_next_mirror() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    whole = asu_votable()
+    fake.raw(source.mirror_request(hr23, MIRRORS[0]), whole[: whole.index(b"<TR>") + 30])
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), whole)
+    table = source.fetch("hr23")
+    assert table.schema.metadata[b"sdp.benchmark.source"].endswith(MIRRORS[1].encode())
