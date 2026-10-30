@@ -39,7 +39,7 @@ class Settings:
     cassette_dir: Path | None = None
     #: where Gaia fields are read: auto (the bulk copy once complete, else the archive), tap or bulk (#72)
     gaia_source: str = "auto"
-    #: fail over to an archive's official mirror (SIMBAD and Sesame at Harvard) when it gives no answer
+    #: fail over to an archive's official mirror (SIMBAD and Sesame at Harvard, VizieR's mirrors) when it gives no answer
     archive_mirrors: bool = True
     #: Zenodo: the token never appears in a repr, a log or a manifest; the sandbox is the default service
     zenodo_token: str | None = field(default=None, repr=False)

@@ -6,6 +6,7 @@ import io
 import json
 import re
 from collections.abc import Iterator, Mapping
+from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
@@ -123,3 +124,38 @@ def test_list_shows_what_is_stored(k: tuple[InMemoryKernel, FakeVizier]) -> None
     after = invoke("benchmark", "list")
     assert after[1]["artifact"] == fetched[0]["artifact"] and after[1]["input"] == fetched[0]["input"]
     assert after[0]["artifact"] is None
+
+
+#: a table saved from a VizieR page: every FIELD carries its UCD and unit
+SAVED = (
+    b'<?xml version="1.0"?><VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3"><RESOURCE><TABLE>'
+    b'<FIELD name="Name" ucd="meta.id;meta.main" unit="" datatype="char" arraysize="*"/>'
+    b'<FIELD name="RA_ICRS" ucd="pos.eq.ra;meta.main" unit="deg" datatype="double"/>'
+    b'<FIELD name="DE_ICRS" ucd="pos.eq.dec;meta.main" unit="deg" datatype="double"/>'
+    b'<FIELD name="pmRA*" ucd="pos.pm;pos.eq.ra" unit="mas/yr" datatype="double"/>'
+    b'<FIELD name="pmDE" ucd="pos.pm;pos.eq.dec" unit="mas/yr" datatype="double"/>'
+    b"<DATA><TABLEDATA><TR><TD>Fixture_A</TD><TD>130.1</TD><TD>19.67</TD><TD>-36.0</TD><TD>-12.9</TD></TR>"
+    b"<TR><TD>Fixture_B</TD><TD>56.75</TD><TD>24.12</TD><TD>19.9</TD><TD>-45.4</TD></TR></TABLEDATA></DATA>"
+    b"</TABLE></RESOURCE></VOTABLE>"
+)
+
+
+@pytest.mark.req("DSI-017")
+def test_a_saved_votable_is_stored_without_any_download(k: tuple[InMemoryKernel, FakeVizier], tmp_path: Path) -> None:
+    kernel, fake = k
+    saved = tmp_path / "hr23.vot"
+    saved.write_bytes(SAVED)
+    out = invoke("benchmark", "fetch", "--file", f"hr23={saved}")
+    assert fake.asked == []
+    assert [(o["benchmark"], o["clusters"]) for o in out] == [("hr23", 2)]
+    stored = pq.read_table(io.BytesIO(kernel.store.get(ArtifactId(out[0]["artifact"]))))
+    assert stored.schema.metadata[b"sdp.benchmark.source"] == b"VizieR J/A+A/673/A114/clusters from file hr23.vot"
+    assert invoke("benchmark", "list")[1]["artifact"] == out[0]["artifact"]
+
+
+def test_a_file_names_its_own_catalogue(k: tuple[InMemoryKernel, FakeVizier], tmp_path: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["benchmark", "fetch", "--catalogue", "hr23", "--file", f"hr23={tmp_path / 'x.vot'}"], env=WIDE
+    )
+    assert result.exit_code != 0
+    assert "--file names its own catalogue" in _plain(result.output)

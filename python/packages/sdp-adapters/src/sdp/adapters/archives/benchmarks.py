@@ -16,6 +16,9 @@ native column filled each one.
 from __future__ import annotations
 
 import json
+import logging
+import urllib.parse
+import xml.etree.ElementTree as ET
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -23,10 +26,26 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from sdp.adapters.archives.transport import HttpRequest, Transport
+from sdp.adapters.archives import votable
+from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
+from sdp.adapters.archives.untrusted import UntrustedInput, validate_votable
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
+from sdp.adapters.archives.votable import TapQueryError
+
+log = logging.getLogger("sdp.adapters.benchmarks")
 
 TAPVIZIER = "https://tapvizier.cds.unistra.fr/TAPVizieR/tap"
+#: VizieR's own copies of every catalogue, in the order tried when TAPVizieR gives no answer: CDS's
+#: classic interface first (it can be up when TAP is not), then the official mirrors. Each answers the
+#: same ASU query with a VOTable whose FIELDs carry the UCD and unit, so columns are chosen as over TAP.
+VIZIER_MIRRORS: tuple[str, ...] = (
+    "https://vizier.cds.unistra.fr",
+    "https://vizier.cfa.harvard.edu",
+    "https://vizier.iucaa.in",
+    "https://vizier.china-vo.org",
+    "https://vizier.idia.ac.za",
+    "https://vizier.nao.ac.jp",
+)
 LICENCE = "CC BY 4.0 (VizieR; cite the catalogue's paper, https://cds.unistra.fr/conditions-of-use/)"
 #: rows asked for; the largest catalogue (hr23) has about 7,200 clusters
 MAXREC = 100_000
@@ -134,12 +153,34 @@ def _float(table: pa.Table, name: str) -> pa.Array:
     return pa.array(values, mask=~np.isfinite(values), type=pa.float64())
 
 
+def votable_columns(body: bytes) -> list[dict[str, str]]:
+    """Each FIELD of a VOTable's first table as a ``TAP_SCHEMA.columns``-shaped row (column_name, ucd,
+    unit), the unit exactly as written: a VizieR page or mirror describes its columns this way."""
+    validate_votable(body)
+    rows: list[dict[str, str]] = []
+    for element in ET.fromstring(body).iter():
+        tag = element.tag.rsplit("}", 1)[-1]
+        if tag == "FIELD":
+            rows.append(
+                {
+                    "column_name": element.get("name") or element.get("ID") or "",
+                    "ucd": element.get("ucd") or "",
+                    "unit": element.get("unit") or "",
+                }
+            )
+        elif tag == "DATA" and rows:  # the first table's fields are all read
+            break
+    return rows
+
+
 @dataclass
 class VizierKnownClusters:
-    """Fetches one of ``CATALOGUES`` as a benchmark table."""
+    """Fetches one of ``CATALOGUES`` as a benchmark table: from TAPVizieR, else from the first VizieR
+    mirror that answers, else from a VOTable file saved from any VizieR page."""
 
     transport: Transport
     tap_url: str = TAPVIZIER
+    mirrors: tuple[str, ...] = ()
 
     def schema_request(self, catalogue: KnownClusterCatalogue) -> HttpRequest:
         adql = (
@@ -152,10 +193,42 @@ class VizierKnownClusters:
         select = ", ".join(f"{_identifier(native)} AS {mine}" for mine, native in columns.items())
         return sync_request(self.tap_url, f"SELECT {select} FROM {_identifier(catalogue.vizier_table)}", MAXREC)
 
+    def mirror_request(self, catalogue: KnownClusterCatalogue, base: str) -> HttpRequest:
+        """VizieR's ASU query for the whole table as a VOTable, positions in decimal degrees."""
+        query = urllib.parse.urlencode(
+            {"-source": catalogue.vizier_table, "-out.max": str(MAXREC), "-oc.form": "dec", "-out.all": "1"}
+        )
+        return HttpRequest("GET", f"{base}/viz-bin/votable?{query}")
+
     def fetch(self, benchmark_id: str, overrides: Mapping[str, str] | None = None) -> pa.Table:
-        if benchmark_id not in CATALOGUES:
-            raise KeyError(f"unknown catalogue {benchmark_id!r}; known: {sorted(CATALOGUES)}")
-        catalogue = CATALOGUES[benchmark_id]
+        catalogue = _catalogue(benchmark_id)
+        try:
+            return self._from_tap(catalogue, overrides)
+        except TransportError as exc:
+            if not (self.mirrors and _down(exc.status)):
+                raise
+            failures = [f"TAPVizieR: {exc}"]
+        # Only a service that is down moves on; a catalogue a mirror describes without a needed column
+        # is refused, as it would be everywhere.
+        for base in self.mirrors:
+            try:
+                response = self.transport.send(self.mirror_request(catalogue, base))
+                if response.status != 200:
+                    raise TransportError(f"HTTP {response.status}", response.status)
+                table = from_votable(catalogue, response.body, overrides, f"VizieR {catalogue.vizier_table} via {base}")
+            except TransportError as exc:
+                if not _down(exc.status):
+                    raise
+                failures.append(f"{base}: {exc}")
+                continue
+            except (TapQueryError, UntrustedInput, ET.ParseError) as exc:  # an error page instead of the table
+                failures.append(f"{base}: {exc}")
+                continue
+            log.warning("TAPVizieR did not answer; %s read from %s", catalogue.vizier_table, base)
+            return table
+        raise TransportError(f"no VizieR service answered for {catalogue.vizier_table}: " + "; ".join(failures))
+
+    def _from_tap(self, catalogue: KnownClusterCatalogue, overrides: Mapping[str, str] | None) -> pa.Table:
         described = run_sync(self.transport, self.schema_request(catalogue), f"VizieR {catalogue.vizier_table}")
         if described.num_rows == 0:
             raise CatalogueSchemaError(f"VizieR does not describe {catalogue.vizier_table}")
@@ -166,7 +239,41 @@ class VizierKnownClusters:
         return benchmark_table(catalogue, raw, columns)
 
 
-def benchmark_table(catalogue: KnownClusterCatalogue, raw: pa.Table, columns: Mapping[str, str]) -> pa.Table:
+def _down(status: int | None) -> bool:
+    """No answer, or a server error: the service is down, so another copy of it may serve."""
+    return status is None or status >= 500
+
+
+def _catalogue(benchmark_id: str) -> KnownClusterCatalogue:
+    if benchmark_id not in CATALOGUES:
+        raise KeyError(f"unknown catalogue {benchmark_id!r}; known: {sorted(CATALOGUES)}")
+    return CATALOGUES[benchmark_id]
+
+
+def from_votable(
+    catalogue: KnownClusterCatalogue | str,
+    body: bytes,
+    overrides: Mapping[str, str] | None = None,
+    source: str | None = None,
+) -> pa.Table:
+    """A benchmark table from a whole-table VOTable (a mirror's answer, or a file saved from a VizieR
+    page), columns chosen by the UCDs and units its FIELDs carry, exactly as over TAP (DSI-015)."""
+    if isinstance(catalogue, str):
+        catalogue = _catalogue(catalogue)
+    described = votable_columns(body)
+    if not described:
+        raise CatalogueSchemaError(f"the VOTable for {catalogue.vizier_table} has no columns")
+    columns = choose_columns(described, overrides)
+    native = votable.parse(body)
+    if native.num_rows >= MAXREC:
+        raise CatalogueSchemaError(f"{catalogue.vizier_table} filled the {MAXREC}-row limit; it was cut off")
+    raw = pa.table({mine: native.column(theirs) for mine, theirs in columns.items()})
+    return benchmark_table(catalogue, raw, columns, source)
+
+
+def benchmark_table(
+    catalogue: KnownClusterCatalogue, raw: pa.Table, columns: Mapping[str, str], source: str | None = None
+) -> pa.Table:
     """The benchmark table: typed columns, rows without a position dropped, sorted by name, and the
     metadata STL-G-02 checks."""
     names = pc.utf8_trim_whitespace(pc.cast(raw.column("name"), pa.string()))
@@ -182,7 +289,7 @@ def benchmark_table(catalogue: KnownClusterCatalogue, raw: pa.Table, columns: Ma
             "sdp.benchmark.release": catalogue.release_label,
             "sdp.benchmark.licence": catalogue.licence,
             "sdp.benchmark.citation": catalogue.citation,
-            "sdp.benchmark.source": f"VizieR {catalogue.vizier_table}",
+            "sdp.benchmark.source": source or f"VizieR {catalogue.vizier_table}",
             "sdp.benchmark.columns": json.dumps(dict(columns), sort_keys=True),
         }
     )

@@ -115,9 +115,19 @@ sdp benchmark list
 `--input benchmark:<id>=sha256:…` options the experiment uses; `list` shows both with a stored copy (not
 `null`).
 
-**Known blocker:** VizieR has no mirror setting. During a CDS outage `fetch` fails; nothing
-half-finished is kept, so just run it again later ([#107](https://github.com/lgriffin/SDP/issues/107)).
-Parts 4 and 5 can be started without it, as below.
+**When CDS is down:** `fetch` tries VizieR's own mirrors in turn (CDS's classic VizieR, then Harvard,
+India, China, South Africa and Japan) and says which one served each catalogue. Set
+`SDP_ARCHIVE_MIRRORS=0` to use only CDS. If none answers, open the catalogue on any VizieR mirror in a
+browser (for example `https://vizier.cfa.harvard.edu/viz-bin/VizieR?-source=J/A+A/673/A114/clusters`
+and `...?-source=J/A+A/640/A1/table1`), choose all columns, unlimited rows and the **VOTable** output, save it,
+and read the saved files instead:
+
+```bat
+sdp benchmark fetch --file hr23=C:\Users\you\Downloads\hr23.vot --file cga20=C:\Users\you\Downloads\cga20.vot
+```
+
+Columns are still chosen by what each one measures and its unit, so a file with a column in the wrong unit is
+refused, never guessed ([#107](https://github.com/lgriffin/SDP/issues/107)).
 
 ## Part 4: sweep the whole sky
 
@@ -175,9 +185,6 @@ will share, make a [signing key](install-dev-tools.md#a-signing-key-only-for-sig
 
 ## If it goes wrong
 
-- **The candidates stage of a very large field runs for an hour.** Fields of hundreds of thousands of
-  stars wait on pull request [#104](https://github.com/lgriffin/SDP/pull/104). Keep fields to a few
-  degrees until it merges.
 - **`row_cap_reached` in a run's output.** The field holds more stars than the profile reads (5,000
   here). Pick a smaller radius.
 - **`sdp discover sweep` says a folder holds tiles from other settings or an older SDP.** A results
