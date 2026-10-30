@@ -22,6 +22,7 @@ from sdp.adapters.local.sidecars import export, solved_copy
 from sdp.adapters.local.solver import SolverConfig, detect, pixel_to_sky, read_frame, sip_offsets, solving_image
 from sdp.adapters.local.solving import LocalSolver
 from sdp.adapters.local.sources import LocalSourceError, LocalSources
+from sdp.adapters.local.wcs_file import write_wcs_file
 from sdp.cli import app as cli
 
 from .synthetic import M31, Truth, bayer_frame
@@ -163,6 +164,33 @@ def test_a_copy_drops_the_frames_old_wcs(tmp_path: Path) -> None:
     doc = {"wcs": {**truth.header, "NAXIS1": 1800, "NAXIS2": 1800}, "frame": "old.fits", "matched": 20}
     header = read_header(io.BytesIO(solved_copy(truth.path.read_bytes(), doc)))
     assert header["CTYPE1"] == "RA---TAN" and "CDELT1" not in header and "PC1_1" not in header
+
+
+@pytest.mark.req("LOC-012")
+def test_a_frame_in_a_folder_with_an_accented_name_still_gets_its_wcs_file(tmp_path: Path) -> None:
+    truth = bayer_frame(tmp_path / "f.fits")
+    doc = {"wcs": {**truth.header, "NAXIS1": 1800, "NAXIS2": 1800}, "frame": "Andromède/img-0001.fits"}
+    header = read_header_file(write_wcs_file(tmp_path / "f.wcs", doc))
+    assert header["SDPFRAME"] == "Androm\\xe8de/img-0001.fits"
+
+
+@pytest.mark.req("LOC-014")
+def test_a_copy_drops_a_checksum_its_new_header_would_break(tmp_path: Path) -> None:
+    truth = bayer_frame(tmp_path / "sum.fits", header={"CHECKSUM": "0123456789ABCDEF", "DATASUM": "12345"})
+    doc = {"wcs": {**truth.header, "NAXIS1": 1800, "NAXIS2": 1800}, "frame": "sum.fits"}
+    header = read_header(io.BytesIO(solved_copy(truth.path.read_bytes(), doc)))
+    assert "CHECKSUM" not in header and "DATASUM" not in header
+
+
+@pytest.mark.req("LOC-014")
+def test_a_solution_with_no_fingerprint_is_not_exported(tmp_path: Path) -> None:
+    solver, _, _, rows = solved_night(tmp_path)
+    path = solver.solution_path(rows[0]["path"])
+    doc = json.loads(path.read_text())
+    del doc["file"]["sha256"]
+    path.write_text(json.dumps(doc))
+    result = export(solver.source, solver, rows, tmp_path / "out")
+    assert result.skipped == [rows[0]["path"]] and result.written == [rows[1]["path"]]
 
 
 @pytest.mark.req("LOC-005")

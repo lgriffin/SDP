@@ -268,6 +268,60 @@ def test_verify_finds_missing_modified_and_corrupted_frames_and_keeps_the_first_
 
 
 @pytest.mark.req("LOC-011")
+def test_solving_a_changed_frame_again_keeps_its_first_fingerprint(tmp_path: Path) -> None:
+    n = night(tmp_path, frames=1)
+    rows = n.index.rows()
+    solver = LocalSolver(n.source, n.data, lambda _n: M31, lambda _c: n.reference)
+    solver.run(rows, rows)
+    first = json.loads(solver.solution_path(rows[0]["path"]).read_text())["file"]["sha256"]
+    flip_a_byte(n.root / rows[0]["path"], keep_date=False)
+    n.index.update()
+    rows = n.index.rows()
+    assert [o.status for o in solver.run(solver.select(rows), rows)] == ["solved"]
+    doc = json.loads(solver.solution_path(rows[0]["path"]).read_text())
+    assert doc["file"]["sha256"] != first and doc["first_file"]["sha256"] == first
+    assert Fingerprints(n.source, n.data).verify().modified == [rows[0]["path"]], "the edit is still reported"
+
+
+@pytest.mark.req("LOC-011")
+def test_a_copied_or_touched_frame_with_the_same_bytes_stays_intact(tmp_path: Path) -> None:
+    n = night(tmp_path, frames=2)
+    prints = Fingerprints(n.source, n.data)
+    prints.verify()
+    frames = sorted(n.root.rglob("*.fits"))
+    stat = frames[0].stat()
+    os.utime(frames[0], ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))  # copied: a new date, the same bytes
+    assert prints.verify().ok == ["M31/night1/img-0001.fits", "M31/night1/img-0002.fits"]
+    assert prints.verify(quick=True).modified == [], "the full check recorded the new date"
+    flip_a_byte(frames[1], keep_date=False)
+    accepted = prints.verify(quick=True, accept=True)
+    assert accepted.accepted == ["M31/night1/img-0002.fits"] and accepted.hashed == 1
+    assert prints.verify(quick=True).modified == []
+
+
+@pytest.mark.req("LOC-008")
+def test_a_neighbour_of_another_target_or_a_changed_file_is_no_start(tmp_path: Path) -> None:
+    root = tmp_path / "astrophotography"
+    truth = bayer_frame(root / "mixed" / "img-0001.fits", seed=7)
+    bayer_frame(root / "mixed" / "img-0002.fits", seed=7, header={"OBJECT": "NGC7000"})
+    bayer_frame(root / "mixed" / "img-0003.fits", seed=7, rotation_deg=37.2)
+    data = tmp_path / "SDP"
+    source = LocalSources(data).add("astro", root, 1.65)
+    index = FrameIndex(source, data)
+    index.update()
+    rows = index.rows()
+    solver = LocalSolver(source, data, lambda _n: M31, lambda _c: truth.reference)
+    solver.run(rows[:1], rows)
+    assert solver.neighbour(rows[1], rows) is None, "NGC7000's frame does not start from M31's"
+    assert solver.neighbour(rows[2], rows) is not None
+    flip_a_byte(root / rows[0]["path"], keep_date=False)
+    index.update()
+    rows = index.rows()
+    fresh = LocalSolver(source, data, lambda _n: M31, lambda _c: truth.reference)
+    assert fresh.neighbour(rows[2], rows) is None, "the solution is of the file as it was"
+
+
+@pytest.mark.req("LOC-011")
 def test_the_verify_and_manifest_commands(tmp_path: Path) -> None:
     n = night(tmp_path, frames=2)
     env = {"SDP_DATA": str(n.data)}

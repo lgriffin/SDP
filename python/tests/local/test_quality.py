@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from typer.testing import CliRunner
 
@@ -72,6 +74,34 @@ def test_cloud_wind_and_a_satellite_show_in_the_measures(tmp_path: Path) -> None
     assert trail["trails"] == 1 and clear["trails"] == 0
 
 
+@pytest.mark.req("LOC-015")
+def test_a_one_pixel_diagonal_trail_is_found_and_a_short_one_is_not() -> None:
+    from sdp.adapters.local.quality import _trails
+
+    image = np.zeros((400, 400))
+    for i in range(150):
+        image[50 + i, 50 + i] = 100.0  # 150 pixels corner to corner: about 212 pixels long
+    for i in range(30):
+        image[300 + i, 20 + i] = 100.0  # 42 pixels long: a star's halo could be that
+    assert _trails(image, rms=1.0, binning=1) == 1
+
+
+@pytest.mark.req("LOC-015")
+def test_a_sky_with_no_noise_keeps_the_other_measures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sdp.adapters.local import solver as solver_module
+
+    detect = solver_module.detect
+
+    def noiseless(*args: Any, **kwargs: Any) -> Any:
+        stars = detect(*args, **kwargs)
+        return replace(stars, sky={**stars.sky, "rms": 0.0})
+
+    monkeypatch.setattr("sdp.adapters.local.solving.detect", noiseless)
+    solver, rows = solved(tmp_path, {"img-0001.fits": {}})
+    q = quality_of(solver, rows[0]["path"])
+    assert "limiting_mag" not in q and q["zero_point"] > 10 and q["fwhm_arcsec"] > 0
+
+
 def session(**changes: dict[str, Any]) -> list[dict[str, Any]]:
     typical: dict[str, Any] = {
         "fwhm_arcsec": 4.0,
@@ -130,6 +160,10 @@ def test_the_quality_command_grades_every_session_and_summarises_each_night(tmp_
     assert night["night"] == "2025-09-14" and night["target"] == "M31" and night["good"] == 5
     grades = Grades(solver.source, solver.data).by_path()
     assert grades["M31/night1/img-0006.fits"]["grade"] == POOR
+    by_folder = json.loads(runner.invoke(cli.app, ["local", "quality", "astro", "--target", "M31"], env=env).stdout)
+    assert by_folder["frames"] == 6 and len(by_folder["nights"]) == 1
+    other = json.loads(runner.invoke(cli.app, ["local", "quality", "astro", "--target", "NGC7000"], env=env).stdout)
+    assert (other["frames"], other["nights"], other["by_grade"]) == (0, [], {})
 
 
 @pytest.mark.req("LOC-017")
