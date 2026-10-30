@@ -30,7 +30,7 @@ from typing import Any, BinaryIO
 import numpy as np
 from scipy.spatial import cKDTree
 
-SOLVER_VERSION = "sdp-solve 1"
+SOLVER_VERSION = "sdp-solve 2"
 ARCSEC = 3600.0
 
 
@@ -359,29 +359,53 @@ def solve(
             f"only {best.matched} stars matched Gaia; at least {config.min_matches} are needed",
             matched=best.matched,
         )
-    return _fit(stars, reference, centre, best, scale, radius, config)
+    # the starting linear map from (dx, dy) to the tangent plane at ``centre``
+    m = np.array([[best.a.real, -best.a.imag], [best.a.imag, best.a.real]]) * scale
+    if best.mirrored:
+        m = m @ np.array([[1.0, 0.0], [0.0, -1.0]])
+    crval = deproject(np.array([best.t.real]), np.array([best.t.imag]), *centre)
+    return _fit(stars, reference, m, (float(crval[0][0]), float(crval[1][0])), radius, config)
+
+
+def refine(
+    stars: Stars,
+    reference: Reference,
+    guess: Mapping[str, Any],
+    config: SolverConfig | None = None,
+    radius_arcsec: float = 20.0,
+) -> Solution:
+    """The frame's TAN solution started from another frame's (``guess``, a WCS in raw FITS pixels), with
+    no triangle search: Gaia is matched within ``radius_arcsec`` of where the guess puts it, then fitted
+    as ``solve`` fits. The same limits apply, so a guess that is too far off is refused, not forced."""
+    config = config or SolverConfig()
+    if len(stars) < config.min_matches:
+        raise Unsolved(f"only {len(stars)} stars were found; at least {config.min_matches} are needed")
+    b = stars.binning
+    # binning drops an odd raw row or column, so a frame of the same size may be one pixel larger
+    if any(
+        abs(int(guess.get(k, n)) - n) > b - 1 for k, n in (("NAXIS1", stars.width * b), ("NAXIS2", stars.height * b))
+    ):
+        raise Unsolved("the neighbour's solution is for a frame of another size")
+    cx, cy = (stars.width - 1) / 2.0, (stars.height - 1) / 2.0
+    ra0, dec0 = pixel_to_sky(guess, np.array([b * cx + (b - 1) / 2 + 1]), np.array([b * cy + (b - 1) / 2 + 1]))
+    cd = np.array([[guess["CD1_1"], guess["CD1_2"]], [guess["CD2_1"], guess["CD2_2"]]], dtype=float)
+    return _fit(stars, reference, cd * b, (float(ra0[0]), float(dec0[0])), radius_arcsec / ARCSEC, config)
 
 
 def _fit(
     stars: Stars,
     reference: Reference,
-    centre: tuple[float, float],
-    start: _Candidate,
-    scale: float,
+    m: np.ndarray,
+    start: tuple[float, float],
     radius: float,
     config: SolverConfig,
 ) -> Solution:
-    """Least-squares TAN fit about the frame's centre pixel, rematched and clipped until it settles."""
+    """Least-squares TAN fit about the frame's centre pixel, rematched and clipped until it settles.
+    ``m`` maps solving pixels about the centre to the tangent plane at ``start``, in degrees."""
     cx, cy = (stars.width - 1) / 2.0, (stars.height - 1) / 2.0
     dx, dy = stars.x - cx, stars.y - cy
-    # the starting linear map from (dx, dy) to the tangent plane at ``centre``
-    a = start.a
-    m = np.array([[a.real, -a.imag], [a.imag, a.real]]) * scale
-    if start.mirrored:
-        m = m @ np.array([[1.0, 0.0], [0.0, -1.0]])
-    crval = deproject(np.array([start.t.real]), np.array([start.t.imag]), *centre)
-    ra0, dec0 = float(crval[0][0]), float(crval[1][0])
-    pairs = start.pairs
+    ra0, dec0 = start
+    pairs: list[tuple[int, int]] = []
     rms = math.inf
     for _ in range(8):
         xi, eta = project(reference.ra, reference.dec, ra0, dec0)

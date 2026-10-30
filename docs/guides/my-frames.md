@@ -36,14 +36,20 @@ sdp local status astro
 **Success:** `status` shows your frames by kind (light, dark, flat, bias, stack), your targets with frame
 counts and exposure hours, and no errors, or only a handful.
 
-## Step 2: solve the stacks
+## Step 2: name your targets, then solve the stacks
 
 ```bat
+sdp local names astro --fetch
 sdp local solve astro --kind stack
 sdp local solved astro
 ```
 
-For each frame SDP takes a rough centre from the target name in its header (looked up in SIMBAD), finds
+`names --fetch` looks up each target name your frames use in SIMBAD once and keeps the answers in
+`<data>\index\astro\names.yaml`. After that, solving needs no internet, as Gaia is read from your local
+copy. A name SIMBAD does not know can be given by hand: `sdp local names astro --centre "M31=10.68,41.27"`
+(right ascension and declination in degrees).
+
+For each frame SDP takes a rough centre from the target name in its header (from the names file), finds
 the stars, and matches the triangles they make against Gaia stars brighter than G = 15 in a 2° circle,
 whatever the frame's rotation or mirroring. It accepts a fit with at least 12 matched stars and an error
 under 1.5 arcseconds. Each solution is written as `<data>\solutions\astro\<frame>.wcs.json`. A frame
@@ -77,10 +83,29 @@ sdp local solve astro --target M31 --limit 50
 sdp local solved astro
 ```
 
-Try 50 first to see the time per frame, then drop `--limit` for the rest (7,745 M31 subs at 1 to 2 s each
-is 2 to 4 hours). Ctrl+C is safe: running it again skips every frame already solved or refused.
+Try 50 first and look at `frames_per_minute` in the result, then drop `--limit` (and `--target`) for the
+rest; `sdp local solve astro` on its own does every stack, then every sub, overnight. Each sub starts from
+the solution of the sub next to it in its folder, which skips most of the work, and `--workers 4` (the
+default) solves four runs of a folder at once; on a USB drive, reading the files is likely to be the
+limit. Ctrl+C is safe: running it again skips every frame already solved or refused.
 `--retry-refused` tries the refused ones again; `--max-rms` and `--min-matches` loosen or tighten the fit.
 Change the profile's `missions` from `[stack]` to `[light]` to check every solved sub instead of the stacks.
+
+## Step 5: check your originals are intact
+
+```bat
+sdp local verify astro
+sdp local manifest astro
+```
+
+Solving records a fingerprint (SHA-256) of every frame it reads. `verify` reads every file again and
+lists any that are missing, changed, or whose bytes no longer match although the size and date are the
+same, which is what a failing drive does. It reads all 575 GB, so expect about an hour; `--quick` checks
+sizes and dates only, in seconds. `manifest` writes a CSV of every frame's path, size and fingerprint
+that a backup tool can check a copy against.
+
+**Success:** `verify` ends with `"intact": true`. It only reads; a fingerprint changes only if you run it
+with `--accept`.
 
 ## Not yet
 

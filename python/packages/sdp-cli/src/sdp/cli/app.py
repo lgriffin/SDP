@@ -918,10 +918,12 @@ def _gaia_reference(radius_deg: float, mag_limit: float) -> Any:
 
 
 def _name_resolver() -> Any:
+    """SIMBAD's position for a name, or None when no resolver is wired (the names file is then the only
+    source of names)."""
     use_case = state.runtime().kernel.investigate_field
     resolver = use_case.ports.resolver if use_case is not None else None
     if resolver is None:
-        raise DomainError("no SIMBAD resolver is wired, so OBJECT names cannot be looked up")
+        return None
 
     def centre(name: str) -> tuple[float, float] | None:
         record = resolver.by_name(name)
@@ -930,6 +932,22 @@ def _name_resolver() -> Any:
         return float(record.ra_deg), float(record.dec_deg)
 
     return centre
+
+
+def _add_centres(book: Any, centres: list[str] | None) -> None:
+    from sdp.adapters.local.names import FROM_YOU, parse_centre
+
+    for text in centres or ():
+        book.set(*parse_centre(text), FROM_YOU)
+
+
+CentreOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--centre",
+        help="A target's position as NAME=RA,DEC in degrees, such as M31=10.68,41.27; kept in the names file",
+    ),
+]
 
 
 @local_app.command("solve")
@@ -944,13 +962,17 @@ def local_solve(
     gaia_mag: Annotated[float, typer.Option(help="Faintest Gaia G magnitude matched")] = 15.0,
     max_rms: Annotated[float, typer.Option(help="Largest accepted fit RMS, arcseconds")] = 1.5,
     min_matches: Annotated[int, typer.Option(help="Fewest matched stars accepted")] = 12,
+    workers: Annotated[int, typer.Option(min=1, max=64, help="Frames solved side by side")] = 4,
+    centre: CentreOption = None,
 ) -> None:
-    """Plate-solve the source's frames with SDP's own solver. Each solution is written to
-    <data>/solutions/<source>/<frame>.wcs.json; a frame that cannot be solved surely is refused, with
-    its reason, in <frame>.unsolved.json. The frames are only read. Needs the database (for Gaia)."""
+    """Plate-solve the source's frames with SDP's own solver: the stacks first, then the lights, unless
+    --kind picks one. Each solution is written to <data>/solutions/<source>/<frame>.wcs.json; a frame that
+    cannot be solved surely is refused, with its reason, in <frame>.unsolved.json. The frames are only
+    read. Needs the database (for Gaia); needs no network once every target is in the names file."""
     from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.names import NameBook
     from sdp.adapters.local.solver import SolverConfig
-    from sdp.adapters.local.solving import LocalSolver
+    from sdp.adapters.local.solving import SOLVABLE_KINDS, LocalSolver
     from sdp.adapters.local.sources import LocalSources, data_dir
 
     if kind is not None and kind not in ("light", "stack"):
@@ -960,14 +982,25 @@ def local_solve(
     rows = FrameIndex(source, data).rows()
     if not rows:
         raise DomainError(f"the {name} index is empty; run sdp local index {name} first")
+    names = NameBook(source, data)
+    _add_centres(names, centre)
     solver = LocalSolver(
         source,
         data,
         _name_resolver(),
         _gaia_reference(gaia_radius, gaia_mag),
         SolverConfig(max_rms_arcsec=max_rms, min_matches=min_matches),
+        names=names,
     )
-    chosen = solver.select(rows, kind=kind, target=target, limit=limit, resolve=resolve, retry_refused=retry_refused)
+    chosen: list[dict[str, Any]] = []
+    # the stacks are few and quick, and a solved stack is a good start for nothing else, so they go first
+    for each in (kind,) if kind else tuple(reversed(SOLVABLE_KINDS)):
+        left = None if limit is None else limit - len(chosen)
+        if left == 0:
+            break
+        chosen += solver.select(
+            rows, kind=each, target=target, limit=left, resolve=resolve, retry_refused=retry_refused
+        )
     started, done = time.monotonic(), [0]
 
     def report(o: Any) -> None:
@@ -975,16 +1008,22 @@ def local_solve(
         detail = f"{o.matched} stars, RMS {o.rms_arcsec:.2f} arcsec" if o.status == "solved" else o.reason
         typer.echo(f"{done[0]}/{len(chosen)} {o.path}: {o.status}, {detail} ({o.seconds:.1f} s)", err=True)
 
-    outcomes = solver.run(chosen, rows, report)
+    stacks = [r for r in chosen if r["kind"] == "stack"]
+    lights = [r for r in chosen if r["kind"] != "stack"]
+    outcomes = solver.run(stacks, rows, report, workers) + solver.run(lights, rows, report, workers)
+    seconds = time.monotonic() - started
     run = {
         "source": source.source_id,
         "chosen": len(chosen),
         "solved": sum(1 for o in outcomes if o.status == "solved"),
         "refused": sum(1 for o in outcomes if o.status == "refused"),
-        "seconds": round(time.monotonic() - started, 1),
+        "seconds": round(seconds, 1),
+        "frames_per_minute": round(60 * len(outcomes) / seconds, 1) if seconds > 0 else None,
+        "workers": workers,
         "filters": {"kind": kind, "target": target, "limit": limit, "resolve": resolve},
         "config": solver.config.to_document(),
         "gaia": {"radius_deg": gaia_radius, "mag_limit": gaia_mag},
+        "names": str(names.path),
         "frames": [o.__dict__ for o in outcomes],
     }
     # the run itself is kept as an artifact, like every other step's record
@@ -998,6 +1037,107 @@ def local_solve(
     )
 
 
+@local_app.command("names")
+def local_names(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    centre: CentreOption = None,
+    fetch: Annotated[
+        bool, typer.Option("--fetch", help="Look up in SIMBAD now every OBJECT not in the file yet (needs network)")
+    ] = False,
+) -> None:
+    """The names file: each target's position, from SIMBAD or from you. With every target in it, solving
+    needs no network. Needs no database unless --fetch."""
+    from sdp.adapters.local.index import FrameIndex
+    from sdp.adapters.local.names import FROM_SIMBAD, NameBook
+    from sdp.adapters.local.solving import SOLVABLE_KINDS, usable_name
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    book = NameBook(source, data)
+    _add_centres(book, centre)
+    used = sorted(
+        {n for r in FrameIndex(source, data).rows() if r["kind"] in SOLVABLE_KINDS if (n := usable_name(r["object"]))}
+    )
+    unknown = [n for n in used if book.get(n) is None]
+    not_found: list[str] = []
+    if fetch and unknown:
+        resolve = _name_resolver()
+        if resolve is None:
+            raise DomainError("no SIMBAD resolver is wired; give the positions with --centre NAME=RA,DEC instead")
+        for each in unknown:
+            found = resolve(each)
+            if found is None:
+                not_found.append(each)
+            else:
+                book.set(each, found[0], found[1], FROM_SIMBAD)
+        unknown = [n for n in used if book.get(n) is None]
+    emit(
+        {
+            "names": str(book.path),
+            "known": book.entries(),
+            "frames_name_these_unknown_targets": unknown,
+            **({"simbad_does_not_know": not_found} if not_found else {}),
+        }
+    )
+
+
+@local_app.command("verify")
+def local_verify(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    quick: Annotated[
+        bool, typer.Option("--quick", help="Compare sizes and dates only; hash only frames never fingerprinted")
+    ] = False,
+    accept: Annotated[
+        bool, typer.Option("--accept", help="Take the current bytes of changed frames as their new fingerprints")
+    ] = False,
+) -> None:
+    """Check that the source's frames are intact: each file's SHA-256 against the one first recorded for it.
+    Lists frames missing, new, modified (size or date changed too) and corrupted (same size and date, other
+    bytes). Reads every file in full (about an hour for 575 GB on a USB drive) unless --quick. Needs no
+    database; the frames are only read."""
+    from sdp.adapters.local.fingerprints import Fingerprints
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    prints = Fingerprints(LocalSources(data).get(name), data)
+    started = time.monotonic()
+    report = prints.verify(
+        quick=quick,
+        accept=accept,
+        progress=lambda count, hashed: typer.echo(f"{count:,} frames checked, {hashed:,} hashed", err=True),
+    )
+    full = prints.path.with_name(f"verify-{time.strftime('%Y%m%dT%H%M%S')}.json")
+    full.write_text(json.dumps(report.to_document(listed=None), indent=2) + "\n", "utf-8")
+    emit(
+        {
+            **report.to_document(),
+            "quick": quick,
+            "seconds": round(time.monotonic() - started, 1),
+            "fingerprints": str(prints.path),
+            "report": str(full),
+        }
+    )
+    if not report.intact:
+        raise typer.Exit(1)
+
+
+@local_app.command("manifest")
+def local_manifest(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    out: Annotated[Path | None, typer.Option(help="The CSV to write; default beside the index")] = None,
+) -> None:
+    """Write a CSV of every fingerprinted frame's path, size and SHA-256, for a backup tool to check
+    against. Run sdp local verify first so that every frame has a fingerprint. Needs no database."""
+    from sdp.adapters.local.fingerprints import Fingerprints
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    prints = Fingerprints(LocalSources(data).get(name), data)
+    target = out or prints.path.with_name("manifest.csv")
+    emit({"frames": prints.manifest(target), "manifest": str(target)})
+
+
 @local_app.command("solved")
 def local_solved(name: Annotated[str, typer.Argument(help="The source's name")]) -> None:
     """How many frames are solved, refused (and why) and still to do. Needs no database."""
@@ -1007,7 +1147,7 @@ def local_solved(name: Annotated[str, typer.Argument(help="The source's name")])
 
     data = data_dir()
     source = LocalSources(data).get(name)
-    solver = LocalSolver(source, data, lambda _n: None, lambda _c: None)  # type: ignore[arg-type,return-value]
+    solver = LocalSolver(source, data, None, lambda _c: None)  # type: ignore[arg-type,return-value]
     emit(solver.status(FrameIndex(source, data)))
 
 
