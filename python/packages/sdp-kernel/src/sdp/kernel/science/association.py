@@ -149,6 +149,15 @@ def _group_blends(near: list[tuple[str, Propagated]], resolution_arcsec: float) 
 
 
 def _blend_position(group: list[tuple[str, Propagated]], epoch: float) -> Propagated:
+    """Where a detection that blends the group is expected: its members' mean position, uncertain by
+    the members' own sigmas and by where between them the light falls (INT-023).
+
+    A blend's centroid is its members' positions weighted by their flux in the detection's band,
+    which nothing here knows: a G = 13 star 5 arcsec from a G = 17.6 one puts a WISE centroid on the
+    bright star, not halfway. With every flux split equally likely (uniform weights on the simplex),
+    the centroid has the members' mean and their scatter about it over n + 1 as its covariance, which
+    is added to the members' mean covariance. For two members d apart that is d^2 / 12 along the line
+    joining them."""
     n = len(group)
     ra0, dec0 = group[0][1].ra_deg, group[0][1].dec_deg
     xs = [offset_arcsec(ra0, dec0, p.ra_deg, p.dec_deg) for _, p in group]
@@ -156,9 +165,13 @@ def _blend_position(group: list[tuple[str, Propagated]], epoch: float) -> Propag
     my = sum(y for _, y in xs) / n
     dec = dec0 + my / 3600.0
     ra = _wrap_ra(ra0 + mx / 3600.0 / math.cos(math.radians(dec0)))
-    s_ra = math.sqrt(sum(p.covariance.sigma_ra_arcsec**2 for _, p in group) / n)
-    s_dec = math.sqrt(sum(p.covariance.sigma_dec_arcsec**2 for _, p in group) / n)
-    return Propagated(ra, dec, PositionCovariance(s_ra, s_dec), epoch)
+    split = n * (n + 1)
+    sxx = sum((x - mx) ** 2 for x, _ in xs) / split
+    syy = sum((y - my) ** 2 for _, y in xs) / split
+    sxy = sum((x - mx) * (y - my) for x, y in xs) / split
+    s_ra = math.sqrt(sum(p.covariance.sigma_ra_arcsec**2 for _, p in group) / n + sxx)
+    s_dec = math.sqrt(sum(p.covariance.sigma_dec_arcsec**2 for _, p in group) / n + syy)
+    return Propagated(ra, dec, PositionCovariance(s_ra, s_dec, sxy / (s_ra * s_dec)), epoch)
 
 
 def is_anchor(record: AssociationRecord, policy: AssociationPolicy) -> bool:

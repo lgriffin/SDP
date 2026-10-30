@@ -86,6 +86,12 @@ DATALINK_ADAPTERS = (
     "src/sdp/adapters/archives/gaia_datalink.py",
 )
 DATALINK_TESTS = ("tests/products", "tests/archives")
+#: The WISE and NEOWISE light-curve adapters (INT-023), on the same suites.
+WISE_ADAPTERS = (
+    "src/sdp/adapters/wise.py",
+    "src/sdp/adapters/archives/irsa_wise.py",
+    "src/sdp/adapters/products/wise.py",
+)
 
 #: Every suite that drives the kernel. A mutant no selected test reaches counts against the score, so a
 #: kernel target selects every suite that exercises its modules: on v0.1.0 the science target ran only
@@ -141,6 +147,7 @@ TARGETS = {
         Target("sdp-kernel-planning", "sdp-kernel", PLANNING, KERNEL_TESTS),
         Target("sdp-kernel-ports", "sdp-kernel", ("src/sdp/kernel/ports/*",), KERNEL_TESTS),
         Target("sdp-adapters-datalink", "sdp-adapters", DATALINK_ADAPTERS, DATALINK_TESTS),
+        Target("sdp-adapters-wise", "sdp-adapters", WISE_ADAPTERS, DATALINK_TESTS),
         *(
             Target(f"sdp-relativity-{i}", "sdp-relativity", modules("sdp_relativity", group), ("tests/relativity",))
             for i, group in enumerate(RELATIVITY_SHARDS, 1)

@@ -329,8 +329,8 @@ def test_propagation_lands_at_the_target_epoch_and_carries_the_correlation() -> 
     assert p.covariance.rho == pytest.approx(0.5 * 0.03 * 0.04 / (s_ra * s_dec))
 
 
-@pytest.mark.req("INT-009")
-def test_a_blend_option_sits_at_the_members_mean_with_their_mean_variance() -> None:
+@pytest.mark.req("INT-009", "INT-023")
+def test_a_blend_option_sits_at_the_members_mean_widened_by_the_unknown_flux_split() -> None:
     dec0 = 60.0
     east = 2 * ARCSEC / math.cos(math.radians(dec0))
     a = anchor("a", 10.0, dec0)
@@ -342,8 +342,27 @@ def test_a_blend_option_sits_at_the_members_mean_with_their_mean_variance() -> N
     assert blend.members == ("a", "b") and blend.is_blend and blend.position.epoch_jyear == 2016.0
     assert blend.position.ra_deg == pytest.approx(10.0 + east / 2, abs=1e-4 * ARCSEC)
     assert blend.position.dec_deg == pytest.approx(dec0 + ARCSEC, abs=1e-4 * ARCSEC)
-    assert blend.position.covariance.sigma_ra_arcsec == pytest.approx(math.sqrt((0.03**2 + 0.05**2) / 2))
-    assert blend.position.covariance.sigma_dec_arcsec == pytest.approx(math.sqrt((0.04**2 + 0.06**2) / 2))
+    # the members sit 1 arcsec east and north of their mean either way: a scatter of 1 per axis, over n + 1 = 3
+    s_ra, s_dec = math.sqrt((0.03**2 + 0.05**2) / 2 + 1 / 3), math.sqrt((0.04**2 + 0.06**2) / 2 + 1 / 3)
+    covariance = blend.position.covariance
+    assert covariance.sigma_ra_arcsec == pytest.approx(s_ra, rel=1e-4)
+    assert covariance.sigma_dec_arcsec == pytest.approx(s_dec, rel=1e-4)
+    assert covariance.rho == pytest.approx((1 / 3) / (s_ra * s_dec), rel=1e-4), (
+        "the split runs along the line joining them"
+    )
+
+
+@pytest.mark.req("INT-023")
+def test_three_blended_members_spread_the_centroid_by_their_scatter_over_four() -> None:
+    a, b, c = anchor("a", 10.0, 0.0), anchor("b", 10.0 + 3 * ARCSEC, 0.0), anchor("c", 10.0, 3 * ARCSEC)
+    coarse = detection("w", 10.0 + ARCSEC, ARCSEC, resolution_arcsec=6.0)
+    by_id = {o.record.record_id: o.options for o in candidate_options([coarse, a, b, c], association_policy())}
+    (blend,) = by_id["w"]
+    # offsets from the mean (1, 1): (-1, -1), (2, -1), (-1, 2); scatter sums 6, 6 and -3, over n (n + 1) = 12
+    s = math.sqrt(0.03**2 + 0.5)
+    assert blend.position.covariance.sigma_ra_arcsec == pytest.approx(s, rel=1e-6)
+    assert blend.position.covariance.sigma_dec_arcsec == pytest.approx(math.sqrt(0.04**2 + 0.5), rel=1e-6)
+    assert blend.position.covariance.rho == pytest.approx(-0.25 / (s * math.sqrt(0.04**2 + 0.5)), rel=1e-5)
 
 
 @pytest.mark.req("INT-009")

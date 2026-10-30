@@ -127,6 +127,11 @@ class Variability(FieldTest):
 
     χ² of the light curve about its weighted mean (dof n−1) decides; the Lomb–Scargle peak
     (astropy.timeseries) is reported alongside, with its false-alarm probability.
+
+    ``error_scale`` multiplies every error bar before the test, for an archive whose quoted errors
+    are known to be too small. ``"field"`` measures it from the field itself: the square root of the
+    median reduced χ² of every light curve tested, when there are at least ``MIN_FIELD_CURVES`` (and
+    never below 1), so a star is variable only against the scatter its neighbours show (INT-023).
     """
 
     name = "variability"
@@ -151,12 +156,14 @@ class Variability(FieldTest):
 
     def evaluate(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> list[Scored]:
         out = []
-        for key, (t, mag, err) in zip(features.keys, features.arrays["curves"], strict=True):
-            w = 1 / err**2
-            mean = float(np.sum(w * mag) / np.sum(w))
-            chi2 = float(np.sum(((mag - mean) / err) ** 2))
+        scale = error_scale(features.arrays["curves"], thresholds.get("error_scale", 1.0))
+        for key, (t, mag, raw_err) in zip(features.keys, features.arrays["curves"], strict=True):
+            err = raw_err * scale
+            chi2 = _chi2(mag, err)
             dof = len(mag) - 1
             details: dict[str, Any] = {"points": len(mag), "baseline_days": float(t[-1] - t[0]), "dof": dof}
+            if scale != 1.0:
+                details["error_scale"] = scale
             if len(mag) >= 5 and t[-1] > t[0]:
                 ls = LombScargle(t, mag, err)
                 frequency, power = ls.autopower(samples_per_peak=5, nyquist_factor=2, maximum_frequency=None)
@@ -177,9 +184,38 @@ class Variability(FieldTest):
         return out
 
     def null_features(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> Features:
+        # a constant star with the noise the real field shows: its errors scaled as the test scales them
+        scale = error_scale(features.arrays["curves"], thresholds.get("error_scale", 1.0))
         curves = []
         for t, mag, err in features.arrays["curves"]:
             w = 1 / err**2
             mean = float(np.sum(w * mag) / np.sum(w))
-            curves.append((t, mean + rng.normal(0.0, err), err))
+            curves.append((t, mean + rng.normal(0.0, err * scale), err))
         return Features(features.keys, {"curves": curves})
+
+
+#: The fewest light curves a field needs before its median scatter calibrates the error bars.
+MIN_FIELD_CURVES = 3
+
+
+def _chi2(mag: np.ndarray, err: np.ndarray) -> float:
+    w = 1 / err**2
+    mean = float(np.sum(w * mag) / np.sum(w))
+    return float(np.sum(((mag - mean) / err) ** 2))
+
+
+def error_scale(curves: Sequence[tuple[np.ndarray, np.ndarray, np.ndarray]], setting: Any) -> float:
+    """The factor every error bar is multiplied by: a number as given, or ``"field"``, the square root
+    of the median reduced χ² over the field's light curves (1 with too few curves or less scatter)."""
+    if setting != "field":
+        try:
+            scale = float(setting)
+        except (TypeError, ValueError):
+            scale = math.nan
+        if not (math.isfinite(scale) and scale > 0):
+            raise ValueError(f"error_scale must be positive or 'field', got {setting!r}")
+        return scale
+    reduced = [_chi2(mag, err) / (len(mag) - 1) for _, mag, err in curves if len(mag) > 1]
+    if len(reduced) < MIN_FIELD_CURVES:
+        return 1.0
+    return max(1.0, math.sqrt(float(np.median(reduced))))

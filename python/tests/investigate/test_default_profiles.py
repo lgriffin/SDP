@@ -50,13 +50,14 @@ from sdp_investigate.astrometry import AstrometricCoherence
 pytestmark = pytest.mark.tier("T4")
 
 PROFILES = sorted((Path(__file__).resolve().parents[3] / "profiles").glob("*.yaml"))
-OBSERVATION_ARCHIVES = {"mast", "dasch", "gaia-datalink"}
+OBSERVATION_ARCHIVES = {"mast", "dasch", "gaia-datalink", "irsa-wise"}
 """The ObservationArchiveGateways the production composition root wires (bootstrap.observation_gateways)."""
 SYNTHETIC = {
     "gaia": "synthetic-gaia",
     "2mass": "synthetic-2mass",
     "dasch": "fake-plates",
     "gaia-datalink": "fake-plates",
+    "irsa-wise": "fake-plates",
     "mast": MAST,
 }
 SYNTHETIC_RELEASES = {"2mass:psc": "twomass:psc"}
@@ -146,6 +147,9 @@ def on_synthetic_world(profile: TestProfile) -> TestProfile:
             columns=("source_key", "ra_deg", "dec_deg", "j_mag", "k_mag"),
         )
         if a.role is ArchiveRole.CATALOGUE
+        # the fake plate archive serves every light curve under its own mission name
+        else replace(a, source_id="fake-plates", missions=())
+        if SYNTHETIC.get(a.source_id) == "fake-plates"
         else replace(a, source_id=SYNTHETIC.get(a.source_id, a.source_id))
         for a in profile.archives
     )

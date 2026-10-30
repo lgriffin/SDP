@@ -11,6 +11,7 @@ from sdp.adapters.archives.registration import (
     catalogue_descriptor,
     describe,
     gaia_datalink_descriptor,
+    irsa_wise_descriptor,
     register_defaults,
 )
 from sdp.adapters.archives.tap import load_sources
@@ -44,7 +45,7 @@ def test_register_defaults_registers_every_packaged_catalogue() -> None:
     registered = register_defaults(
         registry, lambda name: pytest.fail(f"no transport for {name}"), mast=False, today=lambda: TODAY
     )
-    expected = {*load_sources(), "gaia-datalink"}
+    expected = {*load_sources(), "gaia-datalink", "irsa-wise"}
     assert {d.source_id for d in registered} == expected == {d.source_id for d in registry.all()}
 
 
@@ -69,7 +70,7 @@ def test_the_registered_archives_are_listed_and_registered_again_for_the_api() -
     )
     assert archives.registered() == []
     registered = archives.register()
-    assert [d["source_id"] for d in archives.registered()] == sorted({*load_sources(), "gaia-datalink"})
+    assert [d["source_id"] for d in archives.registered()] == sorted({*load_sources(), "gaia-datalink", "irsa-wise"})
     gaia = next(d for d in registered if d["source_id"] == "gaia")
     assert gaia == {
         "source_id": "gaia",
@@ -81,3 +82,25 @@ def test_the_registered_archives_are_listed_and_registered_again_for_the_api() -
         "admitted_for": [],
     }
     assert describe(catalogue_descriptor(load_sources()["gaia"], TODAY))["verified_on"] == "2026-10-29"
+
+
+@pytest.mark.req("INT-023")
+def test_wise_light_curves_are_described_and_matched_as_time_series() -> None:
+    wise = irsa_wise_descriptor(TODAY)
+    assert (wise.source_id, wise.origin, wise.verified_on) == ("irsa-wise", "hand-written", TODAY)
+    assert wise.title == "WISE and NEOWISE per-exposure light curves (IRSA)"
+    assert wise.publisher == "NASA/IPAC Infrared Science Archive"
+    assert wise.product_types == {ProductType.TIMESERIES} and wise.instruments == ("WISE",)
+    assert [(p.standard, p.version, p.base_url) for p in wise.protocols] == [
+        ("TAP", "1.1", "https://irsa.ipac.caltech.edu/TAP")
+    ]
+    assert wise.operations == {Operation.CONE, Operation.DOWNLOAD} and wise.calibration_levels == {2}
+    assert (wise.coverage.t_min_mjd, wise.coverage.t_max_mjd) == (55203.0, 60523.0)
+    assert (wise.coverage.em_min_m, wise.coverage.em_max_m) == (2.8e-6, 5.3e-6) and wise.coverage.all_sky
+    assert (wise.limits.max_rows, wise.limits.requests_per_second) == (2000, 1.0)
+    assert wise.rights.citation.startswith("Wright et al. 2010") and "NEOWISE" in wise.rights.acknowledgement
+    assert wise.rights.licence.startswith("NASA/IPAC Infrared Science Archive")
+    assert wise.adapter is not None and (wise.adapter.name, wise.adapter.version) == ("irsa-wise", "1.0.0")
+    assert not wise.adapter.conformance, "admission comes only from records"
+    need = EvidenceRequirement("variability:product:lightcurve", "variability", frozenset({ProductType.TIMESERIES}))
+    assert match_requirement(wise, Cone(56.53, 23.35, 0.01), need).status is MatchStatus.PARTIAL

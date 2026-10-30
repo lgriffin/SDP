@@ -187,3 +187,11 @@ requirements:
     tiers: [T3, T4, T5]
     status: approved
     traces: []
+  - id: INT-023
+    pattern: event
+    text: "When a WISE or NEOWISE light curve is fetched from IRSA, the light-curve dialect shall curate its clean W1 exposures into the canonical lightcurve and offer each exposure as an association record at its own epoch with WISE's 6.1-arcsecond resolution."
+    rationale: "Time-domain ingestion beyond Gaia (Leigh, 2026-10-29): NEOWISE revisits each star for about a day every six months from 2013 to 2024, a cadence, angular resolution and epoch regime unlike Gaia's or JWST's. A light curve is one cone query on IRSA's per-exposure table (neowiser_p1bs_psd or allwise_p3as_mep) around an AllWISE source, enveloped by the same validator as every other product, with the quality columns the curation reads listed as quality extensions. Curation keeps exposures of a good frame at full image quality, clear of the SAA and the Moon, unblended, and not flagged as an artefact. A WISE beam often holds two Gaia stars; the association service offers them as one blend, and since the flux split in W1 is unknown, the blend's expected position is widened by where between its members the light can fall."
+    verification: test
+    tiers: [T1, T3, T4, T5]
+    status: approved
+    traces: []
