@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -208,6 +209,28 @@ def score(stats: dict[str, int]) -> float:
     return round(100.0 * detected / reached, 2)
 
 
+#: A test module that imports a helper from another suite, as ``from tests.local.synthetic import ...``.
+SUITE_IMPORT = re.compile(r"^\s*(?:from|import)\s+tests\.(\w+)", re.MULTILINE)
+
+
+def copy_imported_suites(tests_root: Path, work: Path) -> None:
+    """Copy the suites the selected tests import from, without selecting them.
+
+    A kernel suite that imports a helper from an unselected suite (tests/investigate from tests/local)
+    failed every kernel job at collection, so imported suites follow the tests that need them.
+    """
+    while missing := {
+        suite
+        for module in (work / "tests").rglob("*.py")
+        for suite in SUITE_IMPORT.findall(module.read_text())
+        if not (work / "tests" / suite).exists() and (tests_root / "tests" / suite).is_dir()
+    }:
+        for suite in sorted(missing):
+            shutil.copytree(
+                tests_root / "tests" / suite, work / "tests" / suite, ignore=shutil.ignore_patterns("__pycache__")
+            )
+
+
 def run(target: Target, children: int, keep: Path | None = None) -> tuple[float, dict[str, int]]:
     with tempfile.TemporaryDirectory(prefix=f"mutmut-{target.name}-") as scratch:
         # --keep leaves the run behind, so `mutmut results` and `mutmut show <mutant>` can be read there
@@ -227,6 +250,8 @@ def run(target: Target, children: int, keep: Path | None = None) -> tuple[float,
         tests_root = root if target.root else ROOT
         for path in (*target.tests, *(() if target.root else DATA)):
             shutil.copytree(tests_root / path, work / path, ignore=shutil.ignore_patterns("__pycache__"))
+        if not target.root:
+            copy_imported_suites(tests_root, work)
         shutil.copy2(ROOT / "tests" / "conftest.py", work / "tests" / "conftest.py")
         (work / "pytest.ini").write_text(PYTEST_INI)
         (work / "setup.cfg").write_text(setup_cfg(target))
