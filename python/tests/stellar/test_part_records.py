@@ -337,8 +337,10 @@ def _scores(policy: RankingPolicy, results: list[TestResult]) -> dict[str, float
 def test_a_group_scores_zero_without_a_significant_structure_test() -> None:
     policy = RankingPolicy("stellar", "1.0.0", threshold=0.0, alpha=0.05)
     group = Subject(structure_id="g", members=("a", "b"), membership=(1.0, 1.0))
+    above_alpha = _scores(policy, [_result(group, 0.0500001, stability=1.0, cmd_coherence=4.0)])
+    assert above_alpha == {group.key: 0.0}
     at_alpha = _scores(policy, [_result(group, 0.05, stability=1.0, cmd_coherence=4.0)])
-    assert at_alpha == {group.key: 0.0}
+    assert at_alpha[group.key] > 0.0, "p == alpha is significant (p <= alpha keeps the declared size)"
     untested = _scores(policy, [_result(group, None, stability=1.0)])
     assert untested == {group.key: 0.0}
     other = _scores(policy, [replace(_result(group, 0.001, stability=1.0), test_name="parallax-consistency")])

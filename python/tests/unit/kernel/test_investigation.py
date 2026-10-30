@@ -39,6 +39,7 @@ from sdp.kernel.domain.investigation import (
     TestSelection,
     parse_region,
     rank_by_significance,
+    significant,
 )
 from sdp.kernel.domain.predeclaration import Predeclaration
 from sdp.testing.investigate import synthetic_profile
@@ -352,3 +353,12 @@ def test_a_cutout_side_round_trips_and_leaves_older_profiles_hashing_as_before()
             replace(whole, min_calibration_level=level)
         with pytest.raises(InvariantViolation, match="calibration level"):
             ArchiveSelection.from_document({**whole.to_document(), "min_calibration_level": level})
+
+
+def test_a_p_value_at_alpha_is_significant_and_one_above_is_not() -> None:
+    assert significant(0.01, 0.01) and significant((1 + 1) / (1 + 199), 0.01)
+    assert not significant((1 + 2) / (1 + 199), 0.01) and not significant(None, 0.01)
+    ranked = rank_by_significance(
+        [result("a", 0.01), result("b", 0.0100001)], RankingPolicy("significance", "1.0.0", 0.5, alpha=0.01)
+    )
+    assert {c.subject.key: c.score for c in ranked} == {"a": 1.0, "b": 0.0}

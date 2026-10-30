@@ -266,3 +266,12 @@ def test_a_group_scores_on_the_terms_its_test_could_assess() -> None:
     group = Subject(structure_id="g1", members=("a", "b"), membership=(1.0, 1.0))
     alone = StellarCandidateRanker().rank([_result(group, 0.01, stability=None, cmd_coherence=None)], policy)
     assert alone[0].score == pytest.approx(1.0)  # membership alone: a certain group clears an ordinary threshold
+
+
+def test_a_group_whose_p_value_equals_alpha_is_significant() -> None:
+    # Praesepe in #66: one of 199 shuffles matched it, p = (1 + 1) / (1 + 199) = 0.01 = alpha
+    policy = RankingPolicy("stellar", "1.0.0", threshold=0.5, alpha=0.01)
+    group = Subject(structure_id="praesepe", members=("a", "b"), membership=(1.0, 1.0))
+    on_alpha = StellarCandidateRanker().rank([_result(group, (1 + 1) / (1 + 199), stability=1.0)], policy)
+    above = StellarCandidateRanker().rank([_result(group, (1 + 2) / (1 + 199), stability=1.0)], policy)
+    assert on_alpha[0].score > 0.5 and above[0].score == 0.0
