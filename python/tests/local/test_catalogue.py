@@ -173,8 +173,10 @@ def test_the_planner_plans_cutouts_of_the_frames_over_a_field(tmp_path: Path) ->
     assert [i.operation for i in local] == [Operation.CUTOUT]
     assert local[0].target.startswith("M31/M31_stacked.fits")
     assert here.gaps == ()
-    image_match = next(m for m in here.matches if m.source_id == "local:astro" and m.status is MatchStatus.SATISFIED)
-    assert image_match is not None
+    # uncertified frames are planned as exploratory evidence: every field passes but the adapter's admission
+    image_match = next(m for m in here.matches if m.source_id == "local:astro" and m.status is MatchStatus.PARTIAL)
+    open_fields = [r.field for r in image_match.reasons if r.outcome is not MatchStatus.SATISFIED]
+    assert open_fields == ["adapter.conformance"]
     # a field none of the frames reaches: the local source does not cover it
     away = plan((world.centre[0] + 20.0, world.centre[1]))
     assert all(m.status is not MatchStatus.SATISFIED for m in away.matches if m.source_id == "local:astro")

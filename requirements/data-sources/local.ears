@@ -237,3 +237,24 @@ requirements:
     traces:
       - "python/tests.local.test_lightcurves::test_the_gateway_offers_each_measured_star_as_a_light_curve"
       - "python/tests.local.test_lightcurves::test_the_variability_profile_flags_only_the_variable"
+  - id: LOC-023
+    pattern: event
+    text: "When the person certifies a local source, the system shall run contract, operational, semantic and scientific conformance on its frames for images and for any light curves, and write an adapter compatibility record for each product type."
+    rationale: "INT-002 and ADR-021 admit an adapter per product type only after four kinds of conformance. The frames live only on the person's drive, so the four kinds run there: the gateway's contract, the bytes served being the bytes solved, the frames read against values the person wrote down from their own log and verified, and the solutions checked against Gaia and against astropy (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_certify::test_a_verified_reference_admits_images_and_light_curves"
+      - "python/tests.local.test_certify::test_an_unverified_or_mistaken_reference_admits_nothing"
+      - "python/tests.local.test_certify::test_the_certify_command"
+  - id: LOC-024
+    pattern: unwanted
+    text: "If a local source has no passing compatibility record for a product type whose reference frames are unchanged, then the system shall leave that type unadmitted in the source's descriptor."
+    rationale: "The descriptor claimed images as admitted with no record behind it. Read from the records instead, an uncertified source is still planned, as exploratory evidence, and a reference frame that changes or is graded poor withdraws the admission (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_certify::test_a_changed_reference_frame_withdraws_the_admission"
+      - "python/tests.local.test_certify::test_without_a_record_the_frames_are_planned_as_exploratory_evidence"
