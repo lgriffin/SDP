@@ -31,7 +31,7 @@ from sdp.kernel.science.association import candidate_options, offset_arcsec, pro
 from sdp.kernel.science.investigation import product_bytes
 from sdp.kernel.science.plan import TaskContext
 from sdp_investigate.base import Features, FieldTest, Scored, catalogue_row, finite
-from sdp_investigate.formats import LIGHTCURVE, parse_exposures, parse_lightcurve
+from sdp_investigate.formats import LIGHTCURVE, parse_exposures
 from sdp_investigate.imaging import ANCHORS, MISSING_STATISTIC, anchor
 
 J2000_MJD = 51544.5
@@ -55,7 +55,8 @@ def chosen_option(graph: AssociationGraph, record_id: str) -> tuple[str, ...]:
 
 def usable(ra: float, dec: float, ra_err: float, dec_err: float, beam: float) -> bool:
     """Whether an exposure's position can be an association record: on the sky, with positive
-    sigmas and beam. Anything else is counted as an exposure without a usable position."""
+    sigmas and beam (NaN fails every comparison). Anything else is counted as an exposure without a
+    usable position."""
     return 0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0 and ra_err > 0 and dec_err > 0 and beam > 0
 
 
@@ -64,19 +65,17 @@ def exposure_records(bundle: EvidenceBundle, context: TaskContext) -> tuple[list
     epochs of those light curves have no usable position. A product listed twice is read once."""
     out: list[Detection] = []
     unusable = 0
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     for p in bundle.products:
-        pid = p.product.product_id
-        if p.product_type != LIGHTCURVE or pid in seen:
+        ref = (p.product.archive, p.product.product_id)
+        if p.product_type != LIGHTCURVE or ref in seen:
             continue
-        data = product_bytes(context, p.artifact_id.value)
-        exposures = parse_exposures(data)
+        exposures = parse_exposures(product_bytes(context, p.artifact_id.value))
         if exposures is None:
             continue
-        seen.add(pid)
-        unusable += len(parse_lightcurve(data).mjd) - len(exposures.mjd)
+        seen.add(ref)
         for i in range(len(exposures.mjd)):
-            ra, dec = float(exposures.ra_deg[i]) % 360.0, float(exposures.dec_deg[i])
+            ra, dec = float(exposures.ra_deg[i]), float(exposures.dec_deg[i])
             sigmas = (float(exposures.ra_err_arcsec[i]), float(exposures.dec_err_arcsec[i]))
             beam = float(exposures.beam_arcsec[i])
             if not usable(ra, dec, *sigmas, beam):
@@ -84,15 +83,15 @@ def exposure_records(bundle: EvidenceBundle, context: TaskContext) -> tuple[list
                 continue
             out.append(
                 Detection(
-                    f"{pid}#{i:04d}",
-                    pid,
+                    f"{ref[0]}/{ref[1]}#{i:04d}",
+                    ref[1],
                     LIGHTCURVE,
                     ra,
                     dec,
                     PositionCovariance(*sigmas),
                     2000.0 + (float(exposures.mjd[i]) - J2000_MJD) / 365.25,
                     beam,
-                    p.product.archive,
+                    ref[0],
                 )
             )
     return out, unusable
