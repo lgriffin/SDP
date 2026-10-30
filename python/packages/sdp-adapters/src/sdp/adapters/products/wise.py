@@ -2,9 +2,9 @@
 
 Fills the envelope for a per-exposure light curve IRSA served as a VOTable, from its columns, UCDs
 and the WISE Explanatory Supplements, and curates it into the canonical ``lightcurve`` the
-variability test reads: W1 (3.4 um) magnitudes of the clean exposures. ``w1_detections`` gives the
-same exposures as association records, each at its own epoch and with WISE's 6.1-arcsec beam, for
-the association service to reconcile with Gaia.
+variability test reads: W1 (3.4 um) magnitudes of the clean exposures, each with where WISE saw the
+source and its 6.1-arcsec beam, which the exposure-counterpart test reconciles with Gaia (INT-024).
+``w1_detections`` gives the same exposures as association records, each at its own epoch.
 """
 
 from __future__ import annotations
@@ -85,40 +85,54 @@ def _w1(table: Table, wise: WiseTable) -> tuple[np.ndarray, np.ndarray, np.ndarr
     return rows, mjd[rows], mag[rows], err[rows]
 
 
+def _positions(
+    table: Table, wise: WiseTable, rows: np.ndarray, err: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Where each exposure saw the source and its sigmas in arcsec: the table's own (NEOWISE's
+    ``sigra``, ``sigdec``), or for an exposure without them the centroid precision of a Gaussian beam,
+    FWHM / (2.355 x signal-to-noise)."""
+    ra, dec = numbers(table, "ra")[rows], numbers(table, "dec")[rows]
+    beam = W1_RESOLUTION_ARCSEC / FWHM_PER_SIGMA * err / MAG_PER_RELATIVE_FLUX
+    sig_ra, sig_dec = (numbers(table, c)[rows] for c in wise.position_errors)
+    own = (sig_ra > 0) & (sig_dec > 0)
+    return ra, dec, np.where(own, sig_ra, beam), np.where(own, sig_dec, beam)
+
+
 def w1_lightcurve(data: bytes, wise: WiseTable) -> bytes:
-    """The canonical W1 light curve of the clean exposures."""
-    _, mjd, mag, err = _w1(parse_table(data), wise)
-    return products.lightcurve_csv(mjd, mag, err)
+    """The canonical W1 light curve of the clean exposures, with where each one saw the source when
+    the table measures that (NEOWISE; AllWISE's repeats the source's coadded position)."""
+    table = parse_table(data)
+    rows, mjd, mag, err = _w1(table, wise)
+    if not wise.position_errors:
+        return products.lightcurve_csv(mjd, mag, err)
+    ra, dec, sig_ra, sig_dec = _positions(table, wise, rows, err)
+    return products.lightcurve_csv(mjd, mag, err, (ra, dec, sig_ra, sig_dec, np.full(len(rows), W1_RESOLUTION_ARCSEC)))
 
 
 def w1_detections(data: bytes, product_id: str) -> tuple[Detection, ...]:
     """Each clean W1 exposure as an association record at its own epoch, with WISE's beam as its
-    resolution. Its positional sigmas are the table's own where it has them (NEOWISE's ``sigra``,
-    ``sigdec``), else the centroid precision of a Gaussian beam: FWHM / (2.355 x signal-to-noise)."""
+    resolution and the sigmas ``_positions`` gives."""
     _, _, _, wise = parse_product_id(product_id)
+    if not wise.position_errors:
+        raise ValueError(f"{wise.table} repeats the source's coadded position; its exposures have none of their own")
     table = parse_table(data)
     rows, mjd, mag, err = _w1(table, wise)
-    ra, dec = numbers(table, "ra")[rows], numbers(table, "dec")[rows]
-    beam = W1_RESOLUTION_ARCSEC / FWHM_PER_SIGMA * err / MAG_PER_RELATIVE_FLUX
-    sig_ra, sig_dec = (numbers(table, c)[rows] for c in wise.position_errors) if wise.position_errors else (beam, beam)
-    out = []
-    for i, row in enumerate(rows):
-        sigmas = (sig_ra[i], sig_dec[i]) if sig_ra[i] > 0 and sig_dec[i] > 0 else (beam[i], beam[i])
-        out.append(
-            Detection(
-                f"{product_id}#{row}",
-                product_id,
-                "TABLE0",
-                float(ra[i]),
-                float(dec[i]),
-                PositionCovariance(float(sigmas[0]), float(sigmas[1])),
-                2000.0 + (float(mjd[i]) - J2000_MJD) / 365.25,
-                W1_RESOLUTION_ARCSEC,
-                "WISE",
-                (Photometry("W1", float(mag[i]), float(err[i])),),
-            )
+    ra, dec, sig_ra, sig_dec = _positions(table, wise, rows, err)
+    return tuple(
+        Detection(
+            f"{product_id}#{row}",
+            product_id,
+            "TABLE0",
+            float(ra[i]),
+            float(dec[i]),
+            PositionCovariance(float(sig_ra[i]), float(sig_dec[i])),
+            2000.0 + (float(mjd[i]) - J2000_MJD) / 365.25,
+            W1_RESOLUTION_ARCSEC,
+            "WISE",
+            (Photometry("W1", float(mag[i]), float(err[i])),),
         )
-    return tuple(out)
+        for i, row in enumerate(rows)
+    )
 
 
 @dataclass(frozen=True)
@@ -128,7 +142,7 @@ class WiseLightCurveDialect:
     no time system of its own."""
 
     dialect_id: str = "irsa-wise-lightcurve"
-    dialect_version: str = "1.0.0"
+    dialect_version: str = "1.1.0"
 
     def curate(self, product_type: str, raw: FetchedProduct) -> CuratedProduct | None:
         if product_type != products.LIGHTCURVE:

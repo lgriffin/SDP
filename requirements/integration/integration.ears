@@ -189,9 +189,17 @@ requirements:
     traces: []
   - id: INT-023
     pattern: event
-    text: "When a WISE or NEOWISE light curve is fetched from IRSA, the light-curve dialect shall curate its clean W1 exposures into the canonical lightcurve and offer each exposure as an association record at its own epoch with WISE's 6.1-arcsecond resolution."
+    text: "When a WISE or NEOWISE light curve is fetched from IRSA, the light-curve dialect shall curate its clean W1 exposures into the canonical lightcurve and, for a table that measures a position at each exposure (NEOWISE), offer each exposure as an association record at its own epoch with WISE's 6.1-arcsecond resolution."
     rationale: "Time-domain ingestion beyond Gaia (Leigh, 2026-10-29): NEOWISE revisits each star for about a day every six months from 2013 to 2024, a cadence, angular resolution and epoch regime unlike Gaia's or JWST's. A light curve is one cone query on IRSA's per-exposure table (neowiser_p1bs_psd or allwise_p3as_mep) around an AllWISE source, enveloped by the same validator as every other product, with the quality columns the curation reads listed as quality extensions. Curation keeps exposures of a good frame at full image quality, clear of the SAA and the Moon, unblended, and not flagged as an artefact. A WISE beam often holds two Gaia stars; the association service offers them as one blend, and since the flux split in W1 is unknown, the blend's expected position is widened by where between its members the light can fall."
     verification: test
     tiers: [T1, T3, T4, T5]
+    status: approved
+    traces: []
+  - id: INT-024
+    pattern: event
+    text: "When an investigation profile reads light curves whose exposures carry positions, the exposure-counterpart test shall associate every exposure, at its own epoch and with its instrument's resolution, with the Gaia stars near the object by both association methods, and flag a star whose matched exposures sit, on average, away from its expected position, or which fewer than the profile's share of exposures match."
+    rationale: "Leigh, 2026-10-30: the WISE exposures must reach association in real runs, not only in tests. The curated light curve carries each exposure's position, sigmas and beam (ra_deg, dec_deg, ra_err_arcsec, dec_err_arcsec, beam_arcsec), because a test reads only curated products. An exposure is matched when its most probable option under the first method is the object's star alone or a blend holding it; the offset of the matched exposures' mean is tested with Hotelling's T-squared as F(2, n - 2), its covariance being the exposures' own scatter over n (so an archive's too-small quoted errors cannot fake an offset), plus the expected position's covariance (wide for a blend, whose flux split is unknown, D45), plus the archive's systematic error against Gaia (systematic_arcsec), which averaging cannot remove. AllWISE's per-exposure table repeats the source's coadded position at every exposure (checked live 2026-10-30), so its light curves carry no positions and the test leaves them out."
+    verification: test
+    tiers: [T1, T3]
     status: approved
     traces: []

@@ -53,6 +53,12 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 
 - **variability on WISE light curves** (wise-light-curves). The same test again, on the infrared light curves of NASA's WISE satellite: about a day of exposures every six months from 2013 to 2024 (NEOWISE). The 2010 survey (AllWISE) can be fetched too, but the test reads one light curve a star, so the profile asks only for NEOWISE. SDP uses W1, WISE's 3.4-micron band, and drops exposures with a poor frame, near the South Atlantic Anomaly or the Moon, blended, or flagged as an artefact. NEOWISE's quoted error bars are too small: in the Pleiades every star, steady or not, scattered 1.3 to 1.8 times more than its errors allow. `error_scale: field` therefore scales every error bar by the square root of the field's median reduced χ², so a star is flagged only when it scatters more than its neighbours. That needs at least three light curves in the field; with fewer, the errors are used as quoted. WISE's beam is about 6 arcseconds wide, so two stars closer than that share a light curve. A fast-moving star is followed along its path, so its later exposures are not lost. `min_points: 20` keeps out light curves with only a visit or two.
 
+- **exposure-counterpart: "Is what WISE saw at each visit the Gaia star?"** (wise-light-curves). Each NEOWISE exposure also says where it saw the source. The test moves every Gaia star near the object to the date of each exposure and lets both association methods decide what the exposure saw: the star alone, the star blended with a neighbour inside WISE's beam, another star, or nothing Gaia knows. The exposures that saw the star are averaged, and the star is flagged when that average sits away from where Gaia puts it, or when fewer than half the exposures saw it (`min_matched_fraction: 0.5`, the default). The spread of the exposures themselves sets how precise the average is, so NEOWISE's too-small error bars do not matter here. For a blend, the expected position allows for any split of the light between the two stars. Only stars the profile examines (G < 17 here) count as neighbours, so a fainter star inside the beam shows up as a small offset rather than as a blend.
+  - `search_radius_arcsec: 6.1` is WISE's W1 beam: an exposure further than that from a star did not see it.
+  - `systematic_arcsec: 0.05` is how far NEOWISE's positions sit from Gaia's on average, however many exposures there are. Four Pleiades stars sat 0.02 to 0.045 arcseconds off (checked live on 2026-10-30), so without this every star came out significant.
+  - `min_exposures: 20` keeps out light curves with only a visit or two.
+  - AllWISE's light curves (2010) have no per-exposure positions: IRSA repeats the source's position on every exposure, so the test leaves them out.
+
 - **image-counterpart: "Is each Gaia star on the JWST image where its motion puts it?"** Gaia measured each star around 2016. The test moves every star along its measured motion to the date of the JWST image, then looks for a source on the image at that spot. A star with no source there, or one further away than both telescopes' uncertainties allow, is flagged. Sources are found with photutils, and each pairing is made by two independent methods that must agree.
   - `fwhm_px: 2.0` is how wide a star looks on NIRCam's mosaic grid, in pixels.
   - `nsigma: 5.0` means a source must stand five times above the background noise to count.
@@ -88,7 +94,7 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 
 These rules keep a profile valid:
 - Columns must be ones the archive declares.
-- Tests must be ones SDP has installed: `parallax-consistency`, `cmd-coherence`, `astrometric-coherence`, `photometric-corroboration`, `long-baseline-motion`, `variability` and `image-counterpart`.
+- Tests must be ones SDP has installed: `parallax-consistency`, `cmd-coherence`, `astrometric-coherence`, `photometric-corroboration`, `long-baseline-motion`, `variability`, `image-counterpart` and `exposure-counterpart`.
 - A test that needs plate data must say so under `needs_products`.
 
 `python/tests/investigate/test_default_profiles.py` checks all of this for the profiles in this folder.
