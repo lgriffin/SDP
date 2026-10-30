@@ -15,3 +15,5 @@ Two harness checks read these:
 "Passing" is re-derived from the four results, not read from the record's own `passed` flag.
 
 Both directories are empty until the first adapters are admitted in Stage A (MAST for JWST images), so today both checks pass trivially.
+
+The person's own frames are the exception: their adapter (`local-frames`) runs its four kinds where the frames are, with `sdp local certify`, and its records go in `<data>/compatibility/<source>/`, not here. The source's descriptor claims only the product types those records admit (LOC-023, LOC-024).

@@ -1430,6 +1430,50 @@ def local_lightcurve(
     )
 
 
+@local_app.command("certify")
+def local_certify(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    template: Annotated[
+        bool, typer.Option("--template", help="Write a reference file to fill in, naming a few solved frames")
+    ] = False,
+    reference: Annotated[
+        Path | None, typer.Option(help="The reference file; default <data>/compatibility/<source>/reference.yaml")
+    ] = None,
+) -> None:
+    """Certify the source's frames for the planner: run contract, operational, semantic and scientific
+    conformance on them, for images and (once measured) light curves, and write an adapter compatibility
+    record for each. The semantic check compares SDP's reading of the reference frames with what you
+    wrote down from your own log; start with --template, fill each frame in, check it again in a
+    separate pass, then set status: verified and verified_by. Until a type passes, plans use your frames
+    as exploratory evidence only. Exits 1 when a type is not admitted; the frames are only read."""
+    import yaml
+
+    from sdp.adapters.local.catalogue import Catalogue
+    from sdp.adapters.local.certify import Certification, load_reference, reference_template
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    certification = Certification(source, data)
+    path = reference or certification.reference_path
+    if template:
+        if path.exists():
+            raise DomainError(f"{path} exists already; edit it, or pass --reference to write another")
+        document = reference_template(Catalogue(source, data).build())
+        if not document["frames"]:
+            raise DomainError(f"{name} has no solved frames yet; solve some first with sdp local solve {name}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(document, sort_keys=False), "utf-8")
+        emit({"reference": str(path), "frames": [f["path"] for f in document["frames"]]})
+        return
+    if not path.exists():
+        raise DomainError(f"no reference file at {path}; write one with sdp local certify {name} --template")
+    report = certification.run(load_reference(path))
+    emit({"reference": str(path), **report})
+    if not all(t["admitted"] for t in report["product_types"].values()):
+        raise typer.Exit(1)
+
+
 # --- archives -----------------------------------------------------------------------------------
 
 

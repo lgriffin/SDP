@@ -167,5 +167,34 @@ least three times more than stars of their brightness. The investigate run then 
 same way it tests WISE's light curves, against the scatter its neighbours show. A flag is a lead: check
 that the star is not at the edge of the frames or next to a brighter star.
 
+## Step 8 (optional): certify your frames for the planner
+
+`sdp plan` uses your frames either way. Until they are certified, a plan marks them as exploratory
+evidence, the same as any archive SDP has not yet admitted. Certifying runs the four checks SDP asks of
+every archive's adapter, on your own drive:
+
+```bat
+sdp local certify astro --template
+notepad %SDP_DATA%\compatibility\astro\reference.yaml
+sdp local certify astro
+```
+
+`--template` writes a reference file naming three solved frames, one per target and night where it
+can. For each one, write down its `kind` (light or stack), `target`, `date_obs` (UTC, to the minute),
+and `exposure_s`. Take these from your capture log or session notes, not from SDP's output. `filter`,
+and the `ra_deg`/`dec_deg` you aimed at, are optional. Then go through the file again as a separate
+check. Once every value matches your notes, set `status: verified` and `verified_by: Leigh`. If one of
+the frames is a sub of the target you measured in Step 7, the light curves are certified too.
+
+`sdp local certify` then checks four things. Contract: searches and fetches answer as the planner
+expects. Operational: the bytes served are the bytes that were solved, and nothing outside the folder
+is served. Semantic: SDP reads each frame as you wrote it down. Scientific: each solution fits Gaia
+within the solver's limits, and astropy puts the corners where SDP does. It writes one record per
+product type in `<data>\compatibility\astro\`.
+
+**Success:** `"admitted": true` for `image` (and `timeseries` once you have light curves), and the
+command exits 0. A failed check says what SDP read and what you wrote. If a reference frame later
+changes or is graded poor, its admission is withdrawn until you certify again.
+
 More detail on indexing, solving and the cutouts is in
 [docs/live-data.md](../live-data.md#your-own-frames).

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import math
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path, PurePosixPath
@@ -278,12 +278,18 @@ def sessions(rows: Iterable[dict[str, Any]]) -> list[Cone]:
 
 
 def descriptor(
-    source: LocalSource, rows: list[dict[str, Any]], today: date, light_curves: bool = False
+    source: LocalSource,
+    rows: list[dict[str, Any]],
+    today: date,
+    light_curves: bool = False,
+    admitted: Mapping[str, bool] | None = None,
+    checked_on: date | None = None,
 ) -> SourceCapabilityDescriptor:
     """The solved frames as the planner sees any archive: images of the kinds solved, covering each
     session's cone, between the first and last frame's dates, cut out per product; and time series
     once ``sdp local lightcurve`` has measured some. Only the frames the gateway offers count: dated,
-    and not graded poor."""
+    and not graded poor. The adapter claims only the product types ``sdp local certify`` admitted
+    (``admitted``, INT-002); the others are planned as exploratory evidence."""
     solved = [r for r in rows if r["status"] == SOLVED and r["mjd"] is not None and r["grade"] != POOR]
     types = {ProductType.IMAGE} if solved else set()
     if solved and light_curves:
@@ -307,7 +313,12 @@ def descriptor(
         operations=frozenset({Operation.CONE, Operation.CUTOUT, Operation.DOWNLOAD}),
         cutout_support={"image": "per-product"},
         rights=Rights("own observations", f"Own observations, {source.path} ({source.source_id})"),
-        adapter=AdapterInfo("local-frames", "1.0.0", today, {"image": True, "lightcurve": light_curves}),
+        adapter=AdapterInfo(
+            "local-frames",
+            "1.0.0",
+            checked_on,
+            {t: ok for t, ok in (admitted or {}).items() if t in {p.value for p in types}},
+        ),
     )
 
 
@@ -344,11 +355,14 @@ class LocalDiscovery:
         built = self._built.get(source_id)
         if built is None or now - built[0] > self.fresh_seconds:
             source, data = self.sources[source_id]
+            # a build that calibrated no frame writes a summary with no stars: that is no time series
+            from sdp.adapters.local.certify import admitted, records
             from sdp.adapters.local.lightcurves import stars_files
 
-            # a build that calibrated no frame writes a summary with no stars: that is no time series
             curves = any(json.loads(path.read_text("utf-8"))["all_stars"] for path in stars_files(source, data))
-            built = (now, descriptor(source, Catalogue(source, data).build(), self.today(), curves))
+            rows = Catalogue(source, data).build()
+            checked = max((r.live_smoke_on for r in records(source, data) if r.live_smoke_on), default=None)
+            built = (now, descriptor(source, rows, self.today(), curves, admitted(source, data, rows), checked))
             self._built[source_id] = built
         return built[1]
 
