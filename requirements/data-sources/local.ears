@@ -215,3 +215,25 @@ requirements:
     traces:
       - "python/tests.local.test_catalogue::test_the_solved_frames_are_described_like_any_archive"
       - "python/tests.local.test_catalogue::test_the_planner_plans_cutouts_of_the_frames_over_a_field"
+  - id: LOC-021
+    pattern: event
+    text: "When light curves are built for a local target, the system shall measure each Gaia star on the target's solved subs at its proper-motion position and calibrate every frame against comparison stars of the field."
+    rationale: "Leigh's subs span many nights of the same targets; placing each star from the frame's own solution and fitting each frame's zero point and colour term on steady comparison stars turns those subs into light curves on Gaia's G scale, with haze and airmass taken out (#71)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_lightcurves::test_each_star_gets_a_calibrated_curve_and_the_variable_stands_out"
+      - "python/tests.local.test_lightcurves::test_the_curves_and_the_nightly_means_are_written_beside_the_summary"
+      - "python/tests.local.test_lightcurves::test_the_target_with_the_most_nights_and_its_cone_are_the_defaults"
+      - "python/tests.local.test_lightcurves::test_the_lightcurve_command"
+  - id: LOC-022
+    pattern: event
+    text: "When an investigation asks a local source for light curves, the system shall offer each measured star's curve as a canonical light-curve product within the match radius of the star."
+    rationale: "Offered as products, the person's own curves go through the same variability test as WISE's and DASCH's, so a star is flagged against its neighbours' scatter with the run recorded like any other (#71)."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces:
+      - "python/tests.local.test_lightcurves::test_the_gateway_offers_each_measured_star_as_a_light_curve"
+      - "python/tests.local.test_lightcurves::test_the_variability_profile_flags_only_the_variable"

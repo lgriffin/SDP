@@ -1361,6 +1361,75 @@ def local_export(
     )
 
 
+LIGHTCURVE_GAIA_COLUMNS = ("source_id", "ra", "dec", "pmra", "pmdec", "phot_g_mean_mag", "bp_rp")
+
+
+def _gaia_field(cone: tuple[float, float, float], brightest: float, faintest: float) -> Any:
+    """The Gaia stars of a light-curve field, through the normal acquisition (cached, and read from the
+    local bulk copy when it is complete)."""
+    from sdp.adapters.local.lightcurves import Field
+    from sdp.kernel.application.media import PARQUET, decode_artifact
+    from sdp.kernel.domain.archive import CatalogueQuery, Cone, Filter
+    from sdp.kernel.ports.driving import AcquireDatasetCommand
+
+    runtime = state.runtime()
+    query = CatalogueQuery(
+        "gaia",
+        "gaia:DR3",
+        Cone(*cone),
+        LIGHTCURVE_GAIA_COLUMNS,
+        (Filter("phot_g_mean_mag", ">", brightest), Filter("phot_g_mean_mag", "<", faintest)),
+        row_cap=50_000,
+        chunk_rows=50_000,
+    )
+    result = runtime.kernel.acquire_dataset.execute(AcquireDatasetCommand(query, curate=False))
+    warn_row_caps({"gaia": query.row_cap} if result.reached_row_cap else {})
+    return Field.from_table(decode_artifact(runtime.store.get(result.raw.artifact_id), PARQUET))
+
+
+@local_app.command("lightcurve")
+def local_lightcurve(
+    name: Annotated[str, typer.Argument(help="The source's name")],
+    target: Annotated[
+        str | None, typer.Option(help="The OBJECT or folder whose subs to measure; default the one with most nights")
+    ] = None,
+    brightest: Annotated[float, typer.Option(help="Leave out Gaia stars brighter than this G (they saturate)")] = 9.0,
+    faintest: Annotated[float, typer.Option(help="Leave out Gaia stars fainter than this G")] = 15.0,
+) -> None:
+    """Light curves of the Gaia stars on a target's solved subs: aperture photometry on the green pixels,
+    calibrated frame by frame against the field's steadiest stars. Writes
+    <data>/lightcurves/<source>/<target>.parquet, a per-night table and a summary with the stars that
+    vary more than stars of their brightness. Investigate's my-frames-variability profile then reads
+    them. Rebuilds the catalogue first; the frames are only read."""
+    from sdp.adapters.local.catalogue import Catalogue
+    from sdp.adapters.local.lightcurves import LightCurves, busiest_target, field_cone
+    from sdp.adapters.local.sources import LocalSources, data_dir
+
+    data = data_dir()
+    source = LocalSources(data).get(name)
+    rows = Catalogue(source, data).build()
+    chosen = target or busiest_target(rows)
+    cone = field_cone(rows, chosen) if chosen else None
+    if chosen is None or cone is None:
+        raise DomainError(
+            f"{name} has no solved, dated subs{f' of {chosen}' if chosen else ''} to measure; "
+            f"solve some first with sdp local solve {name} --kind light"
+        )
+    field_ = _gaia_field(cone, brightest, faintest)
+    curves = LightCurves(source, data, chosen)
+    summary = curves.build(rows, field_, progress=lambda p: typer.echo(p, err=True))
+    emit(
+        {
+            "target": chosen,
+            "field": {"ra_deg": cone[0], "dec_deg": cone[1], "radius_deg": cone[2], "gaia_stars": int(field_.g.size)},
+            **{k: v for k, v in summary.items() if k != "all_stars"},
+            "candidates": summary["candidates"][:50],
+            "curves": str(curves.path),
+            "nights": str(curves.nights_path),
+        }
+    )
+
+
 # --- archives -----------------------------------------------------------------------------------
 
 

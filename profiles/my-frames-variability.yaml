@@ -1,0 +1,66 @@
+# My frames, variability: do any stars in your own subs change brightness more than their neighbours?
+#
+# `sdp local lightcurve` measures every Gaia star on a target's solved subs (aperture photometry on the
+# green pixels of the Bayer frame, each frame calibrated against the field's steadiest stars). This
+# profile reads those light curves like any archive's:
+#   variability -> do a star's measurements scatter more than the field's own stars do?
+# It reads the local source called `astro` (D:\astrophotography on Leigh's PC). Before the first run:
+#   sdp local add astro D:\astrophotography --scale 1.65
+#   sdp local index astro
+#   sdp local solve astro --kind light
+#   sdp local quality astro
+#   sdp local lightcurve astro              # the target with the most nights, or --target M31
+# A small telescope's error bars from photon noise alone are too small (scintillation, flat-field and
+# tracking errors add to them), so the test scales them by what the field's own stars show
+# (`error_scale: field`). A star is flagged only when it scatters more than its neighbours.
+# Give a region inside the measured frames, such as M31 "icrs;circle(10.6847,41.2687,0.3)".
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: my-frames-variability
+version: 1.0.0
+description: >-
+  Light curves from your own subs: flags Gaia stars whose brightness changed more than their neighbours'
+  did over the nights you imaged the target. Needs sdp local lightcurve run first. Exploratory: a flag
+  is a lead, never a claim.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}               # well-behaved single stars (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: "<", value: 15.0}   # sdp local lightcurve measures to G 15 by default
+    - {column: phot_g_mean_mag, op: ">", value: 9.0}    # brighter stars saturate a 10-second sub
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: false                       # SIMBAD would cost a request per star; turn on for a small field
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: local:astro
+    role: observations
+    release_label: local:astro
+    columns: []
+    match_radius_arcsec: 2.0           # each curve is measured at the Gaia star's own position
+    missions: [light]                  # the curves come from the raw subs
+    product_types: [lightcurve]
+
+tests:
+  - name: variability
+    version: 1.0.0
+    thresholds: {min_points: 20, error_scale: field}   # 20 subs keeps a star seen on one short night out
+    needs_products: [lightcurve]
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0
+
+null_fields:
+  trials: 5

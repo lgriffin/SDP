@@ -4,7 +4,7 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These seven profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These eight profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
@@ -15,6 +15,7 @@ These seven profiles ship with SDP. You do not need to edit them to get started.
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
 | [my-frames](my-frames.yaml) | You want to check Gaia's stars against your own solved stacks | Gaia and your own frames (`local:astro`) | A minute or two a stack. Add, index and solve your frames first (`sdp local`). |
+| [my-frames-variability](my-frames-variability.yaml) | You want to know which stars changed brightness over the nights you imaged a target | Gaia and the light curves `sdp local lightcurve` measured from your subs | Seconds, once the light curves are built. Solve the subs and run `sdp local lightcurve` first. |
 
 All of them only *suggest* candidates. Every result is labelled EXPLORATORY. A candidate becomes a claim only after a separate, predeclared confirmatory experiment, which you promote in the SDP Command Prompt.
 
@@ -117,3 +118,18 @@ arcseconds a pixel); change them, and the `version`, for another telescope.
 - **`align_wcs: false`.** SDP solved every frame against Gaia, so there is nothing left to align.
 - **`min_sigma_arcsec: 0.5`.** The smallest position uncertainty SDP assumes for a star on your frame. Its
   solution fits Gaia to about an arcsecond, so a smaller value would flag ordinary stars.
+
+### my-frames-variability: light curves from your own subs
+
+The variability test, as wise-light-curves uses it, on the light curves `sdp local lightcurve` measured
+from your solved subs. Each frame is calibrated against the field's steadiest stars, so the curves are on
+Gaia's G scale with haze and airmass taken out.
+
+- **`missions: [light]`, `product_types: [lightcurve]`.** The curves come from the raw subs, one per star.
+- **`match_radius_arcsec: 2`.** Each curve was measured at the Gaia star's own position, so it sits on the star.
+- **`phot_g_mean_mag` between 9 and 15.** What `sdp local lightcurve` measures by default: brighter stars
+  saturate a 10-second sub, fainter ones are mostly noise.
+- **`error_scale: field`.** The photon-noise error bars leave out scintillation, flat-field and tracking
+  errors, so they are too small. The test scales them by the field's median reduced χ², so a star is
+  flagged only when it scatters more than its neighbours.
+- **`min_points: 20`.** About three minutes of 10-second subs; fewer is too short a stretch to say much.

@@ -78,9 +78,13 @@ def bayer_frame(
     flux_scale: float = 1.0,
     sigma_px: tuple[float, float] = (1.7, 1.7),
     trail: bool = False,
+    noise_seed: int | None = None,
+    dimmed: dict[int, float] | None = None,
 ) -> Truth:
     """A raw GBRG frame centred ``centre_offset`` degrees (RA, Dec) off M31 at the given rotation, with
-    the reference Gaia sees (G < 15) in a 1.5 degree cone about M31. ``only`` keeps that many stars."""
+    the reference Gaia sees (G < 15) in a 1.5 degree cone about M31. ``only`` keeps that many stars.
+    ``dimmed`` makes the stars at those indices of ``gaia_field`` fainter by that many magnitudes, and
+    ``noise_seed`` draws a fresh sky noise (the default repeats the same noise for the same ``seed``)."""
     centre = (M31[0] + centre_offset[0] / math.cos(math.radians(M31[1])), M31[1] + centre_offset[1])
     ra, dec, mag = gaia_field(M31, 1.5, per_deg2, seed)
     wcs_doc = truth_wcs(centre, width, height, scale_arcsec, rotation_deg, mirrored)
@@ -96,7 +100,11 @@ def bayer_frame(
         keep = np.flatnonzero(inside)[np.argsort(mag[inside])][:only]
         inside = np.zeros_like(inside)
         inside[keep] = True
-    rng = np.random.default_rng(seed + 1)
+    rng = np.random.default_rng(seed + 1 if noise_seed is None else noise_seed)
+    if dimmed:
+        mag = mag.copy()
+        for i, delta in dimmed.items():
+            mag[i] += delta
     image = np.full((height, width), 600.0)
     gx, gy = sigma_px  # raw pixels: 1.7 is 6.6 arcsec FWHM at 1.65 arcsec a pixel
     yy, xx = np.mgrid[-8:9, -8:9]

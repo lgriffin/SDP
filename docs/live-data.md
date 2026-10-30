@@ -157,6 +157,25 @@ footprint's corners, not a circle about the centre. The planner describes each i
 its catalogue (LOC-020): images of the kinds solved, one cone per session, between the first and last
 dates, so `sdp plan draft` plans cutouts of your frames like any archive's.
 
+### Light curves from the subs
+
+```
+sdp local lightcurve astro [--target M31] [--brightest 9] [--faintest 15]
+```
+
+For the target whose solved subs span the most nights (LOC-021), SDP fetches Gaia DR3 over the subs'
+cone (source_id, position, proper motion, G and BP-RP). On each solved, dated sub not graded poor, it
+moves every star to the sub's date and places it with the sub's solution, SIP included. It then does
+aperture photometry on the green pixels (the mean of the two greens of each 2 x 2 cell) with an annulus
+sky, and leaves a star out of a frame when it is near the edge or near saturation. Each frame's zero point
+and colour term (G − instrumental = zp + c·(BP−RP)) are fitted with clipping on the G 10 to 14 stars, then
+again on the steadier half of them. The output is
+`<data>/lightcurves/astro/<target>.parquet` (one row per star per frame), `<target>-nights.parquet`
+(weighted nightly means) and `<target>-stars.json` (each star's scatter against stars within half a
+magnitude, candidates at three times that with a Lomb-Scargle period). The `local:astro` archive then
+offers each star's curve as a canonical light-curve product within the match radius (LOC-022), and
+`profiles/my-frames-variability.yaml` runs the variability test on them.
+
 ### Using the solutions in other software
 
 Each solution also gets `<frame>.wcs` beside its `.wcs.json`: a header-only FITS file with the WCS
