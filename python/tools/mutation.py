@@ -115,6 +115,7 @@ KERNEL_TESTS = (
     "tests/products",
     "tests/archives",
     "tests/bdd",
+    "tests/api",
 )
 #: Directories the selected tests read but that hold no tests of their own.
 DATA = ("tests/cassettes",)

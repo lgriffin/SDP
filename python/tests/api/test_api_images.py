@@ -26,7 +26,9 @@ pytestmark = pytest.mark.tier("T4")
 IMAGES = "query S($id: ID!) { investigationSet(id: $id) { images } }"
 
 
-@pytest.fixture(scope="module")
+# Per test, not per module: mutmut credits a fixture's calls to the first test that builds it, so a
+# shared run would hide the mutants every later test checks (docs/testing.md).
+@pytest.fixture
 def world() -> tuple[InMemoryKernel, dict[str, Any]]:
     k = slice_kernel()
     _, run = run_slice(k)

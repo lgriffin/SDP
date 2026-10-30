@@ -365,6 +365,8 @@ For each survivor, in order of preference:
 2. **Remove the equivalence.** If no test could tell the mutant from the original, the code usually says the same thing twice. Restructure it: `decode()` instead of `decode("utf-8")`, the default backend instead of passing `Backend.CPU` explicitly, one loop instead of a list plus `zip(strict=True)` over two sequences of the same length. Each of those was a survivor in `sdp.kernel.science` and is gone.
 3. **Mark it, with a reason.** Only when 1 and 2 are impossible: `# pragma: no mutate` on the line, with a comment saying why the mutant is equivalent. Review treats each pragma as a claim to check.
 
+A test that seems to cover a survivor but does not kill it often reads a module-scoped fixture: mutmut credits the fixture's calls to the first test that builds it and runs only that test against the mutant. Build such fixtures per test.
+
 ## Shrink-only lists and exceptions
 
 | List | Holds | Rule |
