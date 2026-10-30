@@ -304,7 +304,10 @@ def from_votable(
     if not table.columns:
         raise CatalogueSchemaError(f"the VOTable for {catalogue.vizier_table} has no columns")
     columns = choose_columns(table.columns, overrides)
-    native = votable.parse(body)
+    try:
+        native = votable.parse(body)
+    except ValueError as exc:  # rows cut off or malformed after the fields: not a whole table
+        raise UntrustedInput(f"the VOTable for {catalogue.vizier_table} is not well formed: {exc}") from exc
     if native.num_rows >= MAXREC:
         raise CatalogueSchemaError(f"{catalogue.vizier_table} filled the {MAXREC}-row limit; it was cut off")
     raw = pa.table({mine: native.column(theirs) for mine, theirs in columns.items()})

@@ -362,3 +362,15 @@ def test_only_the_first_tables_fields_are_read_even_when_it_has_no_rows() -> Non
     first = bm.first_table(body)
     assert first.names == ("J/A+A/673/A114/clusters",)
     assert [c["column_name"] for c in first.columns] == ["Other"]
+
+
+@pytest.mark.req("DSI-017")
+def test_a_mirror_reply_cut_off_in_its_rows_moves_on_to_the_next_mirror() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    whole = asu_votable()
+    fake.raw(source.mirror_request(hr23, MIRRORS[0]), whole[: whole.index(b"<TR>") + 30])
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), whole)
+    table = source.fetch("hr23")
+    assert table.schema.metadata[b"sdp.benchmark.source"].endswith(MIRRORS[1].encode())
