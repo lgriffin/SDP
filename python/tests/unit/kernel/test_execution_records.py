@@ -78,6 +78,7 @@ def test_windows_usage_reports_no_peak_when_the_call_fails(monkeypatch: pytest.M
     assert process_usage() == (1.5, 0.25, 0.0)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="resource is POSIX-only")
 def test_posix_usage_reads_rusage(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "platform", "linux")
     user, system, peak = process_usage()

@@ -185,18 +185,18 @@ def test_a_set_without_retrieve_has_no_images_and_without_test_no_stars() -> Non
 def test_each_star_lands_on_its_image_flagged_at_the_alpha() -> None:
     store = Store()
     a, b = product(store, "o/a.fits"), product(store, "o/b.fits")
-    at_alpha = -2.0 * math.log(0.01)  # p exactly alpha is not flagged
+    alpha = math.exp(-0.5)  # the p of d2 = 1 exactly: a star at the alpha is not flagged
     tested = {
         "results": [
             result("calm", per_image("o/a.fits", 0.1), per_image("o/elsewhere.fits", 0.1)),
-            result("edge", per_image("o/a.fits", at_alpha)),
+            result("edge", per_image("o/a.fits", 1.0)),
             result("gone", per_image("o/a.fits", None, counterpart_px=None), per_image("o/b.fits", 0.2)),
             result("twin", per_image("o/a.fits", 0.3, ambiguous=True)),
             result("other", per_image("o/a.fits", 50.0), test="something-else"),
             result("bare"),
         ]
     }
-    s = a_set(store, {"bundles": [{"products": [a, b]}]}, tested)
+    s = a_set(store, {"bundles": [{"products": [a, b]}]}, tested, alpha=alpha)
     investigation = SimpleNamespace(candidate=SimpleNamespace(object_key="gone"), investigation_id="inv-1")
     blank = SimpleNamespace(candidate=SimpleNamespace(object_key=None), investigation_id="inv-2")
     image_a, image_b = field_images(store, s, [investigation, blank])  # type: ignore[arg-type, list-item]
@@ -214,7 +214,7 @@ def test_each_star_lands_on_its_image_flagged_at_the_alpha() -> None:
         "counterparts": None,
     }
     edge = image_a["stars"][3]
-    assert edge["p_value"] == pytest.approx(0.01) and not edge["flagged"] and edge["investigation_id"] is None
+    assert edge["p_value"] == alpha and not edge["flagged"] and edge["investigation_id"] is None
     assert [star["object_key"] for star in image_b["stars"]] == ["gone"]
 
 
