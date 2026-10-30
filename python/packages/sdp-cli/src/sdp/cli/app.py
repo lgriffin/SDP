@@ -1468,7 +1468,11 @@ def local_certify(
         return
     if not path.exists():
         raise DomainError(f"no reference file at {path}; write one with sdp local certify {name} --template")
-    report = certification.run(load_reference(path))
+    try:
+        document = load_reference(path)
+    except ValueError as exc:
+        raise DomainError(str(exc)) from exc
+    report = certification.run(document)
     emit({"reference": str(path), **report})
     if not all(t["admitted"] for t in report["product_types"].values()):
         raise typer.Exit(1)

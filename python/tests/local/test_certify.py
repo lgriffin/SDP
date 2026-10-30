@@ -177,3 +177,77 @@ def test_the_template_names_one_frame_per_target_and_night() -> None:
         "M31/n2/1.fits",
         "M42/n1/1.fits",
     ]
+
+
+@pytest.mark.req("LOC-024")
+def test_rebuilt_or_deleted_light_curves_withdraw_the_time_series_admission(world: Nights, tmp_path: Path) -> None:
+    certification = copy_of(world, tmp_path)
+    certification.run(_reference())
+    rows = Catalogue(certification.source, certification.data).build()
+    curves = certification.source.output_dir(certification.data, "lightcurves")
+    table = next(curves.glob("*.parquet"))
+    original = table.read_bytes()
+    table.write_bytes(original + b"\0")
+    assert admitted(certification.source, certification.data, rows) == {"image": True}
+    table.unlink()
+    assert admitted(certification.source, certification.data, rows) == {"image": True}
+    table.write_bytes(original)
+    assert admitted(certification.source, certification.data, rows) == {"image": True, "timeseries": True}
+
+
+@pytest.mark.req("LOC-024")
+def test_a_reference_frame_is_pinned_by_path_not_only_by_digest(world: Nights, tmp_path: Path) -> None:
+    certification = copy_of(world, tmp_path)
+    certification.run(_reference())
+    rows = Catalogue(certification.source, certification.data).build()
+    first, other = FRAMES
+    digest = next(r["sha256"] for r in rows if r["path"] == first)
+    # the second frame changed, but some other frame (here the first) still holds its old digest
+    swapped = [r | {"sha256": digest} if r["path"] == other else r for r in rows]
+    assert admitted(certification.source, certification.data, swapped) == {}
+    assert admitted(certification.source, certification.data, [r for r in rows if r["path"] != other]) == {}
+
+
+@pytest.mark.req("LOC-023")
+def test_a_summary_that_disagrees_with_the_curves_fails(world: Nights, tmp_path: Path) -> None:
+    certification = copy_of(world, tmp_path)
+    curves = certification.source.output_dir(certification.data, "lightcurves")
+    summary_path = next(curves.glob("*.json"))
+    summary = json.loads(summary_path.read_text("utf-8"))
+    summary["precision_by_g"] = dict.fromkeys(summary["precision_by_g"], 0.04)
+    summary_path.write_text(json.dumps(summary), "utf-8")
+    timeseries = certification.run(_reference())["product_types"]["timeseries"]
+    failed = " ".join(f for k in timeseries["kinds"] for f in k["failed"])
+    assert not timeseries["admitted"] and "does not match the curves served" in failed
+
+
+@pytest.mark.req("LOC-023")
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [("frames: [null]\n", "frame 1 is not a mapping with a path"), ("frames: [\n", "is not valid YAML"),
+     ("- a\n", "is not a reference file")],
+)  # fmt: skip
+def test_a_malformed_reference_is_refused_with_a_clear_message(
+    world: Nights, tmp_path: Path, text: str, message: str
+) -> None:
+    certification = copy_of(world, tmp_path)
+    certification.reference_path.parent.mkdir(parents=True, exist_ok=True)
+    certification.reference_path.write_text(text, "utf-8")
+    result = runner.invoke(cli.app, ["local", "certify", "astro"], env={"SDP_DATA": str(certification.data)})
+    assert result.exit_code != 0 and message in str(result.exception)
+
+
+@pytest.mark.req("LOC-024")
+def test_a_damaged_record_or_sidecar_is_a_failure_not_a_crash(world: Nights, tmp_path: Path) -> None:
+    certification = copy_of(world, tmp_path)
+    certification.run(_reference())
+    certification.record_path(ProductType.IMAGE).write_text("[1, 2]", "utf-8")
+    assert [r.product_type for r in records(certification.source, certification.data)] == [ProductType.TIMESERIES]
+    d = LocalDiscovery(None, {"local:astro": (certification.source, certification.data)})._descriptor("local:astro")
+    assert d.adapter is not None and dict(d.adapter.conformance) == {"timeseries": True}
+    solver = LocalSolver(certification.source, certification.data, None, lambda _c: None)  # type: ignore[arg-type,return-value]
+    sidecar = solver.wcs_path(next(iter(FRAMES)))
+    sidecar.write_bytes(b"not a FITS header")
+    image = certification.run(_reference())["product_types"]["image"]
+    failed = " ".join(f for k in image["kinds"] for f in k["failed"])
+    assert not image["admitted"] and "astropy cannot read its .wcs sidecar" in failed

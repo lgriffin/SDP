@@ -37,6 +37,7 @@ import pyarrow.parquet as pq
 import yaml
 
 from sdp.adapters.local.catalogue import SOLVED, Catalogue
+from sdp.adapters.local.fingerprints import sha256_of
 from sdp.adapters.local.gateway import CURVE_PREFIX, IMAGE, LocalFrameDialect, LocalImageGateway
 from sdp.adapters.local.lightcurves import LightCurves, file_stem, stars_files
 from sdp.adapters.local.quality import POOR
@@ -65,6 +66,8 @@ INDEPENDENT_ARCSEC = 0.05
 MAX_SCATTER_MAG = 0.05
 MIN_CURVE_STARS = 5
 MJD_UNIX = 40587.0
+#: the summary's scatter must agree with the scatter measured again from the curves served
+SUMMARY_AGREES_MAG = 0.002
 UPSTREAM = ("astropy", "numpy", "photutils", "scipy")
 
 
@@ -161,6 +164,9 @@ class Certification:
     def record_path(self, product_type: ProductType) -> Path:
         return self.root / f"{ADAPTER}-{product_type.value}.json"
 
+    def pins_path(self, product_type: ProductType) -> Path:
+        return _pins_path(self.root, product_type.value)
+
     def run(self, reference: Mapping[str, Any]) -> dict[str, Any]:
         """Run the four kinds for images, and for time series once light curves exist; write a record
         for each (passing or not) and return what was checked."""
@@ -181,10 +187,10 @@ class Certification:
                 "the reference frames are unchanged by the run",
                 "a reference frame changed during the run",
             )
-        solved = [
-            by_path[p]["sha256"] for p in (str(f.get("path")) for f in frames) if by_path.get(p, {}).get("sha256")
-        ]
-        digests = tuple(sorted({f"sha256:{digest}" for digest in solved}))
+        pinned = {
+            p: by_path[p]["sha256"] for p in (str(f.get("path")) for f in frames) if by_path.get(p, {}).get("sha256")
+        }
+        digests = tuple(sorted({f"sha256:{digest}" for digest in pinned.values()}))
         self.root.mkdir(parents=True, exist_ok=True)
         report: dict[str, Any] = {"run_id": run_id, "product_types": {}}
         for product_type, checks in results.items():
@@ -197,16 +203,25 @@ class Certification:
                 live_smoke_on=self.today(),
                 fixture_digests=digests,
             )
+            # what the record vouches for: each reference frame's bytes, and for time series the curve
+            # files the gateway serves; a change to any withdraws the admission (``admitted``)
+            artifacts = self._curve_files() if product_type is ProductType.TIMESERIES else {}
+            _write_json(self.pins_path(product_type), {"frames": pinned, "artifacts": artifacts})
             path = self.record_path(product_type)
-            tmp = path.with_name(path.name + ".tmp")
-            tmp.write_text(json.dumps(record.to_document(), indent=2) + "\n", "utf-8")
-            tmp.replace(path)
+            _write_json(path, record.to_document())
             report["product_types"][product_type.value] = {
                 "admitted": record.passed,
                 "record": str(path),
                 "kinds": [c.to_document() for c in checks.values()],
             }
         return report
+
+    def _curve_files(self) -> dict[str, str]:
+        """Each light-curve table and star summary under the source's folder, by name, with its SHA-256."""
+        root = self.source.output_dir(self.data, "lightcurves")
+        return {
+            p.name: sha256_of(p) for p in sorted(root.glob("*")) if p.is_file() and p.suffix in (".parquet", ".json")
+        }
 
     def _stats(self, frames: list[Mapping[str, Any]]) -> list[tuple[str, int, int] | None]:
         out: list[tuple[str, int, int] | None] = []
@@ -393,10 +408,14 @@ class Certification:
         w, h = float(wcs["NAXIS1"]), float(wcs["NAXIS2"])
         x, y = np.array([1.0, w, w, 1.0, w / 2]), np.array([1.0, 1.0, h, h, h / 2])
         ra, dec = pixel_to_sky(wcs, x, y)
-        header = fits.getheader(sidecar)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FITSFixedWarning)  # a header-only file has no image axes
-            sky = WCS(header).all_pix2world(x, y, 1)
+        try:
+            header = fits.getheader(sidecar)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", FITSFixedWarning)  # a header-only file has no image axes
+                sky = WCS(header).all_pix2world(x, y, 1)
+        except (OSError, ValueError, KeyError, TypeError) as exc:  # a damaged sidecar fails this check only
+            scientific.fail(f"{relative}: astropy cannot read its .wcs sidecar ({exc}); run sdp local sidecars")
+            return
         worst = max(_separation(a, b, c, d) for a, b, c, d in zip(ra, dec, sky[0], sky[1], strict=True)) * 3600.0
         scientific.expect(
             worst <= INDEPENDENT_ARCSEC,
@@ -458,8 +477,12 @@ class Certification:
                     f"{name}: curated as written",
                     f"{name}: not curated as written",
                 )
-            table = pq.read_table(LightCurves(self.source, self.data, name).path, columns=["path", "mjd"]).to_pylist()
-            points = {r["path"]: r["mjd"] for r in table}
+            table = pq.read_table(
+                LightCurves(self.source, self.data, name).path, columns=["source_id", "path", "mjd", "mag"]
+            ).to_pylist()
+            points = {r["path"]: r["mjd"] for r in table if r["source_id"] == star["source_id"]}
+            if not points:
+                points = {r["path"]: r["mjd"] for r in table}
             stale = sorted(p for p in points if p not in offered)
             operational.expect(
                 not stale,
@@ -483,14 +506,21 @@ class Certification:
                     f"{relative}: its light-curve points are dated as the frame",
                     f"{relative}: its light-curve points are not dated as the frame",
                 )
-            bands = sorted(
-                summary.get("precision_by_g", {}).items(), key=lambda kv: float(kv[0].split()[1].split("-")[0])
-            )
-            best = next((v for k, v in bands if 10.0 <= float(k.split()[1].split("-")[0]) < 13.0), None)
+            # the scatter is measured again from the magnitudes served, not taken from the summary
+            g_of = {s["source_id"]: s.get("g") for s in summary["all_stars"]}
+            band, measured, stars = _steadiest(table, g_of)
+            written = (summary.get("precision_by_g") or {}).get(band) if band else None
             scientific.expect(
-                summary.get("stars", 0) >= MIN_CURVE_STARS and best is not None and best <= MAX_SCATTER_MAG,
-                f"{name}: {summary.get('stars')} stars, the steadiest scatter {best} mag",
-                f"{name}: too few stars or too much scatter ({summary.get('stars')} stars, {best} mag at G 10-13)",
+                written is not None and measured is not None and abs(written - measured) <= SUMMARY_AGREES_MAG,
+                f"{name}: the summary's scatter at {band} matches the curves ({measured:.4f} mag)"
+                if measured is not None
+                else "",
+                f"{name}: the summary's scatter ({written}) does not match the curves served ({measured})",
+            )
+            scientific.expect(
+                stars >= MIN_CURVE_STARS and measured is not None and measured <= MAX_SCATTER_MAG,
+                f"{name}: {stars} stars, the steadiest scatter {measured} mag at {band}",
+                f"{name}: too few stars or too much scatter ({stars} stars, {measured} mag at G 10-13)",
             )
         semantic.expect(
             covered > 0,
@@ -498,6 +528,35 @@ class Certification:
             "no reference frame is a sub of a measured target: add one to the reference",
         )
         return checks
+
+
+def _steadiest(table: list[dict[str, Any]], g_of: Mapping[int, float | None]) -> tuple[str | None, float | None, int]:
+    """The brightest G band from 10 to 13 with measured stars, the median of its stars' robust scatter
+    (as ``summarise`` computes it), and how many stars have curves."""
+    mags: dict[int, list[float]] = {}
+    for r in table:
+        mags.setdefault(r["source_id"], []).append(r["mag"])
+    scatter: dict[int, list[float]] = {}
+    for source_id, m in mags.items():
+        g = g_of.get(source_id)
+        if len(m) >= 2 and g is not None and 10.0 <= g < 13.0:
+            values = np.asarray(m)
+            scatter.setdefault(int(g), []).append(float(1.4826 * np.median(np.abs(values - np.median(values)))))
+    stars = sum(1 for m in mags.values() if len(m) >= 2)
+    if not scatter:
+        return None, None, stars
+    lo = min(scatter)
+    return f"G {lo}-{lo + 1}", float(np.median(scatter[lo])), stars
+
+
+def _write_json(path: Path, document: Any) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(document, indent=2) + "\n", "utf-8")
+    tmp.replace(path)
+
+
+def _pins_path(root: Path, product_type: str) -> Path:
+    return root / f"pins-{product_type}.json"
 
 
 def _upstream() -> dict[str, str]:
@@ -511,9 +570,16 @@ def _upstream() -> dict[str, str]:
 
 
 def load_reference(path: Path) -> dict[str, Any]:
-    document = yaml.safe_load(path.read_text("utf-8")) or {}
+    """The reference file, refused with a clear message when it is not YAML of the template's shape."""
+    try:
+        document = yaml.safe_load(path.read_text("utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{path} is not valid YAML: {exc}") from exc
     if not isinstance(document, dict) or not isinstance(document.get("frames", []), list):
         raise ValueError(f"{path} is not a reference file: a mapping with a list of frames")
+    for n, entry in enumerate(document.get("frames") or [], start=1):
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) or not entry["path"]:
+            raise ValueError(f"{path}: frame {n} is not a mapping with a path")
     return document
 
 
@@ -523,24 +589,40 @@ def records(source: LocalSource, data: Path) -> list[AdapterCompatibilityRecord]
     out = []
     for path in sorted(root.glob(f"{ADAPTER}-*.json")) if root.is_dir() else []:
         try:
-            out.append(AdapterCompatibilityRecord.from_document(json.loads(path.read_text("utf-8"))))
-        except (OSError, ValueError, KeyError):
+            document = json.loads(path.read_text("utf-8"))
+            if isinstance(document, dict):
+                out.append(AdapterCompatibilityRecord.from_document(document))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):  # a damaged record is no record
             continue
     return out
 
 
 def admitted(source: LocalSource, data: Path, rows: Iterable[Mapping[str, Any]]) -> dict[str, bool]:
     """Product type -> admitted: a passing record (re-derived from its four results) for this adapter and
-    version, whose reference frames are all still catalogued, unchanged and not graded poor."""
-    current = {
-        f"sha256:{r['sha256']}" for r in rows if r.get("sha256") and r["status"] == SOLVED and r.get("grade") != POOR
-    }
-    return {
-        r.product_type.value: True
-        for r in records(source, data)
-        if r.adapter == ADAPTER and r.adapter_version == ADAPTER_VERSION and r.passed
-        and r.fixture_digests and set(r.fixture_digests) <= current
-    }  # fmt: skip
+    version, whose reference frames each still hold the bytes certified, solved and not graded poor, and
+    (for time series) whose light-curve files are the ones certified."""
+    root = source.output_dir(data, "compatibility")
+    by_path = {r["path"]: r for r in rows}
+    curves = source.output_dir(data, "lightcurves")
+    out = {}
+    for record in records(source, data):
+        if not (record.adapter == ADAPTER and record.adapter_version == ADAPTER_VERSION and record.passed):
+            continue
+        try:
+            pins = json.loads(_pins_path(root, record.product_type.value).read_text("utf-8"))
+            frames, artifacts = dict(pins["frames"]), dict(pins["artifacts"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        intact = bool(frames) and set(record.fixture_digests) == {f"sha256:{d}" for d in frames.values()}
+        for path, digest in frames.items():
+            row = by_path.get(path)
+            intact = intact and row is not None and row["status"] == SOLVED and row.get("grade") != POOR
+            intact = intact and row is not None and row.get("sha256") == digest
+        for name, digest in artifacts.items():
+            intact = intact and (curves / name).is_file() and sha256_of(curves / name) == digest
+        if intact:
+            out[record.product_type.value] = True
+    return out
 
 
 __all__ = ["ADAPTER", "ADAPTER_VERSION", "Certification", "admitted", "load_reference", "records", "reference_template"]
