@@ -14,12 +14,16 @@ from pathlib import Path
 from sdp.adapters.archives.dasch import LIGHTCURVE_COLUMNS, DaschDialect, DaschGateway, csv_lines
 from sdp.adapters.archives.mast import MastObservationGateway
 from sdp.adapters.archives.registry import RegTapRegistry
-from sdp.adapters.archives.simbad import SimbadResolver
+from sdp.adapters.archives.simbad import MIRRORS, SimbadResolver
 from sdp.adapters.archives.smoke import SMOKE_CONE, SmokeResult
-from sdp.adapters.archives.transport import CassetteTransport, Transport
+from sdp.adapters.archives.transport import CassetteTransport, MirrorTransport, Transport
 from sdp.kernel.domain.investigation import Field, ObservationCriteria
 from sdp.kernel.ports.investigate import ObservationTarget
 from sdp.kernel.science import products
+
+#: services asked through their official mirrors when the primary gives no answer, as investigations ask
+#: them (``bootstrap.simbad_transport``); the cassette records whichever copy answered
+MIRRORED: dict[str, dict[str, tuple[str, ...]]] = {"simbad": MIRRORS}
 
 #: Alcyone (η Tau), the brightest Pleiad, inside the smoke cone.
 STAR = ObservationTarget("smoke-alcyone", 56.871152, 24.105136)
@@ -79,7 +83,9 @@ PROBES: dict[str, Callable[[Transport], list[str]]] = {
 def run_investigate_smoke(live: Callable[[str], Transport], record: Path) -> list[SmokeResult]:
     results = []
     for name, probe in PROBES.items():
-        recorder = CassetteTransport(record / name, "record", inner=live(name), recorder="weekly-live-smoke")
+        recorder: Transport = CassetteTransport(record / name, "record", inner=live(name), recorder="weekly-live-smoke")
+        if name in MIRRORED:
+            recorder = MirrorTransport(recorder, MIRRORED[name])
         try:
             problems = probe(recorder)
         except Exception as exc:

@@ -29,6 +29,21 @@ def test_every_unreachable_service_is_named(tmp_path: Path) -> None:
         assert r.problems and r.problems[0].startswith(f"{r.source_id}: ")
 
 
+def test_the_simbad_probe_asks_the_mirror_when_strasbourg_is_down(tmp_path: Path) -> None:
+    asked: list[str] = []
+
+    class StrasbourgDown:
+        def send(self, request: HttpRequest) -> HttpResponse:
+            asked.append(request.url)
+            raise TransportError(f"{request.url}: connection refused")
+
+    run_investigate_smoke(lambda _: StrasbourgDown(), tmp_path)
+    assert any("cds.unistra.fr" in url for url in asked)
+    assert any(url.startswith("https://vizier.cfa.harvard.edu/viz-bin/nph-sesame") for url in asked), (
+        "the smoke asks SIMBAD as investigations do, mirror included"
+    )
+
+
 def dasch_with(columns: list[str], row: list[str]) -> PrimedService:
     fake = PrimedService()
     gateway = DaschGateway(fake)

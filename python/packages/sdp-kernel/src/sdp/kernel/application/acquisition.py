@@ -127,6 +127,22 @@ class AcquireDatasetUseCase:
             source_ref=source,
             acquisition=record,
         )
+        if raw.status is DatasetStatus.ACQUIRED:
+            # The same rows reached by another route (the local bulk copy and the archive's TAP service give
+            # different idempotency keys) are the same content-addressed artifact: reuse its record rather
+            # than register different metadata under its id (KRN-014).
+            with self.uow() as uow:
+                same = uow.datasets.get(raw.artifact_id)
+                curated = next(iter(uow.datasets.children(raw.artifact_id)), None) if same else None
+                uow.commit()
+            if same is not None and same.status is DatasetStatus.ACQUIRED:
+                log.info(
+                    "these rows are already acquired under another idempotency key; reusing that record",
+                    extra={"artifact": raw.artifact_id.value, "idempotency_key": handle.idempotency_key},
+                )
+                if curated is None and command.curate:
+                    curated = self._curate(same, descriptor.licence)
+                return AcquisitionResult(raw=same, curated=curated, reused=True, rows=table.num_rows, row_cap=q.row_cap)
         with self.uow() as uow:
             uow.datasets.add(raw)
             graph = ProvGraph()
