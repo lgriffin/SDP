@@ -146,7 +146,8 @@ def test_settings_share_the_predeclared_cuts_and_pass_marks() -> None:
     ):
         assert s[key] == declared[key]
     assert (s["tile_deg"], s["margin_deg"], s["null_fields_per_tile"], s["seed"]) == (2.0, 0.5, 1, 2026)
-    assert s["algorithms"] == ["sklearn-hdbscan"]
+    assert s["algorithms"] == ["fast-hdbscan"], "the sweep's own clusterer; UC-01 keeps sklearn-hdbscan"
+    assert s["max_tile_stars"] == 3_000_000
 
 
 # --- one tile ------------------------------------------------------------------------------------
@@ -210,6 +211,14 @@ def test_without_two_benchmarks_nothing_is_potentially_new() -> None:
         assert any(
             "cross-matched against fewer than two benchmarks (STL-005)" in c["reasons"] for c in result["candidates"]
         )
+
+
+def test_a_tile_over_the_star_budget_is_skipped_and_says_why() -> None:
+    t = owner(*SYN_B)
+    rows = tile_rows(t, praesepe_field())
+    result = sweep.sweep_tile(rows, t, settings(max_tile_stars=100), clusterers(), benchmarks(), 2026)
+    assert result["skipped"] is not None and "more than max_tile_stars 100" in result["skipped"]
+    assert result["candidates"] == [] and result["null_fields"] == 0
 
 
 @pytest.mark.tier("T8")

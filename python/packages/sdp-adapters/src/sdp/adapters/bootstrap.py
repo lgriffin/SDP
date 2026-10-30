@@ -33,7 +33,7 @@ from sdp.adapters.archives.transport import (
 from sdp.adapters.archives.untrusted import IsolatedVotableParser
 from sdp.adapters.archives.xmatch import CdsXMatchAdapter
 from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAssociation
-from sdp.adapters.compute.clustering import SklearnDbscan, SklearnHdbscan
+from sdp.adapters.compute.clustering import FastHdbscan, SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
@@ -185,8 +185,9 @@ def publisher(settings: Settings) -> BundlePublisher:
 
 
 def clusterers() -> dict[str, Any]:
-    """The CPU reference ClusterSearchAlgorithms by algorithm id (UC-01); GPU ones join only after agreement."""
-    return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan())}
+    """The CPU ClusterSearchAlgorithms by algorithm id: the UC-01 references and the sweep's Boruvka HDBSCAN;
+    GPU ones join only after agreement."""
+    return {c.algorithm_id: c for c in (SklearnHdbscan(), SklearnDbscan(), FastHdbscan())}
 
 
 def observation_gateways(

@@ -198,6 +198,10 @@ def sweep_tile(
     if kept.num_rows < least:
         result["skipped"] = f"{kept.num_rows} stars pass the cuts, fewer than {least}"
         return result
+    most = settings.get("max_tile_stars")
+    if most is not None and kept.num_rows > int(most):
+        result["skipped"] = f"{kept.num_rows} stars pass the cuts, more than max_tile_stars {int(most)}"
+        return result
     try:
         labellings = _labellings(kept, t, settings, clusterers, s)
     except PolicyError as exc:
