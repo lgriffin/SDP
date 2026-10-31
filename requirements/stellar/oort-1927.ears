@@ -1,0 +1,64 @@
+# requirements/stellar/oort-1927.ears
+capability: Oort 1927 galactic rotation rerun
+owner: stellar
+requirements:
+  - id: STL-014
+    pattern: ubiquitous
+    text: "The stellar module shall report Oort's 1927 mean A, r A times parallax, distance to the centre, central mass and Keplerian amplitude as recomputed from his inputs, each beside the printed figure."
+    rationale: "Every figure is read from the uploaded scan of BAN 3, 275 and recomputed, never replaced; a difference is reported, not asserted (docs/protocols/uc04-oort-1927.md, part A)."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1927::test_oorts_arithmetic_is_recomputed_beside_his_printed_figures"
+  - id: STL-015
+    pattern: ubiquitous
+    text: "The stellar module shall fit the generalised Oort constants and the solar motion to stellar proper motions, or to radial velocities alone, with outlying stars clipped and errors from a sandwich covariance clustered by star."
+    rationale: "Oort's A and B are the shear and vorticity of the local disc; synthetic galaxies of known rotation curve, centre direction and solar motion fix the sign conventions and show the first-order error out to 1.5 kpc."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1927::test_a_flat_rotation_curve_gives_back_its_oort_constants_and_the_suns_motion"
+      - "python/tests.stellar.test_oort1927::test_a_rising_or_falling_curve_about_a_turned_centre_gives_its_amplitude_and_l0"
+      - "python/tests.stellar.test_oort1927::test_radial_velocities_alone_give_a_but_not_b"
+      - "python/tests.stellar.test_oort1927::test_high_velocity_stars_are_clipped_not_fitted"
+      - "python/tests.stellar.test_oort1927::test_too_few_stars_is_a_named_failure"
+      - "python/tests.stellar.test_oort1927::test_the_reported_constants_are_fitted_to_exactly_the_stars_kept"
+      - "python/tests.stellar.test_oort1927::test_a_fit_clipped_below_the_declared_minimum_fails"
+  - id: STL-016
+    pattern: ubiquitous
+    text: "The stellar module shall select UC-04 stars with the predeclared quality cuts, then each scenario's distance shell, latitude limit, magnitude limit, parallax zero-point and population."
+    rationale: "The selection is fixed in oort1927.json before any Gaia star is read, and every run records that file's SHA-256."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1927::test_the_shared_cuts_and_the_scenario_cuts_are_the_declared_ones"
+      - "python/tests.stellar.test_oort1927::test_a_radial_velocity_column_never_changes_the_proper_motion_sample"
+  - id: STL-017
+    pattern: event
+    text: "When a UC-04 run completes, the stellar module shall read UC04-H1 only if every scenario's A is at least 5 sigma above zero and B at least 5 sigma below, read UC04-H0 only if every scenario's A is within 2 sigma of zero, and read inconclusive otherwise."
+    rationale: "A failed scenario or a baseline-only quick look decides nothing; the comparison with Oort's A = 31.0 +/- 3.7 km/s/kpc is reported beside the verdict and never changes it."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1927::test_the_verdict_follows_the_planted_rotation"
+      - "python/tests.stellar.test_oort1927::test_oorts_value_is_compared_with_the_fitted_amplitude"
+      - "python/tests.stellar.test_oort1927::test_a_failed_scenario_or_a_quick_look_decides_nothing"
+      - "python/tests.stellar.test_oort1927::test_the_report_carries_oorts_radius_from_the_fitted_constants"
+  - id: STL-018
+    pattern: event
+    text: "When `sdp oort1927 run` is invoked, the system shall read the whole sky from the complete bulk Gaia copy or a given Parquet file, add the radial-velocity method only when the rvs subset or a radial-velocity Parquet is given, and write report.json and report.md."
+    rationale: "Leigh runs UC-04 on the PC's bulk copy; until the rvs subset is built the report says how to build it instead of failing, and a fixed export (source_id divisible by N) becomes the recorded known-answer test."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_oort1927::test_the_arithmetic_needs_no_data"
+      - "python/tests.cli.test_cli_oort1927::test_a_run_reads_the_whole_sky_from_the_bulk_copy_and_skips_rvs_until_it_is_built"
+      - "python/tests.cli.test_cli_oort1927::test_a_built_rvs_subset_adds_oorts_own_method"
+      - "python/tests.cli.test_cli_oort1927::test_the_export_is_a_fixed_sample_that_runs_from_parquet"
+      - "python/tests.cli.test_cli_oort1927::test_a_copy_with_no_star_passing_the_cuts_reports_failed_fits"
+      - "python/tests.cli.test_cli_oort1927::test_the_export_writes_its_sample_file_by_file"

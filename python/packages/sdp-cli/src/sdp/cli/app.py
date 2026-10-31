@@ -21,6 +21,7 @@ import typer
 
 from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.cli.einstein1921 import einstein1921_app
+from sdp.cli.oort1927 import oort1927_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, QueryPlansUseCase, plan_view
@@ -164,6 +165,7 @@ for name, sub in (
     ("benchmark", benchmark_app),
     ("discover", discover_app),
     ("einstein1921", einstein1921_app),
+    ("oort1927", oort1927_app),
 ):
     app.add_typer(sub, name=name)
 

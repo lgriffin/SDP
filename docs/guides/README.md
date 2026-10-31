@@ -29,6 +29,7 @@ journey assumes it worked.
 | [A star's history from Harvard's plates](star-history.md) | Check bright stars against a century of photographs (DASCH) | 20 to 40 minutes | Any install |
 | [Reproduce Einstein's 1919 eclipse test](einstein-1919.md) | Rebuild the 1920 paper's three results from its printed tables | 5 minutes | Developer tools |
 | [Rerun Einstein's 1921 globular-cluster calculation](einstein-1921.md) | Check Einstein's arithmetic for M13, redo his calculation with Gaia's measured star motions, then the corrections | 1 to 30 minutes | Developer tools; the bulk Gaia copy for the full run |
+| [Rerun Oort's 1927 detection of galactic rotation](oort-1927.md) | Check Oort's arithmetic, then refit his rotation constants A and B to Gaia's proper motions and radial velocities | 1 minute to an hour | Developer tools; the bulk Gaia copy, and its rvs subset for radial velocities |
 | [Investigate a JWST field](jwst-field.md) | Gaia's stars against a James Webb image, through to a saved evidence dossier | About 30 minutes | Any install |
 | [Your own telescope frames](my-frames.md) | Plate-solve your own pictures and check Gaia against them | Minutes per target | Developer tools or the desktop app |
 | [Light curves from Gaia and NEOWISE](light-curves.md) | Find stars whose brightness changed, in visible and infrared light | 2 to 5 minutes a field | Waiting on pull requests #108 and #114 |
