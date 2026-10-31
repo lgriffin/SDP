@@ -131,7 +131,8 @@ refused, never guessed, and so is a file whose table is not the catalogue named 
 
 The sweep searches the sky three times, once per distance shell, with tiles sized to the shell: 12°
 tiles for stars within 250 pc, 4° within 1 kpc and 2° beyond. A nearby cluster spans several degrees,
-so small tiles would cut it into pieces. Each tile is searched with a rim of its neighbours so a
+so small tiles would cut it into pieces. A cluster close to 250 pc or 1 kpc can be found by both
+shells it straddles; the report lists it once and the summary says how many such copies it dropped. Each tile is searched with a rim of its neighbours so a
 cluster on an edge is seen whole, every find is checked against the pass marks and both catalogues,
 and each tile runs once more on shuffled motions to measure false alarms. It reads only your local copy.
 

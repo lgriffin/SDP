@@ -23,10 +23,19 @@ pytestmark = [pytest.mark.tier("T1"), pytest.mark.req("STL-012")]
 
 RA0, DEC0 = 66.0, 15.0
 WIDE = "synthetic:wide"
+EDGE = "synthetic:edge"
 
 
 @cache
-def wide_cluster_sky(seed: int = 3, stars: int = 12000, members: int = 150, sigma_deg: float = 1.6) -> pa.Table:
+def wide_cluster_sky(
+    seed: int = 3,
+    stars: int = 12000,
+    members: int = 150,
+    sigma_deg: float = 1.6,
+    parallax_mas: float = 1000 / 120,
+    parallax_spread: float = 0.0,
+    key: str = WIDE,
+) -> pa.Table:
     """A 24 x 28 degree patch: field stars near (2.5-9 mas) and far, and a 150-star cluster at 120 pc
     whose members spread 1.6 degrees (3.4 pc) from its centre, so it spans several 2-degree tiles."""
     rng = np.random.default_rng(seed)
@@ -42,13 +51,13 @@ def wide_cluster_sky(seed: int = 3, stars: int = 12000, members: int = 150, sigm
     colour = 0.35 + 0.28 * (abs_g - 0.5) + rng.normal(0, 0.03, members)
     cluster = _rows(
         rng,
-        WIDE,
+        key,
         cra,
         cdec,
         30 + rng.normal(0, 0.6, members),
         -25 + rng.normal(0, 0.6, members),
-        np.full(members, 1000 / 120),
-        abs_g + 5 * np.log10(12),
+        parallax_mas + rng.normal(0, parallax_spread, members) if parallax_spread else np.full(members, parallax_mas),
+        abs_g + 5 * np.log10(100 / parallax_mas),
         colour,
     )
     return pa.Table.from_pylist(field + cluster, schema=SCHEMA)
@@ -157,9 +166,79 @@ def test_a_candidate_is_kept_only_by_the_shell_that_owns_its_mean_parallax() -> 
         for t in (sweep.tile(26, i, 4.0, "mid") for i in range(sweep.tiles_in_band(26, 4.0)))
         if t.contains(66.5, 15.5)
     )
-    candidates: list[dict[str, Any]] = [{"centre": _star(4.2)}, {"centre": _star(3.9)}, {"centre": None}]
+    candidates: list[dict[str, Any]] = [
+        {"centre": _star(3.9), "mean_parallax_mas": 4.2},
+        {"centre": _star(4.2), "mean_parallax_mas": 3.9},
+        {"centre": None, "mean_parallax_mas": 4.2},
+        {"centre": _star(4.2), "mean_parallax_mas": None},
+    ]
     assert sweep._owned(candidates, t_near, near) == [candidates[0]]
     assert sweep._owned(candidates, t_mid, mid) == [candidates[1]]
+
+
+def test_the_shell_is_chosen_by_the_members_mean_parallax_not_their_median() -> None:
+    table = pa.table({"source_key": ["a", "b", "c", "d"], "parallax_mas": [3.8, 3.9, 4.6, 9.0]})
+    (c,) = sweep._with_mean_parallax([{"member_keys": ["a", "b", "c"]}], table)
+    assert c["mean_parallax_mas"] == pytest.approx(4.1)  # the median, 3.9, would put it in the mid shell
+    (empty,) = sweep._with_mean_parallax([{"member_keys": []}], table)
+    assert empty["mean_parallax_mas"] is None
+
+
+def _found(scale: str, cid: str, keys: list[str], mean: float = 4.0) -> dict[str, Any]:
+    return {
+        "tile": {"scale": scale},
+        "candidates": [{"candidate_id": cid, "n_members": len(keys), "member_keys": keys, "mean_parallax_mas": mean}],
+    }
+
+
+def test_a_cluster_two_shells_both_keep_is_reported_once_by_the_shell_that_found_more_of_it() -> None:
+    keys = [f"s{i}" for i in range(40)]
+    results = [
+        _found("near", "near-a", keys[:30], 4.1),
+        _found("mid", "mid-a", keys[10:], 3.95),  # shares 20 of its 30 with near-a
+        _found("mid", "mid-b", [f"m{i}" for i in range(12)]),
+        _found("far", "far-a", keys[:5] + [f"f{i}" for i in range(15)], 0.9),  # shares 5 of 20: another cluster
+    ]
+    kept, dropped = sweep.distinct(results)
+    assert sorted(c["candidate_id"] for c in kept) == ["far-a", "mid-b", "near-a"] and dropped == 1
+    # equal sizes: the nearer copy is kept
+    tie, _ = sweep.distinct([_found("mid", "mid-a", keys[:30], 3.9), _found("near", "near-a", keys[:30], 4.05)])
+    assert [c["candidate_id"] for c in tie] == ["near-a"]
+    # within one shell, tiles own disjoint centres, so nothing is merged
+    same, none = sweep.distinct([_found("mid", "mid-a", keys[:30]), _found("mid", "mid-b", keys[:30])])
+    assert len(same) == 2 and none == 0
+
+
+def test_a_cluster_on_a_shell_boundary_is_kept_once() -> None:
+    """A cluster centred near 4 mas with a wide parallax spread, as errors near the parallax/error 5 cut
+    give: the near shell sees it cut below 3.4 mas and the mid shell above 4.6, so the near copy's mean
+    lies above 4 and the mid copy's below, both shells keep it, and the sweep reports it once."""
+    rows = wide_cluster_sky(members=150, sigma_deg=0.5, parallax_mas=3.95, parallax_spread=0.6, key=EDGE)
+    st = settings()
+    ra_all, dec_all = sweep.ra_dec(rows)
+    results = []
+    for scale in sweep.scales(st)[:2]:
+        band = int(sweep.band_of(np.array([DEC0]), scale.tile_deg)[0])
+        t = next(
+            t
+            for t in (
+                sweep.tile(band, i, scale.tile_deg, scale.name)
+                for i in range(sweep.tiles_in_band(band, scale.tile_deg))
+            )
+            if t.contains(RA0, DEC0)
+        )
+        searched = rows.filter(pa.array(sweep.neighbourhood(t, scale.margin_deg, ra_all, dec_all)))
+        results.append(sweep.sweep_tile(searched, t, st, clusterers(), [], 2026, scale))
+
+    def edge(cs: Any) -> list[Any]:
+        return [c for c in cs if sum(k.startswith(EDGE) for k in c["member_keys"]) > 30]
+
+    found = [c for r in results for c in edge(r["candidates"])]
+    assert [len(edge(r["candidates"])) for r in results] == [1, 1]  # each shell keeps its own copy
+    kept, _ = sweep.distinct(results)
+    assert len(edge(kept)) == 1
+    reported = {row["candidate_id"] for row in sweep.candidate_rows(results)}
+    assert len([c for c in found if c["candidate_id"] in reported]) == 1
 
 
 def test_each_star_counts_in_one_shell_only() -> None:

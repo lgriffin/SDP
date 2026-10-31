@@ -503,6 +503,11 @@ def discover_report(
     _say(
         f"{summary['tiles']} tiles searched ({summary['stars_searched']:,} stars). Candidates: "
         + (", ".join(f"{n} {k.replace('_', ' ')}" for k, n in summary["candidates"].items()) or "none")
+        + (
+            f" ({summary['duplicates_across_scales']} found again by a neighbouring distance shell listed once)"
+            if summary["duplicates_across_scales"]
+            else ""
+        )
         + (f". Null fields with a false candidate: {rate:.1%}." if rate is not None else ".")
     )
     _say(f"Every row is a candidate, not a confirmed discovery. Open {path} (potentially new first).")
