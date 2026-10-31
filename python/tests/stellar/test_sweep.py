@@ -235,7 +235,9 @@ def test_without_a_null_field_a_new_looking_candidate_is_only_inconclusive() -> 
 @pytest.mark.tier("T8")
 def test_a_null_field_survivor_makes_new_looking_candidates_inconclusive() -> None:
     t = owner(*SYN_B)
-    lax = settings(candidate_checks={**sweep.load_settings()["candidate_checks"], "max_field_fraction": 1.0})
+    # pass marks loose enough that a group of the shuffled field survives
+    loose = {**sweep.load_settings()["candidate_checks"], "max_field_fraction": 1.0, "min_cmd_coherence": 0.0}
+    lax = settings(candidate_checks=loose)
     result = sweep.sweep_tile(tile_rows(t, praesepe_field()), t, lax, clusterers(), benchmarks(), 2026)
     assert result["null_fields_with_survivors"] == 1
     syn_b = [

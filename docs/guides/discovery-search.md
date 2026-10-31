@@ -149,6 +149,13 @@ sdp discover report
   `--bands` out for the whole sky. Until Part 3 has worked, add `--without-benchmarks` (then nothing can
   be called new).
 - `report` gathers every tile done so far.
+- The sweep judges each candidate's colour-magnitude sequence with every member placed at the cluster's
+  own distance (the mean of its members' parallaxes), and compares it with field stars at that same
+  distance. A member's own parallax error no longer blurs the sequence, so faint real clusters stop
+  failing the check. Tiles swept before this change were made with other settings, and `sweep` refuses to
+  mix them. Keep the old results by renaming `%SDP_DATA%\sweep\gaia-dr3\tiles` to `tiles-before`
+  (and its `candidates.csv` to `candidates-before.csv`), then sweep again: the prepared catalogue is
+  reused, so nothing needs preparing twice.
 
 Stop any step with Ctrl+C and run it again to carry on. **Success:** `report` prints a line like
 "N tiles searched (… stars). Candidates: … Null fields with a false candidate: …%" and writes
