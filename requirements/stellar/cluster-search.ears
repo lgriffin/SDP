@@ -125,3 +125,22 @@ requirements:
       - "python/tests.stellar.test_cmd_policy::test_an_unknown_cmd_policy_is_refused_even_when_the_search_finds_nothing"
       - "python/tests.stellar.test_cmd_policy::test_a_sweep_tile_with_an_unknown_cmd_policy_is_refused_before_it_is_skipped"
       - "python/tests.stellar.test_cmd_policy::test_the_tile_columns_read_once_give_the_same_coherence_as_reading_them_per_candidate"
+  - id: STL-011
+    pattern: optional
+    text: "Where the settings name a significance test, the stellar module shall reject every candidate whose members' k-th nearest-neighbour distances in the feature space are not smaller than those of the non-members around it at the settings' minimum significance."
+    rationale: "A per-candidate significance, after Hunt & Reffert's (2021) cluster significance test, replaces a tile-wide yes or no from one null field: in the sweep a potentially new candidate must also be more significant than every false candidate its tile's null fields produced, so one noisy tile no longer hides a real cluster beside it. The UC-01 predeclaration names no test."
+    verification: test
+    tiers: [T1, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_significance::test_a_dense_group_is_many_sigma_above_the_stars_around_it"
+      - "python/tests.stellar.test_significance::test_a_random_handful_of_the_field_is_not_significant"
+      - "python/tests.stellar.test_significance::test_the_significance_is_capped_where_the_p_value_underflows"
+      - "python/tests.stellar.test_significance::test_too_few_members_or_surrounding_stars_cannot_be_assessed"
+      - "python/tests.stellar.test_significance::test_the_field_sample_is_the_stars_nearest_the_candidate_not_the_whole_tile"
+      - "python/tests.stellar.test_significance::test_malformed_significance_settings_are_refused"
+      - "python/tests.stellar.test_significance::test_the_predeclared_run_has_no_significance_test_and_the_sweep_has_one"
+      - "python/tests.stellar.test_significance::test_the_assessment_refuses_to_run_the_test_without_the_feature_matrix"
+      - "python/tests.stellar.test_significance::test_in_the_sweep_the_planted_cluster_is_significant_and_the_field_itself_is_not"
+      - "python/tests.stellar.test_significance::test_a_null_survivor_more_significant_than_the_candidate_makes_it_inconclusive"
+      - "python/tests.stellar.test_significance::test_a_new_candidate_is_held_to_each_false_candidate_of_its_tile"

@@ -149,6 +149,10 @@ sdp discover report
   `--bands` out for the whole sky. Until Part 3 has worked, add `--without-benchmarks` (then nothing can
   be called new).
 - `report` gathers every tile done so far.
+- Each candidate also gets a significance in sigma, the `significance_sigma` column of
+  `candidates.csv`: how much more tightly its members crowd together than the stars around them. Below
+  3 sigma it is rejected. A potentially new candidate must also be more significant than every false
+  candidate the tile's shuffled null field produced, so one noisy tile no longer hides a real cluster.
 - The sweep judges each candidate's colour-magnitude sequence with every member placed at the cluster's
   own distance (the mean of its members' parallaxes), and compares it with field stars at that same
   distance. A member's own parallax error no longer blurs the sequence, so faint real clusters stop

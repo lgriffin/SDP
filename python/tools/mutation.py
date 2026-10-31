@@ -79,7 +79,7 @@ RELATIVITY_SHARDS = (
 #: instead of 5x: a timeout counts as detected either way, so the score is unchanged and the shard fits.
 ANALYSIS_TIMEOUT = 2
 STELLAR_SHARDS = (
-    ("analysis", "benchmark", "cmd"),
+    ("analysis", "benchmark", "cmd", "significance"),
     ("protocol", "features", "quality", "ranking"),
     ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
 )

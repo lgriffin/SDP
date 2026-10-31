@@ -10,8 +10,9 @@ Tiles are declination bands of ``tile_deg`` cut into RA steps of about ``tile_de
 tile is clustered with a ``margin_deg`` rim of its neighbours' stars, so a cluster on a boundary is
 seen whole, and it keeps only candidates whose centre lies inside it, so no candidate is counted
 twice. Each tile also runs ``null_fields_per_tile`` null fields (the whole pipeline on shuffled
-kinematics); a potentially new candidate from a tile whose null field produced a survivor is
-inconclusive, as in the predeclared run.
+kinematics). Without a significance test a potentially new candidate from a tile whose null field
+produced a survivor is inconclusive, as in the predeclared run; with one (STL-011) it stays
+potentially new only when it is more significant than every such survivor.
 """
 
 from __future__ import annotations
@@ -143,13 +144,14 @@ def tile_seed(tile_id: str, seed: int) -> int:
 
 def _labellings(
     table: pa.Table, t: Tile, settings: Mapping[str, Any], clusterers: Mapping[str, ClusterSearchAlgorithm], seed: int
-) -> list[dict[str, Any]]:
+) -> tuple[np.ndarray, list[dict[str, Any]]]:
+    """The feature matrix the clustering saw, and one labelling per grid point."""
     fm = apply_policy(settings["feature_space_policy"], table, t.ra_deg, t.dec_deg)
     out = []
     for config in configurations(settings["algorithms"], settings["hyperparameter_grid"]):
         impl = clusterers[config.algorithm_id]
         out.append(labelling_document(run(impl, fm, config, seed), config, str(getattr(impl, "backend", "cpu"))))
-    return out
+    return fm.values, out
 
 
 def _owned(candidates: Sequence[dict[str, Any]], t: Tile) -> list[dict[str, Any]]:
@@ -178,7 +180,9 @@ def sweep_tile(
 
     ``table`` is canonical astrometry for the tile and its rim; benchmarks missing columns are left
     out, so with fewer than two usable ones nothing is called potentially new (STL-005)."""
-    analysis.cmd_policy(settings)  # an unknown policy is refused even for a tile that is skipped
+    # unknown or malformed settings are refused even for a tile that is skipped
+    analysis.cmd_policy(settings)
+    with_significance = analysis.significance_settings(settings) is not None
     usable = [b for b in benchmarks if not b.missing_columns()]
     s = tile_seed(t.tile_id, seed)
     kept, cuts = QualityCuts.from_parameters(settings["quality_cuts"]).apply(table)
@@ -204,39 +208,70 @@ def sweep_tile(
         result["skipped"] = f"{kept.num_rows} stars pass the cuts, more than max_tile_stars {int(most)}"
         return result
     try:
-        labellings = _labellings(kept, t, settings, clusterers, s)
+        features, labellings = _labellings(kept, t, settings, clusterers, s)
     except PolicyError as exc:
         result["skipped"] = str(exc)
         return result
-    found = _owned(analysis._assess(t.tile_id, kept, labellings, usable, settings, s), t)
+    found = _owned(analysis._assess(t.tile_id, kept, labellings, usable, settings, s, features), t)
 
     survivors = 0
+    survivor_sigmas: list[float | None] = []
     for k in range(int(settings["null_fields_per_tile"])):
         shuffled = null_field(kept, s + 1 + k)
         try:
-            null_labellings = _labellings(shuffled, t, settings, clusterers, s + 1 + k)
+            null_features, null_labellings = _labellings(shuffled, t, settings, clusterers, s + 1 + k)
         except PolicyError:
             continue
+        null_settings = {**settings, "pm_window_masyr": 0}
         nulls = _owned(
-            analysis._assess(t.tile_id + "-null", shuffled, null_labellings, [], {**settings, "pm_window_masyr": 0}, s),
-            t,
+            analysis._assess(t.tile_id + "-null", shuffled, null_labellings, [], null_settings, s, null_features), t
         )
-        survivors += any(c["status"] != "rejected" for c in nulls)
+        surviving = [c for c in nulls if c["status"] != "rejected"]
+        survivors += bool(surviving)
+        survivor_sigmas += [c.get("significance_sigma") for c in surviving]
     result["null_fields"] = int(settings["null_fields_per_tile"])
     result["null_fields_with_survivors"] = int(survivors)
+    if with_significance:
+        result["null_survivor_sigmas"] = survivor_sigmas
     for c in found:
         c["label"] = LABEL
-        if c["status"] == "potentially_new":
-            if result["null_fields"] == 0:
-                c["status"] = "inconclusive"
-                c["reasons"].append("no null field was run for this tile")
-            elif survivors:
-                c["status"] = "inconclusive"
-                c["reasons"].append(
-                    f"{survivors} of {result['null_fields']} null fields of this tile produced surviving candidates"
-                )
+        if c["status"] != "potentially_new":
+            continue
+        if result["null_fields"] == 0:
+            c["status"] = "inconclusive"
+            c["reasons"].append("no null field was run for this tile")
+        elif with_significance:
+            _against_null(c, survivor_sigmas)
+        elif survivors:
+            c["status"] = "inconclusive"
+            c["reasons"].append(
+                f"{survivors} of {result['null_fields']} null fields of this tile produced surviving candidates"
+            )
     result["candidates"] = found
     return result
+
+
+def _against_null(c: dict[str, Any], survivor_sigmas: Sequence[float | None]) -> None:
+    """With the significance test (STL-011), a potentially new candidate is held to the tile's own
+    false candidates one by one: it stays potentially new only when it is more significant than every
+    candidate that survived a null field. A survivor whose significance could not be assessed beats
+    every candidate, as the tile-wide rule did."""
+    if not survivor_sigmas:
+        return
+    if any(v is None for v in survivor_sigmas):
+        c["status"] = "inconclusive"
+        c["reasons"].append(
+            "a null field of this tile produced a surviving candidate the significance test could not assess"
+        )
+        return
+    worst = max(float(v) for v in survivor_sigmas if v is not None)
+    sigma = c.get("significance_sigma")
+    if sigma is None or float(sigma) <= worst:
+        c["status"] = "inconclusive"
+        c["reasons"].append(
+            f"significance {float(sigma or 0.0):.1f} sigma is no higher than a false candidate's {worst:.1f} sigma "
+            "in this tile's null fields"
+        )
 
 
 def summarise(results: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -281,6 +316,7 @@ def candidate_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]
                     "members": c["n_members"],
                     "stability": c["stability"],
                     "cmd_coherence": c["cmd_coherence"],
+                    "significance_sigma": c.get("significance_sigma"),
                     "matches": ", ".join(known),
                     "reasons": "; ".join(c["reasons"]),
                 }

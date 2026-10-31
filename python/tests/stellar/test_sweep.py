@@ -237,7 +237,8 @@ def test_a_null_field_survivor_makes_new_looking_candidates_inconclusive() -> No
     t = owner(*SYN_B)
     # pass marks loose enough that a group of the shuffled field survives
     loose = {**sweep.load_settings()["candidate_checks"], "max_field_fraction": 1.0, "min_cmd_coherence": 0.0}
-    lax = settings(candidate_checks=loose)
+    # without the significance test (STL-011) the tile-wide rule decides
+    lax = settings(candidate_checks=loose, significance=None)
     result = sweep.sweep_tile(tile_rows(t, praesepe_field()), t, lax, clusterers(), benchmarks(), 2026)
     assert result["null_fields_with_survivors"] == 1
     syn_b = [

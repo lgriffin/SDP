@@ -1,5 +1,5 @@
 {
-  "notes": "Settings of the exploratory whole-sky sweep (STL-009). Cuts, feature policy, pass marks and the cross-match window come from the UC-01 predeclaration; these are the sweep's own. Three HDBSCAN grid points give each candidate a stability; one null field per tile gives the false-positive rate. The sweep clusters with fast_hdbscan's Boruvka HDBSCAN, which matches scikit-learn's labels on the fixtures but grows about n log n rather than n squared with the stars in a tile (#133); the predeclared UC-01 run keeps sklearn-hdbscan. The CMD coherence check places every member at the cluster's distance (cmd_policy cluster-distance, STL-010), so a member's own parallax error does not blur the sequence. A tile with more stars than max_tile_stars after the cuts is skipped with that reason rather than searched.",
+  "notes": "Settings of the exploratory whole-sky sweep (STL-009). Cuts, feature policy, pass marks and the cross-match window come from the UC-01 predeclaration; these are the sweep's own. Three HDBSCAN grid points give each candidate a stability; one null field per tile gives the false-positive rate. The sweep clusters with fast_hdbscan's Boruvka HDBSCAN, which matches scikit-learn's labels on the fixtures but grows about n log n rather than n squared with the stars in a tile (#133); the predeclared UC-01 run keeps sklearn-hdbscan. The CMD coherence check places every member at the cluster's distance (cmd_policy cluster-distance, STL-010), so a member's own parallax error does not blur the sequence. Each candidate also gets a significance in sigma (STL-011, after Hunt & Reffert 2021): its members' 10th-nearest-neighbour distances in the feature space against those of the 5x as many (at least 50) non-members around it; below 3 sigma it is rejected, and a potentially new one must beat every false candidate its tile's null fields produced. A tile with more stars than max_tile_stars after the cuts is skipped with that reason rather than searched.",
   "tile_deg": 2.0,
   "margin_deg": 0.5,
   "algorithms": ["fast-hdbscan"],
@@ -7,6 +7,7 @@
     "fast-hdbscan": {"min_cluster_size": [10, 20, 40], "min_samples": [10]}
   },
   "cmd_policy": "cluster-distance",
+  "significance": {"k": 10, "field_multiple": 5, "min_field": 50, "min_sigma": 3.0},
   "null_fields_per_tile": 1,
   "max_tile_stars": 3000000,
   "seed": 2026
