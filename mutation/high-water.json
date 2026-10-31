@@ -1,1 +1,24 @@
-{}
+{
+  "python/sdp-adapters-datalink": 97.52,
+  "python/sdp-adapters-wise": 96.86,
+  "python/sdp-investigate-exposures": 91.2,
+  "python/sdp-kernel-application": 96.73,
+  "python/sdp-kernel-domain": 93.7,
+  "python/sdp-kernel-integration": 97.39,
+  "python/sdp-kernel-investigate": 97.46,
+  "python/sdp-kernel-investigation": 98.89,
+  "python/sdp-kernel-planning": 96.86,
+  "python/sdp-kernel-ports": 97.6,
+  "python/sdp-kernel-science": 97.93,
+  "python/sdp-relativity-1": 100,
+  "python/sdp-relativity-2": 100,
+  "python/sdp-relativity-3": 99.84,
+  "python/sdp-relativity-4": 92.93,
+  "python/sdp-relativity-5": 100,
+  "python/sdp-relativity-6": 95.51,
+  "python/sdp-stellar-1": 98.06,
+  "python/sdp-stellar-2": 95.07,
+  "python/sdp-stellar-3": 97.48,
+  "typescript/relativity-fit": 90.69,
+  "typescript/spec-harness": 96.31
+}
