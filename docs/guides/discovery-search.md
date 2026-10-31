@@ -141,6 +141,8 @@ sdp discover prepare --count 2
 sdp discover prepare
 sdp discover sweep --bands 57
 sdp discover report
+rem developer tools only, from the python folder of your checkout: is the Pleiades found once, as known?
+uv run python tools\check_pleiades.py
 ```
 
 - `prepare --count 2` reads two bulk files into the sweep's cut catalogue as a quick test. `prepare` on
