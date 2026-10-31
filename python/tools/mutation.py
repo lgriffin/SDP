@@ -164,6 +164,12 @@ TARGETS = {
             ("tests/investigate", "tests/local"),
         ),
         Target(
+            "sdp-investigate-contradiction",
+            "sdp-investigate",
+            ("src/sdp_investigate/contradiction.py",),
+            ("tests/investigate",),
+        ),
+        Target(
             "sdp-investigate-changes",
             "sdp-investigate",
             ("src/sdp_investigate/changes.py",),
