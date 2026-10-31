@@ -28,6 +28,7 @@ from sdp_stellar.membership import Candidate, estimate
 from sdp_stellar.null import null_field
 from sdp_stellar.quality import QualityCuts, column
 from sdp_stellar.search import Configuration, configurations, labelling_document, run
+from sdp_stellar.significance import SignificanceSettings, significance, tree
 
 
 @dataclass(frozen=True)
@@ -131,8 +132,17 @@ def _assess(
     benchmarks: Sequence[bm.Benchmark],
     params: Mapping[str, Any],
     seed: int,
+    features: np.ndarray | None = None,
 ) -> list[dict[str, Any]]:
+    """``features`` is the matrix the clustering saw; settings that ask for the significance test
+    (STL-011) need it."""
     policy = cmd_policy(params)  # refused before any candidate, even when the search finds none
+    sig = significance_settings(params)
+    index = None
+    if sig is not None:
+        if features is None or features.shape[0] != table.num_rows:
+            raise ValueError("the significance test needs the feature matrix of the stars searched")
+        index = tree(features)
     colour = column(table, "bp_rp")
     g, plx = column(table, "g_mag"), column(table, "parallax_mas")
     mag = absolute_g(g, plx)
@@ -141,9 +151,29 @@ def _assess(
         shared = {"g": g, "parallax": plx, "parallax_err": column(table, "parallax_mas_err")}
         shared["usable"] = usable_rows(colour, g, plx)
     out: list[dict[str, Any]] = []
+    checks = CandidateChecks.from_parameters(params["candidate_checks"])
     for c in estimate(region, labellings):
-        out.append(_classify(c, table, colour, mag, benchmarks, params, seed, columns=shared))
+        sigma = None
+        if sig is not None and index is not None and features is not None and _worth_testing(c, checks, table.num_rows):
+            sigma = significance(index, features, c.members, sig)
+        out.append(_classify(c, table, colour, mag, benchmarks, params, seed, columns=shared, sigma=sigma))
     return out
+
+
+def _worth_testing(c: Candidate, checks: CandidateChecks, searched: int) -> bool:
+    """Whether a candidate can still pass once tested: one already failing the member count, the
+    stability or the field-fraction check is rejected whatever its significance, so the neighbour
+    queries (largest for a field-sized group) are not run for it."""
+    return (
+        checks.min_members <= c.members.size <= checks.max_field_fraction * searched
+        and c.stability >= checks.min_stability
+    )
+
+
+def significance_settings(params: Mapping[str, Any]) -> SignificanceSettings | None:
+    """The settings' significance test (STL-011), or None: the predeclared UC-01 run names none."""
+    doc = params.get("significance")
+    return None if doc is None else SignificanceSettings.from_parameters(doc)
 
 
 def _classify(
@@ -155,8 +185,10 @@ def _classify(
     params: Mapping[str, Any],
     seed: int,
     columns: Mapping[str, np.ndarray] | None = None,
+    sigma: float | None = None,
 ) -> dict[str, Any]:
     checks = CandidateChecks.from_parameters(params["candidate_checks"])
+    sig = significance_settings(params)
     reasons: list[str] = []
     coh = _coherence(c, table, colour, mag, params, seed, columns)
     centre = bm.centre(table, c.members) if c.members.size else None
@@ -173,9 +205,14 @@ def _classify(
         reasons.append(
             f"colour-magnitude sequence no tighter than the field: coherence {coh:.2f} < {checks.min_cmd_coherence}"
         )
+    if sig is not None and sigma is not None and sigma < sig.min_sigma:
+        reasons.append(f"no denser than the stars around it: significance {sigma:.1f} sigma < {sig.min_sigma:g}")
     crossmatch = []
     if reasons:
         status = "rejected"
+    elif sig is not None and sigma is None:
+        status = "inconclusive"
+        reasons.append("too few members or surrounding stars for the significance test")
     elif coh is None:
         status = "inconclusive"
         reasons.append(
@@ -201,7 +238,7 @@ def _classify(
         else:
             status = "inconclusive"
             reasons.append("cross-matched against fewer than two benchmarks (STL-005)")
-    return {
+    out: dict[str, Any] = {
         "candidate_id": c.candidate_id,
         "status": status,
         "reasons": reasons,
@@ -214,6 +251,9 @@ def _classify(
         "crossmatch": crossmatch,
         "member_keys": [table.column("source_key")[int(i)].as_py() for i in c.members],
     }
+    if sig is not None:
+        out["significance_sigma"] = sigma
+    return out
 
 
 def cmd_policy(params: Mapping[str, Any]) -> str:

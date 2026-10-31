@@ -107,3 +107,24 @@ def test_an_incomplete_bulk_copy_is_refused(tmp_path: Path, monkeypatch: pytest.
     assert str(result.exception) == (
         "the bulk Gaia copy is missing or incomplete; finish `sdp archive bulk`, or pass --parquet"
     )
+
+
+@pytest.mark.req("REL-019")
+def test_the_corrections_command_writes_an_exploratory_report_beside_uc03s(bulk: Path) -> None:
+    out = bulk / "uc03"
+    path = bulk / "cone.parquet"
+    pq.write_table(native_cone(), path)
+    result = runner.invoke(
+        cli.app, ["einstein1921", "corrections", "--parquet", str(path), "--out", str(out), "--resamples", "1"]
+    )
+    assert result.exit_code == 0, result.output
+    report = json.loads((out / "corrections.json").read_text("utf-8"))
+    assert report["quick_look"] is True
+    assert report["reading"]["exploratory"] is True
+    assert len(report["corrections"]) == 108
+    assert report["baseline"]["corrected"]["distance_pc"] == 7420.0
+    summary = (out / "corrections.md").read_text("utf-8")
+    assert summary.startswith("# UC-03b: corrections to the Einstein (1921) rerun (exploratory)\n")
+    assert "UC-03's own verdict is unchanged." in summary
+    assert "| 6' | 17 |" in summary
+    assert "A quick look (fewer resamples): this is not the protocol's reading." in summary

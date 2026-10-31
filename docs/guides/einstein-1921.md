@@ -1,6 +1,6 @@
 # Journey: rerun Einstein's 1921 globular-cluster calculation
 
-**Time:** about 1 minute for the arithmetic; 5 to 15 minutes for the full run · **Download:** nothing if your bulk Gaia copy is complete · **Needs:** the [developer tools](install-dev-tools.md) and, for the full run, the bulk copy from [Hunt for star clusters](discovery-search.md)
+**Time:** about 1 minute for the arithmetic; 5 to 15 minutes for the full run, and about as long again for the corrections · **Download:** nothing if your bulk Gaia copy is complete · **Needs:** the [developer tools](install-dev-tools.md) and, for the full run, the bulk copy from [Hunt for star clusters](discovery-search.md)
 
 In 1921 Einstein wrote a three-page paper applying Newton's gravity to the globular cluster in Hercules (M13). He used the virial theorem: in a settled cluster, the stars' kinetic energy is half the size of their gravitational energy. Nobody could measure how the cluster's stars moved, so he borrowed 26 km/s from bright stars near the Sun. He guessed 2,000 stars of 15 suns each. The cluster came out at under a light-year across, far too small, so he multiplied the number of stars by 100 and concluded that the invisible mass is "not of a higher order of magnitude" than the visible mass. He ended by saying better results needed better star masses and speeds.
 
@@ -46,6 +46,20 @@ If you have no bulk copy, export the cone yourself as Parquet with the `gaia_sou
 
 The light misses stars fainter than G = 19. That makes the ratio too high, so a `supports_H1` result is conservative.
 
+## Step 3: the corrections (after an inconclusive run)
+
+The first run on M13 came out inconclusive, with a ratio close to 10, so a second, exploratory step was declared before running it: [docs/protocols/uc03b-einstein-1921-corrections.md](../protocols/uc03b-einstein-1921-corrections.md). It keeps the same fit, but makes three changes:
+
+- It takes the cluster's distance from published work (7.42 kpc, Baumgardt & Vasiliev 2021) instead of from Gaia's parallax.
+- It takes the cluster's total light from published work, so faint stars and the crowded core count.
+- It tries wider core cuts, brighter magnitude limits and larger Gaia errors to see whether crowding moved the first result.
+
+```
+uv run sdp einstein1921 corrections --out reports\uc03
+```
+
+It takes a little longer than `run` and writes `corrections.json` and `corrections.md` beside the first report. Its reading is `consistent_with_H1_after_corrections`, `consistent_with_H0_after_corrections` or `mixed`. It never changes the verdict of Step 2, because the corrections were chosen after seeing that result. The crowding table shows the fitted size and speed against the core cut and the magnitude limit: if they settle as the cut widens, crowding explains the first result.
+
 ## Send it back
 
-Commit nothing from `reports\`. Send `report.json` and `report.md` to the thread, and we will write up the result.
+Commit nothing from `reports\`. Send `report.json` and `report.md`, and after Step 3 `corrections.json` and `corrections.md`, to the thread, and we will write up the result.
