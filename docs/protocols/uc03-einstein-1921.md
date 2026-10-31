@@ -48,9 +48,11 @@ One Gaia DR3 cone about the starting position RA 250.42°, Dec +36.46° (ICRS), 
 
 ## The model
 
-Stars in the annulus `r_in ≤ R ≤ R_max` about the fitted centre are a mixture of cluster and field, fitted by maximum likelihood:
+The centre is found first: the mean position of stars within 0.1° of the current centre whose proper motion lies within 1.5 mas/yr of their median, iterated five times from the starting position. A core hole that is symmetric does not bias this centroid.
 
-- **Positions.** The cluster follows the Plummer surface density of eq. (3), `Σ(R) ∝ (1 + R²/a²)^(−2)`, and the field is uniform. Both are normalised over the annulus. The centre (two offsets on the tangent plane), `a` and the cluster fraction are free.
+Stars in the annulus `r_in ≤ R ≤ R_max` about that centre are a mixture of cluster and field, fitted by maximum likelihood:
+
+- **Positions.** The cluster follows the Plummer surface density of eq. (3), `Σ(R) ∝ (1 + R²/a²)^(−2)`, and the field is uniform. Both are normalised over the annulus. `a` and the cluster fraction are free.
 - **Proper motions.** Cluster stars scatter about the cluster's mean proper motion with the isotropic Plummer projected dispersion `σ²(R) = σ₀²(1 + R²/a²)^(−1/2)`, convolved with each star's own error ellipse (errors and `pmra_pmdec_corr`, scaled by the error-scale factor). Field stars follow a free two-dimensional Gaussian convolved with the same errors.
 - **Parallax.** Cluster stars share one parallax, convolved with each star's error. The field follows a free Gaussian.
 
