@@ -408,7 +408,8 @@ def test_a_band_reads_its_error_its_quality_letter_and_refuses_sentinels() -> No
     _band(b, 5, ps1.bands[0], ps1, {"quality_flags": '{"gMeanPSFMag": 14.5}'}, 14.0, 1.0, gaia, False)
     assert b.index == [0, 1, 2, 5]
     assert b.sigma[:3] == [0.03, 0.03, 0.03] and b.sigma[3] == 0.0
-    assert b.reasons == [None, POOR_QUALITY, None, None]
+    # no quality string is no grade: the band is set aside, not counted as good
+    assert b.reasons == [None, POOR_QUALITY, POOR_QUALITY, None]
     assert b.gap[0] == -17.0 and math.isnan(b.gap[3])
     assert b.observed[3] == 14.5
 
@@ -463,3 +464,95 @@ def test_the_unit_vectors_are_unit_and_point_the_right_way() -> None:
     assert v[0] == pytest.approx([1.0, 0.0, 0.0]) and v[1] == pytest.approx([0.0, 1.0, 0.0], abs=1e-12)
     c = math.cos(math.radians(45.0))
     assert v[2] == pytest.approx([c * math.cos(math.radians(200)), c * math.sin(math.radians(200)), c])
+
+
+def test_tied_magnitudes_never_leave_a_bin_short() -> None:
+    from sdp_investigate.contradiction import magnitude_bins
+
+    g = np.array([10.0] * 25 + [11.0] * 5)
+    bins = magnitude_bins(g, np.ones(30, dtype=bool), 3, 10)
+    assert np.bincount(bins).min() >= 10 or set(bins.tolist()) == {0}
+    assert set(bins.tolist()) == {0}
+
+
+def test_a_poor_pan_starrs_row_is_set_aside_whole() -> None:
+    from sdp_investigate.contradiction import SURVEYS
+
+    bundles = field()
+    poor = 2  # 2 % 4 != 0, so it has a PS1 row
+    b = bundles[poor]
+    ps = dict(b.rows("ps1")[0])
+    ps["quality_class"] = "poor"
+    bundles[poor] = EvidenceBundle(
+        object=b.object,
+        catalogue_rows={**b.catalogue_rows, "ps1": (ps,)},
+        catalogue_artifacts=b.catalogue_artifacts,
+    )
+    results = {str(r.subject.object_key): r for r in CrossSurveyContradiction().run(bundles, THRESHOLDS, context())}
+    by = comparisons(results[f"gaia:DR3:{poor}"])
+    ps1 = [c for c in by.values() if c["survey"] == "ps1"]
+    assert ps1 and all(c["set_aside"] == POOR_QUALITY for c in ps1)
+    assert by["2mass:J"]["counted"] and SURVEYS["ps1"].row_quality
+
+
+def test_the_parallax_shift_has_the_parallax_s_size_and_a_yearly_ellipse() -> None:
+    from sdp_investigate.contradiction import parallax_shift
+
+    # at the north ecliptic pole the shift traces a circle of one parallax all year
+    for t in np.linspace(2000.0, 2001.0, 9):
+        assert math.hypot(*parallax_shift(270.0, 66.56, float(t))) == pytest.approx(1.0, abs=0.03)
+    # on the ecliptic the shift is along the ecliptic: no Dec shift at RA 90, Dec 23.44
+    for t in np.linspace(2000.0, 2001.0, 9):
+        assert abs(parallax_shift(90.0, 23.44, float(t))[1]) < 0.02
+    # six months apart the shift reverses
+    one, half = parallax_shift(10.0, 20.0, 2010.1), parallax_shift(10.0, 20.0, 2010.6)
+    assert one[0] == pytest.approx(-half[0], abs=0.05) and one[1] == pytest.approx(-half[1], abs=0.05)
+
+
+def test_a_nearby_star_s_parallax_is_predicted_not_flagged() -> None:
+    from sdp_investigate.contradiction import _Builder, _position, parallax_shift
+
+    gaia = {
+        "ra_deg": 10.0,
+        "dec_deg": 20.0,
+        "epoch_jyear": 2016.0,
+        "pm_ra_cosdec_masyr": 0.0,
+        "pm_dec_masyr": 0.0,
+        "parallax_mas": 300.0,
+    }
+    when = 1999.3
+    sra, sdec = parallax_shift(10.0, 20.0, when)
+    cosd = math.cos(math.radians(20.0))
+    row = {"ra_deg": 10.0 + 300.0 * sra / 3.6e6 / cosd, "dec_deg": 20.0 + 300.0 * sdec / 3.6e6, "epoch_jyear": when}
+    single, mean = _Builder(), _Builder()
+    _position(single, 0, gaia, row, 12.0, 1.0, False, single_epoch=True)
+    _position(mean, 0, gaia, row, 12.0, 1.0, False)
+    assert math.hypot(*single.observed[0]) < 1e-6
+    assert math.hypot(*mean.observed[0]) == pytest.approx(300.0 * math.hypot(sra, sdec), rel=1e-6)
+
+
+def test_a_neighbour_is_judged_where_it_was_at_the_survey_s_epoch() -> None:
+    from sdp_investigate.contradiction import _separation_then
+
+    ra, dec = np.array([10.0, 10.0]), np.array([0.0, 3.0 / 3600.0])
+    epochs = np.array([2016.0, 2016.0])
+    pm = np.array([[0.0, 0.0], [0.0, 100.0]])  # the neighbour moves north 100 mas/yr
+    assert _separation_then(ra, dec, pm, epochs, 0, 1, 2016.0) == pytest.approx(3.0)
+    # in 1999 it was 1.3 arcsec away, inside 2MASS's 2.5 arcsec
+    assert _separation_then(ra, dec, pm, epochs, 0, 1, 1999.0) == pytest.approx(1.3)
+
+
+@pytest.mark.parametrize(("ra", "dec", "when"), [(10.0, 20.0, 1999.3), (200.0, -40.0, 2005.8), (83.0, 22.0, 2001.1)])
+def test_the_parallax_shift_agrees_with_astropy_s_earth(ra: float, dec: float, when: float) -> None:
+    from astropy.coordinates import get_body_barycentric
+    from astropy.time import Time
+
+    from sdp_investigate.contradiction import parallax_shift
+
+    earth = get_body_barycentric("earth", Time(when, format="jyear", scale="tdb")).xyz.to("au").value
+    distance = 206264.806  # AU: a parallax of one arcsecond
+    a, d = math.radians(ra), math.radians(dec)
+    seen = distance * np.array([math.cos(d) * math.cos(a), math.cos(d) * math.sin(a), math.sin(d)]) - earth
+    ra2, dec2 = math.degrees(math.atan2(seen[1], seen[0])), math.degrees(math.asin(seen[2] / np.linalg.norm(seen)))
+    expected = (((ra2 - ra + 180.0) % 360.0 - 180.0) * math.cos(d) * 3600.0, (dec2 - dec) * 3600.0)
+    assert parallax_shift(ra, dec, when) == pytest.approx(expected, abs=0.02)

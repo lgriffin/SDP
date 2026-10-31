@@ -68,6 +68,9 @@ CLIPPED_MEAN = {d: d * float(stats.chi2.cdf(CLIP[d], d + 2) / stats.chi2.cdf(CLI
 BLENDED = "blended"
 POOR_QUALITY = "poor quality"
 TOO_FEW = "too few stars to calibrate"
+#: neighbours are first looked for this much wider than a survey's resolution, then judged where both
+#: stars were at the survey's epoch: 2 arcsec covers 100 mas/yr over 20 years
+BLEND_MARGIN_ARCSEC = 2.0
 #: a magnitude outside this range is a sentinel (Pan-STARRS writes -999), not a measurement
 MAG_RANGE = (-2.0, 30.0)
 
@@ -90,7 +93,14 @@ class Survey:
     """Two sources closer than this blend in the survey's measurement."""
     bands: tuple[Band, ...]
     quality_flag: str | None = None
+    """The survey's per-band quality string; a band needs a good letter in it to count."""
     good_quality: str = ""
+    row_quality: bool = False
+    """Set aside every comparison of a row whose canonical ``quality_class`` is ``poor`` (Pan-STARRS:
+    fewer than three detections)."""
+    single_epoch: bool = False
+    """Positions are measured at one date, so they carry the star's parallax shift on that date
+    (2MASS); a mean over many dates (Pan-STARRS) averages most of it away."""
 
 
 SURVEYS: dict[str, Survey] = {
@@ -104,6 +114,7 @@ SURVEYS: dict[str, Survey] = {
         ),
         quality_flag="ph_qual",
         good_quality="AB",
+        single_epoch=True,
     ),
     "ps1": Survey(
         "ps1",
@@ -115,6 +126,7 @@ SURVEYS: dict[str, Survey] = {
             Band("z", "ps_z_mag", "zMeanPSFMag"),
             Band("y", "ps_y_mag", "yMeanPSFMag"),
         ),
+        row_quality=True,
     ),
 }
 
@@ -233,13 +245,18 @@ def equivalent_z(d2: np.ndarray, dof: int, nu: np.ndarray | None = None) -> np.n
 
 def magnitude_bins(g_mag: np.ndarray, counted: np.ndarray, bins: int, min_per_bin: int) -> np.ndarray:
     """Each entry's G-magnitude bin; edges are quantiles of the counted entries, as many bins as
-    hold ``min_per_bin`` counted stars each, at most ``bins``."""
+    hold ``min_per_bin`` counted stars each, at most ``bins``, and fewer when tied magnitudes would
+    leave a bin short."""
     n = int(counted.sum())
     k = max(1, min(bins, n // min_per_bin))
-    if k == 1:
-        return np.zeros(len(g_mag), dtype=int)
-    edges = np.quantile(g_mag[counted], np.linspace(0.0, 1.0, k + 1)[1:-1])
-    return np.asarray(np.searchsorted(edges, g_mag, side="right"))
+    while k > 1:
+        edges = np.quantile(g_mag[counted], np.linspace(0.0, 1.0, k + 1)[1:-1])
+        assigned = np.asarray(np.searchsorted(edges, g_mag, side="right"))
+        # tied magnitudes can leave a bin short; then fewer, wider bins
+        if np.bincount(assigned[counted], minlength=k).min() >= min_per_bin:
+            return assigned
+        k -= 1
+    return np.zeros(len(g_mag), dtype=int)
 
 
 def calibrate(channel: Channel, cfg: Mapping[str, Any]) -> Calibration:
@@ -342,28 +359,34 @@ class CrossSurveyContradiction(FieldTest):
         ra = np.array([float(r["ra_deg"]) for _, r in gaia_rows])
         dec = np.array([float(r["dec_deg"]) for _, r in gaia_rows])
         g = np.array([float(r["g_mag"]) for _, r in gaia_rows])
+        pm = np.array([[_or_zero(r.get("pm_ra_cosdec_masyr")), _or_zero(r.get("pm_dec_masyr"))] for _, r in gaia_rows])
+        epochs = np.array([_or_zero(r.get("epoch_jyear")) for _, r in gaia_rows])
         tree = cKDTree(_unit(ra, dec))
         delta = float(cfg["blend_delta_mag"])
         for survey_id, source_id in sorted(cfg["surveys"].items()):
             survey = SURVEYS[survey_id]
             resolution = float(cfg.get(f"{survey_id}_resolution_arcsec", survey.resolution_arcsec))
-            chord = 2.0 * math.sin(math.radians(resolution / 3600.0) / 2.0)
+            # look wider than the resolution, then judge each neighbour where both stars were then
+            chord = 2.0 * math.sin(math.radians((resolution + BLEND_MARGIN_ARCSEC) / 3600.0) / 2.0)
             builders = {POSITION: _Builder()} | {band.name: _Builder() for band in survey.bands}
             for i, (b, gaia) in enumerate(gaia_rows):
                 rows = b.rows(source_id)
                 if not rows:
                     continue
                 row = rows[0]
-                neighbours = [
-                    j for j in tree.query_ball_point(_unit(ra[i : i + 1], dec[i : i + 1])[0], chord) if j != i
-                ]
-                blended = any(g[j] - g[i] < delta for j in neighbours)
+                near = [j for j in tree.query_ball_point(_unit(ra[i : i + 1], dec[i : i + 1])[0], chord) if j != i]
+                epoch = _number(row, "epoch_jyear")
+                when = epoch if epoch is not None else float(epochs[i])
+                blended = any(
+                    g[j] - g[i] < delta and _separation_then(ra, dec, pm, epochs, i, j, when) < resolution for j in near
+                )
                 bp_rp = float(gaia["bp_rp"]) if finite(gaia.get("bp_rp")) else math.nan
-                _position(builders[POSITION], i, gaia, row, g[i], bp_rp, blended)
+                poor = survey.row_quality and row.get("quality_class") == "poor"
+                _position(builders[POSITION], i, gaia, row, g[i], bp_rp, blended, poor, survey.single_epoch)
                 for band in survey.bands:
                     if math.isnan(bp_rp):
                         continue
-                    _band(builders[band.name], i, band, survey, row, g[i], bp_rp, gaia, blended)
+                    _band(builders[band.name], i, band, survey, row, g[i], bp_rp, gaia, blended, poor)
             for name, builder in builders.items():
                 if builder.index:
                     kind = POSITION if name == POSITION else BAND
@@ -481,6 +504,41 @@ class _Builder:
         )
 
 
+def _or_zero(value: Any) -> float:
+    return float(value) if finite(value) else 0.0
+
+
+def _separation_then(
+    ra: np.ndarray, dec: np.ndarray, pm: np.ndarray, epochs: np.ndarray, i: int, j: int, when: float
+) -> float:
+    """Arcseconds between stars i and j at ``when``, each moved along its Gaia proper motion
+    (a star without one stays put), in the tangent plane about star i."""
+    cosd = math.cos(math.radians(float(dec[i])))
+    dra = float(ra_offset_deg(np.array([ra[j]]), np.array([ra[i]]))[0]) * cosd * 3600.0
+    ddec = float(dec[j] - dec[i]) * 3600.0
+    moved = (pm[j] * (when - epochs[j]) - pm[i] * (when - epochs[i])) / 1000.0
+    return math.hypot(dra + float(moved[0]), ddec + float(moved[1]))
+
+
+def parallax_shift(ra_deg: float, dec_deg: float, epoch_jyear: float) -> tuple[float, float]:
+    """The parallax displacement per mas of parallax, (RA*cos dec, Dec), seen from the Earth at
+    ``epoch_jyear``. The Sun's geocentric position comes from the Astronomical Almanac's low-precision
+    formulae (about 0.01 deg), ample for a shift of at most the parallax itself."""
+    n = (epoch_jyear - 2000.0) * 365.25
+    mean_longitude = math.radians((280.460 + 0.9856474 * n) % 360.0)
+    anomaly = math.radians((357.528 + 0.9856003 * n) % 360.0)
+    lam = mean_longitude + math.radians(1.915 * math.sin(anomaly) + 0.020 * math.sin(2 * anomaly))
+    r = 1.00014 - 0.01671 * math.cos(anomaly) - 0.00014 * math.cos(2 * anomaly)
+    eps = math.radians(23.439 - 0.0000004 * n)
+    # the Earth sits opposite the Sun: its position about the Sun, in AU, equatorial
+    x, y, z = -r * math.cos(lam), -r * math.cos(eps) * math.sin(lam), -r * math.sin(eps) * math.sin(lam)
+    a, d = math.radians(ra_deg), math.radians(dec_deg)
+    # the star appears displaced away from the Earth's position, across the line of sight
+    shift_ra = x * math.sin(a) - y * math.cos(a)
+    shift_dec = x * math.cos(a) * math.sin(d) + y * math.sin(a) * math.sin(d) - z * math.cos(d)
+    return shift_ra, shift_dec
+
+
 def _unit(ra: np.ndarray, dec: np.ndarray) -> np.ndarray:
     r, d = np.radians(ra), np.radians(dec)
     return np.column_stack((np.cos(d) * np.cos(r), np.cos(d) * np.sin(r), np.sin(d)))
@@ -515,6 +573,8 @@ def _position(
     g: float,
     bp_rp: float,
     blended: bool,
+    poor: bool = False,
+    single_epoch: bool = False,
 ) -> None:
     epoch = _number(row, "epoch_jyear")
     ra, dec = _number(row, "ra_deg"), _number(row, "dec_deg")
@@ -525,13 +585,17 @@ def _position(
     cosd = math.cos(math.radians(float(gaia["dec_deg"])))
     pred_dec = float(gaia["dec_deg"]) + float(gaia["pm_dec_masyr"]) * dt / MAS_PER_DEG
     pred_ra = float(gaia["ra_deg"]) + float(gaia["pm_ra_cosdec_masyr"]) * dt / MAS_PER_DEG / cosd
+    if single_epoch and finite(gaia.get("parallax_mas")):
+        shift_ra, shift_dec = parallax_shift(float(gaia["ra_deg"]), float(gaia["dec_deg"]), epoch)
+        pred_ra += float(gaia["parallax_mas"]) * shift_ra / MAS_PER_DEG / cosd
+        pred_dec += float(gaia["parallax_mas"]) * shift_dec / MAS_PER_DEG
     dra = float(ra_offset_deg(np.array([ra]), np.array([pred_ra]))[0]) * cosd * MAS_PER_DEG
     ddec = (dec - pred_dec) * MAS_PER_DEG
     pm_err = math.hypot(
         float(gaia.get("pm_ra_cosdec_masyr_err") or 0.0), float(gaia.get("pm_dec_masyr_err") or 0.0)
     ) / math.sqrt(2.0)
     sigma = math.hypot(_number(row, "pos_err_mas") or 0.0, pm_err * abs(dt))
-    builder.add(i, g, bp_rp, (dra, ddec), sigma, dt, BLENDED if blended else None)
+    builder.add(i, g, bp_rp, (dra, ddec), sigma, dt, BLENDED if blended else POOR_QUALITY if poor else None)
 
 
 def _band(
@@ -544,14 +608,16 @@ def _band(
     bp_rp: float,
     gaia: Mapping[str, Any],
     blended: bool,
+    poor: bool = False,
 ) -> None:
     mag = _number(row, band.column, band.flag)
     if mag is None or not MAG_RANGE[0] < mag < MAG_RANGE[1]:
         return
-    reason: str | None = BLENDED if blended else None
+    reason: str | None = BLENDED if blended else POOR_QUALITY if poor else None
     if reason is None and survey.quality_flag and band.quality_index is not None:
+        # a band counts only with a good letter; a missing or short quality string is no grade
         quality = str(_flags(row).get(survey.quality_flag) or "")
-        if len(quality) > band.quality_index and quality[band.quality_index] not in survey.good_quality:
+        if len(quality) <= band.quality_index or quality[band.quality_index] not in survey.good_quality:
             reason = POOR_QUALITY
     epoch = _number(row, "epoch_jyear")
     gap = epoch - float(gaia["epoch_jyear"]) if epoch is not None and finite(gaia.get("epoch_jyear")) else math.nan
