@@ -289,31 +289,42 @@ def _as_done(futures: dict[Future[Any], str]) -> Iterator[Future[Any]]:
 # --- sweep: tile by tile -------------------------------------------------------------------------
 
 
-def _band_table(catalogue: Path, bands: list[int]) -> Any:
+def _band_table(catalogue: Path, bands: list[int], parallax: tuple[float, float] | None = None) -> Any:
+    """The prepared stars of these catalogue bands; with ``parallax``, only those inside that range
+    (read with a row-group filter, so a near shell does not load the whole sky)."""
+    import math
+
     import pyarrow as pa
     import pyarrow.parquet as pq
 
+    filters = None
+    if parallax is not None:
+        lo, hi = parallax
+        bounds = [("parallax_mas", ">=", lo)] if math.isfinite(lo) else []
+        bounds += [("parallax_mas", "<=", hi)] if math.isfinite(hi) else []
+        filters = bounds or None
     parts = []
     for band in bands:
         folder = catalogue / f"band={band:03d}"
         for path in sorted(folder.glob("*.parquet")) if folder.is_dir() else []:
             if (catalogue / "_done" / f"{path.stem}.json").exists():  # a file whose prepare finished
-                parts.append(pq.read_table(path))
+                parts.append(pq.read_table(path, filters=filters))
     if not parts:
         return None
     return pa.concat_tables(parts)
 
 
 def run_tile(
-    table: Any, band: int, index: int, settings: dict[str, Any], benchmarks: list[Any], out: str
+    table: Any, band: int, index: int, settings: dict[str, Any], benchmarks: list[Any], out: str, scale: str = ""
 ) -> dict[str, Any]:
     """One tile in a worker process; writes ``tiles/<tile_id>.json`` and returns a short summary."""
     from sdp.adapters.bootstrap import clusterers
-    from sdp_stellar.sweep import sweep_tile, tile
+    from sdp_stellar.sweep import scales, sweep_tile, tile
 
     started = time.monotonic()
-    t = tile(band, index, float(settings["tile_deg"]))
-    result = sweep_tile(table, t, settings, clusterers(), benchmarks, int(settings["seed"]))
+    chosen = next(s for s in scales(settings) if s.name == scale)
+    t = tile(band, index, chosen.tile_deg, chosen.name)
+    result = sweep_tile(table, t, settings, clusterers(), benchmarks, int(settings["seed"]), chosen)
     result["seconds"] = round(time.monotonic() - started, 2)
     path = Path(out) / f"{t.tile_id}.json"
     tmp = path.with_suffix(".json.tmp")
@@ -329,6 +340,19 @@ def run_tile(
         "skipped": result["skipped"],
         "seconds": result["seconds"],
     }
+
+
+def _scale_bands(chosen: list[Any], dec_lo: float, dec_hi: float) -> list[tuple[Any, int]]:
+    """Every (scale, band) whose band overlaps declinations [dec_lo, dec_hi): nearest scale first."""
+    from sdp_stellar.sweep import bands as band_count
+
+    out = []
+    for scale in chosen:
+        for band in range(band_count(scale.tile_deg)):
+            lo = -90.0 + band * scale.tile_deg
+            if lo < dec_hi and lo + scale.tile_deg > dec_lo:
+                out.append((scale, band))
+    return out
 
 
 def _bands(spec: str | None, total: int) -> list[int]:
@@ -354,14 +378,18 @@ def discover_sweep(
 ) -> None:
     """Search the prepared catalogue for clusters, tile by tile (STL-009). EXPLORATORY.
 
-    Each 2x2-degree tile is clustered with a half-degree rim of its neighbours, checked against the
-    pass marks and both known-cluster catalogues, and run once more on shuffled motions (a null field)
-    to see how often the pipeline finds something that is not there. Tiles already done are skipped.
-    Try one band first: `sdp discover sweep --bands 45`.
+    The sky is searched once per distance shell, with tiles sized to the shell: 12 degrees within
+    250 pc, 4 within 1 kpc, 2 beyond. Each tile is clustered with a rim of its neighbours, checked
+    against the pass marks and both known-cluster catalogues, and run once more on shuffled motions
+    (a null field) to see how often the pipeline finds something that is not there. Tiles already done
+    are skipped. --bands picks declinations by the prepared 2-degree bands; every shell's tiles that
+    overlap them are searched. Try one band first: `sdp discover sweep --bands 45`.
     """
+    import numpy as np
+
     from sdp.adapters.bootstrap import artifact_store
+    from sdp_stellar.sweep import band_of, load_settings, neighbourhood, ra_dec, scales, tile, tiles_in_band
     from sdp_stellar.sweep import bands as band_count
-    from sdp_stellar.sweep import load_settings, neighbourhood, ra_dec, tile, tiles_in_band
 
     settings = load_settings()
     folder = sweep_dir(name)
@@ -391,31 +419,36 @@ def discover_sweep(
         "sweep",
     )
     out = folder / "tiles"
-    tile_deg, margin = float(settings["tile_deg"]), float(settings["margin_deg"])
+    tile_deg = float(settings["tile_deg"])  # the prepared catalogue's bands
     total = band_count(tile_deg)
     chosen = _bands(bands, total)
+    dec_lo, dec_hi = -90.0 + chosen[0] * tile_deg, -90.0 + (chosen[-1] + 1) * tile_deg
     summaries: list[dict[str, Any]] = []
     failed: list[str] = []
     started = time.monotonic()
     with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
-        for band in chosen:
+        for scale, band in _scale_bands(scales(settings), dec_lo, dec_hi):
             todo = [
                 i
-                for i in range(tiles_in_band(band, tile_deg))
-                if not (out / f"{tile(band, i, tile_deg).tile_id}.json").exists()
+                for i in range(tiles_in_band(band, scale.tile_deg))
+                if not (out / f"{tile(band, i, scale.tile_deg, scale.name).tile_id}.json").exists()
             ]
             if not todo:
                 continue
-            table = _band_table(catalogue, [b for b in (band - 1, band, band + 1) if 0 <= b < total])
+            first = tile(band, 0, scale.tile_deg, scale.name)
+            reach = band_of(np.array([first.dec_min - scale.margin_deg, first.dec_max + scale.margin_deg]), tile_deg)
+            read = list(range(int(reach[0]), int(reach[1]) + 1))
+            table = _band_table(catalogue, read, scale.window if scale.name else None)
+            label = f"{scale.name + ' ' if scale.name else ''}band {band:03d}"
             if table is None:
-                _say(f"band {band:03d}: no prepared stars")
+                _say(f"{label}: no prepared stars")
                 continue
             ra, dec = ra_dec(table)
             futures: dict[Future[Any], str] = {}
             for i in todo:
-                t = tile(band, i, tile_deg)
-                rows = table.filter(neighbourhood(t, margin, ra, dec))
-                futures[pool.submit(run_tile, rows, band, i, settings, benchmarks, str(out))] = t.tile_id
+                t = tile(band, i, scale.tile_deg, scale.name)
+                rows = table.filter(neighbourhood(t, scale.margin_deg, ra, dec))
+                futures[pool.submit(run_tile, rows, band, i, settings, benchmarks, str(out), scale.name)] = t.tile_id
             for future in _as_done(futures):
                 try:
                     s = future.result()
@@ -452,7 +485,7 @@ def discover_report(
     from sdp_stellar.sweep import candidate_rows, summarise
 
     folder = sweep_dir(name)
-    tiles = sorted((folder / "tiles").glob("b*-t*.json")) if (folder / "tiles").is_dir() else []
+    tiles = sorted((folder / "tiles").glob("*b[0-9][0-9][0-9]-t*.json")) if (folder / "tiles").is_dir() else []
     if not tiles:
         raise DomainError(f"no swept tiles in {folder / 'tiles'}; run `sdp discover sweep` first")
     results = [json.loads(p.read_text("utf-8")) for p in tiles]
@@ -470,6 +503,11 @@ def discover_report(
     _say(
         f"{summary['tiles']} tiles searched ({summary['stars_searched']:,} stars). Candidates: "
         + (", ".join(f"{n} {k.replace('_', ' ')}" for k, n in summary["candidates"].items()) or "none")
+        + (
+            f" ({summary['duplicates_across_scales']} found again by a neighbouring distance shell listed once)"
+            if summary["duplicates_across_scales"]
+            else ""
+        )
         + (f". Null fields with a false candidate: {rate:.1%}." if rate is not None else ".")
     )
     _say(f"Every row is a candidate, not a confirmed discovery. Open {path} (potentially new first).")

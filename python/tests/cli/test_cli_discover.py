@@ -28,7 +28,7 @@ from sdp.kernel.domain.errors import DomainError
 from sdp.testing.fakes.archives import FakeArchive
 from sdp.testing.wiring import InMemoryKernel, build_in_memory_kernel
 from sdp_stellar.protocol import StellarClusterProtocol, load_predeclaration
-from sdp_stellar.synthetic import make_benchmark, make_field, parquet
+from sdp_stellar.synthetic import SCHEMA, _rows, make_benchmark, make_field, parquet
 
 pytestmark = pytest.mark.tier("T4")
 runner = CliRunner()
@@ -96,6 +96,20 @@ def field(target_id: str) -> pa.Table:
     return make_field(next(t for t in targets() if t["target_id"] == target_id), 7)
 
 
+def near_field(seed: int = 11, stars: int = 4000) -> pa.Table:
+    """Field stars 110-400 pc away across 20 degrees around Praesepe, so the sweep's near shell
+    (STL-012), whose 12-degree tiles hold SYN-B, has a field to find it against."""
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    dec = rng.uniform(10, 30, stars)
+    ra = (130 + rng.uniform(-11, 11, stars) / np.cos(np.radians(dec))) % 360
+    pm = (rng.normal(0, 25, stars), rng.normal(0, 25, stars))
+    plx, g = rng.uniform(2.5, 9, stars), rng.uniform(8, 18, stars)
+    rows = _rows(rng, "synthetic:near", ra, dec, *pm, plx, g, rng.uniform(0.4, 2.6, stars))
+    return pa.Table.from_pylist(rows, schema=SCHEMA)
+
+
 def benchmark_tables() -> dict[str, pa.Table]:
     return {b: make_benchmark(b, targets(), label) for b, label in (("hr23", "hr23:v1.0"), ("cga20", "cga20:v1"))}
 
@@ -127,7 +141,10 @@ def bulk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # two files stored, the third still downloading
     for name, (target_id, first) in zip(names, (("praesepe", 1_000_000), ("pleiades", 2_000_000)), strict=False):
         stem = name.removesuffix(".csv.gz")
-        store.link(f"{PREFIX}/{stem}.parquet", store.put(parquet(native(field(target_id), first)), PARQUET))
+        stars = field(target_id)
+        if target_id == "praesepe":
+            stars = pa.concat_tables([stars, near_field()])
+        store.link(f"{PREFIX}/{stem}.parquet", store.put(parquet(native(stars, first)), PARQUET))
     store_benchmarks(store)
     return tmp_path
 
@@ -153,8 +170,11 @@ def test_prepare_sweep_report_finds_the_planted_cluster_in_no_benchmark(bulk: Pa
     swept = invoke("discover", "sweep", "--bands", f"{band}", "--workers", "2")
     assert swept["label"] == "EXPLORATORY" and swept["bands"] == [band, band]
     assert swept["potentially_new_this_run"] == 1
-    tiles = sorted((bulk / "data" / "sweep" / "gaia-dr3" / "tiles").glob("b054-*.json"))
-    assert len(tiles) == swept["tiles_this_run"] > 100
+    # every shell's tiles over Dec 18..20: near band 9 (Dec 18..30), mid band 27 (18..22), far band 54
+    folder = bulk / "data" / "sweep" / "gaia-dr3" / "tiles"
+    by_shell = {s: len(list(folder.glob(f"{s}-b{b:03d}-*.json"))) for s, b in (("near", 9), ("mid", 27), ("far", 54))}
+    assert by_shell["far"] > 100 and by_shell["mid"] > 50 and by_shell["near"] > 20
+    assert sum(by_shell.values()) == swept["tiles_this_run"]
     again = invoke("discover", "sweep", "--bands", f"{band}", "--workers", "2")
     assert again["tiles_this_run"] == 0  # every tile already done
 

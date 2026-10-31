@@ -313,6 +313,7 @@ def test_the_summary_counts_candidates_and_the_null_false_positive_rate_per_null
         "tiles_skipped": 1,
         "stars_searched": 150,
         "candidates": {"known": 1, "potentially_new": 1, "rejected": 3},
+        "duplicates_across_scales": 0,
         "null_fields": 3,
         "null_false_positive_rate": 1 / 3,
     }
