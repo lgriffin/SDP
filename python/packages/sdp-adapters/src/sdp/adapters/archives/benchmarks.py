@@ -284,6 +284,29 @@ def _catalogue(benchmark_id: str) -> KnownClusterCatalogue:
     return CATALOGUES[benchmark_id]
 
 
+_FIELD = re.compile(rb"<(?:\w+:)?FIELD\b[^>]*>")
+_ATTRIBUTE = re.compile(rb'\s(name|ID|datatype|arraysize|width|precision)\s*=\s*("[^"]*"|\'[^\']*\')')
+
+
+def as_text(body: bytes, names: set[str]) -> bytes:
+    """The VOTable with each FIELD named in ``names`` declared as text (``char[*]``), whatever datatype
+    it was given. A cluster's name is text by what it is, but one VizieR mirror declares cga20's
+    ``SimbadName`` as ``float[*]`` while its cells read ``[KPR2005] 10`` (#157), and the parser trusts the
+    declaration. Only the FIELD's start tag is rewritten; its cells are read as written."""
+
+    def rewrite(match: re.Match[bytes]) -> bytes:
+        tag = match.group(0)
+        attributes = {m.group(1): m.group(2)[1:-1] for m in _ATTRIBUTE.finditer(tag)}
+        named = attributes.get(b"name", attributes.get(b"ID", b"")).decode("utf-8", "replace")
+        if named not in names:
+            return tag
+        kept = _ATTRIBUTE.sub(lambda m: m.group(0) if m.group(1) in (b"name", b"ID") else b"", tag)
+        end = len(kept) - (2 if kept.endswith(b"/>") else 1)
+        return kept[:end].rstrip() + b' datatype="char" arraysize="*"' + kept[end:]
+
+    return _FIELD.sub(rewrite, body)
+
+
 def from_votable(
     catalogue: KnownClusterCatalogue | str,
     body: bytes,
@@ -305,7 +328,7 @@ def from_votable(
         raise CatalogueSchemaError(f"the VOTable for {catalogue.vizier_table} has no columns")
     columns = choose_columns(table.columns, overrides)
     try:
-        native = votable.parse(body)
+        native = votable.parse(as_text(body, {columns["name"]}))
     except ValueError as exc:  # rows cut off or malformed after the fields: not a whole table
         raise UntrustedInput(f"the VOTable for {catalogue.vizier_table} is not well formed: {exc}") from exc
     if native.num_rows >= MAXREC:
