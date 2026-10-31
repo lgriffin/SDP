@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sdp.kernel.application.investigate import (
@@ -38,13 +38,23 @@ from sdp.kernel.domain.integration import (
     IntegrationRefused,
     Operation,
     PlanCost,
+    PlanExclusion,
     PlanGate,
     PlanItem,
+    ProductOption,
     ProductType,
     order_matches,
     select_items,
+    select_products,
 )
-from sdp.kernel.domain.investigation import ArchiveRole, Field, ObservationCriteria, TestProfile
+from sdp.kernel.domain.investigation import (
+    ArchiveRole,
+    ArchiveSelection,
+    Field,
+    ObservationCriteria,
+    ObservationRecord,
+    TestProfile,
+)
 from sdp.kernel.ports.determinism import Clock
 from sdp.kernel.ports.integration import (
     ApprovePlanCommand,
@@ -54,7 +64,13 @@ from sdp.kernel.ports.integration import (
     PlanInvestigationCommand,
     PlanRecord,
 )
-from sdp.kernel.ports.investigate import InvestigateFieldCommand, ObservationTarget, ProductCutouts, cutout_product_id
+from sdp.kernel.ports.investigate import (
+    CutoutCosts,
+    InvestigateFieldCommand,
+    ObservationTarget,
+    ProductCutouts,
+    cutout_product_id,
+)
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.repositories import UnitOfWork
 from sdp.kernel.ports.storage import ArtifactStore
@@ -162,6 +178,22 @@ def derive_requirements(
     return tuple(out.values())
 
 
+def effective_budget(deployment: AcquisitionBudget, profile: TestProfile) -> AcquisitionBudget:
+    """The deployment's budget, tightened by the profile's own cap; a profile never loosens it (INT-026)."""
+    if profile.budget is None:
+        return deployment
+    cap = min(deployment.max_bytes, profile.budget.max_bytes)
+    return replace(deployment, max_bytes=cap, approval_threshold_bytes=min(deployment.approval_threshold_bytes, cap))
+
+
+def nominal_bytes(budget: AcquisitionBudget, profile: TestProfile) -> int:
+    """What the planner may fill: the effective cap less the profile's reserve, or the whole cap without
+    one. The reserve applies to the cap that binds, so a tighter deployment keeps it too."""
+    if profile.budget is None:
+        return budget.max_bytes
+    return math.floor(budget.max_bytes * (1 - profile.budget.reserve_fraction))
+
+
 def cutout_bytes(side_arcsec: float) -> int:
     """What a cutout of this side is planned to store (an upper bound for a 32-bit image)."""
     pixels = math.ceil(side_arcsec / CUTOUT_PIXEL_ARCSEC) + 1
@@ -183,7 +215,9 @@ class PlanInvestigationUseCase:
         tests = self.ports.tests.validate(profile.tests)
         requirements = derive_requirements(field_, profile, tests)
         matches = order_matches(m for need in requirements for m in self.discovery.match(field_, need))
-        candidates = self._candidates(field_, profile, requirements)
+        budget = effective_budget(command.budget, profile)
+        nominal = nominal_bytes(budget, profile)
+        candidates, excluded, selection = self._candidates(field_, profile, requirements, nominal)
         items, gaps = select_items(requirements, matches, candidates)
         plan = AcquisitionPlan(
             field=field_.to_document(),
@@ -194,12 +228,14 @@ class PlanInvestigationUseCase:
             matches=matches,
             items=items,
             cost=self._cost(items),
-            budget=command.budget,
+            budget=budget,
             gaps=gaps,
             constraints={
                 "profile": profile.to_document(),
                 "seed": command.seed,
                 "candidates": [c.to_document() for c in candidates],
+                # Only when a profile selects, so plans drafted before selection keep their ids.
+                **({"selection": selection, "excluded": [e.to_document() for e in excluded]} if selection else {}),
                 "estimates": {
                     "unknown_size_bytes": UNKNOWN_SIZE_BYTES,
                     "cell_bytes": CELL_BYTES,
@@ -236,10 +272,13 @@ class PlanInvestigationUseCase:
         return plan
 
     def _candidates(
-        self, field_: Field, profile: TestProfile, requirements: Sequence[EvidenceRequirement]
-    ) -> list[PlanItem]:
-        """Every acquisition that could serve a requirement, read from metadata alone."""
+        self, field_: Field, profile: TestProfile, requirements: Sequence[EvidenceRequirement], nominal: int
+    ) -> tuple[list[PlanItem], list[PlanExclusion], dict[str, Any]]:
+        """Every acquisition that could serve a requirement, read from metadata alone; where a profile
+        selects, only the products its selection keeps, with the others and why (INT-026)."""
         out: list[PlanItem] = []
+        excluded: list[PlanExclusion] = []
+        selections: dict[str, Any] = {}
 
         def candidate(
             source_id: str,
@@ -298,7 +337,10 @@ class PlanInvestigationUseCase:
                     )
                 )
         product_needs = [r for r in requirements if r.needs_bytes]
-        for selection in profile.archives:
+        # Catalogue queries first, so a selection knows every query it shares the budget with.
+        catalogues_first = sorted(profile.archives, key=lambda a: a.role is not ArchiveRole.CATALOGUE)
+        committed: dict[tuple[str, Operation, str], int] = {}
+        for selection in catalogues_first:
             if selection.role is ArchiveRole.CATALOGUE:
                 query = catalogue_query(field_, selection)
                 for need in catalogue_needs:
@@ -328,23 +370,61 @@ class PlanInvestigationUseCase:
                 ),
             )
             side = selection.cutout_arcsec if isinstance(gateway, ProductCutouts) else None
-            for record in index.records:
+
+            def needs_of(record: ObservationRecord) -> list[EvidenceRequirement]:
                 served_as = product_kind(record.product_type)
-                for need in product_needs:
-                    if served_as is None or served_as not in need.product_types:
-                        continue
-                    # A derived requirement names the product type its test reads; a record of
-                    # another type served as the same ObsCore type is not what the test reads.
-                    derived = need.requirement_id.partition(":product:")[2]
-                    if derived and derived != record.product_type:
-                        continue
+                # A derived requirement names the product type its test reads; a record of another
+                # type served as the same ObsCore type is not what the test reads.
+                return [
+                    need
+                    for need in product_needs
+                    if served_as is not None
+                    and served_as in need.product_types
+                    and need.requirement_id.partition(":product:")[2] in ("", record.product_type)
+                ]
+
+            records = [r for r in index.records if needs_of(r)]
+            priced: dict[str, int] = {}
+            if selection.select is not None:
+                # A listing cut at the gateway's row limit would hide products from the selection
+                # without a record of them, so it is refused rather than planned as complete.
+                limit = getattr(gateway, "max_records", None)
+                if isinstance(limit, int) and len(index.records) >= limit:
+                    raise IntegrationRefused(
+                        f"{selection.source_id} listed {len(index.records)} products, its limit of {limit}; "
+                        "narrow the field or the match radius so the selection sees every product (INT-026)"
+                    )
+                # Products share what the catalogue queries leave of the nominal budget.
+                # Products share what the catalogue queries and earlier selections leave; products of
+                # an archive that does not select are not counted, since nothing says which survive.
+                for c in out:
+                    if c.operation not in (Operation.CUTOUT, Operation.DOWNLOAD):
+                        committed.setdefault((c.source_id, c.operation, c.target), c.expected_bytes)
+                spent = sum(committed.values())
+                priced, dropped, probes = self._select(selection, gateway, records, (ra, dec, side), nominal, spent)
+                records = [r for r in records if r.product.product_id in priced]
+                for pid, size in priced.items():
+                    committed[
+                        (selection.source_id, Operation.CUTOUT if side is not None else Operation.DOWNLOAD, pid)
+                    ] = size
+                excluded.extend(dropped)
+                selections[selection.source_id] = {
+                    "policy": selection.select.to_document(),
+                    "nominal_bytes": nominal,
+                    "spent_before_bytes": spent,
+                    "probes": probes,
+                }
+            for record in records:
+                for need in needs_of(record):
                     size = record.size_bytes if record.size_bytes is not None else UNKNOWN_SIZE_BYTES
+                    if record.product.product_id in priced:
+                        size = priced[record.product.product_id]
                     out.append(
                         candidate(
                             selection.source_id,
                             Operation.CUTOUT,
                             cutout_product_id(record.product.product_id, ra, dec, side),
-                            min(size, cutout_bytes(side)),
+                            size if record.product.product_id in priced else min(size, cutout_bytes(side)),
                             None,
                             record.licence,
                             need,
@@ -360,7 +440,73 @@ class PlanInvestigationUseCase:
                             need,
                         )
                     )
-        return out
+        return out, excluded, ({"nominal_bytes": nominal, "archives": selections} if selections else {})
+
+    def _select(
+        self,
+        selection: ArchiveSelection,
+        gateway: object,
+        records: Sequence[ObservationRecord],
+        cut: tuple[float, float, float | None],
+        nominal: int,
+        spent: int,
+    ) -> tuple[dict[str, int], list[PlanExclusion], list[dict[str, Any]]]:
+        """The products a selection keeps and their bytes, the ones it leaves out, and every probe made.
+
+        A cutout is costed at what it reads when the profile asks and the gateway can say from the
+        headers; a product the cutout cannot be taken from is left out with the gateway's reason."""
+        policy = selection.select
+        assert policy is not None
+        ra, dec, side = cut
+        missions = {m.upper(): n for n, m in enumerate(selection.missions)}
+        by_id = {r.product.product_id: r for r in records}
+        values = {"mission": lambda r: r.mission, "instrument": lambda r: r.instrument, "band": lambda r: r.band}
+        options = [
+            ProductOption(
+                selection.source_id,
+                r.product.product_id,
+                tuple((key, values[key](r) or None) for key in policy.one_per),
+                missions.get(r.mission.upper(), len(missions)),
+                r.single_exposure,
+                r.epoch_mjd,
+            )
+            for r in records
+        ]
+        probes: list[dict[str, Any]] = []
+        probe = policy.measure_reads and side is not None and isinstance(gateway, CutoutCosts)
+
+        def cost(option: ProductOption) -> int | str:
+            record = by_id[option.target]
+            listed = record.size_bytes if record.size_bytes is not None else UNKNOWN_SIZE_BYTES
+            if side is None:
+                return listed
+            if not probe:
+                return min(listed, cutout_bytes(side))
+            assert isinstance(gateway, CutoutCosts)
+            try:
+                priced = gateway.cutout_cost(record.product, ra, dec, side)
+            except LookupError as exc:
+                probes.append({"target": option.target, "refused": str(exc)})
+                return f"the cutout misses the image: {exc}"
+            except ValueError as exc:  # RangeUnsupported, a failed probe, and other refusals to cut
+                probes.append({"target": option.target, "refused": str(exc)})
+                return f"the product cannot be cut: {exc}"
+            probes.append(
+                {"target": option.target, "read_bytes": priced.read_bytes, "coverage": round(priced.coverage, 4)}
+            )
+            if priced.coverage < policy.min_coverage:
+                return f"the image holds {priced.coverage:.0%} of the cutout, under the profile's {policy.min_coverage:.0%}"
+            return priced.read_bytes
+
+        kept, dropped = select_products(
+            options,
+            cost,
+            combined_only=policy.combined_only,
+            max_products=policy.max_products,
+            nominal_bytes=nominal,
+            spent_bytes=spent,
+        )
+        return kept, list(dropped), probes
 
     def _licence(self, source_id: str) -> str:
         try:
