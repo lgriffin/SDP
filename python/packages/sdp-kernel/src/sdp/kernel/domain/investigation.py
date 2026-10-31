@@ -23,6 +23,7 @@ from sdp.kernel.domain.canonical import hash_document
 from sdp.kernel.domain.errors import InvalidTransition, InvariantViolation, PromotionRefused
 from sdp.kernel.domain.ids import ArtifactId, check_semver
 from sdp.kernel.domain.predeclaration import FrozenPredeclaration
+from sdp.kernel.domain.references import ReferencePull
 
 EXPLORATORY = "EXPLORATORY"
 SCHEMA_VERSION = "1.0.0"
@@ -1308,6 +1309,8 @@ class Investigation:
     notes: list[Note] = dataclass_field(default_factory=list)
     links: dict[str, str] = dataclass_field(default_factory=dict)
     label: str = EXPLORATORY
+    references: list[ReferencePull] = dataclass_field(default_factory=list)
+    """What reference catalogues held at the candidate's position, oldest pull first (INV-024)."""
     _events: list[ev.DomainEvent] = dataclass_field(default_factory=list, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -1427,6 +1430,13 @@ class Investigation:
     def link(self, name: str, value: str) -> None:
         self.links[name] = value
 
+    def add_references(self, pulls: Sequence[ReferencePull]) -> None:
+        """Pulls are appended, never replaced: a later pull of the same catalogue sits beside the earlier
+        one. They are context, not evidence, so any state takes them, a closed candidate too (INV-024)."""
+        if not pulls:
+            raise InvariantViolation("a reference pull names at least one catalogue")
+        self.references.extend(pulls)
+
     def pull_events(self) -> list[ev.DomainEvent]:
         events, self._events = self._events, []
         return events
@@ -1447,6 +1457,7 @@ class Investigation:
             "notes": [n.to_document() for n in self.notes],
             "links": dict(sorted(self.links.items())),
             "label": self.label,
+            "references": [p.to_document() for p in self.references],
         }
 
     @classmethod
@@ -1465,6 +1476,7 @@ class Investigation:
             notes=[Note.from_document(n) for n in doc.get("notes", [])],
             links=dict(doc.get("links", {})),
             label=doc.get("label", EXPLORATORY),
+            references=[ReferencePull.from_document(p) for p in doc.get("references", [])],
         )
 
 

@@ -194,3 +194,11 @@ requirements:
     traces:
       - "python/tests.usecase.test_investigate::test_candidate_dossiers_are_written_side_by_side_and_each_is_named_by_its_investigation"
       - "python/tests.usecase.test_investigate::test_a_failed_dossier_write_stops_the_stage_before_any_investigation_is_saved"
+  - id: INV-024
+    pattern: event
+    text: "When a scientist asks to compare a candidate with reference catalogues, the system shall query each chosen catalogue for one cone around the candidate's position, moved along its proper motion to each catalogue's epoch, and keep every answer with the investigation, with who asked, when, the cone, the catalogue's release and citation, its rows within the cone nearest first under canonical names, the archive's raw answer as an artifact, and the reason when a catalogue did not answer, without changing the candidate's results, rank, state or the evidence it used."
+    rationale: "Before writing a confirmatory predeclaration the scientist rules out 'already known' and 'artefact' by putting the candidate beside SIMBAD, Gaia DR3, 2MASS, AllWISE, Pan-STARRS DR2 and AAVSO VSX on one page. A pull is context, not evidence a test read, so it cannot affect INV-008/INV-009; pulls are appended, never replaced, so the comparison a scientist relied on stays on record. One catalogue that is down fails only its own pull. SIMBAD and VSX fail over to CDS's mirrors (DSI-017), and each pull waits at most about 90 s per attempt so a scientist is never left waiting on a dead archive for long."
+    verification: test
+    tiers: [T3, T4]
+    status: approved
+    traces: []

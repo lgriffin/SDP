@@ -16,7 +16,10 @@ import type {
   LedgerEntry,
   Plan,
   ReproductionRun,
+  Comparison,
+  ReferencePull,
 } from "../ports.ts";
+import { DEMO_CATALOGUES } from "./references.ts";
 import data from "./fixtures.json" with { type: "json" };
 import jwst from "./jwst.json" with { type: "json" };
 import plans from "./plans.json" with { type: "json" };
@@ -36,6 +39,8 @@ export interface FixtureData {
   previews: Record<string, string>;
   /** Checks that a set reproduces from its dossier, by set id (INV-022). */
   reproductions: Record<string, ReproductionRun>;
+  /** Reference pulls by investigation id (INV-024). */
+  references: Record<string, ReferencePull[]>;
 }
 
 /** What a server that has registered its archives lists: the packaged catalogues and MAST. */
@@ -61,6 +66,7 @@ export const FIXTURES = {
   archives: REGISTERED_ARCHIVES,
   previews: jwst.previews,
   reproductions: {},
+  references: {},
 } as unknown as FixtureData;
 
 export class InMemoryEvidenceSource implements EvidenceSource {
@@ -129,6 +135,11 @@ export class InMemoryEvidenceSource implements EvidenceSource {
 
   async dossier(_setId: string): Promise<ArtifactBytes | null> {
     return null; // nor a dossier: it would need those files
+  }
+
+  async comparison(investigationId: string): Promise<Comparison | null> {
+    if (!this.data.investigation[investigationId]) return { catalogues: DEMO_CATALOGUES, pulls: [] };
+    return { catalogues: DEMO_CATALOGUES, pulls: this.data.references[investigationId] ?? [] };
   }
 
   async reproduction(setId: string): Promise<ReproductionRun | null> {

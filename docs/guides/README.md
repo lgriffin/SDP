@@ -32,6 +32,7 @@ journey assumes it worked.
 | [Your own telescope frames](my-frames.md) | Plate-solve your own pictures and check Gaia against them | Minutes per target | Developer tools or the desktop app |
 | [Light curves from Gaia and NEOWISE](light-curves.md) | Find stars whose brightness changed, in visible and infrared light | 2 to 5 minutes a field | Waiting on pull requests #108 and #114 |
 | [Record live archive data](recording-live-data.md) | Refresh the recordings the tests replay | A few minutes | GitHub, or the developer tools |
+| [Check a candidate, then submit it](compare-and-submit.md) | Put a candidate beside SIMBAD, Gaia, 2MASS, WISE, Pan-STARRS and VSX; where a discovery goes | A minute per candidate | Any install |
 | [Releases and checking results](releases-and-verification.md) | What a release contains, and how anyone can check a result | Varies | Any install |
 
 ## What every result means

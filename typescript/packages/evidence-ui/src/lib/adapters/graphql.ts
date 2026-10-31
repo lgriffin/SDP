@@ -13,6 +13,8 @@ import {
   type ArchivesStatus,
   type ArtifactBytes,
   type ReproductionRun,
+  type Comparison,
+  type ReferencePull,
   PlannerUnavailable,
 } from "../ports.ts";
 
@@ -43,6 +45,8 @@ export const QUERIES = {
   // The planner (ADR-020). A server older than Stage E answers these with PlannerUnavailable.
   plans: `query Plans { plans { ${PLAN} } }`,
   plan: `query Plan($id: ID!) { plan(id: $id) { ${PLAN} } }`,
+  comparison: `query Comparison($id: ID!) { referenceCatalogues { sourceId title releaseLabel citation description }
+    investigation(id: $id) { references } }`,
   archives: `query Archives { archives { sources { sourceId origin verifiedOn productTypes } registration } }`,
 } as const;
 
@@ -137,6 +141,18 @@ export class GraphQLEvidenceSource implements EvidenceSource {
     } catch (e) {
       // An sdp-api from before archive registration (INV-019): the port promises null.
       if (e instanceof EvidenceUnavailable && MISSING_FIELD("archives").test(e.message)) return null;
+      throw e;
+    }
+  }
+
+  async comparison(investigationId: string): Promise<Comparison | null> {
+    type Answer = { referenceCatalogues: Comparison["catalogues"]; investigation: { references: ReferencePull[] } | null };
+    try {
+      const data = await this.request<Answer>(QUERIES.comparison, { id: investigationId });
+      return { catalogues: data.referenceCatalogues, pulls: data.investigation?.references ?? [] };
+    } catch (e) {
+      // An sdp-api from before comparisons (INV-024): the port promises null.
+      if (e instanceof EvidenceUnavailable && /Cannot query field ["'](referenceCatalogues|references)["']/.test(e.message)) return null;
       throw e;
     }
   }

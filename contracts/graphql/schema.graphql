@@ -115,6 +115,11 @@ type Investigation {
   notes: JSON!
   links: JSON!
 
+  """
+  What reference catalogues held at the candidate's position, oldest pull first (INV-024).
+  """
+  references: JSON!
+
   """The candidate's dossier, rebuilt from the set's stage artifacts."""
   dossier: JSON
 }
@@ -236,6 +241,9 @@ type Query {
   investigationSet(id: ID!): InvestigationSet
   investigation(id: ID!): Investigation
 
+  """Catalogues a candidate can be compared against, by title (INV-024)."""
+  referenceCatalogues: [ReferenceCatalogue!]!
+
   """Acquisition plans (ADR-020)."""
   plans: [Plan!]!
   plan(id: ID!): Plan
@@ -244,6 +252,15 @@ type Query {
   The archives plans are matched against; null when the server cannot register them.
   """
   archives: Archives
+}
+
+"""A catalogue a candidate can be compared against (INV-024)."""
+type ReferenceCatalogue {
+  sourceId: String!
+  title: String!
+  releaseLabel: String!
+  citation: String!
+  description: String!
 }
 
 type Task {

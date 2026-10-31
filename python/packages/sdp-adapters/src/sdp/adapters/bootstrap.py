@@ -21,6 +21,7 @@ from sdp.adapters.archives.gaia_datalink import GaiaDataLinkGateway, GaiaDataLin
 from sdp.adapters.archives.irsa_wise import IrsaWiseGateway, IrsaWiseInventory
 from sdp.adapters.archives.mast import MastObservationGateway
 from sdp.adapters.archives.mast_inventory import MastProductInventory
+from sdp.adapters.archives.references import TAP_CATALOGUES, VIZIER, TapConeCatalogue, VsxCatalogue
 from sdp.adapters.archives.simbad import SimbadResolver
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import (
@@ -66,6 +67,7 @@ from sdp.kernel.ports.evidence import ExperimentTracker
 from sdp.kernel.ports.investigate import ObservationArchiveGateway
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher, DoiRecord
+from sdp.kernel.ports.references import ReferenceCatalogue
 from sdp.kernel.ports.storage import ArtifactStore
 from sdp.kernel.science.investigation import InvestigationTestRegistry
 
@@ -145,6 +147,37 @@ def simbad_transport(settings: Settings) -> Transport:
     """SIMBAD's transport: Strasbourg first, then CDS's Harvard mirrors unless SDP_ARCHIVE_MIRRORS=0."""
     transport = archive_transport(settings, "simbad", 1.0)
     return MirrorTransport(transport, simbad.MIRRORS) if settings.archive_mirrors else transport
+
+
+def reference_transport(settings: Settings, name: str) -> Transport:
+    """A reference pull's transport: cassettes under ``<cassette_dir>/references/<name>`` in replay and record,
+    else live with one retry and a 90 s wait, so a catalogue that is down costs the scientist minutes at
+    most, not the half hour a bulk acquisition's backoff allows."""
+    live = PoliteTransport(UrllibTransport(timeout_s=90.0), min_seconds_between_calls=1.0, retries=1)
+    if settings.archive_mode == "live":
+        return live
+    if settings.cassette_dir is None:
+        raise NotConfigured("SDP_ARCHIVE_MODE replay and record need SDP_CASSETTE_DIR")
+    directory = settings.cassette_dir / "references" / name
+    if settings.archive_mode == "replay":
+        return CassetteTransport(directory, "replay")
+    return CassetteTransport(directory, "record", inner=live)
+
+
+def reference_catalogues(settings: Settings) -> dict[str, ReferenceCatalogue]:
+    """The catalogues a candidate can be compared against (INV-024). SIMBAD fails over to CDS's Harvard copy
+    and VSX to VizieR's mirrors, unless SDP_ARCHIVE_MIRRORS=0, so a CDS outage leaves the comparison working."""
+    out: dict[str, ReferenceCatalogue] = {}
+    for source_id, spec in TAP_CATALOGUES.items():
+        transport = reference_transport(settings, source_id)
+        if source_id == "simbad" and settings.archive_mirrors:
+            transport = MirrorTransport(transport, simbad.MIRRORS)
+        out[source_id] = TapConeCatalogue(spec, transport)
+    vizier = reference_transport(settings, "vsx")
+    if settings.archive_mirrors:
+        vizier = MirrorTransport(vizier, {VIZIER: tuple(m for m in VIZIER_MIRRORS if m != VIZIER)})
+    out["vsx"] = VsxCatalogue(vizier)
+    return out
 
 
 def archive_gateways(settings: Settings, store: ArtifactStore | None = None) -> dict[str, ArchiveGateway]:
@@ -359,6 +392,7 @@ def build_application(settings: Settings, overrides: Overrides | None = None, *,
         min_free_bytes=settings.min_free_bytes,
         investigate=overrides.investigate or investigate_ports(settings, overrides.services),
         discovery=with_local_sources(capability_discovery(settings), local_image_gateways(settings)),
+        references=reference_catalogues(settings),
     )
     return Application(settings, Kernel.build(ports), database, store, ledger)
 

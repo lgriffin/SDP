@@ -76,6 +76,38 @@ test("reviews a candidate: reopen, note and close, each with who and why", async
   await expect(decide).toContainText("Closing is final");
 });
 
+test("[INV-024] compares a candidate with catalogues side by side, and pulls more", async ({ page }) => {
+  await page.goto("/investigations/invset-000001/inv-000001");
+  await page.getByTestId("compare-link").click();
+  await expect(page.getByRole("heading", { name: "Compare with catalogues" })).toBeVisible();
+  const pull = page.getByTestId("pull");
+  // nothing asked yet, so every catalogue is ticked
+  await expect(pull.getByRole("checkbox")).toHaveCount(6);
+  await expect(pull.getByRole("checkbox", { checked: true })).toHaveCount(6);
+  await pull.getByLabel("Your name").fill("Ada");
+  await pull.getByRole("button", { name: "Pull references" }).click();
+  await expect(page.getByTestId("pull-done")).toContainText("Asked 6 catalogues");
+  const table = page.getByTestId("comparison");
+  // a column for each catalogue with something in the cone; the others are named under the table
+  await expect(table.locator("thead th")).toHaveCount(6);
+  await expect(table.locator('th[data-source="gaia"]')).toContainText("the candidate itself");
+  await expect(page.getByTestId("empty-pulls").locator('[data-source="simbad"]')).toContainText("nothing within 5″");
+  await expect(page.getByTestId("findings")).toContainText("SIMBAD has nothing within 5″.");
+  await expect(page.getByTestId("findings")).toContainText("Gaia DR3 has 2 sources within 5″");
+  // every catalogue answered, so the form now offers them all again; a narrower cone drops the neighbour
+  await pull.getByLabel("Search radius").selectOption("2");
+  await pull.getByRole("checkbox", { name: /SIMBAD/ }).uncheck();
+  await pull.getByRole("checkbox", { name: /2MASS/ }).uncheck();
+  await pull.getByRole("checkbox", { name: /AllWISE/ }).uncheck();
+  await pull.getByRole("checkbox", { name: /Pan-STARRS/ }).uncheck();
+  await pull.getByRole("checkbox", { name: /VSX/ }).uncheck();
+  await pull.getByRole("button", { name: "Pull references" }).click();
+  await expect(page.getByTestId("pull-done")).toContainText("Asked 1 catalogue.");
+  await expect(table.locator('th[data-source="gaia"]')).toContainText("1 within 2″");
+  await page.getByText("7 pulls").click();
+  await expect(page.getByTestId("pulls").locator("tbody tr")).toHaveCount(7);
+});
+
 test("promotion shows the command to copy", async ({ page }) => {
   await page.goto("/investigations/invset-000001/inv-000001");
   await page.getByText("Promote to a hypothesis test").click();
