@@ -23,10 +23,11 @@ from sdp.kernel.domain.investigation import (
     TestResult,
     TestSelection,
 )
+from sdp.kernel.domain.policy import NumericalPolicy
 from sdp.kernel.ports.compute import ClusterLabels
 from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationRun
 from sdp.kernel.science.investigation import InvestigationTestRegistry
-from sdp.kernel.science.plan import Backend, NumericalPolicy, TaskContext
+from sdp.kernel.science.plan import Backend, TaskContext
 from sdp.testing.fakes.compute import FakeClusterer
 from sdp.testing.investigate import (
     ANOMALOUS,
