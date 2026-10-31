@@ -37,6 +37,7 @@ from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAsso
 from sdp.adapters.compute.clustering import FastHdbscan, SklearnDbscan, SklearnHdbscan
 from sdp.adapters.compute.cpu import CpuExecutor
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
+from sdp.adapters.imaging.photutils_photometry import PhotutilsPhotometer
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.ledger.git import GitSignedLedger, load_signing_key
 from sdp.adapters.local.catalogue import LocalDiscovery
@@ -301,7 +302,8 @@ def product_envelopes(mast: Transport, gaia: Transport, irsa: Transport) -> dict
 def investigation_services(detector: PhotutilsDetector, refiner: TweakwcsRefiner) -> dict[str, Any]:
     """The services the installed investigation tests call: UC-01's CPU reference HDBSCAN, the other
     CPU clusterers a profile may name instead, the image tests' detector, both association methods
-    (v0.4.0 §7, ADR-019) and the optional alignment to Gaia. Reproducing a dossier needs these and
+    (v0.4.0 §7, ADR-019), the optional alignment to Gaia and the forced photometry that multi-epoch
+    change detection compares (INT-025). Reproducing a dossier needs these and
     nothing else."""
     return {
         "clusterer": SklearnHdbscan(),
@@ -309,6 +311,7 @@ def investigation_services(detector: PhotutilsDetector, refiner: TweakwcsRefiner
         "detector": detector,
         "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
         "refiner": refiner,
+        "photometer": PhotutilsPhotometer(),
     }
 
 
