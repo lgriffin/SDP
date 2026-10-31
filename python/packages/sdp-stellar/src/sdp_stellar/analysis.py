@@ -20,7 +20,8 @@ import pyarrow as pa
 from sdp.kernel.science.plan import TaskContext
 from sdp_stellar import benchmark as bm
 from sdp_stellar import dossier, ranking
-from sdp_stellar.cmd import absolute_g, coherence
+from sdp_stellar.cmd import POLICIES as CMD_POLICIES
+from sdp_stellar.cmd import absolute_g, coherence, coherence_at_distance
 from sdp_stellar.features import FeatureMatrix, apply_policy
 from sdp_stellar.inject import inject, recovery
 from sdp_stellar.membership import Candidate, estimate
@@ -150,7 +151,7 @@ def _classify(
 ) -> dict[str, Any]:
     checks = CandidateChecks.from_parameters(params["candidate_checks"])
     reasons: list[str] = []
-    coh = coherence(c.members, colour, mag, seed) if c.members.size else None
+    coh = _coherence(c, table, colour, mag, params, seed)
     centre = bm.centre(table, c.members) if c.members.size else None
     if c.stability < checks.min_stability:
         reasons.append(f"unstable across the grid: stability {c.stability:.2f} < {checks.min_stability}")
@@ -170,7 +171,11 @@ def _classify(
         status = "rejected"
     elif coh is None:
         status = "inconclusive"
-        reasons.append("too few members with a colour for the CMD check")
+        reasons.append(
+            "too few members with a colour for the CMD check"
+            if cmd_policy(params) == "member-parallax"
+            else "too few members with a colour, or too few field stars at the cluster's distance, for the CMD check"
+        )
     else:
         assert centre is not None
         crossmatch = [
@@ -202,6 +207,32 @@ def _classify(
         "crossmatch": crossmatch,
         "member_keys": [table.column("source_key")[int(i)].as_py() for i in c.members],
     }
+
+
+def cmd_policy(params: Mapping[str, Any]) -> str:
+    """The settings' CMD coherence policy (STL-010); the predeclared UC-01 run names none and keeps
+    ``member-parallax``."""
+    policy = str(params.get("cmd_policy", "member-parallax"))
+    if policy not in CMD_POLICIES:
+        raise ValueError(f"unknown cmd_policy {policy!r}; registered: {list(CMD_POLICIES)}")
+    return policy
+
+
+def _coherence(
+    c: Candidate, table: pa.Table, colour: np.ndarray, mag: np.ndarray, params: Mapping[str, Any], seed: int
+) -> float | None:
+    if not c.members.size:
+        return None
+    if cmd_policy(params) == "member-parallax":
+        return coherence(c.members, colour, mag, seed)
+    return coherence_at_distance(
+        c.members,
+        colour,
+        column(table, "g_mag"),
+        column(table, "parallax_mas"),
+        column(table, "parallax_mas_err"),
+        seed,
+    )
 
 
 def _benchmarks(ctx: TaskContext, roles: Sequence[str]) -> list[bm.Benchmark]:
