@@ -452,7 +452,7 @@ class InvestigateFieldUseCase:
 
     def execute(self, command: InvestigateFieldCommand) -> InvestigationRun:
         profile = command.profile
-        tests = self.ports.tests.validate(profile.tests)  # INV-006: before anything runs
+        tests = self.ports.tests.validate(profile.tests, self.ports.services)  # INV-006: before anything runs
         self._ranker(profile.ranking)  # an unknown ranking policy fails here, not after the tests ran
         tests_described = [
             {**describe(t), "thresholds": dict(s.thresholds)} for s, t in zip(profile.tests, tests, strict=True)

@@ -202,3 +202,14 @@ requirements:
     tiers: [T3, T4]
     status: approved
     traces: []
+  - id: INV-025
+    pattern: optional
+    text: "Where a profile names an installed clustering algorithm for the astrometric-coherence test, the system shall find that test's clusters, on the field and on every shuffled field, with the named algorithm, record the algorithm with every cluster, and refuse a name that is not installed before the investigation opens."
+    rationale: "The stress run (#67) spent 50 minutes in the Test stage: about 4,200 HDBSCAN searches on 13,928 Praesepe stars at about 0.98 s each with scikit-learn's HDBSCAN. fast-hdbscan (the sweep's Boruvka HDBSCAN, #136) takes about 0.015 s and agreed on the field (ARI 0.999 to 1.0, same contrast) but chose a different best cluster on 2 of 15 shuffled fields, which can move a p-value. So scikit-learn stays the default, as UC-01's predeclared reference, and a profile opts in to another installed algorithm by id under `clusterer`. Every cluster records the algorithm that found it, so a result is never read as UC-01's when it is not."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.investigate.test_field_tests::test_a_profile_names_another_installed_clusterer_and_an_unknown_one_is_refused"
+      - "python/tests.investigate.test_field_tests::test_every_cluster_records_the_algorithm_the_profile_chose"
+      - "python/tests.investigate.test_field_tests::test_a_clusterer_that_is_not_installed_is_refused_before_the_investigation_opens"

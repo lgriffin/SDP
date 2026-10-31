@@ -4,7 +4,7 @@ null fields stay near their nominal rate, and every test runs through the kernel
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -23,9 +23,11 @@ from sdp.kernel.domain.investigation import (
     TestResult,
     TestSelection,
 )
+from sdp.kernel.domain.policy import NumericalPolicy
 from sdp.kernel.ports.compute import ClusterLabels
 from sdp.kernel.ports.investigate import InvestigateFieldCommand, InvestigationRun
 from sdp.kernel.science.investigation import InvestigationTestRegistry
+from sdp.kernel.science.plan import Backend, TaskContext
 from sdp.testing.fakes.compute import FakeClusterer
 from sdp.testing.investigate import (
     ANOMALOUS,
@@ -273,3 +275,57 @@ def test_null_fields_skip_the_grid_and_a_long_grid_is_refused_up_front() -> None
     too_long = TestSelection("astrometric-coherence", "1.0.0", {"clusterer_grid": [{}] * (test.MAX_GRID + 1)})
     with pytest.raises(PlanInvalid, match="at most 12"):
         registry.validate([too_long])
+
+
+@pytest.mark.req("INV-025")
+def test_a_profile_names_another_installed_clusterer_and_an_unknown_one_is_refused() -> None:
+    test = AstrometricCoherence()
+    reference, fast = FakeClusterer(), FakeClusterer(algorithm_id="fast-planted")
+    services = {"clusterer": reference, "clusterers": {"fast-planted": fast}}
+    context = TaskContext("t", 1, NumericalPolicy(), Backend.CPU, services)
+    assert test.features([], {}, context).arrays["clusterer"] is reference  # UC-01's reference by default
+    assert test.features([], {"clusterer": "fake-planted"}, context).arrays["clusterer"] is reference
+    assert test.features([], {"clusterer": "fast-planted"}, context).arrays["clusterer"] is fast
+    with pytest.raises(ValueError, match="'cuml-hdbscan' is not installed; choose one of: fake-planted, fast-planted"):
+        test.features([], {"clusterer": "cuml-hdbscan"}, context)
+    registry = InvestigationTestRegistry.of(test)
+    with pytest.raises(PlanInvalid, match="clusterer is an algorithm id"):
+        registry.validate([TestSelection("astrometric-coherence", "1.0.0", {"clusterer": 3})])
+
+
+@pytest.mark.req("INV-025")
+def test_every_cluster_records_the_algorithm_the_profile_chose() -> None:
+    test = AstrometricCoherence()
+    rng = np.random.default_rng(2)
+    x = np.vstack([rng.normal(0, 1, (40, 3)), rng.normal(6, 0.05, (6, 3))])
+    arrays = {"x": x, "g": np.zeros(len(x)), "g_mag": np.full(len(x), np.nan), "bp_rp": np.full(len(x), np.nan)}
+    feats = Features(
+        tuple(f"k{i}" for i in range(len(x))), {**arrays, "clusterer": FakeClusterer(algorithm_id="fast-planted")}
+    )
+    thresholds = {
+        "clusterer": "fast-planted",
+        "clusterer_params": {"eps": 0.5, "min_cluster_size": 4},
+        "inner_trials": 2,
+    }
+    scored = test.evaluate(feats, thresholds, rng)
+    assert scored and all(s.details["algorithm"] == "fast-planted" for s in scored)
+
+
+@pytest.mark.req("INV-025")
+def test_a_clusterer_that_is_not_installed_is_refused_before_the_investigation_opens() -> None:
+    catalogue = synthetic_catalogue()
+    k = build_in_memory_kernel(
+        gateways={"synthetic-gaia": gaia_archive(catalogue), "synthetic-2mass": twomass_archive(catalogue)},
+        investigate=investigate_ports(*registered_tests(), catalogue=catalogue),
+    )
+    assert k.kernel.investigate_field is not None and k.kernel.query_investigations is not None
+    k.kernel.investigate_field.ports.services = {"clusterer": FakeClusterer(), "clusterers": {}}
+    typo = TestSelection("astrometric-coherence", "1.0.0", {**GAIA, "clusterer": "fast-hdbscn"})
+    profile = replace(full_profile(), tests=(typo,))
+    with pytest.raises(PlanInvalid, match="'fast-hdbscn' is not installed; choose one of: fake-planted"):
+        k.kernel.investigate_field.execute(InvestigateFieldCommand(synthetic_field(), profile, seed=5))
+    assert k.kernel.query_investigations.sets() == []
+    with pytest.raises(PlanInvalid, match="clusterer is an algorithm id"):
+        InvestigationTestRegistry.of(AstrometricCoherence()).validate(
+            [TestSelection("astrometric-coherence", "1.0.0", {"clusterer": None})]
+        )

@@ -143,8 +143,11 @@ class InvestigationTestRegistry:
     def keys(self) -> tuple[str, ...]:
         return tuple(sorted(self._tests))
 
-    def validate(self, selections: Sequence[TestSelection]) -> list[InvestigationTest]:
-        """Every selected test is registered with a declared null model (INV-006)."""
+    def validate(
+        self, selections: Sequence[TestSelection], services: Mapping[str, Any] | None = None
+    ) -> list[InvestigationTest]:
+        """Every selected test is registered with a declared null model (INV-006). Given the services
+        the executor provides, a test may also refuse thresholds that name a service not installed."""
         tests = []
         for s in selections:
             t = self.get(s.name, s.version)
@@ -156,6 +159,12 @@ class InvestigationTestRegistry:
             if check is not None:
                 try:
                     check(s.thresholds)
+                except ValueError as exc:
+                    raise PlanInvalid(f"{s.key}: {exc}") from exc
+            check_services = getattr(t, "check_services", None)  # optional, as check_thresholds
+            if services is not None and check_services is not None:
+                try:
+                    check_services(s.thresholds, services)
                 except ValueError as exc:
                     raise PlanInvalid(f"{s.key}: {exc}") from exc
         return tests

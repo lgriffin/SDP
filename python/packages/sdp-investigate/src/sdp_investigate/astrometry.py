@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
+from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.investigation import EvidenceBundle, Subject
 from sdp.kernel.ports.compute import ClusterSearchAlgorithm
 from sdp.kernel.science.investigation import product_bytes
@@ -156,7 +157,9 @@ class LongBaselineMotion(FieldTest):
 
 class AstrometricCoherence(FieldTest):
     """Is there a co-moving group here? Clusters in (pm_ra, pm_dec, parallax), robustly scaled,
-    found by the ClusterSearchAlgorithm the kernel provides as the ``clusterer`` service.
+    found by the ClusterSearchAlgorithm the kernel provides as the ``clusterer`` service, or by the
+    installed algorithm a profile names under ``clusterer`` (for example ``fast-hdbscan``, about 60
+    times faster on a large field; #67). Every cluster records which algorithm found it.
 
     A cluster's statistic is its contrast: the field's median distance from the cluster centre over
     the members' median distance from it, in the scaled space, so a tight group far from the field
@@ -198,7 +201,7 @@ class AstrometricCoherence(FieldTest):
                     )
                 )
         data = np.array(rows, dtype=float).reshape(-1, 5)
-        clusterer: ClusterSearchAlgorithm = context.service("clusterer")
+        clusterer = self._clusterer(thresholds, context.services)
         g = data[:, 3]
         return Features(
             tuple(keys),
@@ -211,8 +214,34 @@ class AstrometricCoherence(FieldTest):
             },
         )
 
+    @staticmethod
+    def _clusterer(thresholds: Mapping[str, Any], services: Mapping[str, Any]) -> ClusterSearchAlgorithm:
+        """The ``clusterer`` service (UC-01's CPU reference), or the installed algorithm the profile
+        names by id under ``clusterer``, taken from the ``clusterers`` service."""
+        default: ClusterSearchAlgorithm | None = services.get("clusterer")
+        if "clusterer" not in thresholds or (default is not None and thresholds["clusterer"] == default.algorithm_id):
+            if default is None:
+                raise PlanInvalid(
+                    "astrometric-coherence needs service 'clusterer', which the executor does not provide"
+                )
+            return default
+        chosen = thresholds["clusterer"]
+        installed: Mapping[str, ClusterSearchAlgorithm] = services.get("clusterers") or {}
+        if chosen not in installed:
+            ids = {*installed, *([default.algorithm_id] if default is not None else [])}
+            raise ValueError(f"clusterer {chosen!r} is not installed; choose one of: {', '.join(sorted(ids))}")
+        return installed[chosen]
+
+    def check_services(self, thresholds: Mapping[str, Any], services: Mapping[str, Any]) -> None:
+        """A clusterer the profile names must be installed, refused before the investigation opens."""
+        if "clusterer" in thresholds:
+            self._clusterer(thresholds, services)
+
     def check_thresholds(self, thresholds: Mapping[str, Any]) -> None:
-        """A grid is a short predeclared list of settings, refused before anything runs."""
+        """A grid is a short predeclared list of settings, and the clusterer an algorithm id; both are
+        refused before anything runs."""
+        if "clusterer" in thresholds and (not isinstance(thresholds["clusterer"], str) or not thresholds["clusterer"]):
+            raise ValueError("clusterer is an algorithm id, such as sklearn-hdbscan or fast-hdbscan")
         grid = thresholds.get("clusterer_grid") or ()
         if not isinstance(grid, Sequence) or isinstance(grid, str) or len(grid) > self.MAX_GRID:
             raise ValueError(f"clusterer_grid is a list of at most {self.MAX_GRID} parameter mappings")
