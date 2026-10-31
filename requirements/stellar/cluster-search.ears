@@ -105,3 +105,65 @@ requirements:
       - "python/tests.stellar.test_sweep::test_settings_share_the_predeclared_cuts_and_pass_marks"
       - "python/tests.cli.test_cli_discover::test_prepare_sweep_report_finds_the_planted_cluster_in_no_benchmark"
       - "python/tests.cli.test_cli_discover::test_the_predeclared_run_reads_gaia_and_issues_a_verdict"
+  - id: STL-010
+    pattern: optional
+    text: "Where the settings name the cluster-distance CMD policy, the stellar module shall place every member and every compared field star at the inverse-variance mean parallax of the members before measuring CMD coherence."
+    rationale: "A member's own parallax error adds about 0.43 mag of scatter at parallax/error 5, so faint real clusters failed the coherence check; field stars at the cluster's distance are treated the same way so the comparison stays fair. The sweep uses this policy; the UC-01 predeclaration names none and keeps member-parallax."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_cmd_policy::test_a_faint_real_cluster_passes_at_its_distance_where_its_own_parallaxes_blur_it"
+      - "python/tests.stellar.test_cmd_policy::test_random_field_stars_at_the_same_distance_are_still_no_tighter_than_the_field"
+      - "python/tests.stellar.test_cmd_policy::test_the_cluster_parallax_is_the_inverse_variance_mean_of_usable_members"
+      - "python/tests.stellar.test_cmd_policy::test_too_few_field_stars_at_the_cluster_distance_is_inconclusive_not_failed"
+      - "python/tests.stellar.test_cmd_policy::test_a_cluster_that_dominates_its_distance_is_compared_with_its_nearest_field_stars"
+      - "python/tests.stellar.test_cmd_policy::test_the_predeclared_run_keeps_member_parallax_and_the_sweep_uses_the_cluster_distance"
+      - "python/tests.stellar.test_cmd_policy::test_an_unknown_cmd_policy_is_refused"
+      - "python/tests.stellar.test_cmd_policy::test_a_small_cluster_in_a_sparse_field_is_compared_with_enough_of_its_nearest_field_stars"
+      - "python/tests.stellar.test_cmd_policy::test_a_star_clipped_from_the_sequence_is_not_readmitted_by_a_later_fit"
+      - "python/tests.stellar.test_cmd_policy::test_an_unknown_cmd_policy_is_refused_even_when_the_search_finds_nothing"
+      - "python/tests.stellar.test_cmd_policy::test_a_sweep_tile_with_an_unknown_cmd_policy_is_refused_before_it_is_skipped"
+      - "python/tests.stellar.test_cmd_policy::test_the_tile_columns_read_once_give_the_same_coherence_as_reading_them_per_candidate"
+  - id: STL-011
+    pattern: optional
+    text: "Where the settings name a significance test, the stellar module shall reject every candidate whose members' k-th nearest-neighbour distances in the feature space are not smaller than those of the non-members around it at the settings' minimum significance."
+    rationale: "A per-candidate significance, after Hunt & Reffert's (2021) cluster significance test, replaces a tile-wide yes or no from one null field: in the sweep a potentially new candidate must also be more significant than every false candidate its tile's null fields produced, so one noisy tile no longer hides a real cluster beside it. The UC-01 predeclaration names no test."
+    verification: test
+    tiers: [T1, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_significance::test_a_dense_group_is_many_sigma_above_the_stars_around_it"
+      - "python/tests.stellar.test_significance::test_a_random_handful_of_the_field_is_not_significant"
+      - "python/tests.stellar.test_significance::test_the_significance_is_capped_where_the_p_value_underflows"
+      - "python/tests.stellar.test_significance::test_too_few_members_or_surrounding_stars_cannot_be_assessed"
+      - "python/tests.stellar.test_significance::test_the_field_sample_is_the_stars_nearest_the_candidate_not_the_whole_tile"
+      - "python/tests.stellar.test_significance::test_malformed_significance_settings_are_refused"
+      - "python/tests.stellar.test_significance::test_the_predeclared_run_has_no_significance_test_and_the_sweep_has_one"
+      - "python/tests.stellar.test_significance::test_the_assessment_refuses_to_run_the_test_without_the_feature_matrix"
+      - "python/tests.stellar.test_significance::test_in_the_sweep_the_planted_cluster_is_significant_and_the_field_itself_is_not"
+      - "python/tests.stellar.test_significance::test_a_null_survivor_more_significant_than_the_candidate_makes_it_inconclusive"
+      - "python/tests.stellar.test_significance::test_a_new_candidate_is_held_to_each_false_candidate_of_its_tile"
+      - "python/tests.stellar.test_significance::test_neighbour_distances_are_the_same_queried_in_batches"
+      - "python/tests.stellar.test_significance::test_a_candidate_already_failing_a_cheap_check_is_not_tested"
+      - "python/tests.stellar.test_significance::test_a_candidate_below_the_minimum_significance_is_rejected_and_says_so"
+  - id: STL-012
+    pattern: optional
+    text: "Where the sweep settings name distance scales, the stellar module shall sweep the sky once per parallax shell with that shell's tile size and rim, and keep each star and each candidate in the one shell whose parallax range holds the star's parallax or the candidate's mean member parallax, and report once a candidate that two shells both keep."
+    rationale: "A cluster's angular size shrinks with distance, so fixed 2-degree tiles cut a cluster 100-250 pc away into fragments; tiles sized per shell span a similar physical size near and far. A parallax rim around each shell lets a cluster on a boundary be seen whole without being counted twice."
+    verification: test
+    tiers: [T1, T3, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_scales::test_a_wide_nearby_cluster_is_found_whole_by_the_near_shell_and_cut_up_by_two_degree_tiles"
+      - "python/tests.stellar.test_scales::test_the_shells_meet_end_to_end_nearest_first"
+      - "python/tests.stellar.test_scales::test_without_scales_the_sweep_is_the_single_legacy_scale"
+      - "python/tests.stellar.test_scales::test_malformed_scales_are_refused"
+      - "python/tests.stellar.test_scales::test_a_candidate_is_kept_only_by_the_shell_that_owns_its_mean_parallax"
+      - "python/tests.stellar.test_scales::test_the_shell_is_chosen_by_the_members_mean_parallax_not_their_median"
+      - "python/tests.stellar.test_scales::test_a_cluster_two_shells_both_keep_is_reported_once_by_the_shell_that_found_more_of_it"
+      - "python/tests.stellar.test_scales::test_a_cluster_on_a_shell_boundary_is_kept_once"
+      - "python/tests.stellar.test_scales::test_each_star_counts_in_one_shell_only"
+      - "python/tests.stellar.test_scales::test_a_tile_of_another_scale_is_refused"
+      - "python/tests.stellar.test_scales::test_a_shell_searches_only_its_parallax_window"
+      - "python/tests.cli.test_cli_discover::test_prepare_sweep_report_finds_the_planted_cluster_in_no_benchmark"

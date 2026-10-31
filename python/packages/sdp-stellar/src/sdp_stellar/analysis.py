@@ -20,13 +20,15 @@ import pyarrow as pa
 from sdp.kernel.science.plan import TaskContext
 from sdp_stellar import benchmark as bm
 from sdp_stellar import dossier, ranking
-from sdp_stellar.cmd import absolute_g, coherence
+from sdp_stellar.cmd import POLICIES as CMD_POLICIES
+from sdp_stellar.cmd import absolute_g, coherence, coherence_at_distance, usable_rows
 from sdp_stellar.features import FeatureMatrix, apply_policy
 from sdp_stellar.inject import inject, recovery
 from sdp_stellar.membership import Candidate, estimate
 from sdp_stellar.null import null_field
 from sdp_stellar.quality import QualityCuts, column
 from sdp_stellar.search import Configuration, configurations, labelling_document, run
+from sdp_stellar.significance import SignificanceSettings, significance, tree
 
 
 @dataclass(frozen=True)
@@ -130,13 +132,48 @@ def _assess(
     benchmarks: Sequence[bm.Benchmark],
     params: Mapping[str, Any],
     seed: int,
+    features: np.ndarray | None = None,
 ) -> list[dict[str, Any]]:
+    """``features`` is the matrix the clustering saw; settings that ask for the significance test
+    (STL-011) need it."""
+    policy = cmd_policy(params)  # refused before any candidate, even when the search finds none
+    sig = significance_settings(params)
+    index = None
+    if sig is not None:
+        if features is None or features.shape[0] != table.num_rows:
+            raise ValueError("the significance test needs the feature matrix of the stars searched")
+        index = tree(features)
     colour = column(table, "bp_rp")
-    mag = absolute_g(column(table, "g_mag"), column(table, "parallax_mas"))
+    g, plx = column(table, "g_mag"), column(table, "parallax_mas")
+    mag = absolute_g(g, plx)
+    shared = None
+    if policy == "cluster-distance":
+        shared = {"g": g, "parallax": plx, "parallax_err": column(table, "parallax_mas_err")}
+        shared["usable"] = usable_rows(colour, g, plx)
     out: list[dict[str, Any]] = []
+    checks = CandidateChecks.from_parameters(params["candidate_checks"])
     for c in estimate(region, labellings):
-        out.append(_classify(c, table, colour, mag, benchmarks, params, seed))
+        sigma = None
+        if sig is not None and index is not None and features is not None and _worth_testing(c, checks, table.num_rows):
+            sigma = significance(index, features, c.members, sig)
+        out.append(_classify(c, table, colour, mag, benchmarks, params, seed, columns=shared, sigma=sigma))
     return out
+
+
+def _worth_testing(c: Candidate, checks: CandidateChecks, searched: int) -> bool:
+    """Whether a candidate can still pass once tested: one already failing the member count, the
+    stability or the field-fraction check is rejected whatever its significance, so the neighbour
+    queries (largest for a field-sized group) are not run for it."""
+    return (
+        checks.min_members <= c.members.size <= checks.max_field_fraction * searched
+        and c.stability >= checks.min_stability
+    )
+
+
+def significance_settings(params: Mapping[str, Any]) -> SignificanceSettings | None:
+    """The settings' significance test (STL-011), or None: the predeclared UC-01 run names none."""
+    doc = params.get("significance")
+    return None if doc is None else SignificanceSettings.from_parameters(doc)
 
 
 def _classify(
@@ -147,10 +184,13 @@ def _classify(
     benchmarks: Sequence[bm.Benchmark],
     params: Mapping[str, Any],
     seed: int,
+    columns: Mapping[str, np.ndarray] | None = None,
+    sigma: float | None = None,
 ) -> dict[str, Any]:
     checks = CandidateChecks.from_parameters(params["candidate_checks"])
+    sig = significance_settings(params)
     reasons: list[str] = []
-    coh = coherence(c.members, colour, mag, seed) if c.members.size else None
+    coh = _coherence(c, table, colour, mag, params, seed, columns)
     centre = bm.centre(table, c.members) if c.members.size else None
     if c.stability < checks.min_stability:
         reasons.append(f"unstable across the grid: stability {c.stability:.2f} < {checks.min_stability}")
@@ -165,12 +205,21 @@ def _classify(
         reasons.append(
             f"colour-magnitude sequence no tighter than the field: coherence {coh:.2f} < {checks.min_cmd_coherence}"
         )
+    if sig is not None and sigma is not None and sigma < sig.min_sigma:
+        reasons.append(f"no denser than the stars around it: significance {sigma:.1f} sigma < {sig.min_sigma:g}")
     crossmatch = []
     if reasons:
         status = "rejected"
+    elif sig is not None and sigma is None:
+        status = "inconclusive"
+        reasons.append("too few members or surrounding stars for the significance test")
     elif coh is None:
         status = "inconclusive"
-        reasons.append("too few members with a colour for the CMD check")
+        reasons.append(
+            "too few members with a colour for the CMD check"
+            if cmd_policy(params) == "member-parallax"
+            else "too few members with a colour, or too few field stars at the cluster's distance, for the CMD check"
+        )
     else:
         assert centre is not None
         crossmatch = [
@@ -189,7 +238,7 @@ def _classify(
         else:
             status = "inconclusive"
             reasons.append("cross-matched against fewer than two benchmarks (STL-005)")
-    return {
+    out: dict[str, Any] = {
         "candidate_id": c.candidate_id,
         "status": status,
         "reasons": reasons,
@@ -202,6 +251,48 @@ def _classify(
         "crossmatch": crossmatch,
         "member_keys": [table.column("source_key")[int(i)].as_py() for i in c.members],
     }
+    if sig is not None:
+        out["significance_sigma"] = sigma
+    return out
+
+
+def cmd_policy(params: Mapping[str, Any]) -> str:
+    """The settings' CMD coherence policy (STL-010); the predeclared UC-01 run names none and keeps
+    ``member-parallax``."""
+    policy = str(params.get("cmd_policy", "member-parallax"))
+    if policy not in CMD_POLICIES:
+        raise ValueError(f"unknown cmd_policy {policy!r}; registered: {list(CMD_POLICIES)}")
+    return policy
+
+
+def _coherence(
+    c: Candidate,
+    table: pa.Table,
+    colour: np.ndarray,
+    mag: np.ndarray,
+    params: Mapping[str, Any],
+    seed: int,
+    columns: Mapping[str, np.ndarray] | None = None,
+) -> float | None:
+    """``columns`` carries the tile's g, parallax, parallax_err and usable rows, read once by _assess."""
+    policy = cmd_policy(params)
+    if not c.members.size:
+        return None
+    if policy == "member-parallax":
+        return coherence(c.members, colour, mag, seed)
+    if columns is None:
+        g, plx = column(table, "g_mag"), column(table, "parallax_mas")
+        columns = {"g": g, "parallax": plx, "parallax_err": column(table, "parallax_mas_err")}
+        columns = {**columns, "usable": usable_rows(colour, g, plx)}
+    return coherence_at_distance(
+        c.members,
+        colour,
+        columns["g"],
+        columns["parallax"],
+        columns["parallax_err"],
+        seed,
+        usable=columns["usable"],
+    )
 
 
 def _benchmarks(ctx: TaskContext, roles: Sequence[str]) -> list[bm.Benchmark]:

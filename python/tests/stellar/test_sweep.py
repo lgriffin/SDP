@@ -235,7 +235,10 @@ def test_without_a_null_field_a_new_looking_candidate_is_only_inconclusive() -> 
 @pytest.mark.tier("T8")
 def test_a_null_field_survivor_makes_new_looking_candidates_inconclusive() -> None:
     t = owner(*SYN_B)
-    lax = settings(candidate_checks={**sweep.load_settings()["candidate_checks"], "max_field_fraction": 1.0})
+    # pass marks loose enough that a group of the shuffled field survives
+    loose = {**sweep.load_settings()["candidate_checks"], "max_field_fraction": 1.0, "min_cmd_coherence": 0.0}
+    # without the significance test (STL-011) the tile-wide rule decides
+    lax = settings(candidate_checks=loose, significance=None)
     result = sweep.sweep_tile(tile_rows(t, praesepe_field()), t, lax, clusterers(), benchmarks(), 2026)
     assert result["null_fields_with_survivors"] == 1
     syn_b = [
@@ -310,6 +313,7 @@ def test_the_summary_counts_candidates_and_the_null_false_positive_rate_per_null
         "tiles_skipped": 1,
         "stars_searched": 150,
         "candidates": {"known": 1, "potentially_new": 1, "rejected": 3},
+        "duplicates_across_scales": 0,
         "null_fields": 3,
         "null_false_positive_rate": 1 / 3,
     }
