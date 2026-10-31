@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from dataclasses import dataclass, replace
 
 import pyarrow as pa
@@ -491,3 +493,46 @@ def test_a_field_resolver_is_asked_once_for_the_whole_field_with_the_same_answer
 
     assert records(batched) == records(per_star)
     assert any(records(batched).values())
+
+
+class _SlowStore:
+    """The in-memory store, each dossier write waiting as a synced file on a slow disk would (#67)."""
+
+    def __init__(self, inner: object) -> None:
+        self.inner = inner
+        self.threads: set[str] = set()
+        self.most_at_once = self._now = 0
+        self._lock = threading.Lock()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self.inner, name)
+
+    def put(self, data: bytes, media_type: str, *, logical_path: str | None = None) -> object:
+        if logical_path is None or "/dossiers/" not in logical_path:
+            return self.inner.put(data, media_type, logical_path=logical_path)  # type: ignore[attr-defined]
+        with self._lock:
+            self.threads.add(threading.current_thread().name)
+            self._now += 1
+            self.most_at_once = max(self.most_at_once, self._now)
+        time.sleep(0.02)
+        try:
+            return self.inner.put(data, media_type, logical_path=logical_path)  # type: ignore[attr-defined]
+        finally:
+            with self._lock:
+                self._now -= 1
+
+
+@pytest.mark.req("INV-023")
+def test_candidate_dossiers_are_written_side_by_side_and_each_is_named_by_its_investigation(world: World) -> None:
+    use_case = world.k.kernel.investigate_field
+    assert use_case is not None
+    slow = _SlowStore(use_case._meter.inner)
+    use_case._meter.inner = slow  # type: ignore[assignment]
+    run = world.run()
+    assert len(run.investigations) > 1
+    assert slow.most_at_once > 1 and all(t.startswith("dossier") for t in slow.threads)
+    for inv in run.investigations:
+        path = f"investigations/{run.investigation_set.set_id}/dossiers/{inv.investigation_id}.json"
+        stored = world.k.store.resolve(path)
+        assert stored is not None and inv.links["dossier_id"] == stored.value
+        assert decode_artifact(world.k.store.get(stored), JSON)["investigation_id"] == inv.investigation_id

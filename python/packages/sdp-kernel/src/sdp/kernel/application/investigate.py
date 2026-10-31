@@ -13,6 +13,7 @@ import logging
 import math
 import threading
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from importlib.metadata import entry_points
 from typing import Any
@@ -145,6 +146,10 @@ ROW_CAP_REACHED = "row_cap_reached"
 
 #: The stage summary key for the bytes the stage added to the artifact store (#60)
 STORED_BYTES = "stored_bytes"
+
+
+#: dossiers written side by side in the Candidates stage; the work is waiting on the disk, not the CPU
+DOSSIER_WRITERS = 8
 
 
 class _MeteredStore:
@@ -1282,33 +1287,37 @@ class InvestigateFieldUseCase:
         by_key = {b.object_key: b for b in bundles}
         investigations: list[Investigation] = []
         now = self.clock.now()
-        for candidate in ranked:
-            subject = candidate.subject
-            members = (subject.object_key,) if subject.object_key is not None else subject.members
-            own = [by_key[k] for k in members if k in by_key]
-            if not own:
-                log.warning("candidate %s has no evidence bundle; skipped", subject.key)
-                continue
-            investigation = Investigation.open(
-                investigation_id=self.ids.new("inv"),
-                set_id=investigation_set.set_id,
-                field_id=investigation_set.field.field_id,
-                candidate=candidate,
-                evidence_bundle_ids=tuple(b.bundle_id for b in own),
-                policy=policy,
-                evidence_used=self._evidence_used(investigation_set, own),
-                at=now,
-            )
-            resolved = next((b.object.resolver_record for b in own if b.object.resolver_record), None)
-            if resolved is not None:
-                investigation.link("simbad_id", resolved.main_id)
-            dossier = build_investigation_dossier(investigation_set, investigation, own, nulls)
-            dossier_id = self.store.put(canonical_json(dossier).encode(), JSON)
-            self.store.link(
-                set_path(investigation_set.set_id, f"dossiers/{investigation.investigation_id}.json"), dossier_id
-            )
-            investigation.link("dossier_id", dossier_id.value)
-            investigations.append(investigation)
+        # Each dossier is a few small synced files. Written one after another they kept the stage waiting
+        # on the disk for most of an hour on 16,777 candidates (#67); several writers overlap the waits.
+        writes: list[Future[ArtifactId]] = []
+        with ThreadPoolExecutor(max_workers=DOSSIER_WRITERS, thread_name_prefix="dossier") as writers:
+            for candidate in ranked:
+                subject = candidate.subject
+                members = (subject.object_key,) if subject.object_key is not None else subject.members
+                own = [by_key[k] for k in members if k in by_key]
+                if not own:
+                    log.warning("candidate %s has no evidence bundle; skipped", subject.key)
+                    continue
+                investigation = Investigation.open(
+                    investigation_id=self.ids.new("inv"),
+                    set_id=investigation_set.set_id,
+                    field_id=investigation_set.field.field_id,
+                    candidate=candidate,
+                    evidence_bundle_ids=tuple(b.bundle_id for b in own),
+                    policy=policy,
+                    evidence_used=self._evidence_used(investigation_set, own),
+                    at=now,
+                )
+                resolved = next((b.object.resolver_record for b in own if b.object.resolver_record), None)
+                if resolved is not None:
+                    investigation.link("simbad_id", resolved.main_id)
+                dossier = canonical_json(build_investigation_dossier(investigation_set, investigation, own, nulls))
+                path = set_path(investigation_set.set_id, f"dossiers/{investigation.investigation_id}.json")
+                writes.append(writers.submit(self.store.put, dossier.encode(), JSON, logical_path=path))
+                investigations.append(investigation)
+        # every dossier is stored before an investigation naming it is saved; a failed write raises here
+        for investigation, write in zip(investigations, writes, strict=True):
+            investigation.link("dossier_id", write.result().value)
 
         by_id = {b.bundle_id: b for b in bundles}  # a candidate's bundles by id, not a scan of every bundle
         with self.uow() as uow:
