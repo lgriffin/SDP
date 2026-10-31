@@ -1,4 +1,4 @@
-// The comparison page's logic (INV-023): what lines up, what counts as a disagreement, and what the
+// The comparison page's logic (INV-024): what lines up, what counts as a disagreement, and what the
 // pulls say in words.
 import { describe, expect, it } from "vitest";
 
@@ -27,10 +27,10 @@ function pull(source_id: string, status: ReferencePull["status"], matches: Refer
   };
 }
 
-describe("comparison [INV-023]", () => {
+describe("comparison [INV-024]", () => {
   const inv = FIXTURES.investigation["inv-000001"]!;
 
-  it("[INV-023] merges the candidate's own catalogue rows into one row", () => {
+  it("[INV-024] merges the candidate's own catalogue rows into one row", () => {
     const found = foundRow(inv.dossier, inv.candidateKey);
     expect(found?.source_key).toBe(inv.candidateKey);
     expect(typeof found?.g_mag).toBe("number");
@@ -39,7 +39,7 @@ describe("comparison [INV-023]", () => {
     expect(foundRow(null, inv.candidateKey)).toBeNull();
   });
 
-  it("[INV-023] says in words where a catalogue disagrees", () => {
+  it("[INV-024] says in words where a catalogue disagrees", () => {
     const found = { g_mag: 12, parallax_mas: 4, parallax_mas_err: 0.05, pm_ra_cosdec_masyr: 20 };
     expect(compareCell(q("g_mag"), found, { g_mag: 12.1 }).differs).toBeNull();
     expect(compareCell(q("g_mag"), found, { g_mag: 12.5 }).differs).toBe("fainter by 0.50 mag");
@@ -54,7 +54,7 @@ describe("comparison [INV-023]", () => {
     expect(compareCell(q("g_mag"), found, null)).toEqual({ text: "—", differs: null });
   });
 
-  it("[INV-023] formats values with their units", () => {
+  it("[INV-024] formats values with their units", () => {
     expect(formatValue(q("separation_arcsec"), 0.123)).toBe("0.12″");
     expect(formatValue(q("j_mag"), 14.489)).toBe("14.49 mag");
     expect(formatValue(q("epoch_jyear"), 2000.405)).toBe("2000.4");
@@ -62,19 +62,19 @@ describe("comparison [INV-023]", () => {
     expect(formatValue(q("g_mag"), null)).toBe("—");
   });
 
-  it("[INV-023] keeps the latest pull per catalogue, in the server's order, and offers the rest", () => {
+  it("[INV-024] keeps the latest pull per catalogue, in the server's order, and offers the rest", () => {
     const pulls = [pull("simbad", "none"), pull("gaia", "found", [{ separation_arcsec: 0 }]), pull("simbad", "found", [{ separation_arcsec: 1 }], { radius_arcsec: 30 })];
     expect(latestPulls(pulls, DEMO_CATALOGUES).map((p) => [p.source_id, p.radius_arcsec])).toEqual([["gaia", 5], ["simbad", 30]]);
     expect(notYetPulled(DEMO_CATALOGUES, pulls)).toEqual(["2mass", "allwise", "ps1", "vsx"]);
   });
 
-  it("[INV-023] shows only quantities some column reports", () => {
+  it("[INV-024] shows only quantities some column reports", () => {
     const keys = shownQuantities({ g_mag: 1 }, [{ separation_arcsec: 0, j_mag: 2 }, null]).map((x) => x.key);
     expect(keys).toEqual(["separation_arcsec", "g_mag", "j_mag"]);
     expect(shownQuantities({ g_mag: 1 }, [null]).map((x) => x.key)).toEqual(["g_mag"]);
   });
 
-  it("[INV-023] puts a known object first and says plainly what each catalogue found", () => {
+  it("[INV-024] puts a known object first and says plainly what each catalogue found", () => {
     const said = findings(
       [
         pull("gaia", "found", [{ source_key: "gaia:DR3:0", separation_arcsec: 0 }, { source_key: "gaia:DR3:9", separation_arcsec: 3 }]),

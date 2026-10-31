@@ -1,4 +1,4 @@
-"""A reference catalogue that answers from rows it was given (INV-023): for use-case, API and UI tests.
+"""A reference catalogue that answers from rows it was given (INV-024): for use-case, API and UI tests.
 
 The rows are invented; nothing here stands for a real catalogue's contents."""
 

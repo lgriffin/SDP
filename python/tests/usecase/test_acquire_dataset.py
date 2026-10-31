@@ -8,7 +8,7 @@ import pytest
 from sdp.kernel.application.acquisition import raw_part_path
 from sdp.kernel.application.media import PARQUET, decode_artifact
 from sdp.kernel.domain.archive import AcquisitionHandle, CatalogueQuery, Cone
-from sdp.kernel.domain.dataset import ArtifactKind, DatasetStatus
+from sdp.kernel.domain.dataset import ArtifactKind, DatasetStatus, DialectRef
 from sdp.kernel.domain.errors import (
     CurationBlocked,
     ImmutableArtifact,
@@ -17,6 +17,7 @@ from sdp.kernel.domain.errors import (
     StorageExhausted,
 )
 from sdp.kernel.domain.provenance import qualified
+from sdp.kernel.ports.archives import DialectCurator
 from sdp.kernel.ports.driving import AcquireDatasetCommand
 from sdp.testing.catalogues import FAKE_GAIA, fixture_catalogue
 from sdp.testing.fakes import FakeArchive
@@ -113,6 +114,38 @@ def test_the_same_rows_by_another_route_reuse_the_record_already_held() -> None:
 
     assert again.reused and again.raw == first.raw and again.curated == first.curated
     assert len(k.kernel.query_evidence.datasets()) == datasets, "no second record under the same id"
+
+
+class _NewerDialect:
+    """The same curator with its dialect at a later version, as after 2mass-psc 1.1.0 (#141)."""
+
+    def __init__(self, inner: DialectCurator) -> None:
+        self.inner = inner
+
+    def dialect_for(self, source_id: str, release_label: str) -> DialectRef:
+        return replace(self.inner.dialect_for(source_id, release_label), dialect_version="9.0.0")
+
+    def curate(self, native: Any, dialect: DialectRef) -> Any:
+        return self.inner.curate(
+            native, replace(dialect, dialect_version=self.inner.dialect_for("fake-gaia", "gaia:DR3").dialect_version)
+        )
+
+
+@pytest.mark.req("DSI-020")
+def test_rows_curated_with_an_earlier_dialect_are_curated_again_and_never_fetched_again() -> None:
+    archive = FakeArchive(FAKE_GAIA, fixture_catalogue())
+    k = kernel_with(archive)
+    first = k.kernel.acquire_dataset.execute(AcquireDatasetCommand(QUERY))
+    calls = archive.fetch_calls
+
+    newer = replace(k.kernel.acquire_dataset, curator=_NewerDialect(k.kernel.acquire_dataset.curator))
+    again = newer.execute(AcquireDatasetCommand(QUERY))
+
+    assert again.reused and again.raw == first.raw and archive.fetch_calls == calls
+    assert again.curated is not None and first.curated is not None
+    assert again.curated.dialect is not None and again.curated.dialect.dialect_version == "9.0.0"
+    assert again.curated.artifact_id != first.curated.artifact_id
+    assert newer.execute(AcquireDatasetCommand(QUERY)).curated == again.curated, "and that one is reused after"
 
 
 @pytest.mark.tier("T5")

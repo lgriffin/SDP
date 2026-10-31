@@ -1,4 +1,4 @@
-"""T4: PullReferences asks reference catalogues about a candidate and keeps every answer (INV-023)."""
+"""T4: PullReferences asks reference catalogues about a candidate and keeps every answer (INV-024)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from sdp.testing.investigate import (
 from sdp.testing.references import FakeReferenceCatalogue, offset
 from sdp.testing.wiring import InMemoryKernel, build_in_memory_kernel
 
-pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-023")]
+pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-024")]
 
 
 @dataclass

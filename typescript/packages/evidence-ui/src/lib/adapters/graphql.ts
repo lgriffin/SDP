@@ -151,7 +151,7 @@ export class GraphQLEvidenceSource implements EvidenceSource {
       const data = await this.request<Answer>(QUERIES.comparison, { id: investigationId });
       return { catalogues: data.referenceCatalogues, pulls: data.investigation?.references ?? [] };
     } catch (e) {
-      // An sdp-api from before comparisons (INV-023): the port promises null.
+      // An sdp-api from before comparisons (INV-024): the port promises null.
       if (e instanceof EvidenceUnavailable && /Cannot query field ["'](referenceCatalogues|references)["']/.test(e.message)) return null;
       throw e;
     }

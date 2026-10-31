@@ -1,4 +1,4 @@
-// What the demonstration server answers when a scientist pulls references (INV-023). Every row is
+// What the demonstration server answers when a scientist pulls references (INV-024). Every row is
 // derived from the synthetic candidate's own synthetic catalogue rows by fixed offsets, so a browser
 // test sees the same comparison each time. Nothing here stands for a real catalogue's contents.
 import { foundRow } from "../compare.ts";

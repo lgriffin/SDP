@@ -1,4 +1,4 @@
-"""ReferenceCatalogue: one catalogue a scientist can compare a candidate against (INV-023).
+"""ReferenceCatalogue: one catalogue a scientist can compare a candidate against (INV-024).
 
 An adapter answers a cone with canonical rows (the names the dossier's catalogue rows use, plus whatever
 the catalogue adds: ``object_type``, ``main_id``, ``references``, ``variable_type``, ``period_d``, ...)

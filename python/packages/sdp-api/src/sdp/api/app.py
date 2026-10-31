@@ -1,7 +1,7 @@
 """The ASGI app: ``/graphql`` for queries, ``/health``, run/validate command endpoints (ADR-016),
 ``POST /investigations``, which the field viewer and the evidence UI call to run InvestigateField
 (INV-012), ``POST /investigations/{id}/triage`` for the unsigned triage steps, ``POST /investigations/{id}/references``,
-which asks reference catalogues what they hold at a candidate's position (INV-023), and the planner
+which asks reference catalogues what they hold at a candidate's position (INV-024), and the planner
 (ADR-020): ``POST /plans``, ``/plans/{id}/approve``, ``/plans/{id}/refuse`` and ``/plans/{id}/execute``
 (``{"background": true}`` runs it as a job, INV-018), and ``/archives`` with ``POST /archives/register``,
 which reads what each archive offers so a new installation can plan (INV-019).

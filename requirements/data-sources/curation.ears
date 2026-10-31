@@ -32,3 +32,14 @@ requirements:
     status: approved
     traces:
       - "python/tests.usecase.test_acquire_dataset::test_low_free_space_refuses_new_acquisitions"
+  - id: DSI-020
+    pattern: ubiquitous
+    text: "The curation service shall map every source magnitude that a registered test reads into its canonical column."
+    rationale: "photometric-corroboration reads j_mag and k_mag, but the 2MASS dialect kept them only in quality_flags under the archive's names, so on Praesepe the test examined no star although 3,907 of 4,099 had a 2MASS row (#141). The 2MASS dialect 1.1.0 maps J, H and Ks into canonical columns (canonical-astrometry 1.1.0, additive), and a test runs photometric-corroboration on rows the packaged dialect curated. Rows acquired before a dialect change are curated again with the dialect in force (the raw download is reused), so a rerun sees the new columns."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.investigate.test_photometry_dialect::test_the_2mass_dialect_puts_j_h_and_k_in_canonical_columns"
+      - "python/tests.investigate.test_photometry_dialect::test_photometric_corroboration_examines_dialect_curated_2mass_rows"
+      - "python/tests.usecase.test_acquire_dataset::test_rows_curated_with_an_earlier_dialect_are_curated_again_and_never_fetched_again"

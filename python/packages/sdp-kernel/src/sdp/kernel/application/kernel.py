@@ -71,7 +71,7 @@ class KernelPorts:
     discovery: CapabilityDiscoveryService | None = None
     """What the planner matches requirements against (v0.4.0 §2); without it nothing is planned."""
     references: Mapping[str, ReferenceCatalogue] = field(default_factory=dict)
-    """Catalogues a candidate can be compared against, by source id (INV-023); none offers no pulls."""
+    """Catalogues a candidate can be compared against, by source id (INV-024); none offers no pulls."""
 
 
 @dataclass

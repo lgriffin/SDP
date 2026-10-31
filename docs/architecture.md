@@ -339,6 +339,7 @@ A `CatalogueQuery` is a value object, not an ADQL string: the adapter renders AD
 | `pm_ra_cosdec_masyr`, `pm_dec_masyr` + `_err` | mas/yr | The cos(dec) convention is fixed here; dialects convert |
 | `astrometric_corr[10]` | — | Upper triangle of the 5×5 correlation matrix, Gaia order; null where a source lacks it |
 | `g_mag`, `bp_rp` | mag | Optional for non-Gaia sources |
+| `j_mag`, `h_mag`, `k_mag` | mag | 2MASS J, H and Ks; null for other sources (since schema 1.1.0) |
 | `ruwe`, `quality_flags` | — | Source-specific flags preserved as a JSON column, plus a normalised `quality_class` |
 | `source_release` | — | `gaia:DR3`, `gaia:DR4`, `hr23:v1.0` ... |
 

@@ -1,4 +1,4 @@
-"""T4 for POST /investigations/{id}/references and the GraphQL fields the comparison page reads (INV-023)."""
+"""T4 for POST /investigations/{id}/references and the GraphQL fields the comparison page reads (INV-024)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sdp.testing.investigate import (
 from sdp.testing.references import FakeReferenceCatalogue
 from sdp.testing.wiring import build_in_memory_kernel
 
-pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-023")]
+pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-024")]
 REGION = f"icrs;circle({FIELD_CENTRE[0]},{FIELD_CENTRE[1]},0.5)"
 QUERY = (
     "query($id: ID!) { referenceCatalogues { sourceId title releaseLabel citation description }"

@@ -55,6 +55,18 @@ class CanonicalAstrometryRow(BaseModel):
     ]
     g_mag: float | None
     bp_rp: float | None
+    j_mag: Annotated[
+        float | None,
+        Field(description="2MASS J magnitude, null for sources without it. Optional since 1.1.0."),
+    ] = None
+    h_mag: Annotated[
+        float | None,
+        Field(description="2MASS H magnitude, null for sources without it. Optional since 1.1.0."),
+    ] = None
+    k_mag: Annotated[
+        float | None,
+        Field(description="2MASS Ks magnitude, null for sources without it. Optional since 1.1.0."),
+    ] = None
     ruwe: Annotated[float | None, Field(ge=0.0)]
     quality_flags: dict[str, Any]
     quality_class: QualityClass

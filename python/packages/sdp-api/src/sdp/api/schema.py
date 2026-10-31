@@ -317,7 +317,7 @@ class Investigation:
     notes: JSONValue
     links: JSONValue
     references: JSONValue = strawberry.field(
-        description="What reference catalogues held at the candidate's position, oldest pull first (INV-023)."
+        description="What reference catalogues held at the candidate's position, oldest pull first (INV-024)."
     )
 
     @strawberry.field(description="The candidate's dossier, rebuilt from the set's stage artifacts.")  # type: ignore[untyped-decorator]
@@ -353,7 +353,7 @@ class Investigation:
         )
 
 
-@strawberry.type(description="A catalogue a candidate can be compared against (INV-023).")
+@strawberry.type(description="A catalogue a candidate can be compared against (INV-024).")
 class ReferenceCatalogue:
     source_id: str
     title: str
@@ -544,7 +544,7 @@ class Query:
         found = query.investigation(str(id)) if query else None
         return Investigation.of(found) if found else None
 
-    @strawberry.field(description="Catalogues a candidate can be compared against, by title (INV-023).")  # type: ignore[untyped-decorator]
+    @strawberry.field(description="Catalogues a candidate can be compared against, by title (INV-024).")  # type: ignore[untyped-decorator]
     def reference_catalogues(self, info: Info[Any, None]) -> list[ReferenceCatalogue]:
         pulls = _kernel(info).pull_references
         found = pulls.available() if pulls else []

@@ -165,7 +165,7 @@ def reference_transport(settings: Settings, name: str) -> Transport:
 
 
 def reference_catalogues(settings: Settings) -> dict[str, ReferenceCatalogue]:
-    """The catalogues a candidate can be compared against (INV-023). SIMBAD fails over to CDS's Harvard copy
+    """The catalogues a candidate can be compared against (INV-024). SIMBAD fails over to CDS's Harvard copy
     and VSX to VizieR's mirrors, unless SDP_ARCHIVE_MIRRORS=0, so a CDS outage leaves the comparison working."""
     out: dict[str, ReferenceCatalogue] = {}
     for source_id, spec in TAP_CATALOGUES.items():

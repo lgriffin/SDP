@@ -76,7 +76,7 @@ test("reviews a candidate: reopen, note and close, each with who and why", async
   await expect(decide).toContainText("Closing is final");
 });
 
-test("[INV-023] compares a candidate with catalogues side by side, and pulls more", async ({ page }) => {
+test("[INV-024] compares a candidate with catalogues side by side, and pulls more", async ({ page }) => {
   await page.goto("/investigations/invset-000001/inv-000001");
   await page.getByTestId("compare-link").click();
   await expect(page.getByRole("heading", { name: "Compare with catalogues" })).toBeVisible();

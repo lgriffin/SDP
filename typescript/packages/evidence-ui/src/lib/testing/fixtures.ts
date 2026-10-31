@@ -39,7 +39,7 @@ export interface FixtureData {
   previews: Record<string, string>;
   /** Checks that a set reproduces from its dossier, by set id (INV-022). */
   reproductions: Record<string, ReproductionRun>;
-  /** Reference pulls by investigation id (INV-023). */
+  /** Reference pulls by investigation id (INV-024). */
   references: Record<string, ReferencePull[]>;
 }
 

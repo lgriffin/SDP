@@ -1,4 +1,4 @@
-// The side-by-side comparison of a candidate with reference catalogues (INV-023): which quantities to
+// The side-by-side comparison of a candidate with reference catalogues (INV-024): which quantities to
 // line up, where a catalogue disagrees with what the search found, and what the pulls say in plain words.
 // Pure functions, unit-tested without a browser.
 import type { ReferenceCatalogueOption, ReferencePull, ReferenceRow } from "./ports.ts";

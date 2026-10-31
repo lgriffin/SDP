@@ -3,7 +3,7 @@ import { z } from "zod";
 import { also, contains, ifObject, requireKeys, uniqueItems, when } from "../refinements.ts";
 
 export const SCHEMA_ID = "https://github.com/lgriffin/SDP/contracts/schemas/v1/canonical-astrometry.schema.json";
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.1.0";
 
 /** One row of the canonical astrometry table (§8). Curated Parquet carries exactly these columns; x-unit names the astropy unit of each physical column. */
 export const CanonicalAstrometryRow = z.object({
@@ -20,6 +20,9 @@ export const CanonicalAstrometryRow = z.object({
     "astrometric_corr": z.array(z.number().gte(-1).lte(1).nullable()).min(10).max(10).nullable(),
     "g_mag": z.number().nullable(),
     "bp_rp": z.number().nullable(),
+    "j_mag": z.number().nullable().optional(),
+    "h_mag": z.number().nullable().optional(),
+    "k_mag": z.number().nullable().optional(),
     "ruwe": z.number().gte(0).nullable(),
     "quality_flags": z.object({}).passthrough(),
     "quality_class": z.enum(["good","marginal","poor","unknown"]),

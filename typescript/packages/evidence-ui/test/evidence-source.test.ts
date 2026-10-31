@@ -59,7 +59,7 @@ function contract(name: string, make: () => EvidenceSource): void {
       expect(await source.plan("sha256:missing")).toBeNull();
     });
 
-    it("[INV-023] lists the reference catalogues and the candidate's pulls", async () => {
+    it("[INV-024] lists the reference catalogues and the candidate's pulls", async () => {
       const comparison = await make().comparison("inv-000002");
       expect(comparison?.catalogues.map((c) => c.title)).toEqual(["2MASS", "AllWISE", "Gaia DR3", "Pan-STARRS DR2", "SIMBAD", "AAVSO VSX"]);
       expect(comparison?.pulls).toEqual([]);
@@ -196,7 +196,7 @@ describe("an older sdp-api", () => {
     expect(plans.length).toBe(4);
   });
 
-  it("[INV-023] without comparisons says so instead of failing", async () => {
+  it("[INV-024] without comparisons says so instead of failing", async () => {
     expect(await new GraphQLEvidenceSource("http://api.test/graphql", older("referenceCatalogues")).comparison("inv-000002")).toBeNull();
   });
 

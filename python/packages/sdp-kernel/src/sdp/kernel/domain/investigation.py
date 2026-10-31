@@ -1310,7 +1310,7 @@ class Investigation:
     links: dict[str, str] = dataclass_field(default_factory=dict)
     label: str = EXPLORATORY
     references: list[ReferencePull] = dataclass_field(default_factory=list)
-    """What reference catalogues held at the candidate's position, oldest pull first (INV-023)."""
+    """What reference catalogues held at the candidate's position, oldest pull first (INV-024)."""
     _events: list[ev.DomainEvent] = dataclass_field(default_factory=list, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -1432,7 +1432,7 @@ class Investigation:
 
     def add_references(self, pulls: Sequence[ReferencePull]) -> None:
         """Pulls are appended, never replaced: a later pull of the same catalogue sits beside the earlier
-        one. They are context, not evidence, so any state takes them, a closed candidate too (INV-023)."""
+        one. They are context, not evidence, so any state takes them, a closed candidate too (INV-024)."""
         if not pulls:
             raise InvariantViolation("a reference pull names at least one catalogue")
         self.references.extend(pulls)

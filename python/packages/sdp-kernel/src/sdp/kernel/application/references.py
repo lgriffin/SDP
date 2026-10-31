@@ -1,4 +1,4 @@
-"""PullReferences: ask reference catalogues what they hold at a candidate's position (INV-023).
+"""PullReferences: ask reference catalogues what they hold at a candidate's position (INV-024).
 
 The scientist ticks catalogues on the candidate's comparison page; each is asked for one cone around
 the candidate, at the same time, and every answer, a catalogue that found nothing and one that did not

@@ -31,7 +31,7 @@ Every pull is kept with the candidate: who asked, when, the radius, the release 
 archive's raw answer (linked under **Every pull**). A catalogue that does not answer says so and the
 others still show. SIMBAD falls back to CDS's Harvard copy and VSX to VizieR's mirrors during a CDS
 outage, unless `SDP_ARCHIVE_MIRRORS=0`. Pulls are context, not evidence: they never change the
-candidate's results, rank or state (INV-023).
+candidate's results, rank or state (INV-024).
 
 The API behind the button is `POST /investigations/{id}/references` with
 `{"sources": ["simbad", "gaia"], "radius_arcsec": 5, "actor": "leigh"}`.

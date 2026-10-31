@@ -1,4 +1,4 @@
-"""Reference catalogues behind the ReferenceCatalogue port (INV-023): one small cone each, through a
+"""Reference catalogues behind the ReferenceCatalogue port (INV-024): one small cone each, through a
 Transport, so CI replays recordings or primed fakes and never calls an archive (ADR-015).
 
 SIMBAD, Gaia DR3, 2MASS, AllWISE and Pan-STARRS DR2 answer an ADQL cone over TAP; AAVSO's VSX is read

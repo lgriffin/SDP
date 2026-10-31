@@ -123,7 +123,7 @@ export interface ArchivesStatus {
   registration: JobRun | null;
 }
 
-/** A catalogue a candidate can be compared against (INV-023). */
+/** A catalogue a candidate can be compared against (INV-024). */
 export interface ReferenceCatalogueOption {
   sourceId: string;
   title: string;
@@ -135,7 +135,7 @@ export interface ReferenceCatalogueOption {
 /** A row in canonical names: ra_deg, dec_deg, epoch_jyear, g_mag, j_mag, object_type, ... */
 export type ReferenceRow = Record<string, unknown> & { source_key?: string | null; separation_arcsec?: number };
 
-/** One catalogue's answer to one cone around a candidate, as kept with the investigation (INV-023). */
+/** One catalogue's answer to one cone around a candidate, as kept with the investigation (INV-024). */
 export interface ReferencePull {
   source_id: string;
   title: string;
@@ -186,7 +186,7 @@ export interface EvidenceSource {
   dossier(setId: string): Promise<ArtifactBytes | null>;
   /** The last check that the set reproduces from its dossier; null when none was started (INV-022). */
   reproduction(setId: string): Promise<ReproductionRun | null>;
-  /** The catalogues on offer and the candidate's pulls (INV-023); null from an sdp-api before comparisons. */
+  /** The catalogues on offer and the candidate's pulls (INV-024); null from an sdp-api before comparisons. */
   comparison(investigationId: string): Promise<Comparison | null>;
 }
 
@@ -229,7 +229,7 @@ export interface Workbench {
   registerArchives(): Promise<ArchivesStatus>;
   /** Starts saving the set's dossier and re-running its tests from it alone (INV-022); answers at once. */
   reproduceSet(setId: string): Promise<ReproductionRun>;
-  /** Asks each catalogue for one cone around the candidate and keeps every answer (INV-023); takes up to a minute. */
+  /** Asks each catalogue for one cone around the candidate and keeps every answer (INV-024); takes up to a minute. */
   pullReferences(investigationId: string, sources: string[], radiusArcsec: number, actor: string): Promise<PullSummary>;
 }
 

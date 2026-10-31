@@ -116,7 +116,7 @@ type Investigation {
   links: JSON!
 
   """
-  What reference catalogues held at the candidate's position, oldest pull first (INV-023).
+  What reference catalogues held at the candidate's position, oldest pull first (INV-024).
   """
   references: JSON!
 
@@ -241,7 +241,7 @@ type Query {
   investigationSet(id: ID!): InvestigationSet
   investigation(id: ID!): Investigation
 
-  """Catalogues a candidate can be compared against, by title (INV-023)."""
+  """Catalogues a candidate can be compared against, by title (INV-024)."""
   referenceCatalogues: [ReferenceCatalogue!]!
 
   """Acquisition plans (ADR-020)."""
@@ -254,7 +254,7 @@ type Query {
   archives: Archives
 }
 
-"""A catalogue a candidate can be compared against (INV-023)."""
+"""A catalogue a candidate can be compared against (INV-024)."""
 type ReferenceCatalogue {
   sourceId: String!
   title: String!

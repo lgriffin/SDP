@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lgriffin/SDP/contracts/schemas/v1/canonical-astrometry.schema.json",
-  "x-version": "1.0.0",
+  "x-version": "1.1.0",
   "title": "CanonicalAstrometryRow",
   "description": "One row of the canonical astrometry table (§8). Curated Parquet carries exactly these columns; x-unit names the astropy unit of each physical column.",
   "type": "object",
@@ -125,6 +125,30 @@
         "number",
         "null"
       ],
+      "x-unit": "mag"
+    },
+    "j_mag": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "2MASS J magnitude, null for sources without it. Optional since 1.1.0.",
+      "x-unit": "mag"
+    },
+    "h_mag": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "2MASS H magnitude, null for sources without it. Optional since 1.1.0.",
+      "x-unit": "mag"
+    },
+    "k_mag": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "2MASS Ks magnitude, null for sources without it. Optional since 1.1.0.",
       "x-unit": "mag"
     },
     "ruwe": {

@@ -221,15 +221,15 @@ describe("the desktop app's API token", () => {
   });
 });
 
-describe("reference pulls (INV-023)", () => {
-  it("[INV-023] the REST adapter posts the catalogues, radius and actor", async () => {
+describe("reference pulls (INV-024)", () => {
+  it("[INV-024] the REST adapter posts the catalogues, radius and actor", async () => {
     const s = server(200, JSON.stringify({ investigation_id: "inv-1", pulls: [{ source_id: "simbad", status: "none", matches: 0 }] }));
     const w = new RestWorkbench("http://api.test", s.fetch);
     expect(await w.pullReferences("inv 1", ["simbad", "gaia"], 5, "ada")).toEqual({ pulls: [{ source_id: "simbad", status: "none", matches: 0 }] });
     expect(s.sent).toEqual([{ url: "http://api.test/investigations/inv%201/references", body: { sources: ["simbad", "gaia"], radius_arcsec: 5, actor: "ada" } }]);
   });
 
-  it("[INV-023] the fake keeps every pull with the candidate and refuses what the kernel refuses", async () => {
+  it("[INV-024] the fake keeps every pull with the candidate and refuses what the kernel refuses", async () => {
     const source = new InMemoryEvidenceSource();
     const w = new InMemoryWorkbench(source, () => "2026-10-31T10:00:00Z");
     const summary = await w.pullReferences("inv-000001", ["gaia", "simbad"], 5, "ada");

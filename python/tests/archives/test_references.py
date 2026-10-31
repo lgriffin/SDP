@@ -1,4 +1,4 @@
-"""Reference catalogues (INV-023): SIMBAD and VSX against primed fakes of their services (T3), with
+"""Reference catalogues (INV-024): SIMBAD and VSX against primed fakes of their services (T3), with
 VizieR's mirrors standing in when CDS gives no answer; Gaia DR3, 2MASS, AllWISE and Pan-STARRS from
 cones recorded live on 2026-10-31 around one field star near Barnard's star (T5)."""
 
@@ -21,7 +21,7 @@ from sdp.adapters.archives.votable import TapQueryError
 
 from .vo_fakes import PrimedService
 
-pytestmark = pytest.mark.req("INV-023")
+pytestmark = pytest.mark.req("INV-024")
 
 CASSETTES = Path(__file__).resolve().parents[1] / "cassettes" / "references"
 #: the recorded star: AllWISE J175747.70+044006.7, 2MASS 17574770+0440067

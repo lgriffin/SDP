@@ -1,4 +1,4 @@
-"""T1: reference pulls as values (INV-023): moving a target along its motion, matching within a cone,
+"""T1: reference pulls as values (INV-024): moving a target along its motion, matching within a cone,
 and the invariants and documents of a pull."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import pytest
 from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.references import ReferencePull, ReferenceTarget, matches_near, separation_arcsec
 
-pytestmark = [pytest.mark.tier("T1"), pytest.mark.req("INV-023")]
+pytestmark = [pytest.mark.tier("T1"), pytest.mark.req("INV-024")]
 
 AT = datetime(2026, 10, 31, tzinfo=UTC)
 TARGET = ReferenceTarget(150.0, 30.0, 2016.0, 1000.0, -2000.0)

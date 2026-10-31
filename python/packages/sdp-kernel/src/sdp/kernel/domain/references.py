@@ -1,4 +1,4 @@
-"""Reference pulls: what other catalogues hold at a candidate's position, kept with the candidate (INV-023).
+"""Reference pulls: what other catalogues hold at a candidate's position, kept with the candidate (INV-024).
 
 A pull is the answer of one reference catalogue (SIMBAD, Gaia DR3, 2MASS, AllWISE, Pan-STARRS, AAVSO
 VSX, ...) to one cone around the candidate. It is context for a scientist deciding whether a candidate
