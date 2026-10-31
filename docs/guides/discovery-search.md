@@ -129,9 +129,12 @@ refused, never guessed, and so is a file whose table is not the catalogue named 
 
 ## Part 4: sweep the whole sky
 
-The sweep cuts the sky into tiles about 2° across, searches each one for clusters (with a half-degree rim
-so a cluster on an edge is seen whole), checks every find against the pass marks and both catalogues,
-and runs each tile once more on shuffled motions to measure false alarms. It reads only your local copy.
+The sweep searches the sky three times, once per distance shell, with tiles sized to the shell: 12°
+tiles for stars within 250 pc, 4° within 1 kpc and 2° beyond. A nearby cluster spans several degrees,
+so small tiles would cut it into pieces. A cluster close to 250 pc or 1 kpc can be found by both
+shells it straddles; the report lists it once and the summary says how many such copies it dropped. Each tile is searched with a rim of its neighbours so a
+cluster on an edge is seen whole, every find is checked against the pass marks and both catalogues,
+and each tile runs once more on shuffled motions to measure false alarms. It reads only your local copy.
 
 ```bat
 sdp discover prepare --count 2
@@ -143,12 +146,17 @@ sdp discover report
 - `prepare --count 2` reads two bulk files into the sweep's cut catalogue as a quick test. `prepare` on
   its own then does the rest: several hours for all files at `--workers 4`, writing 10 to 20 GB under
   `%SDP_DATA%\sweep\gaia-dr3`. It keeps only stars that pass the quality cuts, about one in twenty.
-- `sweep --bands 57` searches one 2° strip of sky. Band numbers count up from the south pole: band *n*
+- `sweep --bands 57` searches one 2° strip of sky in every shell (the near and mid shells' tiles that
+  overlap it are wider, so expect a few minutes more). Band numbers count up from the south pole: band *n*
   covers declination −90 + 2*n* to −88 + 2*n*, so band 57 (Dec +24° to +26°) holds the Pleiades, a
   known cluster the sweep should find and label as known. Give a range such as `--bands 40:49`, or leave
   `--bands` out for the whole sky. Until Part 3 has worked, add `--without-benchmarks` (then nothing can
   be called new).
 - `report` gathers every tile done so far.
+- Each candidate also gets a significance in sigma, the `significance_sigma` column of
+  `candidates.csv`: how much more tightly its members crowd together than the stars around them. Below
+  3 sigma it is rejected. A potentially new candidate must also be more significant than every false
+  candidate the tile's shuffled null field produced, so one noisy tile no longer hides a real cluster.
 - The sweep judges each candidate's colour-magnitude sequence with every member placed at the cluster's
   own distance (the mean of its members' parallaxes), and compares it with field stars at that same
   distance. A member's own parallax error no longer blurs the sequence, so faint real clusters stop
