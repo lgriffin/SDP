@@ -213,4 +213,3 @@ requirements:
       - "python/tests.investigate.test_field_tests::test_a_profile_names_another_installed_clusterer_and_an_unknown_one_is_refused"
       - "python/tests.investigate.test_field_tests::test_every_cluster_records_the_algorithm_the_profile_chose"
       - "python/tests.investigate.test_field_tests::test_a_clusterer_that_is_not_installed_is_refused_before_the_investigation_opens"
-      - "python/tests.archives.test_wiring::test_investigate_is_wired_to_the_ecosystem_adapters_on_cassettes"

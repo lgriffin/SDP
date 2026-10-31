@@ -277,6 +277,7 @@ def test_null_fields_skip_the_grid_and_a_long_grid_is_refused_up_front() -> None
         registry.validate([too_long])
 
 
+@pytest.mark.req("INV-025")
 def test_a_profile_names_another_installed_clusterer_and_an_unknown_one_is_refused() -> None:
     test = AstrometricCoherence()
     reference, fast = FakeClusterer(), FakeClusterer(algorithm_id="fast-planted")
@@ -292,6 +293,7 @@ def test_a_profile_names_another_installed_clusterer_and_an_unknown_one_is_refus
         registry.validate([TestSelection("astrometric-coherence", "1.0.0", {"clusterer": 3})])
 
 
+@pytest.mark.req("INV-025")
 def test_every_cluster_records_the_algorithm_the_profile_chose() -> None:
     test = AstrometricCoherence()
     rng = np.random.default_rng(2)
@@ -309,6 +311,7 @@ def test_every_cluster_records_the_algorithm_the_profile_chose() -> None:
     assert scored and all(s.details["algorithm"] == "fast-planted" for s in scored)
 
 
+@pytest.mark.req("INV-025")
 def test_a_clusterer_that_is_not_installed_is_refused_before_the_investigation_opens() -> None:
     catalogue = synthetic_catalogue()
     k = build_in_memory_kernel(
