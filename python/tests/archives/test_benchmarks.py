@@ -314,6 +314,60 @@ def test_a_mirror_table_lacking_a_column_is_refused_not_skipped() -> None:
 
 
 @pytest.mark.req("DSI-017")
+def test_a_mirror_that_declares_the_name_column_a_float_still_gives_the_names_as_written() -> None:
+    """vizier.cfa.harvard.edu declares cga20's SimbadName as float[*] over cells like "[KPR2005] 10" (#157)."""
+    declared = b'name="Name" ucd="meta.id;meta.main" unit="" datatype="char" arraysize="*"/>'
+    rows = [
+        ["1", "[KPR2005] 10", "51.87", "24.12", "0.1", "19.9", "-45.4", "7.36"],
+        ["2", "Fixture_A", "130.1", "19.67", "0.1", "-36.0", "-12.9", "5.37"],
+    ]
+    body = asu_votable(rows=rows)
+    assert body.count(declared) == 1
+    as_float = body.replace(
+        declared,
+        b'name="Name" ucd="meta.id;meta.main" unit="" datatype="float" arraysize="*" width="9" precision="3"/>',
+    )
+    fake = PrimedService()
+    source = mirrored(fake)
+    fake.raw(source.mirror_request(CATALOGUES["hr23"], MIRRORS[0]), as_float, content_type="application/x-votable+xml")
+    table = source.fetch("hr23")
+    assert table.column("name").to_pylist() == ["Fixture_A", "[KPR2005] 10"]
+    assert table.column("ra_deg").to_pylist() == [130.1, 51.87]  # other columns keep their declared types
+
+
+def test_only_the_named_fields_are_declared_text() -> None:
+    body = (
+        b'<TABLE><FIELD name="Name" datatype="float" arraysize="*" width="9"/>'
+        b"<FIELD name='RA' datatype='double'/><FIELD ID=\"Other\" datatype=\"int\"></FIELD></TABLE>"
+    )
+    out = bm.as_text(body, {"Name", "Other"})
+    assert out == (
+        b'<TABLE><FIELD name="Name" datatype="char" arraysize="*"/>'
+        b'<FIELD name=\'RA\' datatype=\'double\'/><FIELD ID="Other" datatype="char" arraysize="*"></FIELD></TABLE>'
+    )
+
+
+def test_a_field_is_found_by_its_decoded_name_or_else_its_id() -> None:
+    body = (
+        b'<TABLE><FIELD name="Simbad&#78;ame" datatype="float" arraysize="*"/>'
+        b'<FIELD name="" ID="Name2" datatype="double"/></TABLE>'
+    )
+    assert bm.as_text(body, {"SimbadName", "Name2"}) == (
+        b'<TABLE><FIELD name="Simbad&#78;ame" datatype="char" arraysize="*"/>'
+        b'<FIELD name="" ID="Name2" datatype="char" arraysize="*"/></TABLE>'
+    )
+
+
+def test_a_field_already_declared_text_or_rows_in_binary_are_left_as_they_are() -> None:
+    fixed = b'<TABLE><FIELD name="Name" datatype="char" arraysize="12"/><DATA><TABLEDATA/></DATA></TABLE>'
+    assert bm.as_text(fixed, {"Name"}) == fixed
+    binary = (
+        b'<TABLE><FIELD name="Name" datatype="float" arraysize="*"/><DATA><BINARY2><STREAM/></BINARY2></DATA></TABLE>'
+    )
+    assert bm.as_text(binary, {"Name"}) == binary
+
+
+@pytest.mark.req("DSI-017")
 def test_a_saved_votable_reads_its_units_as_written_and_becomes_the_same_benchmark() -> None:
     body = asu_votable()
     assert bm.votable_columns(body) == SCHEMA
