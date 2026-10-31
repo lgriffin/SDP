@@ -423,7 +423,7 @@ def distinct(results: Sequence[Mapping[str, Any]]) -> tuple[list[Mapping[str, An
     taken: list[tuple[str, Mapping[str, Any]]] = []
     dropped = 0
     for shell, c in pool:
-        keys = c["member_keys"]
+        keys = c.get("member_keys", [])
         shared: dict[int, int] = {}
         for k in keys:
             for j in holder.get(k, ()):
