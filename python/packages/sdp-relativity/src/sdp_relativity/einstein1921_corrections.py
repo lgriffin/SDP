@@ -204,7 +204,8 @@ def run(
         raise ValueError(f"the corrected baseline fit did not converge: {base_fit.message}")
     base_value = corrected(base_stars, base_fit, base, r_max, choices)
 
-    n_boot = int(choices["bootstrap"]["resamples"]) if resamples is None else resamples
+    declared = int(choices["bootstrap"]["resamples"])
+    n_boot = declared if resamples is None else resamples
     seed = int(choices["bootstrap"]["seed"])
     rng = np.random.default_rng(seed)
     boot: list[Corrected] = []
@@ -220,6 +221,8 @@ def run(
         except ValueError as error:
             failures.append(str(error))
     band = _band(boot)
+    # a band decides only when it has the declared number of refits, every one of them successful
+    complete = n_boot >= declared > 0 and len(boot) == n_boot
 
     fits: dict[tuple[float, float, float], uc03.Fit | str] = {}
     rows: dict[str, dict[str, Any]] = {}
@@ -293,7 +296,7 @@ def run(
         },
         "corrections": rows,
         "crowding": crowding,
-        "reading": reading(band.get("mass_to_light_v"), by_scenario, threshold, n_boot > 0 and len(boot) == n_boot),
+        "reading": reading(band.get("mass_to_light_v"), by_scenario, threshold, complete),
         "comparison": {
             "mass_solar": {"gaia_corrected": base_value.mass_solar, **_comparison(choices, "baumgardt_mass_solar")},
             "sigma0_kms": {

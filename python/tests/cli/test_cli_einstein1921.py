@@ -121,6 +121,7 @@ def test_the_corrections_command_writes_an_exploratory_report_beside_uc03s(bulk:
     report = json.loads((out / "corrections.json").read_text("utf-8"))
     assert report["quick_look"] is True
     assert report["reading"]["exploratory"] is True
+    assert report["reading"]["status"] == "mixed"  # one refit of the declared 100 decides nothing
     assert len(report["corrections"]) == 108
     assert report["baseline"]["corrected"]["distance_pc"] == 7420.0
     summary = (out / "corrections.md").read_text("utf-8")

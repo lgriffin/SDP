@@ -40,6 +40,7 @@ def small_choices(mass_to_light_v: float) -> dict[str, Any]:
         "error_scale": [1.0],
         "distance": ["published", "alternative"],
     }
+    choices["bootstrap"]["resamples"] = 3
     choices["published"]["light"] = {
         "mass_solar": 3e5,
         "mass_to_light_v": mass_to_light_v,
@@ -126,9 +127,13 @@ def test_the_reading_needs_the_band_and_every_correction_on_one_side() -> None:
 def test_the_reading_follows_the_planted_ratio_whatever_the_parallax(mass_to_light: float, status: str) -> None:
     # the planted G light is irrelevant here: the published light carries the ratio
     cols = planted_cluster(2.0, seed=23, parallax_bias=0.05)
-    report = c.run(cols, resamples=3, choices=small_choices(mass_to_light))
+    choices = small_choices(mass_to_light)
+    report = c.run(cols, choices=choices)
     assert report["reading"]["status"] == status
     assert report["baseline"]["bootstrap"]["succeeded"] == 3
+    quick = c.run(cols, resamples=2, choices=choices)  # fewer refits than declared: no reading
+    assert quick["reading"]["status"] == "mixed"
+    assert quick["baseline"]["corrected"] == report["baseline"]["corrected"]
     assert report["choices_match_committed"] is False
     assert report["baseline"]["corrected"]["mass_to_light_v"] == pytest.approx(mass_to_light, rel=0.15)
 

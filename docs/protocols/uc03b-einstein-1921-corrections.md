@@ -42,7 +42,7 @@ That gives 3 × 3 × 3 = 27 fits. Each is converted at 4 distances, which makes 
 
 - **Consistent with UC03-H1 after corrections:** the corrected baseline's 84th percentile of Υ_V is below 10, and so is every scenario's.
 - **Consistent with UC03-H0 after corrections:** the 16th percentile, and every scenario, is 10 or more.
-- **Mixed** otherwise, and also if any fit or refit fails. The report names the scenarios on each side.
+- **Mixed** otherwise, and also if any correction fit or bootstrap refit fails, or if the bootstrap has fewer refits than the declared 100 (a quick look). The report names the scenarios on each side. A corrected baseline that cannot be fitted stops the run with its reason, as in UC-03.
 
 The crowding check is reported but decides nothing. It is a table of `a`, σ₀ and M against `r_in` and the magnitude limit at error scale 1.0, alongside the published comparison values. If the fitted `a` and σ₀ settle as the core cut widens and the limit brightens, crowding was driving the UC-03 split. If they keep moving, the Plummer law itself is the question. M13 is better described by a King model with concentration c = 1.53 (Harris), and a Plummer `a` fitted outside the core is a model choice, not a measurement.
 
