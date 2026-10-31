@@ -244,7 +244,7 @@ class MastObservationGateway:
         )
 
     def cutout_cost(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> CutoutCost:
-        """What ``cutout_product`` would read and keep, from the product's headers alone (INT-025)."""
+        """What ``cutout_product`` would read and keep, from the product's headers alone (INT-026)."""
         if product.archive != self.archive_id:
             raise ValueError(f"{product.product_id} is a {product.archive} product, not a MAST one")
         cost = range_cutout_cost(self.transport, product.uri, ra_deg, dec_deg, side_arcsec)

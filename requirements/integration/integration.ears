@@ -203,7 +203,7 @@ requirements:
     tiers: [T1, T3]
     status: approved
     traces: []
-  - id: INT-025
+  - id: INT-026
     pattern: event
     text: "When an investigation profile sets a byte budget or a product selection, the planner shall keep at most one listed product per selection group, cost each cutout at the bytes it reads, fill the products in mission order up to the budget less its reserve, and record every product it leaves out with the reason."
     rationale: "The Pillars of Creation (Leigh, 2026-10-31): MAST lists 411 level-3 HST and JWST images within 3 arcmin of M16, every visit mosaic beside its single exposures, and JWST's NIRCam short-wave mosaics are 5.4 GB each (programme 2739, checked live 2026-10-31). Taking every product, as the minimum-product set did, refused the plan outright. A cutout cut by HTTP range reads every row it covers at the image's full width, 2.5 times what it keeps for the F200W mosaic (282 MB read, 113 MB kept for a 180-arcsec cutout, probed live 2026-10-31), so the bytes it stores understate the download. A profile's budget (max_bytes, reserve_fraction) only tightens the deployment's. Groups are keyed by mission, instrument and band, the band read from MAST's file names because its ObsCore has no filter column; within a group, combined mosaics come before single exposures, then the newest. The header probe reads no pixels, and a product whose image misses the cutout, or covers less than min_coverage of it, is left out at planning rather than failing at execution. The selection, its probes and the exclusions are recorded in the plan's constraints, and the kept candidates still re-derive through select_items."

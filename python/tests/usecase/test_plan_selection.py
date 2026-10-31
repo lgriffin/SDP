@@ -1,4 +1,4 @@
-"""T4: a plan that selects products and fits them to the profile's budget (INT-025), on the synthetic
+"""T4: a plan that selects products and fits them to the profile's budget (INT-026), on the synthetic
 JWST field with MAST-shaped records for two missions, several filters and single exposures."""
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from sdp.kernel.ports.investigate import CutoutCost, cutout_product_id
 from sdp.testing.fakes.investigate import PlacedRecord
 from sdp.testing.jwst import IMAGE_MJD, JWST_CENTRE, MAST, CuttingArchive, jwst_catalogue, jwst_field, jwst_i2d
 
-pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INT-025")]
+pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INT-026")]
 
 SIDE = 25.0
 MB = 1_000_000

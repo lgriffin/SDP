@@ -1509,7 +1509,7 @@ def select_items(
 
 @dataclass(frozen=True)
 class PlanExclusion:
-    """A listed product the plan leaves out, and why (INT-025)."""
+    """A listed product the plan leaves out, and why (INT-026)."""
 
     source_id: str
     target: str
@@ -1543,7 +1543,7 @@ def select_products(
     nominal_bytes: int,
     spent_bytes: int = 0,
 ) -> tuple[dict[str, int], tuple[PlanExclusion, ...]]:
-    """One product per group, fitted to the nominal budget; every product left out says why (INT-025).
+    """One product per group, fitted to the nominal budget; every product left out says why (INT-026).
 
     Groups are taken by priority, then newest first, then by key; within a group, combined products
     before single exposures, newest first, then by target. ``cost`` gives a product's bytes, or the

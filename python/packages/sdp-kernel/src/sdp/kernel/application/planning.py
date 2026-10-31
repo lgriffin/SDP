@@ -179,7 +179,7 @@ def derive_requirements(
 
 
 def effective_budget(deployment: AcquisitionBudget, profile: TestProfile) -> AcquisitionBudget:
-    """The deployment's budget, tightened by the profile's own cap; a profile never loosens it (INT-025)."""
+    """The deployment's budget, tightened by the profile's own cap; a profile never loosens it (INT-026)."""
     if profile.budget is None:
         return deployment
     cap = min(deployment.max_bytes, profile.budget.max_bytes)
@@ -275,7 +275,7 @@ class PlanInvestigationUseCase:
         self, field_: Field, profile: TestProfile, requirements: Sequence[EvidenceRequirement], nominal: int
     ) -> tuple[list[PlanItem], list[PlanExclusion], dict[str, Any]]:
         """Every acquisition that could serve a requirement, read from metadata alone; where a profile
-        selects, only the products its selection keeps, with the others and why (INT-025)."""
+        selects, only the products its selection keeps, with the others and why (INT-026)."""
         out: list[PlanItem] = []
         excluded: list[PlanExclusion] = []
         selections: dict[str, Any] = {}
@@ -392,7 +392,7 @@ class PlanInvestigationUseCase:
                 if isinstance(limit, int) and len(index.records) >= limit:
                     raise IntegrationRefused(
                         f"{selection.source_id} listed {len(index.records)} products, its limit of {limit}; "
-                        "narrow the field or the match radius so the selection sees every product (INT-025)"
+                        "narrow the field or the match radius so the selection sees every product (INT-026)"
                     )
                 # Products share what the catalogue queries leave of the nominal budget.
                 # Products share what the catalogue queries and earlier selections leave; products of

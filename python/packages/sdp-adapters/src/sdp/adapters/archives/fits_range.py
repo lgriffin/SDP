@@ -222,7 +222,7 @@ def range_cutout_cost(
     extension: str = "SCI",
     max_read_bytes: int = MAX_READ_BYTES,
 ) -> RangeCost:
-    """What ``range_cutout`` with the same arguments would read and keep, from the headers alone (INT-025).
+    """What ``range_cutout`` with the same arguments would read and keep, from the headers alone (INT-026).
 
     ``LookupError`` when the position is off the image; ``RangeUnsupported`` when it cannot be cut."""
     counting = _Counting(transport)

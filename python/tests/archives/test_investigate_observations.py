@@ -396,7 +396,7 @@ def test_jwst_lists_one_product_per_science_file_and_drops_auxiliary_files() -> 
     assert obs_id_of(record.product.product_id) == obs and obs_id_of(obs) == obs
 
 
-@pytest.mark.req("INT-025")
+@pytest.mark.req("INT-026")
 @pytest.mark.parametrize(
     ("name", "band", "single"),
     [
@@ -423,7 +423,7 @@ def test_the_filter_and_whether_a_file_is_one_exposure_are_read_from_its_name(
     assert file_band(name) == (band, single)
 
 
-@pytest.mark.req("INT-025")
+@pytest.mark.req("INT-026")
 def test_mast_image_records_carry_their_filter_and_single_exposures_say_so() -> None:
     fake = PrimedService()
     gateway = MastObservationGateway(fake)

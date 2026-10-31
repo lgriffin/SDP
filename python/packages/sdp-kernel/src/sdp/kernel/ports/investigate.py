@@ -106,7 +106,7 @@ class CutoutCost:
 
 @runtime_checkable
 class CutoutCosts(Protocol):
-    """A gateway that can say, from a product's headers alone, what a cutout of it would read (INT-025).
+    """A gateway that can say, from a product's headers alone, what a cutout of it would read (INT-026).
 
     A cutout cut by byte range reads every row it covers at the image's full width, so it reads several
     times what it keeps. ``LookupError`` when the position is off the image, ``ValueError`` when the

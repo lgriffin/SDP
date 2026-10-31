@@ -1,4 +1,4 @@
-"""T1: which listed products a plan keeps under a profile's selection and budget (INT-025)."""
+"""T1: which listed products a plan keeps under a profile's selection and budget (INT-026)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from sdp.kernel.domain.integration import ProductOption, select_products
 from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, ProductSelection, ProfileBudget
 from sdp.testing.investigate import synthetic_profile
 
-pytestmark = [pytest.mark.tier("T1"), pytest.mark.req("INT-025")]
+pytestmark = [pytest.mark.tier("T1"), pytest.mark.req("INT-026")]
 
 
 def option(

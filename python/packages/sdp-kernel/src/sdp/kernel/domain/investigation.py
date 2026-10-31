@@ -340,7 +340,7 @@ SELECTION_KEYS = ("mission", "instrument", "band")
 
 @dataclass(frozen=True)
 class ProductSelection:
-    """Which of an archive's listed products a plan keeps, before the budget decides (INT-025).
+    """Which of an archive's listed products a plan keeps, before the budget decides (INT-026).
 
     Products are grouped by ``one_per`` and each group keeps one product: combined mosaics before
     single exposures (a single exposure is dropped outright when ``combined_only``), then the newest,
@@ -522,7 +522,7 @@ class NullFieldPlan:
 
 @dataclass(frozen=True)
 class ProfileBudget:
-    """The most a run under this profile may download, and the share of it held back (INT-025).
+    """The most a run under this profile may download, and the share of it held back (INT-026).
 
     ``max_bytes`` is the hard cap, in bytes (2 GB is 2,000,000,000). The planner fills products only up
     to ``max_bytes * (1 - reserve_fraction)``, so archive sizes that turn out larger than listed, and

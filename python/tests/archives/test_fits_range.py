@@ -129,7 +129,7 @@ def test_cutout_support_states_its_evidence() -> None:
     assert not CutoutSupport(CutoutMethod.NONE, "no #cutout row").supported
 
 
-@pytest.mark.req("INT-025")
+@pytest.mark.req("INT-026")
 def test_a_cutout_cost_is_what_the_cut_reads_from_the_headers_alone() -> None:
     source = jwst_i2d()
     ra, dec = JWST_CENTRE[0] + 2.0 / 3600, JWST_CENTRE[1] - 1.0 / 3600
@@ -144,7 +144,7 @@ def test_a_cutout_cost_is_what_the_cut_reads_from_the_headers_alone() -> None:
     assert cost.coverage == pytest.approx(1.0)
 
 
-@pytest.mark.req("INT-025")
+@pytest.mark.req("INT-026")
 def test_a_square_running_off_the_image_says_how_much_of_it_the_image_holds() -> None:
     source = jwst_i2d()
     _, header = sci(source)
@@ -155,7 +155,7 @@ def test_a_square_running_off_the_image_says_how_much_of_it_the_image_holds() ->
         range_cutout_cost(RangeHost(source), URL, JWST_CENTRE[0] + 1.0, JWST_CENTRE[1], 4.0)
 
 
-@pytest.mark.req("INT-025")
+@pytest.mark.req("INT-026")
 def test_the_mast_gateway_costs_a_cutout_before_cutting_it() -> None:
     product = ProductRef("mast", "jw-synth-o001/jw-synth_i2d.fits", URL)
     host = RangeHost(jwst_i2d())
@@ -168,7 +168,7 @@ def test_the_mast_gateway_costs_a_cutout_before_cutting_it() -> None:
         gateway.cutout_cost(ProductRef("dasch", "x", URL), *JWST_CENTRE, 4.0)
 
 
-@pytest.mark.req("INT-025")
+@pytest.mark.req("INT-026")
 def test_a_failed_header_probe_or_a_broken_header_refuses_that_product_only(monkeypatch: pytest.MonkeyPatch) -> None:
     @dataclass
     class Down:
