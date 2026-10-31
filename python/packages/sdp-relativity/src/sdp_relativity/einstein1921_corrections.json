@@ -1,0 +1,50 @@
+{
+  "protocol_id": "uc03b-einstein-1921-corrections",
+  "protocol_version": "1.0.0",
+  "parent_protocol": "uc03-einstein-1921",
+  "status": "exploratory: written after the first UC-03 run (verdict inconclusive), before any correction was run on data",
+  "published": {
+    "distance": {
+      "source": "Baumgardt globular cluster database v4 (Mar. 2023), parameter table, NGC 6205; distances mostly from Baumgardt & Vasiliev 2021, MNRAS, doi 10.1093/mnras/stab1474 (arXiv 2105.09526)",
+      "url": "https://people.smp.uq.edu.au/HolgerBaumgardt/globular/parameter.html",
+      "distance_pc": 7420,
+      "distance_error_pc": 80
+    },
+    "distance_alternative": {
+      "source": "Harris 1996, AJ 112, 1487, December 2010 revision, NGC 6205 R_Sun",
+      "url": "https://physics.mcmaster.ca/~harris/mwgc.dat",
+      "distance_pc": 7100
+    },
+    "light": {
+      "source": "Baumgardt globular cluster database v4, NGC 6205: mass 4.84e5 +- 0.06e5 M_sun and M/L_V 2.05 +- 0.08, so L_V = mass / (M/L_V), at the database distance",
+      "url": "https://people.smp.uq.edu.au/HolgerBaumgardt/globular/parameter.html",
+      "mass_solar": 484000,
+      "mass_to_light_v": 2.05,
+      "at_distance_pc": 7420
+    },
+    "comparison_only": {
+      "baumgardt_mass_solar": 484000,
+      "baumgardt_sigma0_kms": 8.9,
+      "harris_sigma_v_kms": 7.1,
+      "harris_sigma_v_error_kms": 0.4
+    }
+  },
+  "hypothesis_threshold_mass_to_light": 10.0,
+  "r_max_deg": 0.6,
+  "scenarios": {
+    "r_in_arcmin": [3.0, 4.5, 6.0],
+    "g_max": [17.0, 18.0, 19.0],
+    "error_scale": [1.0, 1.1, 1.3],
+    "distance": ["published_minus_1sigma", "published", "published_plus_1sigma", "alternative"]
+  },
+  "baseline": {
+    "r_in_arcmin": 3.0,
+    "g_max": 19.0,
+    "error_scale": 1.0,
+    "distance": "published"
+  },
+  "bootstrap": {
+    "resamples": 100,
+    "seed": 1921
+  }
+}

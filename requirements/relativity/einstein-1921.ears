@@ -70,3 +70,36 @@ requirements:
       - "python/tests.cli.test_cli_einstein1921::test_a_run_reads_the_predeclared_cone_from_the_bulk_copy_and_writes_both_reports"
       - "python/tests.cli.test_cli_einstein1921::test_a_run_from_parquet_matches_the_bulk_copy"
       - "python/tests.cli.test_cli_einstein1921::test_an_incomplete_bulk_copy_is_refused"
+  - id: REL-017
+    pattern: event
+    text: "When the relativity module runs the UC-03b corrections, the relativity module shall convert UC-03's fit at the published M13 distance and set the mass against the published total V light scaled to that distance, each value read from the committed choices file with its source."
+    rationale: "The first UC-03 run was inconclusive, and its spread followed the parallax zero-point and the missing faint light. A published distance and a whole-cluster light remove both, at the cost of depending on that published work (docs/protocols/uc03b-einstein-1921-corrections.md)."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.relativity.test_einstein1921_corrections::test_the_distances_are_the_published_ones_from_the_choices_file"
+      - "python/tests.relativity.test_einstein1921_corrections::test_the_published_light_is_mass_over_mass_to_light_scaled_as_distance_squared"
+      - "python/tests.relativity.test_einstein1921_corrections::test_a_biased_parallax_no_longer_sets_the_mass"
+  - id: REL-018
+    pattern: event
+    text: "When the relativity module reads the UC-03b corrections, the relativity module shall label the reading exploratory, call it consistent with H1 or H0 only when the corrected baseline band and every one of the 108 corrections lie on that side of the threshold with a complete bootstrap, and report the crowding table and the published comparison values."
+    rationale: "The corrections were chosen after seeing a result, so they explain UC-03's verdict and never replace it."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.relativity.test_einstein1921_corrections::test_the_grid_has_108_corrections_and_contains_the_baseline"
+      - "python/tests.relativity.test_einstein1921_corrections::test_the_reading_needs_the_band_and_every_correction_on_one_side"
+      - "python/tests.relativity.test_einstein1921_corrections::test_the_reading_follows_the_planted_ratio_whatever_the_parallax"
+      - "python/tests.relativity.test_einstein1921_corrections::test_a_run_records_its_choices_the_crowding_table_and_the_comparisons"
+      - "python/tests.relativity.test_einstein1921_corrections::test_a_magnitude_limit_fainter_than_uc03s_selection_is_refused"
+  - id: REL-019
+    pattern: event
+    text: "When a researcher runs sdp einstein1921 corrections, the command-line interface shall read the same M13 cone as sdp einstein1921 run and write the exploratory report as JSON and Markdown beside the UC-03 report."
+    rationale: "Leigh reruns on the bulk copy; the Markdown says the reading is exploratory and that UC-03's verdict is unchanged."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_einstein1921::test_the_corrections_command_writes_an_exploratory_report_beside_uc03s"
