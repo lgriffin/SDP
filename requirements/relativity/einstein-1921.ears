@@ -114,3 +114,16 @@ requirements:
     status: approved
     traces:
       - "python/tests.cli.test_cli_einstein1921::test_export_writes_the_stars_that_pass_the_cuts_and_they_rerun_alike"
+  - id: REL-021
+    pattern: event
+    text: "When the relativity test suite runs on the recorded M13 cone, the relativity module shall reproduce UC-03's inconclusive split about the threshold, recover the bright-star mass within 20% of the published mass, keep the corrected V-band mass-to-light ratio below 10, and flag the 6 arcmin core cut as degenerate."
+    rationale: "M13 is the known-answer case: real Gaia stars and an independently published mass (Baumgardt database). It guards the fit, the selection and the corrections against regressions on real data, not only synthetic clusters."
+    verification: test
+    tiers: [T8]
+    status: approved
+    traces:
+      - "python/tests.relativity.test_m13_recorded::test_the_recorded_cone_is_the_one_committed_and_every_star_passes_the_cuts"
+      - "python/tests.relativity.test_m13_recorded::test_uc03_on_m13_straddles_the_threshold_so_its_verdict_is_inconclusive"
+      - "python/tests.relativity.test_m13_recorded::test_the_bright_stars_recover_the_published_mass_of_m13"
+      - "python/tests.relativity.test_m13_recorded::test_with_published_distance_and_light_m13_bears_out_einsteins_conclusion"
+      - "python/tests.relativity.test_m13_recorded::test_a_six_arcminute_core_cut_on_m13_is_flagged_degenerate"
