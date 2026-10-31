@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
 import pyarrow as pa
@@ -88,7 +88,7 @@ class AcquireDatasetUseCase:
         with self.uow() as uow:
             existing = uow.datasets.find_by_idempotency_key(handle.idempotency_key)
             if existing is not None and existing.status is DatasetStatus.ACQUIRED:
-                curated = next(iter(uow.datasets.children(existing.artifact_id)), None)
+                curated = self._current_curated(existing, uow.datasets.children(existing.artifact_id))
                 uow.commit()
                 if curated is None and command.curate:
                     curated = self._curate(existing, descriptor.licence)
@@ -133,7 +133,7 @@ class AcquireDatasetUseCase:
             # than register different metadata under its id (KRN-014).
             with self.uow() as uow:
                 same = uow.datasets.get(raw.artifact_id)
-                curated = next(iter(uow.datasets.children(raw.artifact_id)), None) if same else None
+                curated = self._current_curated(same, uow.datasets.children(raw.artifact_id)) if same else None
                 uow.commit()
             if same is not None and same.status is DatasetStatus.ACQUIRED:
                 log.info(
@@ -244,6 +244,19 @@ class AcquireDatasetUseCase:
             )
             uow.commit()
         return AcquisitionPart(part, stored, len(data), batch.num_rows)
+
+    def _current_curated(self, raw: DatasetArtifact, children: Sequence[DatasetArtifact]) -> DatasetArtifact | None:
+        """The raw artifact's curated child made with the dialect in force now. A child curated with an
+        earlier dialect version is not reused, so a dialect change (2mass-psc 1.1.0, #141) reaches rows
+        acquired before it; the raw bytes are still reused and only curation runs again."""
+        children = list(children)
+        if not children:
+            return None
+        try:
+            dialect = self.curator.dialect_for(raw.source_ref.identity, raw.source_ref.release_label or "")
+        except (LookupError, ValueError):
+            return children[0]  # no dialect to compare with: curation would refuse, so keep what there is
+        return next((c for c in children if c.dialect == dialect), None)
 
     def _curate(self, raw: DatasetArtifact, licence: str) -> DatasetArtifact:
         if not licence.strip():
