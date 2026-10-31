@@ -15,6 +15,7 @@ native column filled each one.
 
 from __future__ import annotations
 
+import html
 import io
 import json
 import logging
@@ -286,19 +287,30 @@ def _catalogue(benchmark_id: str) -> KnownClusterCatalogue:
 
 _FIELD = re.compile(rb"<(?:\w+:)?FIELD\b[^>]*>")
 _ATTRIBUTE = re.compile(rb'\s(name|ID|datatype|arraysize|width|precision)\s*=\s*("[^"]*"|\'[^\']*\')')
+#: cells encoded as bytes laid out by each FIELD's declaration, which a rewrite would misread
+_ENCODED = re.compile(rb"<(?:\w+:)?(?:BINARY2?|FITS)\b")
+_TEXT_TYPES = ("char", "unicodeChar")
 
 
 def as_text(body: bytes, names: set[str]) -> bytes:
-    """The VOTable with each FIELD named in ``names`` declared as text (``char[*]``), whatever datatype
-    it was given. A cluster's name is text by what it is, but one VizieR mirror declares cga20's
-    ``SimbadName`` as ``float[*]`` while its cells read ``[KPR2005] 10`` (#157), and the parser trusts the
-    declaration. Only the FIELD's start tag is rewritten; its cells are read as written."""
+    """The VOTable with each FIELD named in ``names`` that is declared as something other than text
+    redeclared as ``char[*]``. A cluster's name is text by what it is, but one VizieR mirror declares
+    cga20's ``SimbadName`` as ``float[*]`` while its cells read ``[KPR2005] 10`` (#157), and the parser
+    trusts the declaration. Only the FIELD's start tag is rewritten, and only when the rows are written
+    out as TABLEDATA text: BINARY, BINARY2 and FITS rows are laid out by the declaration itself, so
+    those documents are left exactly as they are. A FIELD is named as ``first_table`` names it, by its
+    ``name``, else its ``ID``, with XML character references decoded."""
+    if _ENCODED.search(body):
+        return body
 
     def rewrite(match: re.Match[bytes]) -> bytes:
         tag = match.group(0)
-        attributes = {m.group(1): m.group(2)[1:-1] for m in _ATTRIBUTE.finditer(tag)}
-        named = attributes.get(b"name", attributes.get(b"ID", b"")).decode("utf-8", "replace")
-        if named not in names:
+        attributes = {
+            m.group(1).decode(): html.unescape(m.group(2)[1:-1].decode("utf-8", "replace"))
+            for m in _ATTRIBUTE.finditer(tag)
+        }
+        named = attributes.get("name") or attributes.get("ID") or ""
+        if named not in names or attributes.get("datatype") in _TEXT_TYPES:
             return tag
         kept = _ATTRIBUTE.sub(lambda m: m.group(0) if m.group(1) in (b"name", b"ID") else b"", tag)
         end = len(kept) - (2 if kept.endswith(b"/>") else 1)

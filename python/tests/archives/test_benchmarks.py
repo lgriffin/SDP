@@ -347,6 +347,26 @@ def test_only_the_named_fields_are_declared_text() -> None:
     )
 
 
+def test_a_field_is_found_by_its_decoded_name_or_else_its_id() -> None:
+    body = (
+        b'<TABLE><FIELD name="Simbad&#78;ame" datatype="float" arraysize="*"/>'
+        b'<FIELD name="" ID="Name2" datatype="double"/></TABLE>'
+    )
+    assert bm.as_text(body, {"SimbadName", "Name2"}) == (
+        b'<TABLE><FIELD name="Simbad&#78;ame" datatype="char" arraysize="*"/>'
+        b'<FIELD name="" ID="Name2" datatype="char" arraysize="*"/></TABLE>'
+    )
+
+
+def test_a_field_already_declared_text_or_rows_in_binary_are_left_as_they_are() -> None:
+    fixed = b'<TABLE><FIELD name="Name" datatype="char" arraysize="12"/><DATA><TABLEDATA/></DATA></TABLE>'
+    assert bm.as_text(fixed, {"Name"}) == fixed
+    binary = (
+        b'<TABLE><FIELD name="Name" datatype="float" arraysize="*"/><DATA><BINARY2><STREAM/></BINARY2></DATA></TABLE>'
+    )
+    assert bm.as_text(binary, {"Name"}) == binary
+
+
 @pytest.mark.req("DSI-017")
 def test_a_saved_votable_reads_its_units_as_written_and_becomes_the_same_benchmark() -> None:
     body = asu_votable()
