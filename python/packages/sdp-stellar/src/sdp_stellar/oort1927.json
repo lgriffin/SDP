@@ -1,0 +1,74 @@
+{
+  "protocol_id": "uc04-oort-1927",
+  "version": "1.0.0",
+  "written": "2026-10-31, before any Gaia star was read for this protocol",
+  "paper": {
+    "citation": "J. H. Oort (1927), Observational evidence confirming Lindblad's hypothesis of a rotation of the galactic system, Bull. Astron. Inst. Netherlands 3, No. 120, 275-282",
+    "bibcode": "1927BAN.....3..275O",
+    "read_from": "the scan Leigh uploaded on 2026-10-31 (oort-1927/oort-1927-BAN-120.pdf in the project files)"
+  },
+  "oort": {
+    "table2_A_km_s_pc": [
+      {"group": "B3-B5", "A": 0.033, "error": 0.006},
+      {"group": "B0-B2", "A": 0.034, "error": 0.008},
+      {"group": "delta Cep", "A": 0.040, "error": 0.020},
+      {"group": "M6e-M8e, Se", "A": 0.006, "error": 0.015},
+      {"group": "M1e-M5e", "A": -0.030, "error": 0.043},
+      {"group": "c-stars", "A": 0.025, "error": 0.009},
+      {"group": "Oa-Oe", "A": 0.070, "error": 0.080},
+      {"group": "Oe5", "A": 0.038, "error": 0.015},
+      {"group": "N", "A": 0.029, "error": 0.017},
+      {"group": "c-stars (faint)", "A": 0.038, "error": 0.014}
+    ],
+    "table2_rA_times_parallax": [
+      {"group": "B3-B5", "rA_km_s": 5.7, "rA_error": 1.0, "mean_parallax_arcsec": 0.0058, "A": 0.033},
+      {"group": "c-stars (faint)", "rA_km_s": 25.1, "rA_error": 2.7, "mean_parallax_arcsec": 0.0015, "A": 0.038}
+    ],
+    "total_A_km_s_pc": 0.0310,
+    "total_A_error_km_s_pc": 0.0037,
+    "centre_longitude_deg_old_system": 323.0,
+    "centre_longitude_error_deg": 2.4,
+    "assumed_V_km_s": 272.0,
+    "K2_over_K1": 0.11,
+    "K2_over_K1_after_note": 0.29,
+    "R_pc_printed": 5900.0,
+    "R_pc_after_note": 5100.0,
+    "R_pc_if_K2_zero": 6600.0,
+    "central_mass_solar_at_least": 8e10,
+    "keplerian_example": {"R_pc": 10000.0, "V_km_s": 300.0, "r_pc": 1000.0, "semi_amplitude_over_km_s": 20.0}
+  },
+  "selection": {
+    "ruwe_max": 1.4,
+    "parallax_over_error_min": 10.0,
+    "duplicated_source": false,
+    "blue_bp_rp_max": 0.5
+  },
+  "fit": {
+    "clip_mad_multiple": 4.0,
+    "clip_passes": 3,
+    "min_stars": 200,
+    "covariance": "sandwich, clustered by star"
+  },
+  "scenarios": {
+    "shell_kpc": [[0.1, 0.5], [0.3, 1.0], [0.5, 1.5]],
+    "b_max_deg": [15.0, 30.0],
+    "g_max": [13.0, 15.0],
+    "parallax_zero_point_mas": [0.0, -0.017],
+    "population": ["all", "blue"]
+  },
+  "baseline": {
+    "shell_kpc": [0.3, 1.0],
+    "b_max_deg": 30.0,
+    "g_max": 15.0,
+    "parallax_zero_point_mas": -0.017,
+    "population": "all"
+  },
+  "decision": {
+    "detect_sigma": 5.0,
+    "null_sigma": 2.0,
+    "agree_sigma": 2.0
+  },
+  "target": {
+    "source_release": "gaia:DR3"
+  }
+}

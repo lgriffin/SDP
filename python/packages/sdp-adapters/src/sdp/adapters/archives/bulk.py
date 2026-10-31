@@ -555,6 +555,38 @@ class BulkCatalogueGateway:
         whole = pa.concat_tables(parts).sort_by(q.order_by or self.key_column)
         return whole.slice(0, q.row_cap).select(list(q.columns))
 
+    def scan(
+        self,
+        columns: Sequence[str],
+        filters: Sequence[tuple[str, str, Any]] = (),
+        progress: Callable[[int, int], None] | None = None,
+    ) -> Iterator[pa.Table]:
+        """Every stored file in turn, its ``columns`` only and its rows passing every ``(column, op, value)``
+        filter (Parquet's own pushdown): a whole-sky read for a run that needs all of a release, one file
+        in memory at a time. An incomplete copy is refused, as in ``_read`` (DSI-022)."""
+        unknown = (set(columns) | {f[0] for f in filters}) - set(self.descriptor.column_names())
+        if unknown:
+            raise ValueError(
+                f"{self.descriptor.source_id}: columns {sorted(unknown)} are not in the declared column list"
+            )
+        listed, missing = self.files(), self.missing()
+        if not listed or missing:
+            label = f" ({self.subset.name} subset)" if self.subset is not None else ""
+            flag = f" --subset {self.subset.name}" if self.subset is not None else ""
+            raise ValueError(
+                f"the bulk copy of {self.descriptor.release_label}{label} is incomplete ({len(missing)} files "
+                f"missing); finish `sdp archive bulk{flag}` first"
+            )
+        for i, f in enumerate(listed):
+            artifact = self.store.resolve(f"{self.prefix}/{f.stem}.parquet")
+            assert artifact is not None
+            table = pq.read_table(
+                pa.BufferReader(self.store.get(artifact)), columns=list(columns), filters=list(filters) or None
+            )
+            if progress is not None:
+                progress(i + 1, len(listed))
+            yield table
+
     def fetch(self, handle: AcquisitionHandle) -> Iterator[pa.RecordBatch]:
         q = handle.query
         whole = self._read(q)

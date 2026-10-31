@@ -167,3 +167,12 @@ requirements:
       - "python/tests.archives.test_bulk_subset::test_a_subset_read_never_shares_its_query_text_or_key_with_the_full_copy"
       - "python/tests.archives.test_bulk_subset::test_a_subset_field_can_be_ordered_by_a_column_it_does_not_select"
       - "python/tests.archives.test_bulk_subset::test_a_subset_name_is_one_plain_path_segment"
+  - id: DSI-022
+    pattern: event
+    text: "When a whole-sky scan of a complete bulk copy is requested, the system shall return each stored file in turn with only the requested columns and only the rows that pass every requested filter."
+    rationale: "UC-04 fits the whole sky; one file in memory at a time with Parquet pushdown keeps a pass over 1.8 billion stars within a desktop's memory, and an incomplete copy is refused as in DSI-014."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_oort1927::test_a_scan_reads_every_file_with_its_filters_and_refuses_an_incomplete_copy"
