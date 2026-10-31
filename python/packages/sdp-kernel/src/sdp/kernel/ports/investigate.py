@@ -94,6 +94,30 @@ class ProductCutouts(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class CutoutCost:
+    """What one cutout costs: the bytes read over the wire, the bytes the cutout keeps, and the share
+    of the asked-for square the image covers (less than 1 where the square runs off its edge)."""
+
+    read_bytes: int
+    stored_bytes: int
+    coverage: float = 1.0
+
+
+@runtime_checkable
+class CutoutCosts(Protocol):
+    """A gateway that can say, from a product's headers alone, what a cutout of it would read (INT-025).
+
+    A cutout cut by byte range reads every row it covers at the image's full width, so it reads several
+    times what it keeps. ``LookupError`` when the position is off the image, ``ValueError`` when the
+    product cannot be cut at all; the planner records either as the reason the product is left out.
+    """
+
+    def cutout_cost(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> CutoutCost:
+        """The cost of ``cutout_product`` with the same arguments, without reading any pixels."""
+        ...
+
+
 CUTOUT_MARK = "@cutout("
 
 

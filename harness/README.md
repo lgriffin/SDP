@@ -19,6 +19,7 @@ powershell -ExecutionPolicy Bypass -File harness\run-idle-pc.ps1
 | --- | --- | --- | --- |
 | `run-idle-pc.ps1` | Updates the checkout to main; Praesepe 3x3 with `clusterer: fast-hdbscan` (#153), and 4x4 if the 3x3 took under 15 minutes; the Aquila stress stage 2 rerun (#147); `sdp local quality astro`, then `sdp local lightcurve astro` | 2 to 6 hours | `<SDP data>\reports\idle-pc\run-<date>_<time>.log` |
 | `run-sweep-rerun.ps1` | Updates the checkout (`-Branch`, main by default); renames the last sweep's `tiles` and `candidates.csv` with the date; band 57, then `sdp discover sweep --workers 12` and `sdp discover report`; prints candidates by status beside `candidates-before.csv` (#159) | about 70 minutes | `<SDP data>\reports\sweep\run-<date>_<time>.log` |
+| `run-pillars-plan.ps1` | Updates the checkout (`-Branch`, main by default); `sdp integration register`; drafts the Pillars of Creation plan for `-Region` (the 2014 Hubble framing by default, see docs/pillars.md) under `profiles/pillars-of-creation.yaml`; saves the plan and prints what it keeps, what it leaves out and why, and the total against the 2 GB cap. It reads FITS headers only and approves nothing | a few minutes, mostly MAST | `<SDP data>\reports\pillars\run-<date>_<time>.log`, plan in `plan-<date>_<time>.json` |
 
 ## How the scripts behave
 

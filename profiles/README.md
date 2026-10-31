@@ -4,7 +4,7 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These eight profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These nine profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
@@ -14,6 +14,7 @@ These eight profiles ship with SDP. You do not need to edit them to get started.
 | [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
+| [pillars-of-creation](pillars-of-creation.yaml) | You want Gaia's stars checked against every JWST and Hubble image of the Pillars of Creation, within 2 GB | Gaia and MAST (JWST and HST) | Planning takes a few minutes; give the region yourself (docs/pillars.md) |
 | [my-frames](my-frames.yaml) | You want to check Gaia's stars against your own solved stacks | Gaia and your own frames (`local:astro`) | A minute or two a stack. Add, index and solve your frames first (`sdp local`). |
 | [my-frames-variability](my-frames-variability.yaml) | You want to know which stars changed brightness over the nights you imaged a target | Gaia and the light curves `sdp local lightcurve` measured from your subs | Seconds, once the light curves are built. Solve the subs and run `sdp local lightcurve` first. |
 
@@ -76,6 +77,20 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
 - **`match_radius_arcsec: 180`.** A NIRCam mosaic is about 5 arcminutes across, so its centre can sit a few arcminutes from your field and still cover it.
 - **`phot_g_mean_mag > 17`.** JWST is so sensitive that stars brighter than this saturate its detectors, which leaves no clean centre to compare with Gaia.
 
+### Archive settings (pillars-of-creation)
+
+The Eagle Nebula has 411 Hubble and JWST mosaics within 3 arcminutes of the pillars, and JWST's sharpest ones are 5.4 GB each. This profile therefore chooses before it downloads.
+
+- **`budget`.** `max_bytes: 2000000000` is the most the run may download (2 GB, counted in thousands, not 1024s). `reserve_fraction: 0.10` keeps 200 MB back, so the mosaics fill at most 1.8 GB and the Gaia query and any size the archive under-stated still fit. A profile's budget can only make the deployment's smaller.
+- **`select.one_per: [mission, instrument, band]`.** One mosaic per instrument and filter: one NIRCam F200W, one WFC3/UVIS F657N, and so on. The filter is read from the file name, because MAST's index has no filter column. A detection image (`total`) names no filter and is left out.
+- **`select.combined_only: true`.** MAST lists each exposure's own mosaic beside the visit's combined one. Only the combined ones are kept.
+- **`select.measure_reads: true`.** A cutout is read row by row at the image's full width, so it downloads several times what it keeps: 282 MB for a 180-arcsecond square of a NIRCam short-wave mosaic, which keeps 113 MB (measured 2026-10-31). SDP reads each mosaic's headers first (a few kilobytes) and costs the cutout at what it will read.
+- **`select.min_coverage: 0.5`.** A mosaic that holds less than half of the square is left out. Hubble's mosaics are tiles; most cover only part of the field.
+- **`missions: [JWST, HST]`.** The order is the priority. JWST's mosaics are planned first; when the budget runs short, Hubble's filters are the ones left out.
+- **`cutout_arcsec: 180`.** A 3-arcminute square around the field centre, enough for the three pillars.
+
+Every mosaic left out is in the plan with its reason, under `constraints.excluded`.
+
 ### Ranking
 
 - **`alpha: 0.01`.** A test counts as significant when its p-value is below 0.01, a 1-in-100 chance. A field of 5,000 stars should still produce about 50 chance flags per test. That is why first-look asks for both of its tests, and why the null fields matter.
@@ -98,6 +113,7 @@ These rules keep a profile valid:
 - Columns must be ones the archive declares.
 - Tests must be ones SDP has installed: `parallax-consistency`, `cmd-coherence`, `astrometric-coherence`, `photometric-corroboration`, `long-baseline-motion`, `variability`, `image-counterpart` and `exposure-counterpart`.
 - A test that needs plate data must say so under `needs_products`.
+- `select` belongs on an archive that lists products (`role: observations`), not on a catalogue.
 
 `python/tests/investigate/test_default_profiles.py` checks all of this for the profiles in this folder.
 

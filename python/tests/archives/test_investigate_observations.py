@@ -17,7 +17,7 @@ import astropy.units as u
 import pytest
 
 from sdp.adapters.archives.dasch import STANDARD_BAD_AFLAGS, DaschDialect, DaschGateway
-from sdp.adapters.archives.mast import PRODUCT_TYPES, MastObservationGateway, obs_id_of
+from sdp.adapters.archives.mast import PRODUCT_TYPES, MastObservationGateway, file_band, obs_id_of
 from sdp.adapters.archives.transport import CassetteTransport, HttpRequest, Transport, TransportError
 from sdp.kernel.application.investigate import observation_target
 from sdp.kernel.domain.archive import Cone
@@ -394,3 +394,54 @@ def test_jwst_lists_one_product_per_science_file_and_drops_auxiliary_files() -> 
     assert record.product.product_id == f"{obs}/{obs}_i2d.fits"
     assert record.size_bytes == 9354240
     assert obs_id_of(record.product.product_id) == obs and obs_id_of(obs) == obs
+
+
+@pytest.mark.req("INT-025")
+@pytest.mark.parametrize(
+    ("name", "band", "single"),
+    [
+        ("jw02739-o001_t001_nircam_clear-f200w_i2d.fits", "F200W", False),
+        ("jw02739-o001_t001_nircam_f444w-f470n_i2d.fits", "F444W-F470N", False),
+        ("jw02739-o002_t001_miri_f1130w_i2d.fits", "F1130W", False),
+        ("jw01074-o104_t002_nircam_clear-f200w-sub160_i2d.fits", "F200W", False),
+        ("jw02739001001_02101_00004_nrcb3_i2d.fits", None, True),
+        ("hst_13926_05_wfc3_uvis_f657n_ick905_drc.fits", "F657N", False),
+        ("hst_13926_05_wfc3_uvis_f657n_ick905k5_drc.fits", "F657N", True),
+        ("hst_skycell-p1033x08y12_acs_wfc_f775w_all_drc.fits", "F775W", False),
+        ("hst_5773_05_wfpc2_pc_f656n_u2lx05_drz.fits", "F656N", False),
+        ("hst_13926_07_acs_wfc_total_jck907_drc.fits", None, False),
+        ("j9cs01010_drz.fits", None, False),
+        ("lc-6.fits", None, False),
+    ],
+)
+def test_the_filter_and_whether_a_file_is_one_exposure_are_read_from_its_name(
+    name: str, band: str | None, single: bool
+) -> None:
+    """MAST's ObsCore has no filter column; its file names carry one (checked on M16, 2026-10-31)."""
+    assert file_band(name) == (band, single)
+
+
+@pytest.mark.req("INT-025")
+def test_mast_image_records_carry_their_filter_and_single_exposures_say_so() -> None:
+    fake = PrimedService()
+    gateway = MastObservationGateway(fake)
+    criteria = ObservationCriteria(missions=("JWST", "HST"), product_types=("image",), radius_arcsec=60.0)
+    names = ["jw02739-o001_t001_nircam_clear-f200w_i2d.fits", "hst_13926_05_wfc3_uvis_f657n_ick905k5_drc.fits"]
+    fake.table(
+        gateway.search_request(TARGET, criteria),
+        {
+            "obs_id": ["jw02739-o001_t001_nircam_clear-f200w", "hst_13926_05_wfc3_uvis_f657n_ick905k5"],
+            "obs_collection": ["JWST", "HST"],
+            "instrument_name": ["NIRCAM/IMAGE", "WFC3/UVIS"],
+            "dataproduct_type": ["image", "image"],
+            "t_min": [59805.4, 56902.2],
+            "t_max": [59805.6, 56902.3],
+            "access_url": [f"https://mast.example/{n}" for n in names],
+            "access_format": ["application/fits", "application/fits"],
+            "access_estsize": [5421758400.0, 505062720.0],
+        },
+    )
+    jwst, hst = gateway.search(TARGET, criteria).records
+    assert (jwst.band, jwst.single_exposure) == ("F200W", False)
+    assert (hst.band, hst.single_exposure) == ("F657N", True)
+    assert "band" in jwst.to_document() and type(jwst).from_document(jwst.to_document()) == jwst
