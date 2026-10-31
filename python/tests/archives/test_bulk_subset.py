@@ -161,3 +161,31 @@ def test_the_cli_builds_the_rvs_subset_and_refuses_an_unknown_one(
     assert '"subset": "rvs"' in run.stdout and '"rows": 2' in run.stdout
     bad = runner.invoke(cli.app, ["archive", "bulk", "--base-url", base, "--subset", "nope"])
     assert bad.exit_code != 0 and "unknown subset 'nope'" in bad.output
+
+
+@pytest.mark.req("DSI-021")
+def test_a_subset_read_never_shares_its_query_text_or_key_with_the_full_copy(tmp_path: Path) -> None:
+    store = NasArtifactStore(tmp_path / "store")
+    q = CatalogueQuery("gaia", GAIA.release_label, Cone(120.0, 30.0, 0.5), ("source_id", "ra"), (), 100, 100)
+    full, rvs = BulkCatalogueGateway(store, GAIA).query(q), BulkCatalogueGateway(store, GAIA, subset=RVS).query(q)
+    assert full.rendered_text.startswith("BULK SELECT")
+    assert rvs.rendered_text.startswith("BULK SUBSET rvs SELECT")
+    assert full.idempotency_key != rvs.idempotency_key
+
+
+@pytest.mark.req("DSI-021")
+def test_a_subset_field_can_be_ordered_by_a_column_it_does_not_select(tmp_path: Path) -> None:
+    sweep = sweep_for(tmp_path)
+    sweep.run(sweep.files())
+    g = BulkCatalogueGateway(sweep.store, GAIA, subset=RVS)
+    q = CatalogueQuery(
+        "gaia", GAIA.release_label, Cone(120.0, 30.0, 0.5), ("source_id",), (), 100, 100, order_by="radial_velocity"
+    )
+    assert [r["source_id"] for b in g.fetch(g.query(q)) for r in b.to_pylist()] == [5000, 5002]
+
+
+@pytest.mark.req("DSI-021")
+@pytest.mark.parametrize("name", ["", ".", "..", "a/b", "rvs/..", "RVS"])
+def test_a_subset_name_is_one_plain_path_segment(name: str) -> None:
+    with pytest.raises(ValueError, match="one plain path segment"):
+        BulkSubset(name, "gaia", "radial_velocity", RVS.columns)

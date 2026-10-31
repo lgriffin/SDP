@@ -164,3 +164,6 @@ requirements:
       - "python/tests.archives.test_bulk_subset::test_the_rvs_gateway_reads_a_field_with_its_radial_velocities"
       - "python/tests.archives.test_bulk_subset::test_a_subset_cannot_redeclare_a_parent_column_or_keep_rows_by_a_column_it_lacks"
       - "python/tests.archives.test_bulk_subset::test_the_cli_builds_the_rvs_subset_and_refuses_an_unknown_one"
+      - "python/tests.archives.test_bulk_subset::test_a_subset_read_never_shares_its_query_text_or_key_with_the_full_copy"
+      - "python/tests.archives.test_bulk_subset::test_a_subset_field_can_be_ordered_by_a_column_it_does_not_select"
+      - "python/tests.archives.test_bulk_subset::test_a_subset_name_is_one_plain_path_segment"

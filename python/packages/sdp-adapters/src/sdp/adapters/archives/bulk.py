@@ -21,6 +21,7 @@ import gzip
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 import urllib.request
@@ -124,6 +125,8 @@ class BulkSubset:
     description: str = ""
 
     def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", self.name):
+            raise ValueError(f"subset name {self.name!r} must be one plain path segment (a-z, 0-9, _ or -)")
         if self.keep_rows_with not in {c.name for c in self.columns}:
             raise ValueError(f"subset {self.name}: keep_rows_with {self.keep_rows_with!r} is not one of its columns")
 
@@ -508,7 +511,9 @@ class BulkCatalogueGateway:
         if unknown:
             raise ValueError(f"{q.source_id}: columns {sorted(unknown)} are not in the declared column list")
         # the same text as the TAP gateway, marked: a bulk read is never mistaken for an archive call
-        rendered = "BULK " + adql.render(
+        # a subset copy holds other rows than the full copy: its text, and so its key, says which it read
+        marker = f"BULK SUBSET {self.subset.name} " if self.subset is not None else "BULK "
+        rendered = marker + adql.render(
             q,
             table=self.descriptor.table,
             ra=self.ra_column,
@@ -528,7 +533,10 @@ class BulkCatalogueGateway:
                 f"missing); finish `sdp archive bulk{flag}` first"
             )
         box = _region_box(q.region)
-        needed = sorted({*q.columns, self.ra_column, self.dec_column, self.key_column, *(f.column for f in q.filters)})
+        needed = sorted(
+            {*q.columns, self.ra_column, self.dec_column, self.key_column, q.order_by or self.key_column}
+            | {f.column for f in q.filters}
+        )
         parts: list[pa.Table] = []
         for f in self.files():
             record = self.store.resolve(f"{self.prefix}/{f.stem}.json")
