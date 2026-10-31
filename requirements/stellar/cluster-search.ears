@@ -86,7 +86,7 @@ requirements:
     traces:
       - "python/tests.stellar.test_protocol::test_the_pass_marks_are_predeclared_so_changing_one_changes_the_hash_and_the_outcome"
       - "python/tests.stellar.test_protocol::test_malformed_pass_marks_are_refused_at_planning_not_coerced"
-      - "python/tests.stellar.test_sweep::test_the_field_itself_is_rejected_as_most_of_the_stars"
+      - "python/tests.stellar.test_sweep::test_the_field_itself_is_never_one_candidate"
   - id: STL-009
     pattern: event
     text: "When the system sweeps the sky for clusters, the system shall search each tile with the predeclared cuts and pass marks, keep only candidates centred inside the tile, run at least one null field per tile, count each star searched in one tile only, refuse to mix tiles searched over a different prepared catalogue or set of known-cluster catalogues, and label every finding exploratory."
@@ -167,3 +167,18 @@ requirements:
       - "python/tests.stellar.test_scales::test_a_tile_of_another_scale_is_refused"
       - "python/tests.stellar.test_scales::test_a_shell_searches_only_its_parallax_window"
       - "python/tests.cli.test_cli_discover::test_prepare_sweep_report_finds_the_planted_cluster_in_no_benchmark"
+      - "python/tests.stellar.test_scales::test_a_rejected_copy_in_another_shell_does_not_hide_a_candidate_that_passed"
+  - id: STL-013
+    pattern: event
+    text: "When the sweep clusters a tile, the stellar module shall cap every HDBSCAN grid point's clusters at the largest member count the field-fraction check accepts."
+    rationale: "Inside a shell's parallax window the field piles up against the window's dense edge into one field-sized cluster; uncapped, excess-of-mass selection kept it instead of its children, so the real clusters inside it vanished and the giant was rejected as the field (#159: 54 known clusters fell to 6). A cluster over the cap would be rejected anyway, so the cap only lets its children be judged."
+    verification: test
+    tiers: [T1, T3, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_scales::test_a_nearby_cluster_inside_the_field_crowding_a_shells_edge_is_found"
+      - "python/tests.stellar.test_scales::test_every_grid_point_is_capped_at_the_largest_cluster_the_field_fraction_check_accepts"
+      - "python/tests.stellar.test_clustering::test_fast_hdbscan_caps_cluster_size_as_scikit_learn_does"
+      - "python/tests.stellar.test_clustering::test_a_cap_the_whole_tile_fits_under_changes_nothing"
+      - "python/tests.stellar.test_clustering::test_a_cap_that_leaves_one_cluster_below_the_root_labels_it"
+      - "python/tests.stellar.test_clustering::test_a_cap_with_leaf_selection_is_refused"

@@ -182,9 +182,14 @@ def test_a_tile_counts_as_searched_only_the_stars_inside_it_not_its_rim() -> Non
 
 
 @pytest.mark.tier("T8")
-def test_the_field_itself_is_rejected_as_most_of_the_stars() -> None:
-    field = [c for c in syn_b_result()["candidates"] if c["status"] == "rejected"]
-    assert field and any(r.endswith("stars searched: the field itself, not a cluster") for r in field[0]["reasons"])
+def test_the_field_itself_is_never_one_candidate() -> None:
+    """The sweep caps clusters at the field-fraction limit (STL-013, #159), so the field is judged in
+    pieces rather than chosen whole over the clusters inside it."""
+    result = syn_b_result()
+    fraction = settings()["candidate_checks"]["max_field_fraction"]
+    assert result["candidates"]
+    assert not any("the field itself" in r for c in result["candidates"] for r in c["reasons"])
+    assert all(c["n_members"] <= fraction * result["cuts"]["kept_rows"] for c in result["candidates"])
 
 
 @pytest.mark.tier("T8")

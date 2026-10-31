@@ -287,3 +287,109 @@ def test_a_shell_searches_only_its_parallax_window() -> None:
     expected = int(np.count_nonzero(column(kept, "parallax_mas") >= 4.0 * 0.85))
     assert 0 < expected < kept.num_rows
     assert result["skipped"] == f"{expected} stars pass the cuts, more than max_tile_stars 1"
+
+
+CROWDED = "synthetic:crowded"
+
+
+@cache
+def crowded_near_tile(stars: int = 25000, seed: int = 1) -> tuple[sweep.Tile, pa.Table]:
+    """A near-shell tile and its rim crowded as the Galactic plane is (#159): field stars whose numbers
+    climb steeply towards the shell's 3.4 mas window edge (dN/dplx ~ plx^-4) and whose proper motions
+    spread with parallax, and a 300-star cluster like IC 2391 (6.6 mas, pm -24.9/+23.3) inside them."""
+    near = sweep.scales(settings())[0]
+    ra0, dec0 = 130.0, -53.0
+    band = int(sweep.band_of(np.array([dec0]), near.tile_deg)[0])
+    t = next(
+        t
+        for t in (sweep.tile(band, i, near.tile_deg, "near") for i in range(sweep.tiles_in_band(band, near.tile_deg)))
+        if t.contains(ra0, dec0)
+    )
+    rng = np.random.default_rng(seed)
+    half = near.tile_deg / 2 + near.margin_deg
+    lo, hi = 3.0, 60.0
+    plx = (lo**-3 - (lo**-3 - hi**-3) * rng.uniform(size=stars)) ** (-1 / 3)
+    dec = rng.uniform(t.dec_deg - half, t.dec_deg + half, stars)
+    ra = t.ra_deg + rng.uniform(-half, half, stars) / np.cos(np.radians(dec))
+    spread = 1 + 4.5 * plx
+    pm = (-2 * plx + rng.normal(0, 1, stars) * spread, 2.3 * plx + rng.normal(0, 1, stars) * spread)
+    field = _rows(rng, "synthetic:f", ra, dec, *pm, plx, rng.uniform(8, 18, stars), rng.uniform(0.4, 2.6, stars))
+    m = 300
+    abs_g = rng.uniform(0.5, 8, m)
+    cluster = _rows(
+        rng,
+        CROWDED,
+        ra0 + rng.normal(0, 0.7, m) / math.cos(math.radians(dec0)),
+        dec0 + rng.normal(0, 0.7, m),
+        -24.9 + rng.normal(0, 0.8, m),
+        23.3 + rng.normal(0, 0.8, m),
+        np.full(m, 6.6),
+        abs_g + 5 * np.log10(100 / 6.6),
+        0.35 + 0.28 * (abs_g - 0.5) + rng.normal(0, 0.03, m),
+    )
+    sky = pa.Table.from_pylist(field + cluster, schema=SCHEMA)
+    ra_all, dec_all = sweep.ra_dec(sky)
+    return t, sky.filter(pa.array(sweep.neighbourhood(t, near.margin_deg, ra_all, dec_all)))
+
+
+def _crowded_result(monkeypatch: pytest.MonkeyPatch | None = None) -> dict[str, Any]:
+    if monkeypatch is not None:  # the sweep as it was before #159: no cap on a cluster's size
+        monkeypatch.setattr(sweep, "field_sized", lambda st, searched: 10**9)
+    t, rows = crowded_near_tile()
+    st = settings()
+    return sweep.sweep_tile(rows, t, st, clusterers(), [], 2026, sweep.scales(st)[0])
+
+
+def _planted(c: dict[str, Any]) -> int:
+    return sum(k.startswith(CROWDED) for k in c["member_keys"])
+
+
+@pytest.mark.tier("T8")
+@pytest.mark.req("STL-013")
+def test_a_nearby_cluster_inside_the_field_crowding_a_shells_edge_is_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Uncapped, the field piled against the near shell's window edge became one field-sized cluster
+    that excess-of-mass selection kept instead of the real cluster inside it; the cluster vanished and
+    the giant was rejected as the field (#159). Capped at the field-fraction limit, the cluster is found."""
+    found = [c for c in _crowded_result()["candidates"] if _planted(c) >= 0.75 * 300]
+    assert len(found) == 1 and found[0]["status"] != "rejected"
+    assert found[0]["n_members"] <= 1.1 * _planted(found[0])  # the cluster, not the field around it
+    before = _crowded_result(monkeypatch)["candidates"]
+    assert not any(_planted(c) >= 0.75 * 300 and c["n_members"] < 1000 for c in before)
+    giant = max(before, key=lambda c: c["n_members"])
+    assert giant["n_members"] > 5000 and giant["status"] == "rejected"
+
+
+@pytest.mark.req("STL-013")
+def test_every_grid_point_is_capped_at_the_largest_cluster_the_field_fraction_check_accepts() -> None:
+    from sdp.adapters.compute.clustering import FastHdbscan
+
+    seen: list[dict[str, Any]] = []
+
+    class Recording(FastHdbscan):
+        def search(self, features: np.ndarray, params: Any, seed: int) -> Any:
+            seen.append({"rows": features.shape[0], **params})
+            return super().search(features, params, seed)
+
+    t, rows = crowded_near_tile()
+    st = settings()
+    sweep.sweep_tile(rows, t, st, {"fast-hdbscan": Recording()}, [], 2026, sweep.scales(st)[0])
+    fraction = st["candidate_checks"]["max_field_fraction"]
+    assert len(seen) == 2 * 3  # the tile and its null field, three grid points each
+    assert all(s["max_cluster_size"] == math.floor(fraction * s["rows"]) for s in seen)
+    assert sweep.field_sized(st, 1) == 1
+
+
+def test_a_rejected_copy_in_another_shell_does_not_hide_a_candidate_that_passed() -> None:
+    """A field-sized group rejected at the near shell's edge holds most of a mid-shell cluster's
+    members; the cluster is still reported, and the rejected group is listed beside it."""
+    keys = [f"s{i}" for i in range(40)]
+    blob = _found("near", "near-field", keys[:30] + [f"n{i}" for i in range(500)], 3.7)
+    blob["candidates"][0]["status"] = "rejected"
+    cluster = _found("mid", "mid-cluster", keys, 3.6)
+    cluster["candidates"][0]["status"] = "known"
+    kept, dropped = sweep.distinct([blob, cluster])
+    assert sorted(c["candidate_id"] for c in kept) == ["mid-cluster", "near-field"] and dropped == 0
+    # two rejected copies are still one cluster
+    cluster["candidates"][0]["status"] = "rejected"
+    kept, dropped = sweep.distinct([blob, cluster])
+    assert [c["candidate_id"] for c in kept] == ["near-field"] and dropped == 1

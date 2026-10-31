@@ -18,6 +18,7 @@ powershell -ExecutionPolicy Bypass -File harness\run-idle-pc.ps1
 | Script | What it runs | Time | Log |
 | --- | --- | --- | --- |
 | `run-idle-pc.ps1` | Updates the checkout to main; Praesepe 3x3 with `clusterer: fast-hdbscan` (#153), and 4x4 if the 3x3 took under 15 minutes; the Aquila stress stage 2 rerun (#147); `sdp local quality astro`, then `sdp local lightcurve astro` | 2 to 6 hours | `<SDP data>\reports\idle-pc\run-<date>_<time>.log` |
+| `run-sweep-rerun.ps1` | Updates the checkout (`-Branch`, main by default); renames the last sweep's `tiles` and `candidates.csv` with the date; band 57, then `sdp discover sweep --workers 12` and `sdp discover report`; prints candidates by status beside `candidates-before.csv` (#159) | about 70 minutes | `<SDP data>\reports\sweep\run-<date>_<time>.log` |
 
 ## How the scripts behave
 
@@ -26,7 +27,7 @@ powershell -ExecutionPolicy Bypass -File harness\run-idle-pc.ps1
   result and time.
 - **Nothing is deleted.** `run-idle-pc.ps1` writes one new profile, `<SDP data>\profiles\stress-groups-fast.yaml`
   (a copy of `stress-groups.yaml` with a new `profile_id` and the fast clusterer), and only when it is not
-  there yet. It never touches `<SDP data>\sweep`.
+  there yet. It never touches `<SDP data>\sweep`. `run-sweep-rerun.ps1` renames the previous `tiles` folder and `candidates.csv` rather than deleting them.
 - **Options:** `-EnvFile PATH` when `sdp-env.cmd` is not at `D:\SDP\sdp-env.cmd`, and `-Code PATH` to run
   another checkout (by default, the one the script sits in).
 
