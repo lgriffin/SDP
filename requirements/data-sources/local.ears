@@ -258,3 +258,34 @@ requirements:
     traces:
       - "python/tests.local.test_certify::test_a_changed_reference_frame_withdraws_the_admission"
       - "python/tests.local.test_certify::test_without_a_record_the_frames_are_planned_as_exploratory_evidence"
+  - id: LOC-025
+    pattern: event
+    text: "When a frame has no usable OBJECT and the person has given a centre for a folder holding it, the system shall take the deepest such folder's centre as the frame's rough centre."
+    rationale: "About 1,600 of Leigh's Vespera frames (raw/IC434, raw/IC2177, raw/NGC884, raw/SH2-155) have no OBJECT, and --centre and the names file are keyed by OBJECT, so they could never be solved; the source is read-only, so their headers cannot be edited (#143). `sdp local names --folder raw/IC434=RA,DEC` keeps the centre in the names file's folders section, and the solution records which folder gave it."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_folder_centres::test_a_frame_without_object_solves_from_the_centre_given_for_its_folder"
+      - "python/tests.local.test_folder_centres::test_the_deepest_folder_given_wins"
+      - "python/tests.local.test_folder_centres::test_the_names_and_solve_commands_take_folder_centres"
+  - id: LOC-026
+    pattern: event
+    text: "When a frame has no other rough centre, the system shall look up the names of the folders holding it as targets and record a centre found that way as coming from the folder name."
+    rationale: "The target is usually in the folder name (raw/IC434). A folder name is a guess, so it comes last, folders named for a frame kind or a date are never asked, each name is asked of SIMBAD once like any OBJECT, and the solution says the centre came from the folder name (#143)."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_folder_centres::test_a_folder_name_is_looked_up_as_a_target_and_recorded_as_the_guess_it_is"
+      - "python/tests.local.test_plate_solver::test_a_batch_writes_solutions_and_refusals_under_the_data_folder_only"
+  - id: LOC-027
+    pattern: unwanted
+    text: "If a frame's header says LIGHT but a folder holding it is named for darks, biases or flats, then the system shall index the frame as that calibration kind."
+    rationale: "The Vespera writes IMAGETYP=LIGHT on its darks and biases too, so raw/IC434/darks and raw/IC434/biases were offered to the solver as lights and counted as unsolved (#143). An index written before this keeps its rows but takes the folder's kind."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.local.test_folder_centres::test_frames_in_calibration_folders_are_calibration_even_when_the_header_says_light"
+      - "python/tests.local.test_folder_centres::test_an_index_written_before_keeps_no_light_in_a_calibration_folder"

@@ -935,11 +935,13 @@ def _name_resolver() -> Any:
     return centre
 
 
-def _add_centres(book: Any, centres: list[str] | None) -> None:
-    from sdp.adapters.local.names import FROM_YOU, parse_centre
+def _add_centres(book: Any, centres: list[str] | None, folders: list[str] | None = None) -> None:
+    from sdp.adapters.local.names import FROM_YOU, parse_centre, parse_folder
 
     for text in centres or ():
         book.set(*parse_centre(text), FROM_YOU)
+    for text in folders or ():
+        book.set_folder(*parse_folder(text))
 
 
 CentreOption = Annotated[
@@ -947,6 +949,16 @@ CentreOption = Annotated[
     typer.Option(
         "--centre",
         help="A target's position as NAME=RA,DEC in degrees, such as M31=10.68,41.27; kept in the names file",
+    ),
+]
+FolderOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--folder",
+        help=(
+            "A folder's centre as FOLDER=RA,DEC in degrees, such as raw/IC434=85.25,-2.46, for frames with no "
+            "OBJECT; it covers the folders inside it; kept in the names file"
+        ),
     ),
 ]
 
@@ -965,6 +977,7 @@ def local_solve(
     min_matches: Annotated[int, typer.Option(help="Fewest matched stars accepted")] = 12,
     workers: Annotated[int, typer.Option(min=1, max=64, help="Frames solved side by side")] = 4,
     centre: CentreOption = None,
+    folder: FolderOption = None,
 ) -> None:
     """Plate-solve the source's frames with SDP's own solver: the stacks first, then the lights, unless
     --kind picks one. Each solution is written to <data>/solutions/<source>/<frame>.wcs.json; a frame that
@@ -984,7 +997,7 @@ def local_solve(
     if not rows:
         raise DomainError(f"the {name} index is empty; run sdp local index {name} first")
     names = NameBook(source, data)
-    _add_centres(names, centre)
+    _add_centres(names, centre, folder)
     solver = LocalSolver(
         source,
         data,
@@ -1046,12 +1059,15 @@ def local_solve(
 def local_names(
     name: Annotated[str, typer.Argument(help="The source's name")],
     centre: CentreOption = None,
+    folder: FolderOption = None,
     fetch: Annotated[
         bool, typer.Option("--fetch", help="Look up in SIMBAD now every OBJECT not in the file yet (needs network)")
     ] = False,
 ) -> None:
-    """The names file: each target's position, from SIMBAD or from you. With every target in it, solving
-    needs no network. Needs no database unless --fetch."""
+    """The names file: each target's position, from SIMBAD or from you, and each --folder centre for frames
+    with no OBJECT. With every target in it, solving needs no network. Needs no database unless --fetch."""
+    from pathlib import PurePosixPath
+
     from sdp.adapters.local.index import FrameIndex
     from sdp.adapters.local.names import FROM_SIMBAD, NameBook
     from sdp.adapters.local.solving import SOLVABLE_KINDS, usable_name
@@ -1060,10 +1076,16 @@ def local_names(
     data = data_dir()
     source = LocalSources(data).get(name)
     book = NameBook(source, data)
-    _add_centres(book, centre)
-    used = sorted(
-        {n for r in FrameIndex(source, data).rows() if r["kind"] in SOLVABLE_KINDS if (n := usable_name(r["object"]))}
-    )
+    _add_centres(book, centre, folder)
+    solvable = [r for r in FrameIndex(source, data).rows() if r["kind"] in SOLVABLE_KINDS and not r["error"]]
+    used = sorted({n for r in solvable if (n := usable_name(r["object"]))})
+    # frames that only a folder can place: no OBJECT, no header pointing, no folder centre yet
+    unplaced: dict[str, int] = {}
+    for r in solvable:
+        if usable_name(r["object"]) or r["ra_deg"] is not None or book.folder_centre(r["path"]) is not None:
+            continue
+        where = str(PurePosixPath(r["path"]).parent)
+        unplaced[where] = unplaced.get(where, 0) + 1
     unknown = [n for n in used if book.get(n) is None]
     not_found: list[str] = []
     if fetch and unknown:
@@ -1086,7 +1108,9 @@ def local_names(
         {
             "names": str(book.path),
             "known": book.entries(),
+            "folders": book.folders(),
             "frames_name_these_unknown_targets": unknown,
+            **({"folders_of_frames_without_object": dict(sorted(unplaced.items()))} if unplaced else {}),
             **({"simbad_does_not_know": not_found} if not_found else {}),
             **({"simbad_failed": failed} if fetch and unknown and failed else {}),
         }

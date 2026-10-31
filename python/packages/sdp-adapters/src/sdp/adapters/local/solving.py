@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from sdp.adapters.local.distortion import fit_distortion
-from sdp.adapters.local.index import FrameIndex
+from sdp.adapters.local.index import FOLDER_KINDS, FrameIndex
 from sdp.adapters.local.names import FROM_SIMBAD, NameBook
 from sdp.adapters.local.quality import measure
 from sdp.adapters.local.solver import (
@@ -46,6 +46,7 @@ CHAIN = 100
 POINTING_GRID_DEG = 0.1
 #: a solved neighbour whose centre is further than this from a frame's header pointing is another target's
 NEIGHBOUR_REACH_DEG = 3.0
+_STAMP = re.compile(r"^\d{4}-?\d{2}-?\d{2}")
 _UUID = re.compile(r"^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$", re.IGNORECASE)
 
 #: A rough centre for a name (SIMBAD through Sesame), or None when the name is unknown; it raises when
@@ -79,6 +80,24 @@ def usable_name(text: str | None) -> str | None:
     """An OBJECT worth looking up: not empty, not a UUID the app wrote in place of a name."""
     name = (text or "").strip()
     return name if name and not _UUID.match(name) else None
+
+
+#: folder names that say what a frame is or how it was kept, never which target it shows
+_GENERIC_FOLDERS = frozenset(
+    {*FOLDER_KINDS, "light", "lights", "raw", "stack", "stacks", "stacked", "calibrated", "processed", "subs"}
+)
+
+
+def folder_names(relative: str) -> list[str]:
+    """The folders holding a frame, deepest first, that could name its target (``raw/IC434/lights/a.fits``
+    gives ``IC434``): not a calibration or storage folder, not a UUID, not a date or time stamp."""
+    names = []
+    for part in reversed(PurePosixPath(relative).parts[:-1]):
+        name = usable_name(part)
+        if name is None or name.lower() in _GENERIC_FOLDERS or _STAMP.match(name):
+            continue
+        names.append(name)
+    return names
 
 
 @dataclass
@@ -245,7 +264,9 @@ class LocalSolver:
 
     def rough_centre(self, row: dict[str, Any], rows: list[dict[str, Any]]) -> tuple[tuple[float, float], str]:
         """From a solved frame in the same folder (so its Gaia read is reused); else OBJECT, from the names
-        file or SIMBAD; else the header's pointing; else a neighbour's OBJECT."""
+        file or SIMBAD; else the centre given for its folder; else the header's pointing; else a
+        neighbour's OBJECT; else a folder's name, looked up like an OBJECT (a guess, and said so)."""
+        assert self.names is not None
         near = self.neighbour(row, rows)
         if near is not None:
             centre = near[1]["rough_centre"]
@@ -255,6 +276,9 @@ class LocalSolver:
             found = self._named(name)
             if found is not None:
                 return found, f"OBJECT {name}"
+        given = self.names.folder_centre(row["path"])
+        if given is not None:
+            return given[1], f"folder centre {given[0]}"
         if row.get("ra_deg") is not None and row.get("dec_deg") is not None:
             grid = POINTING_GRID_DEG
             ra, dec = round(row["ra_deg"] / grid) * grid % 360.0, round(row["dec_deg"] / grid) * grid
@@ -266,13 +290,18 @@ class LocalSolver:
             other = usable_name(sibling["object"])
             if other is not None and (found := self._named(other)) is not None:
                 return found, f"neighbour's OBJECT {other}"
+        for guess in folder_names(row["path"]):
+            if (found := self._named(guess)) is not None:
+                return found, f"folder name {guess}"
         why = ""
         if name is not None and name in self._unknown:
             why = (
-                f"; {name} is not in {self.names.path if self.names else 'the names file'} and "
-                f"{self._unknown[name]} (give it with --centre {name}=RA,DEC)"
+                f"; {name} is not in {self.names.path} and {self._unknown[name]} (give it with --centre {name}=RA,DEC)"
             )
-        raise Unsolved(f"no rough centre: OBJECT is empty or unknown, and no frame in its folder has one{why}")
+        raise Unsolved(
+            "no rough centre: OBJECT is empty or unknown, no frame in its folder has one, and no folder name "
+            f"is a known target{why} (give the folder's centre with --folder {folder}=RA,DEC)"
+        )
 
     def scale(self, row: dict[str, Any]) -> tuple[float, str]:
         focal, pixel = row.get("focal_mm"), row.get("pixel_um")
