@@ -193,3 +193,4 @@ requirements:
     status: approved
     traces:
       - "python/tests.usecase.test_investigate::test_candidate_dossiers_are_written_side_by_side_and_each_is_named_by_its_investigation"
+      - "python/tests.usecase.test_investigate::test_a_failed_dossier_write_stops_the_stage_before_any_investigation_is_saved"

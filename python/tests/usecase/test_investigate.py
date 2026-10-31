@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 import pyarrow as pa
 import pytest
 
-from sdp.kernel.application.investigate import SignificanceRanker
+from sdp.kernel.application.investigate import DOSSIER_WRITERS, SignificanceRanker
 from sdp.kernel.application.media import JSON, decode_artifact
 from sdp.kernel.domain.dataset import DatasetStatus
 from sdp.kernel.domain.errors import (
@@ -522,6 +522,26 @@ class _SlowStore:
                 self._now -= 1
 
 
+class _FailingStore(_SlowStore):
+    def put(self, data: bytes, media_type: str, *, logical_path: str | None = None) -> object:
+        if logical_path is not None and "/dossiers/" in logical_path:
+            with self._lock:
+                self._now += 1
+            raise OSError("disk full")
+        return self.inner.put(data, media_type, logical_path=logical_path)  # type: ignore[attr-defined]
+
+
+@pytest.mark.req("INV-023")
+def test_a_failed_dossier_write_stops_the_stage_before_any_investigation_is_saved(world: World) -> None:
+    use_case = world.k.kernel.investigate_field
+    assert use_case is not None
+    failing = _FailingStore(use_case._meter.inner)
+    use_case._meter.inner = failing  # type: ignore[assignment]
+    with pytest.raises(OSError, match="disk full"):
+        world.run()
+    assert world.k.db.state.investigations == {}
+
+
 @pytest.mark.req("INV-023")
 def test_candidate_dossiers_are_written_side_by_side_and_each_is_named_by_its_investigation(world: World) -> None:
     use_case = world.k.kernel.investigate_field
@@ -531,6 +551,7 @@ def test_candidate_dossiers_are_written_side_by_side_and_each_is_named_by_its_in
     run = world.run()
     assert len(run.investigations) > 1
     assert slow.most_at_once > 1 and all(t.startswith("dossier") for t in slow.threads)
+    assert slow.most_at_once <= DOSSIER_WRITERS
     for inv in run.investigations:
         path = f"investigations/{run.investigation_set.set_id}/dossiers/{inv.investigation_id}.json"
         stored = world.k.store.resolve(path)

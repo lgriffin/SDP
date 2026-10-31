@@ -1290,6 +1290,7 @@ class InvestigateFieldUseCase:
         # Each dossier is a few small synced files. Written one after another they kept the stage waiting
         # on the disk for most of an hour on 16,777 candidates (#67); several writers overlap the waits.
         writes: list[Future[ArtifactId]] = []
+        checked = 0
         with ThreadPoolExecutor(max_workers=DOSSIER_WRITERS, thread_name_prefix="dossier") as writers:
             for candidate in ranked:
                 subject = candidate.subject
@@ -1315,6 +1316,10 @@ class InvestigateFieldUseCase:
                 path = set_path(investigation_set.set_id, f"dossiers/{investigation.investigation_id}.json")
                 writes.append(writers.submit(self.store.put, dossier.encode(), JSON, logical_path=path))
                 investigations.append(investigation)
+                # at most two writes per writer wait in memory; a failed write stops the stage here
+                while len(writes) - checked > 2 * DOSSIER_WRITERS:
+                    writes[checked].result()
+                    checked += 1
         # every dossier is stored before an investigation naming it is saved; a failed write raises here
         for investigation, write in zip(investigations, writes, strict=True):
             investigation.link("dossier_id", write.result().value)
