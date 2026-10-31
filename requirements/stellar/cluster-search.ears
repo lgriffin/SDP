@@ -144,6 +144,9 @@ requirements:
       - "python/tests.stellar.test_significance::test_in_the_sweep_the_planted_cluster_is_significant_and_the_field_itself_is_not"
       - "python/tests.stellar.test_significance::test_a_null_survivor_more_significant_than_the_candidate_makes_it_inconclusive"
       - "python/tests.stellar.test_significance::test_a_new_candidate_is_held_to_each_false_candidate_of_its_tile"
+      - "python/tests.stellar.test_significance::test_neighbour_distances_are_the_same_queried_in_batches"
+      - "python/tests.stellar.test_significance::test_a_candidate_already_failing_a_cheap_check_is_not_tested"
+      - "python/tests.stellar.test_significance::test_a_candidate_below_the_minimum_significance_is_rejected_and_says_so"
   - id: STL-012
     pattern: optional
     text: "Where the sweep settings name distance scales, the stellar module shall sweep the sky once per parallax shell with that shell's tile size and rim, and keep each candidate and each star in the one shell whose parallax range holds it."

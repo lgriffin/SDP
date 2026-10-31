@@ -102,7 +102,8 @@ def test_in_the_sweep_the_planted_cluster_is_significant_and_the_field_itself_is
     assert len(new) == 1 and new[0]["significance_sigma"] > 5.0
     field = max(result["candidates"], key=lambda c: c["n_members"])
     assert field["status"] == "rejected"
-    assert any(r.startswith("no denser than the stars around it") for r in field["reasons"])
+    # rejected as the field itself before the neighbour queries, so it is never tested
+    assert any("the field itself" in r for r in field["reasons"]) and field["significance_sigma"] is None
     assert result["null_survivor_sigmas"] == []
     row = next(r for r in sweep.candidate_rows([result]) if r["status"] == "potentially_new")
     assert row["significance_sigma"] == new[0]["significance_sigma"]
@@ -142,3 +143,40 @@ def test_a_new_candidate_is_held_to_each_false_candidate_of_its_tile(
     sweep._against_null(c, survivors)
     assert c["status"] == status
     assert len(c["reasons"]) == (1 if status == "potentially_new" else 2)
+
+
+def test_neighbour_distances_are_the_same_queried_in_batches(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sdp_stellar import significance as module
+
+    x = field_with_blob(7)
+    whole = sigma_of(x, np.arange(40))
+    monkeypatch.setattr(module, "BATCH", 7)
+    assert sigma_of(x, np.arange(40)) == whole
+
+
+def test_a_candidate_already_failing_a_cheap_check_is_not_tested() -> None:
+    from sdp_stellar.analysis import CandidateChecks, _worth_testing
+    from sdp_stellar.membership import Candidate
+
+    checks = CandidateChecks(10, 0.5, 3.0, 0.5)
+
+    def cand(members: int, stability: float = 1.0) -> Candidate:
+        return Candidate("r-c000", np.arange(members), np.ones(members), stability, members)
+
+    assert _worth_testing(cand(40), checks, 1000)
+    assert not _worth_testing(cand(9), checks, 1000)  # too few members
+    assert not _worth_testing(cand(600), checks, 1000)  # the field itself
+    assert not _worth_testing(cand(40, stability=0.4), checks, 1000)  # unstable
+
+
+@pytest.mark.tier("T8")
+def test_a_candidate_below_the_minimum_significance_is_rejected_and_says_so() -> None:
+    t = owner(*SYN_B)
+    strict = settings(significance={**DEFAULT, "min_sigma": 30.0})
+    result = sweep.sweep_tile(tile_rows(t, praesepe_field()), t, strict, clusterers(), benchmarks(), 2026)
+    syn_b = next(c for c in result["candidates"] if 50 < c["n_members"] < 100)
+    assert syn_b["status"] == "rejected"
+    assert (
+        syn_b["reasons"][-1]
+        == f"no denser than the stars around it: significance {syn_b['significance_sigma']:.1f} sigma < 30"
+    )

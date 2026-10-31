@@ -54,10 +54,18 @@ def tree(features: np.ndarray) -> cKDTree:
     return cKDTree(np.asarray(features, dtype=np.float64))
 
 
+#: stars queried at once, so the neighbour arrays stay a few tens of MB whatever the candidate's size
+BATCH = 50_000
+
+
 def _kth_distance(index: cKDTree, points: np.ndarray, k: int) -> np.ndarray:
-    # k + 1 because each queried star is its own nearest neighbour, at distance 0
-    distances, _ = index.query(points, k=k + 1)
-    return np.asarray(distances[:, -1], dtype=np.float64)
+    # k + 1 because each queried star is its own nearest neighbour, at distance 0; only the
+    # (k + 1)-th is asked for, so no full neighbour list is kept
+    out = np.empty(points.shape[0], dtype=np.float64)
+    for start in range(0, points.shape[0], BATCH):
+        distances, _ = index.query(points[start : start + BATCH], k=[k + 1])
+        out[start : start + BATCH] = distances[:, 0]
+    return out
 
 
 def significance(

@@ -151,12 +151,23 @@ def _assess(
         shared = {"g": g, "parallax": plx, "parallax_err": column(table, "parallax_mas_err")}
         shared["usable"] = usable_rows(colour, g, plx)
     out: list[dict[str, Any]] = []
+    checks = CandidateChecks.from_parameters(params["candidate_checks"])
     for c in estimate(region, labellings):
         sigma = None
-        if sig is not None and index is not None and features is not None and c.members.size:
+        if sig is not None and index is not None and features is not None and _worth_testing(c, checks, table.num_rows):
             sigma = significance(index, features, c.members, sig)
         out.append(_classify(c, table, colour, mag, benchmarks, params, seed, columns=shared, sigma=sigma))
     return out
+
+
+def _worth_testing(c: Candidate, checks: CandidateChecks, searched: int) -> bool:
+    """Whether a candidate can still pass once tested: one already failing the member count, the
+    stability or the field-fraction check is rejected whatever its significance, so the neighbour
+    queries (largest for a field-sized group) are not run for it."""
+    return (
+        checks.min_members <= c.members.size <= checks.max_field_fraction * searched
+        and c.stability >= checks.min_stability
+    )
 
 
 def significance_settings(params: Mapping[str, Any]) -> SignificanceSettings | None:
