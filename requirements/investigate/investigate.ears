@@ -184,3 +184,13 @@ requirements:
     tiers: [T4]
     status: approved
     traces: []
+  - id: INV-023
+    pattern: ubiquitous
+    text: "The Candidates stage shall store every candidate's dossier under its logical path before it saves the investigation that names the dossier."
+    rationale: "Each dossier is a few small synced files. Written one after another, Stage 2 of the stress run (#67, 16,777 candidates on 1.7 million stars) spent 57 minutes in this stage waiting on the disk while the CPU sat idle, slowing as the folder grew. The dossiers are now written by several writers side by side (DOSSIER_WRITERS); every write finishes, and any failure is raised, before an investigation naming a dossier is saved."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.usecase.test_investigate::test_candidate_dossiers_are_written_side_by_side_and_each_is_named_by_its_investigation"
+      - "python/tests.usecase.test_investigate::test_a_failed_dossier_write_stops_the_stage_before_any_investigation_is_saved"
