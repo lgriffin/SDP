@@ -1,0 +1,66 @@
+# Survey contradictions: do other surveys measure each star the way Gaia does?
+#
+# For every well-measured Gaia star in the field, this profile asks 2MASS (infrared, about 1999) and
+# Pan-STARRS (optical, about 2012) what they measured, and compares each measurement with what Gaia
+# predicts for it:
+#   cross-survey-contradiction -> a position or a brightness that disagrees beyond what the
+#                                 surveys' uncertainties, calibrated on the field itself, allow
+# A flag is a lead: a wrong Gaia motion, an unresolved companion, a variable star, an infrared
+# excess, or two different stars matched as one. The result says which comparison disagreed and why.
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: survey-contradictions
+version: 1.0.0
+description: >-
+  Gaia against 2MASS and Pan-STARRS. Flags stars whose position or brightness in another survey
+  disagrees with Gaia by more than the field's own measurements allow. Exploratory: a flag is a lead.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}              # well-behaved single-star astrometry (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: "<", value: 18.0}  # good Gaia colours and motions; 2MASS reaches about Ks 14.3
+  match_radius_arcsec: 1.0
+  row_cap: 5000
+  resolve: true
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: 2mass
+    role: catalogue
+    release_label: 2mass:psc
+    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual]
+    match_radius_arcsec: 1.5           # wider than 2MASS's ~0.1" errors, so a real position disagreement is still matched
+  - source_id: ps1
+    role: catalogue
+    release_label: ps1:DR2
+    columns: [objID, raMean, decMean, epochMean, gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, nDetections]
+    match_radius_arcsec: 1.0           # Pan-STARRS positions are good to a few hundredths of an arcsecond
+
+tests:
+  - name: cross-survey-contradiction
+    version: 1.0.0
+    thresholds:
+      source_id: gaia
+      surveys: {2mass: 2mass, ps1: ps1}  # which archive in this profile holds each survey
+      blend_delta_mag: 2.5             # a neighbour within 2.5 mag in G inside a survey's resolution spoils the comparison
+      magnitude_bins: 3                # the field sets the budget separately for bright, middle and faint stars
+      min_per_bin: 15                  # fewer stars than this cannot set a budget, so their comparisons are set aside
+      degree: 2                        # the colour relation that predicts each band from Gaia's G and BP-RP
+      flag_z: 3.0                      # a comparison this many sigma off is named in the result's pattern
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0                       # one test, so a star is a candidate only when it is significant
+
+null_fields:
+  trials: 10

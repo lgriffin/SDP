@@ -163,6 +163,12 @@ TARGETS = {
             ("src/sdp_investigate/exposures.py",),
             ("tests/investigate", "tests/local"),
         ),
+        Target(
+            "sdp-investigate-contradiction",
+            "sdp-investigate",
+            ("src/sdp_investigate/contradiction.py",),
+            ("tests/investigate",),
+        ),
         *(
             Target(
                 f"sdp-relativity-{i}",

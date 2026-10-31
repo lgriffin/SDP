@@ -213,3 +213,15 @@ requirements:
       - "python/tests.investigate.test_field_tests::test_a_profile_names_another_installed_clusterer_and_an_unknown_one_is_refused"
       - "python/tests.investigate.test_field_tests::test_every_cluster_records_the_algorithm_the_profile_chose"
       - "python/tests.investigate.test_field_tests::test_a_clusterer_that_is_not_installed_is_refused_before_the_investigation_opens"
+  - id: INV-026
+    pattern: event
+    text: "When a profile runs the cross-survey-contradiction test, the system shall score each star by its largest disagreement with Gaia, among the survey comparisons it counts, against an uncertainty budget calibrated on the field."
+    rationale: "Matching only says several surveys saw the same star; Leigh asked (2026-10-31) for the measurements that disagree beyond their expected uncertainties. Main had no test comparing one star's own measurements across surveys: photometric-corroboration fits one colour against the field, image- and exposure-counterpart check positions for one survey pair each. Canonical 2MASS and Pan-STARRS rows carry no per-row errors yet, so the budget adds to whatever errors a row reports the extra scatter the field shows, solved per G-magnitude bin (median start, then a 3-sigma clipped mean), and p-values use Student's t or F with the bin's star count because that budget is an estimate: on the synthetic field the null false-alarm rate is 1.1 to 1.4 percent at alpha 0.01, against 3.5 percent with normal tails. Comparisons a survey cannot resolve (a neighbour within 2.5 mag inside its resolution), bands the survey flags as poor, and channels with too few stars are set aside with their reason, never counted. The worst counted z is Sidak-corrected over the comparisons counted, and every comparison is written into the result with its budget terms."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.investigate.test_cross_survey_contradiction::test_the_planted_contradictions_are_found_and_labelled"
+      - "python/tests.investigate.test_cross_survey_contradiction::test_the_field_is_not_flagged_once_its_budget_is_calibrated"
+      - "python/tests.investigate.test_cross_survey_contradiction::test_a_blend_is_set_aside_with_its_reason_and_never_counted"
+      - "python/tests.investigate.test_cross_survey_contradiction::test_null_fields_stay_near_the_nominal_false_positive_rate"

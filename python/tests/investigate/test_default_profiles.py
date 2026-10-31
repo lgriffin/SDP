@@ -153,12 +153,19 @@ def on_synthetic_world(profile: TestProfile) -> TestProfile:
         if SYNTHETIC.get(a.source_id) == "fake-plates" or products.LIGHTCURVE in a.product_types
         else replace(a, source_id=SYNTHETIC.get(a.source_id, a.source_id))
         for a in profile.archives
+        # the synthetic world has no Pan-STARRS: a profile's other catalogues still run on it
+        if a.role is not ArchiveRole.CATALOGUE or a.source_id in SYNTHETIC
     )
     tests = tuple(
         replace(
             t,
             thresholds={
-                k: SYNTHETIC.get(v, v) if k in {"source_id", "ir_source_id"} else v for k, v in t.thresholds.items()
+                k: SYNTHETIC.get(v, v)
+                if k in {"source_id", "ir_source_id"}
+                else {survey: SYNTHETIC.get(source, source) for survey, source in v.items()}
+                if k == "surveys"
+                else v
+                for k, v in t.thresholds.items()
             },
         )
         for t in profile.tests
