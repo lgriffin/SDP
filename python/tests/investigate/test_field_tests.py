@@ -4,7 +4,7 @@ null fields stay near their nominal rate, and every test runs through the kernel
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -307,3 +307,22 @@ def test_every_cluster_records_the_algorithm_the_profile_chose() -> None:
     }
     scored = test.evaluate(feats, thresholds, rng)
     assert scored and all(s.details["algorithm"] == "fast-planted" for s in scored)
+
+
+def test_a_clusterer_that_is_not_installed_is_refused_before_the_investigation_opens() -> None:
+    catalogue = synthetic_catalogue()
+    k = build_in_memory_kernel(
+        gateways={"synthetic-gaia": gaia_archive(catalogue), "synthetic-2mass": twomass_archive(catalogue)},
+        investigate=investigate_ports(*registered_tests(), catalogue=catalogue),
+    )
+    assert k.kernel.investigate_field is not None and k.kernel.query_investigations is not None
+    k.kernel.investigate_field.ports.services = {"clusterer": FakeClusterer(), "clusterers": {}}
+    typo = TestSelection("astrometric-coherence", "1.0.0", {**GAIA, "clusterer": "fast-hdbscn"})
+    profile = replace(full_profile(), tests=(typo,))
+    with pytest.raises(PlanInvalid, match="'fast-hdbscn' is not installed; choose one of: fake-planted"):
+        k.kernel.investigate_field.execute(InvestigateFieldCommand(synthetic_field(), profile, seed=5))
+    assert k.kernel.query_investigations.sets() == []
+    with pytest.raises(PlanInvalid, match="clusterer is an algorithm id"):
+        InvestigationTestRegistry.of(AstrometricCoherence()).validate(
+            [TestSelection("astrometric-coherence", "1.0.0", {"clusterer": None})]
+        )
