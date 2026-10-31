@@ -361,16 +361,14 @@ def test_a_nearby_cluster_inside_the_field_crowding_a_shells_edge_is_found(monke
 
 @pytest.mark.req("STL-013")
 def test_every_grid_point_is_capped_at_the_largest_cluster_the_field_fraction_check_accepts() -> None:
+    from sdp.adapters.compute.clustering import FastHdbscan
+
     seen: list[dict[str, Any]] = []
-    real = clusterers()
 
-    class Recording:
-        algorithm_id = "fast-hdbscan"
-        backend = "cpu"
-
+    class Recording(FastHdbscan):
         def search(self, features: np.ndarray, params: Any, seed: int) -> Any:
             seen.append({"rows": features.shape[0], **params})
-            return real["fast-hdbscan"].search(features, params, seed)
+            return super().search(features, params, seed)
 
     t, rows = crowded_near_tile()
     st = settings()
