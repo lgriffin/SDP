@@ -197,6 +197,11 @@ def corrections_markdown(report: dict[str, Any]) -> str:
     for row in report["crowding"]:
         if row["a_pc"] is None:
             lines.append(f"| {row['r_in_arcmin']:g}' | {row['g_max']:g} | {row['stars'] or '-'} | failed | | | |")
+        elif row.get("degenerate"):
+            lines.append(
+                f"| {row['r_in_arcmin']:g}' | {row['g_max']:g} | {row['stars']:,} | degenerate | degenerate"
+                f" | {row['mass_solar']:,.0f} | not counted |"
+            )
         else:
             lines.append(
                 f"| {row['r_in_arcmin']:g}' | {row['g_max']:g} | {row['stars']:,} | {row['a_pc']:.2f}"
@@ -212,7 +217,8 @@ def corrections_markdown(report: dict[str, Any]) -> str:
             else []
         ),
         f"**{r['status']}** at threshold {r['threshold']}: {len(r['scenarios_below'])} corrections below,"
-        f" {len(r['scenarios_at_or_above'])} at or above, {len(r['scenarios_failed'])} failed.",
+        f" {len(r['scenarios_at_or_above'])} at or above, {len(r['scenarios_failed'])} failed,"
+        f" {len(r.get('scenarios_degenerate', []))} degenerate and not counted.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -251,3 +257,44 @@ def einstein1921_corrections(
     (out / "corrections.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=_jsonable), "utf-8")
     (out / "corrections.md").write_text(corrections_markdown(report), "utf-8")
     _say(f"Reading {report['reading']['status']}. Wrote {out / 'corrections.json'} and {out / 'corrections.md'}.")
+
+
+EXPORT_COLUMNS = (
+    "source_id",
+    "ra",
+    "dec",
+    "pmra",
+    "pmdec",
+    "pmra_error",
+    "pmdec_error",
+    "pmra_pmdec_corr",
+    "parallax",
+    "parallax_error",
+    "phot_g_mean_mag",
+    "ruwe",
+    "astrometric_params_solved",
+    "duplicated_source",
+)
+
+
+@einstein1921_app.command("export")
+def einstein1921_export(
+    out: Annotated[Path, typer.Option(help="The Parquet file to write")] = Path("reports/uc03/m13-cone.parquet"),
+) -> None:
+    """Write the M13 stars that pass UC-03's cuts, with the columns UC-03 reads, as one small Parquet file.
+
+    The file (about 1 MB) is the recorded data for the M13 known-answer test. Send it to the thread.
+    """
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from sdp_relativity.einstein1921 import keep_mask
+
+    _say("Reading the M13 cone from the bulk Gaia copy...")
+    columns = read_bulk_cone()
+    keep = keep_mask(columns)
+    table = pa.table({name: np.asarray(columns[name])[keep] for name in EXPORT_COLUMNS})
+    out.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(table, out, compression="zstd")
+    _say(f"Wrote {table.num_rows:,} of {len(columns['ra']):,} stars to {out} ({out.stat().st_size / 1e6:.1f} MB).")

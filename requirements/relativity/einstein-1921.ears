@@ -83,7 +83,7 @@ requirements:
       - "python/tests.relativity.test_einstein1921_corrections::test_a_biased_parallax_no_longer_sets_the_mass"
   - id: REL-018
     pattern: event
-    text: "When the relativity module reads the UC-03b corrections, the relativity module shall label the reading exploratory, call it consistent with H1 or H0 only when the corrected baseline band and every one of the 108 corrections lie on that side of the threshold with a complete bootstrap, and report the crowding table and the published comparison values."
+    text: "When the relativity module reads the UC-03b corrections, the relativity module shall label the reading exploratory, mark a fit whose scale is below 0.2 of the core cut as degenerate and leave it out, call the reading consistent with H1 or H0 only when the corrected baseline band and every counted correction lie on that side of the threshold with a complete bootstrap, and report the crowding table and the published comparison values."
     rationale: "The corrections were chosen after seeing a result, so they explain UC-03's verdict and never replace it."
     verification: test
     tiers: [T1]
@@ -94,6 +94,8 @@ requirements:
       - "python/tests.relativity.test_einstein1921_corrections::test_the_reading_follows_the_planted_ratio_whatever_the_parallax"
       - "python/tests.relativity.test_einstein1921_corrections::test_a_run_records_its_choices_the_crowding_table_and_the_comparisons"
       - "python/tests.relativity.test_einstein1921_corrections::test_a_magnitude_limit_fainter_than_uc03s_selection_is_refused"
+      - "python/tests.relativity.test_einstein1921_corrections::test_a_scale_far_inside_the_core_cut_is_degenerate"
+      - "python/tests.relativity.test_einstein1921_corrections::test_degenerate_corrections_are_listed_and_left_out_of_the_reading"
   - id: REL-019
     pattern: event
     text: "When a researcher runs sdp einstein1921 corrections, the command-line interface shall read the same M13 cone as sdp einstein1921 run and write the exploratory report as JSON and Markdown beside the UC-03 report."
@@ -103,3 +105,12 @@ requirements:
     status: approved
     traces:
       - "python/tests.cli.test_cli_einstein1921::test_the_corrections_command_writes_an_exploratory_report_beside_uc03s"
+  - id: REL-020
+    pattern: event
+    text: "When a researcher runs sdp einstein1921 export, the command-line interface shall write the M13 stars that pass UC-03's cuts, with the columns UC-03 reads, to one Parquet file."
+    rationale: "The file is the recorded data for the M13 known-answer test: small enough to commit, and it reruns to the same baseline as the whole cone."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_einstein1921::test_export_writes_the_stars_that_pass_the_cuts_and_they_rerun_alike"

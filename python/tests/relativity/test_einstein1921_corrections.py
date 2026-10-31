@@ -40,6 +40,7 @@ def small_choices(mass_to_light_v: float) -> dict[str, Any]:
         "error_scale": [1.0],
         "distance": ["published", "alternative"],
     }
+    choices["bootstrap"]["resamples"] = 3
     choices["published"]["light"] = {
         "mass_solar": 3e5,
         "mass_to_light_v": mass_to_light_v,
@@ -126,9 +127,13 @@ def test_the_reading_needs_the_band_and_every_correction_on_one_side() -> None:
 def test_the_reading_follows_the_planted_ratio_whatever_the_parallax(mass_to_light: float, status: str) -> None:
     # the planted G light is irrelevant here: the published light carries the ratio
     cols = planted_cluster(2.0, seed=23, parallax_bias=0.05)
-    report = c.run(cols, resamples=3, choices=small_choices(mass_to_light))
+    choices = small_choices(mass_to_light)
+    report = c.run(cols, choices=choices)
     assert report["reading"]["status"] == status
     assert report["baseline"]["bootstrap"]["succeeded"] == 3
+    quick = c.run(cols, resamples=2, choices=choices)  # fewer refits than declared: no reading
+    assert quick["reading"]["status"] == "mixed"
+    assert quick["baseline"]["corrected"] == report["baseline"]["corrected"]
     assert report["choices_match_committed"] is False
     assert report["baseline"]["corrected"]["mass_to_light_v"] == pytest.approx(mass_to_light, rel=0.15)
 
@@ -148,6 +153,8 @@ def test_a_run_records_its_choices_the_crowding_table_and_the_comparisons() -> N
     assert [(row["r_in_arcmin"], row["g_max"]) for row in report["crowding"]] == [(3.0, 19.0), (4.5, 19.0)]
     assert report["comparison"]["mass_solar"]["baumgardt_mass_solar"] == 4.84e5
     assert report["comparison"]["sigma0_kms"]["harris_sigma_v_kms"] == 7.1
+    assert report["baseline"]["fit"]["degenerate"] is False
+    assert all(row["degenerate"] is False for row in report["crowding"])
 
 
 @pytest.mark.req("REL-018")
@@ -156,3 +163,24 @@ def test_a_magnitude_limit_fainter_than_uc03s_selection_is_refused() -> None:
     choices["scenarios"]["g_max"] = [20.0]
     with pytest.raises(ValueError, match=re.escape("G < 20.0 is fainter than UC-03's selection limit 19.0")):
         c.run(planted_cluster(2.0, seed=31), resamples=0, choices=choices)
+
+
+@pytest.mark.req("REL-018")
+def test_a_scale_far_inside_the_core_cut_is_degenerate() -> None:
+    # the first UC-03b run: a slid to 0.06 pc (0.028 arcmin at 7.42 kpc) behind a 6 arcmin cut
+    assert c.degenerate(0.028 / 60, 6.0)
+    assert c.degenerate(0.199 * 6.0 / 60, 6.0)
+    assert not c.degenerate(0.2 * 6.0 / 60, 6.0)
+    assert not c.degenerate(2.57 / 60, 3.0)  # the corrected baseline
+    assert c.load_choices()["degenerate_a_over_r_in"] == 0.2
+
+
+@pytest.mark.req("REL-018")
+def test_degenerate_corrections_are_listed_and_left_out_of_the_reading() -> None:
+    low = {"p16": 2.0, "p50": 3.0, "p84": 4.0}
+    r = c.reading(low, {"a": 3.0, "flat": 30.0}, 10.0, True, degenerate_scenarios=["flat"])
+    assert r["status"] == "consistent_with_H1_after_corrections"
+    assert r["scenarios_degenerate"] == ["flat"]
+    assert r["scenarios_at_or_above"] == []
+    assert c.reading(low, {"a": 3.0}, 10.0, True, baseline_degenerate=True)["status"] == "mixed"
+    assert c.reading(low, {"flat": 3.0}, 10.0, True, degenerate_scenarios=["flat"])["status"] == "mixed"

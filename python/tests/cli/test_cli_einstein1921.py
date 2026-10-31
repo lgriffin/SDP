@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 from sdp.adapters.archives.tap import load_sources
 from sdp.adapters.bootstrap import artifact_store
 from sdp.cli import app as cli
+from sdp.cli import einstein1921 as cli_einstein1921
 from sdp_relativity import einstein1921 as e
 
 pytestmark = pytest.mark.tier("T4")
@@ -121,6 +122,7 @@ def test_the_corrections_command_writes_an_exploratory_report_beside_uc03s(bulk:
     report = json.loads((out / "corrections.json").read_text("utf-8"))
     assert report["quick_look"] is True
     assert report["reading"]["exploratory"] is True
+    assert report["reading"]["status"] == "mixed"  # one refit of the declared 100 decides nothing
     assert len(report["corrections"]) == 108
     assert report["baseline"]["corrected"]["distance_pc"] == 7420.0
     summary = (out / "corrections.md").read_text("utf-8")
@@ -128,3 +130,19 @@ def test_the_corrections_command_writes_an_exploratory_report_beside_uc03s(bulk:
     assert "UC-03's own verdict is unchanged." in summary
     assert "| 6' | 17 |" in summary
     assert "A quick look (fewer resamples): this is not the protocol's reading." in summary
+
+
+@pytest.mark.req("REL-020")
+def test_export_writes_the_stars_that_pass_the_cuts_and_they_rerun_alike(bulk: Path) -> None:
+    path = bulk / "m13.parquet"
+    result = runner.invoke(cli.app, ["einstein1921", "export", "--out", str(path)])
+    assert result.exit_code == 0, result.output
+    exported = pq.read_table(path)
+    assert exported.column_names == list(cli_einstein1921.EXPORT_COLUMNS)
+    full = {name: native_cone().column(name).to_numpy(zero_copy_only=False) for name in native_cone().column_names}
+    assert exported.num_rows == int(e.keep_mask(full).sum())
+    columns = {name: exported.column(name).to_numpy(zero_copy_only=False) for name in exported.column_names}
+    assert e.keep_mask(columns).all()
+    from_export = e.run(columns, resamples=0, all_scenarios=False)
+    from_full = e.run(full, resamples=0, all_scenarios=False)
+    assert from_export["baseline"]["physical"] == from_full["baseline"]["physical"]
