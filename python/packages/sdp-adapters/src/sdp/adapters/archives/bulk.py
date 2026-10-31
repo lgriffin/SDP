@@ -9,6 +9,10 @@ source (the same names and types its TAP dialect reads) and stores them as one P
 A file already stored is skipped, so a sweep that stops (Ctrl+C, a crash, a full disk) picks up where it
 left off when run again. Before each file the store's free space is checked against the same floor that
 refuses acquisitions (DSI-010). Nothing is ever written outside the store and its work folder.
+
+A subset (``subsets/*.yaml``) is a second copy from the same files: the parent's columns plus a few more,
+kept only for rows where one of them has a value. ``rvs`` is the Gaia DR3 stars with a radial velocity
+(DSI-021); it lives under ``bulk/<source>/<release>/<subset>/`` and is read with its own gateway.
 """
 
 from __future__ import annotations
@@ -22,8 +26,9 @@ import time
 import urllib.request
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from importlib.resources import files as package_files
 from pathlib import Path
 from typing import IO, Any
 
@@ -32,10 +37,19 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
+import yaml
 
 from sdp.adapters.archives import adql
 from sdp.kernel.application.acquisition import CHECKSUM_METADATA_KEY, batch_checksum
-from sdp.kernel.domain.archive import AcquisitionHandle, Box, CatalogueQuery, Cone, SourceDescriptor, idempotency_key
+from sdp.kernel.domain.archive import (
+    AcquisitionHandle,
+    Box,
+    CatalogueQuery,
+    ColumnDescriptor,
+    Cone,
+    SourceDescriptor,
+    idempotency_key,
+)
 from sdp.kernel.domain.errors import StorageExhausted
 from sdp.kernel.ports.storage import ArtifactStore
 
@@ -99,6 +113,59 @@ def parse_md5sum(text: str) -> list[BulkFile]:
     return sorted(files, key=lambda f: f.name)
 
 
+@dataclass(frozen=True)
+class BulkSubset:
+    """Extra columns of a parent source, kept only for the rows where ``keep_rows_with`` has a value."""
+
+    name: str
+    parent: str
+    keep_rows_with: str
+    columns: tuple[ColumnDescriptor, ...]
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if self.keep_rows_with not in {c.name for c in self.columns}:
+            raise ValueError(f"subset {self.name}: keep_rows_with {self.keep_rows_with!r} is not one of its columns")
+
+    def descriptor(self, parent: SourceDescriptor) -> SourceDescriptor:
+        """The parent's descriptor with this subset's columns after its own."""
+        if parent.source_id != self.parent:
+            raise ValueError(f"subset {self.name} extends {self.parent}, not {parent.source_id}")
+        clash = {c.name for c in self.columns} & set(parent.column_names())
+        if clash:
+            raise ValueError(f"subset {self.name}: {sorted(clash)} are already columns of {parent.source_id}")
+        return replace(parent, columns=parent.columns + self.columns)
+
+    @classmethod
+    def from_document(cls, doc: dict[str, Any]) -> BulkSubset:
+        return cls(
+            name=str(doc["name"]),
+            parent=str(doc["parent"]),
+            keep_rows_with=str(doc["keep_rows_with"]),
+            columns=tuple(
+                ColumnDescriptor(str(c["name"]), str(c["datatype"]), c.get("unit"), str(c.get("description", "")))
+                for c in doc["columns"]
+            ),
+            description=str(doc.get("description", "")),
+        )
+
+
+def load_subsets(directory: Path | None = None) -> dict[str, BulkSubset]:
+    root = Path(directory) if directory else Path(str(package_files("sdp.adapters.archives").joinpath("subsets")))
+    out: dict[str, BulkSubset] = {}
+    for path in sorted(root.glob("*.yaml")):
+        subset = BulkSubset.from_document(yaml.safe_load(path.read_text("utf-8")))
+        if subset.name in out:
+            raise ValueError(f"{path.name}: duplicate subset {subset.name}")
+        out[subset.name] = subset
+    return out
+
+
+def bulk_prefix(descriptor: SourceDescriptor, subset: BulkSubset | None = None) -> str:
+    base = f"bulk/{descriptor.source_id}/{descriptor.release_label.replace(':', '_')}"
+    return f"{base}/{subset.name}" if subset is not None else base
+
+
 def ecsv_to_table(path: Path, descriptor: SourceDescriptor, columns: Sequence[str]) -> pa.Table:
     """Read the declared columns of a gzipped ECSV file (its ``#`` header lines skipped) with their types."""
     with gzip.open(path, "rt", encoding="utf-8") as text:
@@ -135,9 +202,14 @@ class BulkSweep:
     opener: Opener = _urlopen
     attempts: int = 4
     sleep: Callable[[float], None] = time.sleep
+    #: a subset sweep: ``descriptor`` is the parent's, the subset's columns are added and rows filtered
+    subset: BulkSubset | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
+        if self.subset is not None:
+            self.descriptor = self.subset.descriptor(self.descriptor)
+            self.columns = tuple(dict.fromkeys((*self.columns, *(c.name for c in self.subset.columns))))
         unknown = set(self.columns) - set(self.descriptor.column_names())
         if unknown:
             raise ValueError(f"{self.descriptor.source_id}: columns {sorted(unknown)} are not declared")
@@ -146,7 +218,7 @@ class BulkSweep:
 
     @property
     def prefix(self) -> str:
-        return f"bulk/{self.descriptor.source_id}/{self.descriptor.release_label.replace(':', '_')}"
+        return bulk_prefix(self.descriptor, self.subset)
 
     def parquet_path(self, f: BulkFile) -> str:
         return f"{self.prefix}/{f.stem}.parquet"
@@ -175,6 +247,7 @@ class BulkSweep:
         return {
             "source": self.descriptor.source_id,
             "release": self.descriptor.release_label,
+            **({"subset": self.subset.name} if self.subset is not None else {}),
             "files": len(files),
             "done": len(done),
             "rows": rows,
@@ -238,6 +311,9 @@ class BulkSweep:
         try:
             size = self._download(f, download)
             table = ecsv_to_table(download, self.descriptor, self.columns)
+            read_rows = table.num_rows
+            if self.subset is not None:
+                table = table.filter(pc.is_valid(table.column(self.subset.keep_rows_with)))
             sink = pa.BufferOutputStream()
             pq.write_table(table, sink, compression="zstd")
             data = sink.getvalue().to_pybytes()
@@ -251,6 +327,11 @@ class BulkSweep:
                 "licence": self.descriptor.licence,
                 "citation": self.descriptor.citation,
                 "columns": list(self.columns),
+                **(
+                    {"subset": self.subset.name, "kept_rows_with": self.subset.keep_rows_with, "file_rows": read_rows}
+                    if self.subset is not None
+                    else {}
+                ),
                 "rows": table.num_rows,
                 "bounds": sky_bounds(table),
                 "parquet_bytes": len(data),
@@ -393,10 +474,16 @@ class BulkCatalogueGateway:
     ra_column: str = "ra"
     dec_column: str = "dec"
     key_column: str = "source_id"
+    #: read a subset's copy instead (DSI-021): ``descriptor`` is the parent's, and gains the subset's columns
+    subset: BulkSubset | None = None
+
+    def __post_init__(self) -> None:
+        if self.subset is not None:
+            self.descriptor = self.subset.descriptor(self.descriptor)
 
     @property
     def prefix(self) -> str:
-        return f"bulk/{self.descriptor.source_id}/{self.descriptor.release_label.replace(':', '_')}"
+        return bulk_prefix(self.descriptor, self.subset)
 
     def files(self) -> list[BulkFile]:
         listing = self.store.resolve(f"{self.prefix}/{MD5SUM}")
@@ -433,10 +520,12 @@ class BulkCatalogueGateway:
 
     def _read(self, q: CatalogueQuery) -> pa.Table:
         missing = self.missing()
+        label = f" ({self.subset.name} subset)" if self.subset is not None else ""
+        flag = f" --subset {self.subset.name}" if self.subset is not None else ""
         if not self.files() or missing:
             raise ValueError(
-                f"the bulk copy of {self.descriptor.release_label} is incomplete ({len(missing)} files missing); "
-                "finish `sdp archive bulk` first"
+                f"the bulk copy of {self.descriptor.release_label}{label} is incomplete ({len(missing)} files "
+                f"missing); finish `sdp archive bulk{flag}` first"
             )
         box = _region_box(q.region)
         needed = sorted({*q.columns, self.ra_column, self.dec_column, self.key_column, *(f.column for f in q.filters)})

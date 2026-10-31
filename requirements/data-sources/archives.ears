@@ -151,3 +151,16 @@ requirements:
       - "python/tests.archives.test_benchmarks::test_a_votable_of_another_or_an_unnamed_table_is_refused"
       - "python/tests.archives.test_benchmarks::test_a_query_a_mirror_refuses_in_its_votable_is_not_asked_elsewhere"
       - "python/tests.archives.test_benchmarks::test_a_mirror_reply_cut_off_in_its_rows_moves_on_to_the_next_mirror"
+  - id: DSI-021
+    pattern: optional
+    text: "Where a bulk subset is requested, the system shall store, beside the full copy, only the rows of each verified publisher file whose subset key column has a value, with the parent source's declared columns and the subset's declared columns, for a gateway over that subset copy to read."
+    rationale: "Oort's 1932 disc density needs radial velocities, which the full Gaia copy does not keep. Gaia DR3 gives one for about 33.8 million of its 1.8 billion stars (ESA gaia_source data model, read 2026-10-31), so keeping those rows alone costs a few GB, and the full copy's columns, and every existing reader of it, stay as they are."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_bulk_subset::test_the_rvs_subset_declares_the_radial_velocity_columns_with_the_types_esa_publishes"
+      - "python/tests.archives.test_bulk_subset::test_only_stars_with_a_radial_velocity_are_kept_beside_the_full_copy"
+      - "python/tests.archives.test_bulk_subset::test_the_rvs_gateway_reads_a_field_with_its_radial_velocities"
+      - "python/tests.archives.test_bulk_subset::test_a_subset_cannot_redeclare_a_parent_column_or_keep_rows_by_a_column_it_lacks"
+      - "python/tests.archives.test_bulk_subset::test_the_cli_builds_the_rvs_subset_and_refuses_an_unknown_one"

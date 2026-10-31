@@ -1594,12 +1594,19 @@ def archive_bulk(
     ] = None,
     base_url: Annotated[str | None, typer.Option(help="The publisher's folder, ending in /")] = None,
     status: Annotated[bool, typer.Option("--status", help="Only report how much is stored")] = False,
+    subset: Annotated[
+        str | None,
+        typer.Option(help="Build a subset copy instead: rvs keeps the stars with a radial velocity, plus its columns"),
+    ] = None,
 ) -> None:
     """Copy a whole catalogue release from the publisher's bulk files into the artifact store, one Parquet
-    per file, skipping files already stored (#72). Stop it any time; run it again to resume."""
+    per file, skipping files already stored (#72). Stop it any time; run it again to resume.
+
+    With --subset rvs it reads the same files again and keeps only the about 33.8 million stars with a
+    radial velocity, with the radial-velocity columns added (DSI-021). The full copy is left as it is."""
     import os
 
-    from sdp.adapters.archives.bulk import GAIA_DR3_BULK, BulkSweep, select_files
+    from sdp.adapters.archives.bulk import GAIA_DR3_BULK, BulkSweep, load_subsets, select_files
     from sdp.adapters.archives.tap import load_sources
     from sdp.adapters.bootstrap import artifact_store
 
@@ -1609,6 +1616,9 @@ def archive_bulk(
     if not root:
         raise DomainError("SDP_ARTIFACT_ROOT is not set: it names the artifact store the sweep fills")
     descriptor = load_sources()["gaia"].descriptor
+    subsets = load_subsets()
+    if subset is not None and subset not in subsets:
+        raise typer.BadParameter(f"unknown subset {subset!r}; known: {sorted(subsets)}", param_hint="--subset")
     sweep = BulkSweep(
         store=artifact_store(Path(root)),
         descriptor=descriptor,
@@ -1616,6 +1626,7 @@ def archive_bulk(
         columns=descriptor.column_names(),
         base_url=base_url or GAIA_DR3_BULK,
         min_free_bytes=int(os.environ.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
+        subset=subsets[subset] if subset is not None else None,
     )
     files = sweep.files()
     if status:
