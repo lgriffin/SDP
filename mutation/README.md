@@ -8,6 +8,6 @@ thresholds. A manual run with `update` pushes the raised marks to a `mutation/hi
 branch for review.
 
 Packages scored: `sdp-kernel` (domain, science and application separately), `sdp-relativity`
-(5 shards), `sdp-stellar` (3 shards), `@sdp/spec-harness`, `@sdp/relativity-fit`. A shard is a group of
+(7 shards), `sdp-stellar` (3 shards), `@sdp/spec-harness`, `@sdp/relativity-fit`. A shard is a group of
 modules mutated against the package's full test suite, and each has its own mark. Packages from the Investigate and
 integration trains join when their owners add them.
