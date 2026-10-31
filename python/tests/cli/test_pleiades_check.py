@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import csv
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 import pytest
+from typer.testing import CliRunner
+
+from sdp.cli import app as cli
 
 pytestmark = pytest.mark.tier("T4")
 TOOL = Path(__file__).resolve().parents[2] / "tools" / "check_pleiades.py"
@@ -45,13 +49,28 @@ FIELD_STAR_GROUP = pleiades(
 )  # fmt: skip
 
 
-def write(tmp_path: Path, rows: list[dict[str, Any]], fields: list[str] = FIELDS) -> Path:
+def write(tmp_path: Path, rows: list[dict[str, Any]], fields: list[str] = FIELDS, tiles: bool = True) -> Path:
     path = tmp_path / "candidates.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+    if tiles:
+        sweep_band_57(tmp_path / "tiles")
     return path
+
+
+def sweep_band_57(folder: Path, skip: int = 0) -> None:
+    """A tile file for every tile `sdp discover sweep --bands 57` searches, less the last ``skip``."""
+    spec = importlib.util.spec_from_file_location("sdp_pleiades_check_ids", TOOL)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses look their module up here
+    spec.loader.exec_module(module)
+    ids = module.expected_tiles()
+    folder.mkdir(parents=True, exist_ok=True)
+    for tile_id in ids[: len(ids) - skip]:
+        (folder / f"{tile_id}.json").write_text("{}", "utf-8")
 
 
 def run(tool: ModuleType, path: Path, *extra: str) -> int:
@@ -128,3 +147,58 @@ def test_default_path_is_the_gaia_dr3_sweep_under_sdp_data(tool: ModuleType, tmp
 def test_a_missing_csv_says_which_commands_make_it(tool: ModuleType, tmp_path: Path, capsys: Any) -> None:
     assert run(tool, tmp_path / "nothing.csv") == 1
     assert "sdp discover report" in capsys.readouterr().out
+
+
+def test_band_57_is_searched_in_every_shell(tool: ModuleType) -> None:
+    ids = tool.expected_tiles()
+    shells = {i.split("-")[0] for i in ids}
+    assert shells == {"near", "mid", "far"}
+    assert "far-b057-t000" in ids and len(ids) == len(set(ids))
+
+
+def test_a_band_stopped_half_way_fails(tool: ModuleType, tmp_path: Path, capsys: Any) -> None:
+    path = write(tmp_path, [pleiades()], tiles=False)
+    sweep_band_57(tmp_path / "tiles", skip=3)
+    assert run(tool, path) == 1
+    assert "FAIL  band swept: 3 of" in capsys.readouterr().out
+
+
+def _tile(tile_id: str, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "tile": {"tile_id": tile_id, "scale": tile_id.split("-")[0]},
+        "candidates": candidates,
+        "null_fields": 1,
+        "null_fields_with_survivors": 0,
+        "cuts": {"kept_rows": 1000},
+        "owned_stars": 900,
+        "skipped": None,
+    }
+
+
+def test_the_csv_sdp_discover_report_writes_passes(
+    tool: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
+) -> None:
+    """End to end from the report command, so the check reads the columns the sweep really writes."""
+    monkeypatch.setenv("SDP_DATA", str(tmp_path))
+    tiles = tmp_path / "sweep" / "gaia-dr3" / "tiles"
+    sweep_band_57(tiles)
+    found = {
+        "candidate_id": "near-b009-t002-c000",
+        "status": "known",
+        "mean_membership": 0.9,
+        "cmd_coherence": 9.1,
+        "stability": 1.0,
+        "n_members": 640,
+        "significance_sigma": 24.0,
+        "centre": {"ra_deg": 56.7, "dec_deg": 24.1, "pm_ra_cosdec_masyr": 19.9, "pm_dec_masyr": -45.4,
+                   "parallax_mas": 7.35},
+        "crossmatch": [{"benchmark": "hr23", "matches": [{"name": "Melotte_22"}]}],
+        "reasons": [],
+    }  # fmt: skip
+    for path in tiles.glob("*.json"):
+        path.write_text(json.dumps(_tile(path.stem, [found] if path.stem == "near-b009-t002" else [])), "utf-8")
+    result = CliRunner().invoke(cli.app, ["discover", "report"])
+    assert result.exit_code == 0, result.output
+    assert tool.main([], env={"SDP_DATA": str(tmp_path)}) == 0
+    out = capsys.readouterr().out
+    assert "FAIL" not in out and "24.0 sigma" in out and "Melotte_22" in out

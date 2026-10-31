@@ -2,9 +2,9 @@
 
     sdp discover sweep --bands 57
     sdp discover report
-    python tools\\check_pleiades.py                         # reads <SDP data>\\sweep\\gaia-dr3\\candidates.csv
-    python tools\\check_pleiades.py --without-benchmarks    # the sweep ran with --without-benchmarks
-    python tools\\check_pleiades.py --csv PATH              # another sweep's candidates.csv
+    uv run python tools\\check_pleiades.py                       # reads <SDP data>\\sweep\\gaia-dr3\\candidates.csv
+    uv run python tools\\check_pleiades.py --without-benchmarks  # the sweep ran with --without-benchmarks
+    uv run python tools\\check_pleiades.py --csv PATH            # another sweep's candidates.csv
 
 Band 57 (Dec +24 to +26 degrees) holds the Pleiades, the nearest rich open cluster and one every known-cluster
 catalogue lists. A sweep whose settings work must report it exactly once: not missing, not cut into pieces by
@@ -15,7 +15,9 @@ A Pleiades row is any candidate within 3 degrees of the cluster's centre whose m
 match the cluster's: parallax 7.36 mas and proper motion (+20.0, -45.5) mas/yr (Gaia DR3 values, to within
 the windows below, which are wide enough for a sweep's mean over its own members).
 
-Needs only Python's standard library, so it runs before or without ``uv sync``.
+It first checks that every tile of band 57 is in the sweep's ``tiles`` folder, in every distance shell, so a
+band stopped half way (or with failed tiles) cannot pass on the tiles it did finish. The expected tiles come
+from ``sdp_stellar.sweep``, so run it with ``uv run`` from the ``python`` folder of a checkout.
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ PARALLAX_WINDOW_MAS = 1.0
 PM_WINDOW_MASYR = 6.0
 MIN_SIGMA = 3.0  # the sweep's own rejection threshold (sweep.json significance)
 MIN_MEMBERS = 50  # far below the hundreds of Pleiades stars with G < 18; a fragment of a few dozen fails
+BAND_DEC_DEG = (24.0, 26.0)  # band 57 of the prepared 2-degree bands
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,32 @@ def check(rows: Sequence[Mapping[str, str]], fieldnames: Sequence[str], *, with_
     return checks
 
 
+def expected_tiles(dec_lo: float = BAND_DEC_DEG[0], dec_hi: float = BAND_DEC_DEG[1]) -> list[str]:
+    """Every tile id `sdp discover sweep` searches for declinations [dec_lo, dec_hi), in every shell."""
+    from sdp_stellar.sweep import bands, load_settings, scales, tile, tiles_in_band
+
+    out = []
+    for scale in scales(load_settings()):
+        for band in range(bands(scale.tile_deg)):
+            lo = -90.0 + band * scale.tile_deg
+            if lo < dec_hi and lo + scale.tile_deg > dec_lo:
+                n = tiles_in_band(band, scale.tile_deg)
+                out += [tile(band, i, scale.tile_deg, scale.name).tile_id for i in range(n)]
+    return out
+
+
+def tiles_check(folder: Path, expected: Sequence[str]) -> Check:
+    missing = [t for t in expected if not (folder / f"{t}.json").is_file()]
+    if not missing:
+        return Check("band swept", True, f"all {len(expected)} tiles in {folder}")
+    shown = ", ".join(missing[:5]) + (", ..." if len(missing) > 5 else "")
+    return Check(
+        "band swept",
+        False,
+        f"{len(missing)} of {len(expected)} tiles missing ({shown}): run `sdp discover sweep --bands 57` again",
+    )
+
+
 def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--csv", type=Path, help="candidates.csv to read (default: the gaia-dr3 sweep's)")
@@ -147,7 +176,13 @@ def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None
         reader = csv.DictReader(handle)
         rows = list(reader)
         fieldnames = list(reader.fieldnames or [])
-    checks = check(rows, fieldnames, with_benchmarks=not args.without_benchmarks)
+    try:
+        expected = expected_tiles()
+    except ImportError:
+        print("FAIL  SDP's Python packages are not importable: run this with `uv run` from the python folder")
+        return 1
+    checks = [tiles_check(path.parent / "tiles", expected)]
+    checks += check(rows, fieldnames, with_benchmarks=not args.without_benchmarks)
     print(f"Pleiades check on {path} ({len(rows)} candidates)")
     for c in checks:
         print(f"{'PASS' if c.passed else 'FAIL'}  {c.name}: {c.detail}")
