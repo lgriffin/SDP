@@ -158,3 +158,96 @@ def einstein1921_run(
     (out / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=_jsonable), "utf-8")
     (out / "report.md").write_text(markdown(report), "utf-8")
     _say(f"Verdict {report['verdict']['status']}. Wrote {out / 'report.json'} and {out / 'report.md'}.")
+
+
+def corrections_markdown(report: dict[str, Any]) -> str:
+    """A short human summary of the UC-03b report."""
+    b = report["baseline"]
+    p = b["corrected"]
+    band = b["bootstrap"]["percentiles"].get("mass_to_light_v", {})
+    r = report["reading"]
+    pub = report["published"]
+    cmp_ = report["comparison"]
+    lines = [
+        "# UC-03b: corrections to the Einstein (1921) rerun (exploratory)",
+        "",
+        "Written after the first UC-03 run and before these corrections were run. UC-03's own verdict is unchanged.",
+        "",
+        f"Choices SHA-256 `{report['committed_choices_sha256']}`, match committed: {report['choices_match_committed']}.",
+        "",
+        "## Corrected baseline",
+        "",
+        f"- Distance {p['distance_pc']:,.0f} pc (published; Gaia's parallax alone gives"
+        f" {b['fit']['parallax_distance_pc']:,.0f} pc)"
+        if b["fit"]["parallax_distance_pc"]
+        else f"- Distance {p['distance_pc']:,.0f} pc (published)",
+        f"- Plummer a {p['a_pc']:.2f} pc (2a = {p['two_a_ly']:.1f} ly); central dispersion {p['sigma0_kms']:.2f} km/s;"
+        f" rms speed {p['v_rms_kms']:.2f} km/s against Einstein's 26",
+        f"- Dynamical mass {p['mass_solar']:,.0f} M_sun (published {cmp_['mass_solar']['baumgardt_mass_solar']:,.0f})",
+        f"- Published total V light {p['light_v_solar']:,.0f} L_sun; M/L_V {p['mass_to_light_v']:.2f}"
+        + (f" (bootstrap 16-84%: {band['p16']:.2f} to {band['p84']:.2f})" if band else ""),
+        f"- For comparison, Gaia's light in G brighter than the limit gives M/L_G {p['mass_to_light_g']:.2f}",
+        f"- Light and distance: {pub['light']['source']}; {pub['distance']['source']}",
+        "",
+        "## Crowding check (error scale and distance at baseline)",
+        "",
+        "| r_in | G limit | stars | a (pc) | sigma0 (km/s) | mass (M_sun) | M/L_V |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for row in report["crowding"]:
+        if row["a_pc"] is None:
+            lines.append(f"| {row['r_in_arcmin']:g}' | {row['g_max']:g} | {row['stars'] or '-'} | failed | | | |")
+        else:
+            lines.append(
+                f"| {row['r_in_arcmin']:g}' | {row['g_max']:g} | {row['stars']:,} | {row['a_pc']:.2f}"
+                f" | {row['sigma0_kms']:.2f} | {row['mass_solar']:,.0f} | {row['mass_to_light_v']:.2f} |"
+            )
+    lines += [
+        "",
+        "## Reading (exploratory)",
+        "",
+        *(
+            ["A quick look (fewer resamples): this is not the protocol's reading.", ""]
+            if report.get("quick_look")
+            else []
+        ),
+        f"**{r['status']}** at threshold {r['threshold']}: {len(r['scenarios_below'])} corrections below,"
+        f" {len(r['scenarios_at_or_above'])} at or above, {len(r['scenarios_failed'])} failed.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+@einstein1921_app.command("corrections")
+def einstein1921_corrections(
+    out: Annotated[Path, typer.Option(help="Folder for corrections.json and corrections.md")] = Path("reports/uc03"),
+    parquet: Annotated[
+        Path | None, typer.Option(help="A Parquet cone with native gaia_source columns instead of the bulk copy")
+    ] = None,
+    resamples: Annotated[
+        int | None, typer.Option(min=0, help="Bootstrap resamples (declared 100); fewer for a quick look")
+    ] = None,
+) -> None:
+    """Run UC-03b, the exploratory corrections: published distance and light, and the crowding checks.
+
+    Reads the same M13 cone as `run`. Expect it to take a little longer than `run` (27 fits and the
+    bootstrap). It does not change UC-03's verdict.
+    """
+    from sdp_relativity.einstein1921_corrections import run
+
+    if parquet is not None:
+        import pyarrow.parquet as pq
+
+        table = pq.read_table(parquet)
+        columns = {name: table.column(name).to_numpy(zero_copy_only=False) for name in table.column_names}
+        _say(f"Read {table.num_rows:,} stars from {parquet}.")
+    else:
+        _say("Reading the M13 cone from the bulk Gaia copy...")
+        columns = read_bulk_cone()
+        _say(f"Read {len(columns['ra']):,} stars.")
+    _say("Fitting the corrected baseline, the bootstrap and the 27 crowding fits...")
+    report = run(columns, resamples=resamples)
+    report["quick_look"] = resamples is not None and resamples < 100
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "corrections.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=_jsonable), "utf-8")
+    (out / "corrections.md").write_text(corrections_markdown(report), "utf-8")
+    _say(f"Reading {report['reading']['status']}. Wrote {out / 'corrections.json'} and {out / 'corrections.md'}.")

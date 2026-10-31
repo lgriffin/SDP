@@ -116,6 +116,6 @@ O'Raifeartaigh et al. (2017, arXiv 1701.07261, §4(v)) and O'Raifeartaigh et al.
 | Predeclared choices | `sdp_relativity/einstein1921.json` |
 | Synthetic Plummer clusters | `sdp_relativity.einstein1921.synthetic_cluster` |
 | Command | `sdp einstein1921 arithmetic`, `sdp einstein1921 run` |
-| Requirements | `requirements/relativity/einstein-1921.ears` (REL-011 to REL-015) |
+| Requirements | `requirements/relativity/einstein-1921.ears` (REL-011 to REL-016) |
 
 This first version runs as a command that writes a report (JSON and Markdown) with the SHA-256 of the predeclared choices. Freezing it in the ledger through the kernel's predeclaration and experiment ports, as UC-01 and UC-02 do, is follow-up work.

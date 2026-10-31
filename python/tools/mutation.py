@@ -73,7 +73,7 @@ RELATIVITY_SHARDS = (
     ("observations", "synthetic", "geometry"),
     ("models", "measurement", "transcription", "oracles"),
     ("paper1920",),
-    ("einstein1921",),
+    ("einstein1921", "einstein1921_corrections"),
 )
 #: On v0.4.0 the analysis shard still reached only 557 of its 740 mutants in 300 minutes, 388 of them
 #: timeouts at about two minutes each and none surviving. A hang is stopped at 2x its tests' measured time
