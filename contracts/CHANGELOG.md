@@ -2,6 +2,10 @@
 
 Schemas are versioned with semver. The `$id` carries the major version (`.../schemas/v1/<name>.schema.json`) and `x-version` carries the full version; every manifest carries `schema_version`. The harness reads the current major and the previous one (CTR-004). A breaking change needs an ADR and a migration note here.
 
+## 1.6.0 (2026-10-31) — infrared magnitudes in canonical astrometry
+
+- `canonical-astrometry` 1.1.0: optional `j_mag`, `h_mag` and `k_mag` (mag), the 2MASS J, H and Ks magnitudes, which the 2MASS dialect 1.1.0 now maps. `photometric-corroboration` reads them; before this the dialect kept them only in `quality_flags` and the test examined no star (#141, DSI-020). Additive: rows without them stay valid. Curated Parquet carries the three columns, null for Gaia and Pan-STARRS.
+
 ## 1.5.0 (2026-10-29) — per-product cutouts
 
 - `scientific-data-product` 1.2.0: optional `metadata.cutout` records how this product can be cut (`soda` with its `service_url`, `range` for a byte-range read of its own URL, or `none`) and the evidence it was read from, and `#cutout` joins the relationship semantics so a cutout names the product it was cut from (INT-004). Additive; envelopes without it stay valid.

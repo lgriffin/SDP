@@ -37,6 +37,9 @@
    "astrometric_corr": null,
    "g_mag": null,
    "bp_rp": null,
+   "j_mag": 12.5,
+   "h_mag": 12.0,
+   "k_mag": 11.75,
    "ruwe": null,
    "quality_flags": {
     "h_m": 12.0,
@@ -62,6 +65,9 @@
    "astrometric_corr": null,
    "g_mag": null,
    "bp_rp": null,
+   "j_mag": 12.5,
+   "h_mag": 12.0,
+   "k_mag": 11.75,
    "ruwe": null,
    "quality_flags": {
     "h_m": 12.0,

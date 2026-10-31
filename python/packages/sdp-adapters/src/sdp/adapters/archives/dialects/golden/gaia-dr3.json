@@ -115,6 +115,9 @@
    ],
    "g_mag": 15.5,
    "bp_rp": 0.75,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
    "ruwe": 1.02,
    "quality_flags": {
     "astrometric_params_solved": 31,
@@ -139,6 +142,9 @@
    "astrometric_corr": null,
    "g_mag": 20.25,
    "bp_rp": null,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
    "ruwe": null,
    "quality_flags": {
     "astrometric_params_solved": 3,
@@ -174,6 +180,9 @@
    ],
    "g_mag": 15.5,
    "bp_rp": 0.75,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
    "ruwe": 1.7,
    "quality_flags": {
     "astrometric_params_solved": 31,

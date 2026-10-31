@@ -37,6 +37,9 @@
    "astrometric_corr": null,
    "g_mag": null,
    "bp_rp": null,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
    "ruwe": null,
    "quality_flags": {
     "gMeanPSFMag": 18.5,
@@ -62,6 +65,9 @@
    "astrometric_corr": null,
    "g_mag": null,
    "bp_rp": null,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
    "ruwe": null,
    "quality_flags": {
     "gMeanPSFMag": null,
