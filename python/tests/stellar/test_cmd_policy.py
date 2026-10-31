@@ -129,4 +129,63 @@ def test_a_cluster_that_dominates_its_distance_is_compared_with_its_nearest_fiel
     # no non-member lies inside the members' range, so the four nearest usable ones stand in
     assert field_at_distance(members, usable, parallax, 2.015).tolist() == [4, 6, 7]
     wide = np.array([2.0, 2.4, 2.1, 2.3, 2.2, 2.25, 2.15, 9.0])
-    assert field_at_distance(np.arange(2), usable, wide, 2.2).tolist() == [2, 3, 4, 6]
+    # four inside the range are fewer than MIN_FIELD_AT_DISTANCE, so the nearest usable ones stand in
+    assert field_at_distance(np.arange(2), usable, wide, 2.2).tolist() == [2, 3, 4, 6, 7]
+
+
+def test_a_small_cluster_in_a_sparse_field_is_compared_with_enough_of_its_nearest_field_stars() -> None:
+    members = np.arange(12)
+    parallax = np.concatenate([np.full(12, 2.0) + np.linspace(-0.01, 0.01, 12), [2.005] * 3, 2.5 + np.arange(30) * 0.1])
+    usable = np.ones(parallax.size, dtype=bool)
+    field = field_at_distance(members, usable, parallax, 2.0)
+    # three field stars lie in the members' range; the nearest 13 beyond them make up MIN_FIELD_AT_DISTANCE
+    assert field.size == MIN_FIELD_AT_DISTANCE
+    assert field.tolist() == list(range(12, 12 + MIN_FIELD_AT_DISTANCE))
+
+
+def test_a_star_clipped_from_the_sequence_is_not_readmitted_by_a_later_fit(monkeypatch: pytest.MonkeyPatch) -> None:
+    rng = np.random.default_rng(9)
+    colour = np.linspace(0.5, 2.0, 40)
+    mag = 2.0 + 3.0 * colour + rng.normal(0, 0.05, colour.size)
+    mag[[5, 20, 33]] += 1.5  # three outliers the first pass removes
+    from sdp_stellar import cmd
+
+    calls: list[np.ndarray] = []
+    real = cmd._scatter
+
+    def spy(c: np.ndarray, m: np.ndarray) -> float:
+        calls.append(c)
+        return real(c, m)
+
+    monkeypatch.setattr(cmd, "_scatter", spy)
+    cmd._clipped_scatter(colour, mag)
+    final = calls[-1]
+    assert not np.isin(colour[[5, 20, 33]], final).any()
+
+
+def test_an_unknown_cmd_policy_is_refused_even_when_the_search_finds_nothing() -> None:
+    p = population(6)
+    empty = [{"labels": np.full(p["g"].size, -1), "probabilities": np.zeros(p["g"].size), "n_clusters": 0}]
+    with pytest.raises(ValueError, match="unknown cmd_policy"):
+        analysis._assess("r", _table(p), empty, [], {"cmd_policy": "isochrone"}, 6)
+    c = Candidate("r-c000", np.array([], dtype=np.int64), np.array([]), 0.0, 0)
+    with pytest.raises(ValueError, match="unknown cmd_policy"):
+        analysis._coherence(c, _table(p), p["colour"], p["g"], {"cmd_policy": "isochrone"}, 6)
+
+
+def test_a_sweep_tile_with_an_unknown_cmd_policy_is_refused_before_it_is_skipped() -> None:
+    t = sweep.tile(57, 0, 2.0)
+    with pytest.raises(ValueError, match="unknown cmd_policy"):
+        sweep.sweep_tile(_table(population(7)).slice(0, 0), t, {"cmd_policy": "isochrone"}, {}, [], 1)
+
+
+def test_the_tile_columns_read_once_give_the_same_coherence_as_reading_them_per_candidate() -> None:
+    p = population(8)
+    table = _table(p)
+    c = Candidate("r-c000", p["members"], np.ones(p["members"].size), 1.0, int(p["members"].size))
+    settings = {"cmd_policy": "cluster-distance"}
+    mag = absolute_g(p["g"], p["parallax"])
+    shared = {"g": p["g"], "parallax": p["parallax"], "parallax_err": p["parallax_err"]}
+    shared["usable"] = np.isfinite(p["colour"]) & np.isfinite(p["g"]) & np.isfinite(p["parallax"])
+    once = analysis._coherence(c, table, p["colour"], mag, settings, 8, shared)
+    assert once == analysis._coherence(c, table, p["colour"], mag, settings, 8) == at_distance(p, p["members"], 8)

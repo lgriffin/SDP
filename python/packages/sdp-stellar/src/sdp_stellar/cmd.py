@@ -62,7 +62,8 @@ def _clipped_scatter(colour: np.ndarray, mag: np.ndarray) -> float:
         coeffs = np.polyfit(colour[keep], mag[keep], 2)
         resid = mag - np.polyval(coeffs, colour)
         sigma = 1.4826 * float(np.median(np.abs(resid[keep] - np.median(resid[keep]))))
-        new = np.abs(resid - np.median(resid[keep])) <= CLIP * max(sigma, 1e-6)
+        # a star clipped once stays clipped, so a later fit cannot readmit it
+        new = keep & (np.abs(resid - np.median(resid[keep])) <= CLIP * max(sigma, 1e-6))
         if new.sum() < MIN_WITH_COLOUR or np.array_equal(new, keep):
             break
         keep = new
@@ -82,16 +83,29 @@ def cluster_parallax(members: np.ndarray, parallax: np.ndarray, parallax_err: np
 
 def field_at_distance(members: np.ndarray, usable: np.ndarray, parallax: np.ndarray, cluster_plx: float) -> np.ndarray:
     """Non-members with a colour whose parallax lies inside the members' central 90% range; when that
-    holds fewer stars than the cluster has members, the non-members nearest the cluster's parallax up
-    to that count, so a cluster that dominates its own distance is still compared with its nearest
-    field. Row indices, sorted."""
+    holds fewer stars than the cluster has members (or than MIN_FIELD_AT_DISTANCE), the non-members
+    nearest the cluster's parallax up to the larger of those counts, so a cluster that dominates its
+    own distance is still compared with its nearest field. Row indices, sorted."""
+    want = max(members.size, MIN_FIELD_AT_DISTANCE)
     lo, hi = np.quantile(parallax[members], [0.05, 0.95])
     others = np.setdiff1d(np.nonzero(usable)[0], members)
     inside = others[(parallax[others] >= lo) & (parallax[others] <= hi)]
-    if inside.size >= members.size:
+    if inside.size >= want or inside.size >= others.size:
         return np.asarray(inside, dtype=np.int64)
-    nearest = others[np.argsort(np.abs(parallax[others] - cluster_plx), kind="stable")[: members.size]]
-    return np.sort(nearest)
+    distance = np.abs(parallax[others] - cluster_plx)
+    if others.size > want:
+        # the nearest ``want`` without sorting the whole field; ties broken by row for a stable choice
+        cut = np.partition(distance, want - 1)[want - 1]
+        closer, tied = np.nonzero(distance < cut)[0], np.nonzero(distance == cut)[0]
+        chosen = np.concatenate([closer, tied[: want - closer.size]])
+    else:
+        chosen = np.arange(others.size)
+    return np.asarray(np.sort(others[chosen]), dtype=np.int64)
+
+
+def usable_rows(colour: np.ndarray, g: np.ndarray, parallax: np.ndarray) -> np.ndarray:
+    """Rows with a finite colour, G and parallax: the stars the cluster-distance policy can place."""
+    return np.asarray(np.isfinite(colour) & np.isfinite(g) & np.isfinite(parallax), dtype=bool)
 
 
 def coherence_at_distance(
@@ -102,25 +116,28 @@ def coherence_at_distance(
     parallax_err: np.ndarray,
     seed: int,
     draws: int = 50,
+    usable: np.ndarray | None = None,
 ) -> float | None:
     """The ``cluster-distance`` coherence; None when it cannot be assessed (too few members with a
-    colour, or too few field stars at the cluster's distance), which is inconclusive, not failed."""
-    ok = np.isfinite(colour) & np.isfinite(g) & np.isfinite(parallax)
+    colour, or too few field stars at the cluster's distance), which is inconclusive, not failed.
+    ``usable`` (finite colour, G and parallax) may be passed in when several candidates share a tile."""
+    ok = usable_rows(colour, g, parallax) if usable is None else usable
     m = members[ok[members]]
     if m.size < MIN_WITH_COLOUR:
         return None
     plx = cluster_parallax(m, parallax, parallax_err)
     if plx is None:
         return None
-    mag = absolute_g(g, np.full(g.shape, plx))
     field = field_at_distance(m, ok, parallax, plx)
     if field.size < MIN_FIELD_AT_DISTANCE:
         return None
+    modulus = 5 * np.log10(plx / 100.0)
     # a scatter is a width, not a sum, so a smaller draw estimates the same width with more noise
     size = min(m.size, field.size)
-    member_scatter = max(_clipped_scatter(colour[m], mag[m]), 1e-6)
+    member_scatter = max(_clipped_scatter(colour[m], g[m] + modulus), 1e-6)
     rng = np.random.default_rng(seed)
     field_scatter = [
-        _clipped_scatter(colour[s], mag[s]) for s in (rng.choice(field, size, replace=False) for _ in range(draws))
+        _clipped_scatter(colour[s], g[s] + modulus)
+        for s in (rng.choice(field, size, replace=False) for _ in range(draws))
     ]
     return float(np.median(field_scatter) / member_scatter)

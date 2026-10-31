@@ -120,3 +120,8 @@ requirements:
       - "python/tests.stellar.test_cmd_policy::test_a_cluster_that_dominates_its_distance_is_compared_with_its_nearest_field_stars"
       - "python/tests.stellar.test_cmd_policy::test_the_predeclared_run_keeps_member_parallax_and_the_sweep_uses_the_cluster_distance"
       - "python/tests.stellar.test_cmd_policy::test_an_unknown_cmd_policy_is_refused"
+      - "python/tests.stellar.test_cmd_policy::test_a_small_cluster_in_a_sparse_field_is_compared_with_enough_of_its_nearest_field_stars"
+      - "python/tests.stellar.test_cmd_policy::test_a_star_clipped_from_the_sequence_is_not_readmitted_by_a_later_fit"
+      - "python/tests.stellar.test_cmd_policy::test_an_unknown_cmd_policy_is_refused_even_when_the_search_finds_nothing"
+      - "python/tests.stellar.test_cmd_policy::test_a_sweep_tile_with_an_unknown_cmd_policy_is_refused_before_it_is_skipped"
+      - "python/tests.stellar.test_cmd_policy::test_the_tile_columns_read_once_give_the_same_coherence_as_reading_them_per_candidate"

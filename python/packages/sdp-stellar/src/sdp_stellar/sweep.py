@@ -178,6 +178,7 @@ def sweep_tile(
 
     ``table`` is canonical astrometry for the tile and its rim; benchmarks missing columns are left
     out, so with fewer than two usable ones nothing is called potentially new (STL-005)."""
+    analysis.cmd_policy(settings)  # an unknown policy is refused even for a tile that is skipped
     usable = [b for b in benchmarks if not b.missing_columns()]
     s = tile_seed(t.tile_id, seed)
     kept, cuts = QualityCuts.from_parameters(settings["quality_cuts"]).apply(table)

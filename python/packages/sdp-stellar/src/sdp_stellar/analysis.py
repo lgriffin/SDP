@@ -21,7 +21,7 @@ from sdp.kernel.science.plan import TaskContext
 from sdp_stellar import benchmark as bm
 from sdp_stellar import dossier, ranking
 from sdp_stellar.cmd import POLICIES as CMD_POLICIES
-from sdp_stellar.cmd import absolute_g, coherence, coherence_at_distance
+from sdp_stellar.cmd import absolute_g, coherence, coherence_at_distance, usable_rows
 from sdp_stellar.features import FeatureMatrix, apply_policy
 from sdp_stellar.inject import inject, recovery
 from sdp_stellar.membership import Candidate, estimate
@@ -132,11 +132,17 @@ def _assess(
     params: Mapping[str, Any],
     seed: int,
 ) -> list[dict[str, Any]]:
+    policy = cmd_policy(params)  # refused before any candidate, even when the search finds none
     colour = column(table, "bp_rp")
-    mag = absolute_g(column(table, "g_mag"), column(table, "parallax_mas"))
+    g, plx = column(table, "g_mag"), column(table, "parallax_mas")
+    mag = absolute_g(g, plx)
+    shared = None
+    if policy == "cluster-distance":
+        shared = {"g": g, "parallax": plx, "parallax_err": column(table, "parallax_mas_err")}
+        shared["usable"] = usable_rows(colour, g, plx)
     out: list[dict[str, Any]] = []
     for c in estimate(region, labellings):
-        out.append(_classify(c, table, colour, mag, benchmarks, params, seed))
+        out.append(_classify(c, table, colour, mag, benchmarks, params, seed, columns=shared))
     return out
 
 
@@ -148,10 +154,11 @@ def _classify(
     benchmarks: Sequence[bm.Benchmark],
     params: Mapping[str, Any],
     seed: int,
+    columns: Mapping[str, np.ndarray] | None = None,
 ) -> dict[str, Any]:
     checks = CandidateChecks.from_parameters(params["candidate_checks"])
     reasons: list[str] = []
-    coh = _coherence(c, table, colour, mag, params, seed)
+    coh = _coherence(c, table, colour, mag, params, seed, columns)
     centre = bm.centre(table, c.members) if c.members.size else None
     if c.stability < checks.min_stability:
         reasons.append(f"unstable across the grid: stability {c.stability:.2f} < {checks.min_stability}")
@@ -219,19 +226,32 @@ def cmd_policy(params: Mapping[str, Any]) -> str:
 
 
 def _coherence(
-    c: Candidate, table: pa.Table, colour: np.ndarray, mag: np.ndarray, params: Mapping[str, Any], seed: int
+    c: Candidate,
+    table: pa.Table,
+    colour: np.ndarray,
+    mag: np.ndarray,
+    params: Mapping[str, Any],
+    seed: int,
+    columns: Mapping[str, np.ndarray] | None = None,
 ) -> float | None:
+    """``columns`` carries the tile's g, parallax, parallax_err and usable rows, read once by _assess."""
+    policy = cmd_policy(params)
     if not c.members.size:
         return None
-    if cmd_policy(params) == "member-parallax":
+    if policy == "member-parallax":
         return coherence(c.members, colour, mag, seed)
+    if columns is None:
+        g, plx = column(table, "g_mag"), column(table, "parallax_mas")
+        columns = {"g": g, "parallax": plx, "parallax_err": column(table, "parallax_mas_err")}
+        columns = {**columns, "usable": usable_rows(colour, g, plx)}
     return coherence_at_distance(
         c.members,
         colour,
-        column(table, "g_mag"),
-        column(table, "parallax_mas"),
-        column(table, "parallax_mas_err"),
+        columns["g"],
+        columns["parallax"],
+        columns["parallax_err"],
         seed,
+        usable=columns["usable"],
     )
 
 
