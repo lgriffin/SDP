@@ -40,7 +40,7 @@ archives:
     role: observations
     release_label: mast:caom
     columns: []
-    match_radius_arcsec: 180.0         # mosaics whose centre lies within 3 arcmin of the field; the probe drops those that miss it
+    match_radius_arcsec: 120.0         # mosaics whose centre lies within 2 arcmin of the field edge; the probe drops those that miss it
     missions: [JWST, HST]              # JWST first: when the budget runs short, Hubble's filters give way
     product_types: [image]
     min_calibration_level: 3           # combined mosaics only (level 3), not every single exposure (level 2)

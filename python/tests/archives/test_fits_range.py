@@ -13,9 +13,10 @@ import pytest
 from astropy.io import fits
 from astropy.wcs import WCS
 
+from sdp.adapters.archives import fits_range
 from sdp.adapters.archives.fits_range import RangeUnsupported, range_cutout, range_cutout_cost, range_status
 from sdp.adapters.archives.mast import MastObservationGateway, file_name, obs_id_of
-from sdp.adapters.archives.transport import HttpRequest, HttpResponse
+from sdp.adapters.archives.transport import HttpRequest, HttpResponse, TransportError
 from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.integration import CutoutMethod, CutoutSupport, cutout_support
 from sdp.kernel.domain.investigation import ProductRef
@@ -165,3 +166,22 @@ def test_the_mast_gateway_costs_a_cutout_before_cutting_it() -> None:
     assert cost.read_bytes == host.sent - probed and cost.coverage == pytest.approx(1.0)
     with pytest.raises(ValueError, match="not a MAST one"):
         gateway.cutout_cost(ProductRef("dasch", "x", URL), *JWST_CENTRE, 4.0)
+
+
+@pytest.mark.req("INT-025")
+def test_a_failed_header_probe_or_a_broken_header_refuses_that_product_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    @dataclass
+    class Down:
+        def send(self, request: HttpRequest) -> HttpResponse:
+            raise TransportError("timed out")
+
+    with pytest.raises(RangeUnsupported, match=r"header probe .* failed: timed out"):
+        range_cutout_cost(Down(), URL, *JWST_CENTRE, 4.0)
+
+    def no_naxis(*_: object) -> None:
+        raise KeyError("NAXIS1")
+
+    # A missing keyword is a broken product, not a cutout that misses the image (a LookupError).
+    monkeypatch.setattr(fits_range, "_window", no_naxis)
+    with pytest.raises(RangeUnsupported, match="without 'NAXIS1'"):
+        range_cutout_cost(RangeHost(jwst_i2d()), URL, *JWST_CENTRE, 4.0)

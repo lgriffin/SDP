@@ -405,6 +405,8 @@ def test_jwst_lists_one_product_per_science_file_and_drops_auxiliary_files() -> 
         ("jw02739-o002_t001_miri_f1130w_i2d.fits", "F1130W", False),
         ("jw01074-o104_t002_nircam_clear-f200w-sub160_i2d.fits", "F200W", False),
         ("jw02739001001_02101_00004_nrcb3_i2d.fits", None, True),
+        ("jw01345-o001_t021_nircam_clear-f150w2_i2d.fits", "F150W2", False),
+        ("jw01345-o001_t021_nircam_f322w2-f323n_i2d.fits", "F322W2-F323N", False),
         ("hst_13926_05_wfc3_uvis_f657n_ick905_drc.fits", "F657N", False),
         ("hst_13926_05_wfc3_uvis_f657n_ick905k5_drc.fits", "F657N", True),
         ("hst_skycell-p1033x08y12_acs_wfc_f775w_all_drc.fits", "F775W", False),

@@ -187,10 +187,11 @@ def effective_budget(deployment: AcquisitionBudget, profile: TestProfile) -> Acq
 
 
 def nominal_bytes(budget: AcquisitionBudget, profile: TestProfile) -> int:
-    """What the planner may fill: the cap less the profile's reserve, or the whole cap without one."""
+    """What the planner may fill: the effective cap less the profile's reserve, or the whole cap without
+    one. The reserve applies to the cap that binds, so a tighter deployment keeps it too."""
     if profile.budget is None:
         return budget.max_bytes
-    return min(budget.max_bytes, profile.budget.nominal_bytes)
+    return math.floor(budget.max_bytes * (1 - profile.budget.reserve_fraction))
 
 
 def cutout_bytes(side_arcsec: float) -> int:
@@ -336,7 +337,10 @@ class PlanInvestigationUseCase:
                     )
                 )
         product_needs = [r for r in requirements if r.needs_bytes]
-        for selection in profile.archives:
+        # Catalogue queries first, so a selection knows every query it shares the budget with.
+        catalogues_first = sorted(profile.archives, key=lambda a: a.role is not ArchiveRole.CATALOGUE)
+        committed: dict[tuple[str, Operation, str], int] = {}
+        for selection in catalogues_first:
             if selection.role is ArchiveRole.CATALOGUE:
                 query = catalogue_query(field_, selection)
                 for need in catalogue_needs:
@@ -382,10 +386,27 @@ class PlanInvestigationUseCase:
             records = [r for r in index.records if needs_of(r)]
             priced: dict[str, int] = {}
             if selection.select is not None:
+                # A listing cut at the gateway's row limit would hide products from the selection
+                # without a record of them, so it is refused rather than planned as complete.
+                limit = getattr(gateway, "max_records", None)
+                if isinstance(limit, int) and len(index.records) >= limit:
+                    raise IntegrationRefused(
+                        f"{selection.source_id} listed {len(index.records)} products, its limit of {limit}; "
+                        "narrow the field or the match radius so the selection sees every product (INT-025)"
+                    )
                 # Products share what the catalogue queries leave of the nominal budget.
-                spent = sum({(c.source_id, c.operation, c.target): c.expected_bytes for c in out}.values())
+                # Products share what the catalogue queries and earlier selections leave; products of
+                # an archive that does not select are not counted, since nothing says which survive.
+                for c in out:
+                    if c.operation not in (Operation.CUTOUT, Operation.DOWNLOAD):
+                        committed.setdefault((c.source_id, c.operation, c.target), c.expected_bytes)
+                spent = sum(committed.values())
                 priced, dropped, probes = self._select(selection, gateway, records, (ra, dec, side), nominal, spent)
                 records = [r for r in records if r.product.product_id in priced]
+                for pid, size in priced.items():
+                    committed[
+                        (selection.source_id, Operation.CUTOUT if side is not None else Operation.DOWNLOAD, pid)
+                    ] = size
                 excluded.extend(dropped)
                 selections[selection.source_id] = {
                     "policy": selection.select.to_document(),
@@ -467,7 +488,7 @@ class PlanInvestigationUseCase:
             except LookupError as exc:
                 probes.append({"target": option.target, "refused": str(exc)})
                 return f"the cutout misses the image: {exc}"
-            except ValueError as exc:  # RangeUnsupported and other refusals to cut
+            except ValueError as exc:  # RangeUnsupported, a failed probe, and other refusals to cut
                 probes.append({"target": option.target, "refused": str(exc)})
                 return f"the product cannot be cut: {exc}"
             probes.append(

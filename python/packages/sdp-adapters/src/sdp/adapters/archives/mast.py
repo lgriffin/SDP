@@ -82,8 +82,8 @@ def obs_id_of(product_id: str) -> str:
     return product_id.partition("/")[0]
 
 
-#: A filter in a MAST file name: F200W, F444W-F470N, F1130W, F850LP, F657N.
-_FILTER = re.compile(r"^f\d{3,4}[a-z]{0,2}$")
+#: A filter in a MAST file name: F200W, F444W-F470N, F1130W, F850LP, F657N, F322W2.
+_FILTER = re.compile(r"^f\d{3,4}[a-z]{0,2}\d?$")
 #: An HST rootname: ``ipppss`` names a visit's mosaic, ``ipppssoo`` one exposure in it.
 _HST_VISIT = re.compile(r"^[a-z0-9]{6}$")
 _HST_EXPOSURE = re.compile(r"^[a-z0-9]{8}$")

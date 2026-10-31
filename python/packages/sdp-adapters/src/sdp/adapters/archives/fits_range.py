@@ -226,7 +226,12 @@ def range_cutout_cost(
 
     ``LookupError`` when the position is off the image; ``RangeUnsupported`` when it cannot be cut."""
     counting = _Counting(transport)
-    w = _window(counting, url, ra_deg, dec_deg, side_arcsec, extension, max_read_bytes)
+    try:
+        w = _window(counting, url, ra_deg, dec_deg, side_arcsec, extension, max_read_bytes)
+    except KeyError as exc:  # a header without NAXISn or BITPIX: not "off the image"
+        raise RangeUnsupported(f"{url} has an image header without {exc}") from exc
+    except TransportError as exc:  # one failed probe leaves that product out, not the whole plan
+        raise RangeUnsupported(f"the header probe of {url} failed: {exc}") from exc
     return RangeCost(counting.received + w.row_bytes, w.stored_bytes, w.coverage)
 
 

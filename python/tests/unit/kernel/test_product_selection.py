@@ -108,7 +108,7 @@ def test_a_profile_budget_only_tightens_the_deployment_budget_and_holds_back_its
     assert nominal_bytes(budget, profile) == 1_800_000_000
     tight = replace(DEFAULT_BUDGET, max_bytes=1_000_000_000, approval_threshold_bytes=100)
     assert effective_budget(tight, profile) == tight, "a profile never loosens what the deployment allows"
-    assert nominal_bytes(tight, profile) == 1_000_000_000
+    assert nominal_bytes(tight, profile) == 900_000_000, "the reserve applies to the cap that binds"
     small = ProfileBudget(100, 0.5)
     assert effective_budget(DEFAULT_BUDGET, replace(profile, budget=small)).approval_threshold_bytes == 100
     plain = synthetic_profile()

@@ -10,7 +10,7 @@ import pytest
 from tests.usecase.test_jwst_slice import BUDGET, cutout_profile, run_slice, slice_kernel
 
 from sdp.kernel.application.investigate import field_search_cone
-from sdp.kernel.domain.integration import AcquisitionBudget, AcquisitionPlan, PlanItem, select_items
+from sdp.kernel.domain.integration import AcquisitionBudget, AcquisitionPlan, IntegrationRefused, PlanItem, select_items
 from sdp.kernel.domain.investigation import (
     ObservationRecord,
     ProductRef,
@@ -78,6 +78,7 @@ class CostingArchive(CuttingArchive):
 
     costs: dict[str, Any] = field(default_factory=dict)
     probed: list[str] = field(default_factory=list)
+    max_records: int | None = None
 
     def cutout_cost(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> CutoutCost:
         self.probed.append(product.product_id)
@@ -184,3 +185,10 @@ def test_a_profile_without_a_selection_plans_as_before() -> None:
     )
     assert "selection" not in plan.constraints and "excluded" not in plan.constraints
     assert sum(1 for i in plan.items if i.source_id == MAST) == len(LISTED)
+
+
+def test_a_listing_cut_at_the_gateways_row_limit_is_refused_not_planned_as_complete() -> None:
+    gateway = archive()
+    gateway.max_records = len(LISTED)
+    with pytest.raises(IntegrationRefused, match="its limit of 8"):
+        plan_with(gateway, profile())
