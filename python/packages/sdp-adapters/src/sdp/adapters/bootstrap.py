@@ -299,11 +299,13 @@ def product_envelopes(mast: Transport, gaia: Transport, irsa: Transport) -> dict
 
 
 def investigation_services(detector: PhotutilsDetector, refiner: TweakwcsRefiner) -> dict[str, Any]:
-    """The services the installed investigation tests call: UC-01's CPU reference HDBSCAN, the image
-    tests' detector, both association methods (v0.4.0 §7, ADR-019) and the optional alignment to Gaia.
-    Reproducing a dossier needs these and nothing else."""
+    """The services the installed investigation tests call: UC-01's CPU reference HDBSCAN, the other
+    CPU clusterers a profile may name instead, the image tests' detector, both association methods
+    (v0.4.0 §7, ADR-019) and the optional alignment to Gaia. Reproducing a dossier needs these and
+    nothing else."""
     return {
         "clusterer": SklearnHdbscan(),
+        "clusterers": clusterers(),
         "detector": detector,
         "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
         "refiner": refiner,
