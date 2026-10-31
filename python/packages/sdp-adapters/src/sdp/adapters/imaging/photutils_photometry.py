@@ -35,8 +35,12 @@ from sdp.kernel.ports.investigate import (
     SkyPoint,
 )
 
-#: Header keywords naming the filter, best first. ACS names two wheels; WFPC2 names FILTNAM1/2.
-FILTER_KEYWORDS = ("FILTER", "FILTER1", "FILTER2", "FILTNAM1", "FILTNAM2")
+#: Header keywords naming the filter, best first. ACS names two wheels; WFPC2 names FILTNAM1/2; NIRCam
+#: and NIRISS can carry the filter in the light path in the pupil wheel (F444W with F405N in PUPIL;
+#: NIRISS's FILTER=CLEAR with the filter in PUPIL).
+FILTER_KEYWORDS = ("FILTER", "FILTER1", "FILTER2", "FILTNAM1", "FILTNAM2", "PUPIL")
+#: Wheel positions that are not filters: the clear positions, masks and grisms.
+NOT_A_FILTER = ("CLEAR", "GRISM", "MASK", "NRM")
 #: The S/N a source needs before its width counts towards the image's FWHM.
 FWHM_MIN_SNR = 20.0
 #: The error of a median over n samples of a normal distribution is sqrt(pi/2) times that of the mean.
@@ -45,12 +49,20 @@ MEDIAN_VARIANCE = math.pi / 2
 
 def header_band(*headers: fits.Header) -> str:
     """The filter the headers name, upper case, with the clear and empty wheel positions dropped; two
-    filters in the beam (ACS's two wheels) are joined with '+'. "" when the headers name none."""
+    filters in the beam (ACS's two wheels, or NIRCam's filter and pupil wheels) are joined with '+'.
+    "" when the headers name none."""
     seen: list[str] = []
     for key in FILTER_KEYWORDS:
         for h in headers:
             value = str(h.get(key) or "").strip().upper()
-            if value and not value.startswith("CLEAR") and value not in {"N/A", "NONE", "OPEN"} and value not in seen:
+            if key == "PUPIL" and not (value.startswith("F") and value[1:2].isdigit()):
+                continue
+            if (
+                value
+                and not value.startswith(NOT_A_FILTER)
+                and value not in {"N/A", "NONE", "OPEN"}
+                and value not in seen
+            ):
                 seen.append(value)
     return "+".join(seen)
 
@@ -113,15 +125,28 @@ class PhotutilsPhotometer:
         primary, sci = image_headers(frame, hdu)
         scale = pixel_arcsec(wcs)
         gain = float(params["gain"]) if params.get("gain") else None
-        got = self._stats(
-            data,
-            wcs,
-            positions,
-            radius_arcsec / scale,
-            (annulus_arcsec[0] / scale, annulus_arcsec[1] / scale),
-            saturation_level(params, sci, primary),
-            gain,
-        )
+        saturation = saturation_level(params, sci, primary)
+        # one pass over the pixels per distinct aperture, the image parsed once for all of them
+        by_radius: dict[float, list[int]] = {}
+        for i, p in enumerate(positions):
+            by_radius.setdefault(p.radius_arcsec or radius_arcsec, []).append(i)
+        got: list[tuple[str, float, float, str, float | None]] = [("", 0.0, 0.0, "", None)] * len(positions)
+        for r, idx in sorted(by_radius.items()):
+            wider = r - radius_arcsec
+            for i, row in zip(
+                idx,
+                self._stats(
+                    data,
+                    wcs,
+                    [positions[i] for i in idx],
+                    r / scale,
+                    ((annulus_arcsec[0] + wider) / scale, (annulus_arcsec[1] + wider) / scale),
+                    saturation,
+                    gain,
+                ),
+                strict=True,
+            ):
+                got[i] = row
         return ForcedPhotometry(
             measurements=tuple(
                 ForcedMeasurement(
@@ -156,7 +181,8 @@ class PhotutilsPhotometer:
             np.array([p.ra_deg for p in positions], dtype=float), np.array([p.dec_deg for p in positions], dtype=float)
         )
         xy = np.column_stack([np.atleast_1d(x), np.atleast_1d(y)])
-        bad = ~np.isfinite(data)
+        # Drizzled HST mosaics fill sky no exposure covered with exactly 0, not NaN: blank, not dark sky
+        bad = ~np.isfinite(data) | (data == 0.0)
         filled = np.where(bad, 0.0, data)
         ny, nx = data.shape
         aperture = CircularAperture(xy, r=r_px)
@@ -172,9 +198,16 @@ class PhotutilsPhotometer:
         out: list[tuple[str, float, float, str, float | None]] = []
         for i, p in enumerate(positions):
             xi, yi = float(xy[i, 0]), float(xy[i, 1])
+            # the background annulus too must lie on the image, or an edge star's background would come
+            # from a part of the annulus that differs from image to image
+            reach = max(r_px, annulus_px[1])
             inside = math.isfinite(xi) and math.isfinite(yi)
             inside = (
-                inside and xi - r_px >= -0.5 and xi + r_px <= nx - 0.5 and yi - r_px >= -0.5 and yi + r_px <= ny - 0.5
+                inside
+                and xi - reach >= -0.5
+                and xi + reach <= nx - 0.5
+                and yi - reach >= -0.5
+                and yi + reach <= ny - 0.5
             )
             if not inside:
                 out.append((p.key, 0.0, 0.0, OFF_IMAGE, None))
@@ -182,7 +215,8 @@ class PhotutilsPhotometer:
             cut = aperture[i].to_mask(method="center").cutout(data, fill_value=np.nan)
             weights = aperture[i].to_mask(method="center").data > 0
             pixels = cut[weights] if cut is not None else np.array([np.nan])
-            if not np.all(np.isfinite(pixels)) or not (math.isfinite(bkg_median[i]) and math.isfinite(bkg_std[i])):
+            usable = math.isfinite(bkg_median[i]) and math.isfinite(bkg_std[i]) and bkg_std[i] > 0
+            if not np.all(np.isfinite(pixels)) or np.any(pixels == 0.0) or not usable:
                 out.append((p.key, 0.0, 0.0, MASKED, None))
                 continue
             if saturation is not None and float(np.max(pixels)) >= saturation:

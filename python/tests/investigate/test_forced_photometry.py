@@ -133,3 +133,60 @@ def test_the_description_reads_the_epoch_and_the_instrument() -> None:
     assert d.pixel_arcsec == pytest.approx(SCALE)
     nothing = PhotutilsPhotometer().describe(frame(), [], {})
     assert nothing.fwhm_arcsec is None and nothing.band == "F657N"
+
+
+def test_a_filter_in_the_pupil_wheel_is_part_of_the_band() -> None:
+    nircam = fits.Header({"FILTER": "F444W", "PUPIL": "F405N"})
+    assert header_band(nircam) == "F444W+F405N"
+    assert header_band(fits.Header({"FILTER": "F200W", "PUPIL": "CLEAR"})) == "F200W"
+    assert header_band(fits.Header({"FILTER": "CLEAR", "PUPIL": "F150W"})) == "F150W"
+    assert header_band(fits.Header({"FILTER": "F322W2", "PUPIL": "GRISMR"})) == "F322W2"
+    assert header_band(fits.Header({"FILTER": "F480M", "PUPIL": "MASKRND"})) == "F480M"
+
+
+@pytest.mark.req("INT-025")
+def test_blank_sky_a_drizzled_mosaic_fills_with_zeros_is_not_measured() -> None:
+    x, _, _ = STARS["faint"]
+    rng = np.random.default_rng(1)
+    data = rng.normal(10.0, 1.0, (SIZE, SIZE))
+    data[:, : int(x) + 3] = 0.0  # no exposure covered the left of the frame
+    buffer = io.BytesIO()
+    fits.PrimaryHDU(data.astype(np.float32), header=wcs().to_header()).writeto(buffer)
+    blank = ImageFrame("sha256:" + "b" * 64, buffer.getvalue(), "application/fits")
+    got = PhotutilsPhotometer().measure(blank, [point("faint"), point("bright")], FWHM, (2 * FWHM, 3 * FWHM), {})
+    assert [m.status for m in got.measurements] == [MASKED, MEASURED]
+
+
+@pytest.mark.req("INT-025")
+def test_an_annulus_reaching_past_the_edge_is_off_the_image() -> None:
+    # the aperture fits; the background annulus does not
+    near = SkyPoint("near", *sky(8.0, 100.0))
+    [m] = PhotutilsPhotometer().measure(frame(), [near], FWHM, (4 * FWHM, 6 * FWHM), {}).measurements
+    assert m.status == OFF_IMAGE
+
+
+@pytest.mark.req("INT-025")
+def test_a_position_may_carry_its_own_wider_aperture() -> None:
+    p = PhotutilsPhotometer()
+    small, wide = 0.5 * FWHM, 2.0 * FWHM
+    bright = point("bright")
+    alone = p.measure(frame(), [bright], wide, (3 * FWHM, 4 * FWHM), {}).measurements[0]
+    mixed = p.measure(
+        frame(),
+        [point("faint"), SkyPoint(bright.key, bright.ra_deg, bright.dec_deg, wide)],
+        small,
+        (3 * FWHM - 1.5 * FWHM, 4 * FWHM - 1.5 * FWHM),
+        {},
+    ).measurements
+    assert [m.key for m in mixed] == ["faint", "bright"]
+    assert mixed[1].flux == pytest.approx(alone.flux, rel=1e-9)
+    assert mixed[0].flux < 0.5 * STARS["faint"][2]
+
+
+def test_the_epoch_is_mid_exposure_when_the_header_gives_start_and_end() -> None:
+    from sdp.adapters.imaging.photutils_detector import header_epoch_mjd
+
+    hst = fits.Header({"DATE-OBS": "2014-09-02", "TIME-OBS": "00:00:00", "EXPSTART": 56902.0, "EXPEND": 56902.5})
+    assert header_epoch_mjd(hst) == pytest.approx(56902.25)
+    iso = fits.Header({"DATE-BEG": "2022-08-14T00:00:00", "DATE-END": "2022-08-14T12:00:00", "TIMESYS": "UTC"})
+    assert header_epoch_mjd(iso) == pytest.approx(59805.25)

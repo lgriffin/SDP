@@ -35,11 +35,21 @@ EPOCH_KEYWORDS = ("MJD-AVG", "MJD-MID", "MJD-BEG", "MJD-OBS")
 
 
 def header_epoch_mjd(*headers: fits.Header) -> float | None:
-    """The observation time a FITS image names, as MJD, or None."""
+    """The observation time a FITS image names, as MJD (mid-exposure where it can tell), or None."""
     for key in EPOCH_KEYWORDS:
         for h in headers:
             if h.get(key) is not None:
                 return float(h[key])
+    # the middle of the exposure where the header gives its start and end: HST's EXPSTART/EXPEND (MJD),
+    # or the ISO DATE-BEG/DATE-END in the header's TIMESYS (UTC when it names none)
+    for h in headers:
+        if h.get("EXPSTART") is not None and h.get("EXPEND") is not None:
+            return (float(h["EXPSTART"]) + float(h["EXPEND"])) / 2.0
+    for h in headers:
+        if h.get("DATE-BEG") and h.get("DATE-END"):
+            scale = str(h.get("TIMESYS") or "utc").lower()
+            beg, end = Time(str(h["DATE-BEG"]), scale=scale), Time(str(h["DATE-END"]), scale=scale)
+            return float((beg.utc.mjd + end.utc.mjd) / 2.0)
     for h in headers:
         if h.get("DATE-OBS"):
             stamp = str(h["DATE-OBS"])

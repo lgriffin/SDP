@@ -47,6 +47,7 @@ from sdp_investigate.changes import (
     aperture,
     blend_groups,
     enclosed,
+    enclosed_offset,
     field_scale,
     verdict,
     zero_point,
@@ -288,3 +289,28 @@ def test_the_field_scale_is_one_for_right_errors_whatever_the_number_of_images()
     assert field_scale(series, [s.err for s in series], 1.5) == 1.5
     with pytest.raises(ValueError, match="error_scale"):
         field_scale(series, [s.err for s in series], "nonsense")
+
+
+def test_a_star_off_the_apertures_centre_puts_less_light_in_it() -> None:
+    assert enclosed_offset(0.3, 0.0, 0.2) == pytest.approx(enclosed(0.3, 0.2))
+    assert enclosed_offset(0.3, 0.1, 0.2) < enclosed(0.3, 0.2)
+    # a blurrier image loses less of an offset star from a wide aperture than a sharp one gains
+    assert enclosed_offset(1.0, 0.5, 0.05) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_a_source_compared_in_two_bands_pays_for_both() -> None:
+    def series(band: str, flux: list[float]) -> Series:
+        n = len(flux)
+        return Series("s", band, tuple(f"{band}{i}" for i in range(n)), np.arange(n, dtype=float),
+                      np.array(flux), np.ones(n), np.zeros(n), 0.0)  # fmt: skip
+
+    from sdp_investigate.base import Features
+
+    one = Features(("s",), {"series": [series("A", [100.0, 103.9])], "frames": [], "left_out": {}})
+    two = Features(("s", "s"), {"series": [series("A", [100.0, 103.9]), series("B", [100.0, 100.0])],
+                                "frames": [], "left_out": {}})  # fmt: skip
+    thresholds = {"error_scale": 1.0, "alpha": 0.01}
+    [a] = EpochChange().evaluate(one, thresholds, np.random.default_rng(0))
+    [b] = EpochChange().evaluate(two, thresholds, np.random.default_rng(0))
+    assert a.p_value is not None and b.p_value == pytest.approx(2 * a.p_value) and b.details["bands"] == 2
+    assert a.details["verdict"] == CHANGED and b.details["verdict"] == STEADY

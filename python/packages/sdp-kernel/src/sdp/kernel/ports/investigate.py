@@ -158,6 +158,9 @@ class SkyPoint:
     key: str
     ra_deg: float
     dec_deg: float
+    radius_arcsec: float | None = None
+    """This position's own aperture radius, when it differs from the call's (a blend's wider one); its
+    annulus moves out by the same amount."""
 
 
 #: A forced measurement's status: measured, or why it could not be.
