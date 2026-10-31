@@ -289,6 +289,23 @@ Only the files whose sky box overlaps the field are opened. `SDP_GAIA_SOURCE` ch
 A dataset read from the copy records its query as `BULK SELECT ...`, so it never passes for an archive
 read and is not reused for one.
 
+### Radial velocities: the rvs subset
+
+The full copy has no radial velocities. `--subset rvs` reads ESA's files again and keeps only the stars
+that have one, which ESA's data model page puts at about 33.8 million. Each row has the same 27 columns
+plus `radial_velocity`, `radial_velocity_error`, `rv_nb_transits`, `rv_expected_sig_to_noise`,
+`rv_template_teff`, `grvs_mag` and `phot_variable_flag`. The subset is stored under
+`bulk/gaia/gaia_DR3/rvs/` and leaves the full copy as it is.
+
+```
+sdp archive bulk --subset rvs --count 1     # one file first
+sdp archive bulk --subset rvs --workers 4   # every file is downloaded again; Ctrl+C and rerun to resume
+sdp archive bulk --subset rvs --status
+```
+
+Runs that need radial velocities read this subset with their own gateway. The `SDP_GAIA_SOURCE`
+switch above does not apply to it.
+
 ## Cross-matching without CDS
 
 Pairing the stars of one catalogue with another (Gaia with 2MASS in a run, detections with Gaia in a

@@ -1,0 +1,17 @@
+# Gaia DR3 stars with a radial velocity, as a bulk subset of gaia_source (sdp archive bulk --subset rvs).
+# Every row keeps the parent source's declared columns plus these; only rows with a radial_velocity are kept.
+# Names, datatypes and units were read on ESA's gaia_source data model page on 2026-10-31:
+# https://gea.esac.esa.int/archive/documentation/GDR3/Gaia_archive/chap_datamodel/sec_dm_main_source_catalogue/ssec_dm_gaia_source.html
+# The same page: "In Gaia DR3, radial_velocity is provided for about 33.8 million of stars."
+name: rvs
+parent: gaia
+keep_rows_with: radial_velocity
+description: Gaia DR3 stars with a spectroscopic radial velocity (about 33.8 million)
+columns:
+  - {name: radial_velocity, datatype: float, unit: km / s, description: "barycentric radial velocity"}
+  - {name: radial_velocity_error, datatype: float, unit: km / s}
+  - {name: rv_nb_transits, datatype: short, description: "transits used to compute radial_velocity"}
+  - {name: rv_expected_sig_to_noise, datatype: float}
+  - {name: rv_template_teff, datatype: float, unit: K, description: "template temperature; not the star's"}
+  - {name: grvs_mag, datatype: float, unit: mag}
+  - {name: phot_variable_flag, datatype: char, description: "NOT_AVAILABLE, CONSTANT or VARIABLE"}
