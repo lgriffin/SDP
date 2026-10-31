@@ -1,6 +1,6 @@
 {
   "protocol_id": "uc03b-einstein-1921-corrections",
-  "protocol_version": "1.0.0",
+  "protocol_version": "1.1.0",
   "parent_protocol": "uc03-einstein-1921",
   "status": "exploratory: written after the first UC-03 run (verdict inconclusive), before any correction was run on data",
   "published": {
@@ -30,6 +30,8 @@
     }
   },
   "hypothesis_threshold_mass_to_light": 10.0,
+  "degenerate_a_over_r_in": 0.2,
+  "degenerate_note": "added in 1.1.0 after the first UC-03b run, whose 6 arcmin fits slid to a of 0.06-0.94 pc: a fit with a below 0.2 r_in sees only the power-law tail and is listed, not counted",
   "r_max_deg": 0.6,
   "scenarios": {
     "r_in_arcmin": [3.0, 4.5, 6.0],

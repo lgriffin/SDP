@@ -60,6 +60,14 @@ uv run sdp einstein1921 corrections
 
 It takes a little longer than `run` and writes `corrections.json` and `corrections.md` to `reports/uc03`, beside the first report. Its reading is `consistent_with_H1_after_corrections`, `consistent_with_H0_after_corrections` or `mixed`. It never changes the verdict of Step 2, because the corrections were chosen after seeing that result. The crowding table shows the fitted size and speed against the core cut and the magnitude limit: if they settle as the cut widens, crowding explains the first result.
 
+## Step 4: record M13 for the known-answer test
+
+```
+uv run sdp einstein1921 export
+```
+
+This writes `reports/uc03/m13-cone.parquet`, about 1 MB: the M13 stars that pass the cuts, with only the columns the method reads. Send it to the thread. It becomes a test that reruns M13 on every change and checks the answer against published values.
+
 ## Send it back
 
 Commit nothing from `reports\`. Send `report.json` and `report.md`, and after Step 3 `corrections.json` and `corrections.md`, to the thread, and we will write up the result.

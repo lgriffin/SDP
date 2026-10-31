@@ -135,18 +135,35 @@ def corrected(
     )
 
 
+def degenerate(a_deg: float, r_in_arcmin: float, choices: dict[str, Any] | None = None) -> bool:
+    """True when the core cut is so wide that the annulus sees only the Plummer power-law tail.
+
+    Beyond a few ``a`` the surface density falls as R^-4 and the dispersion as sigma_0^2 a / R, so the
+    stars fix the product a sigma_0^2 (the mass) but not a and sigma_0 apart (protocol UC-03b 1.1.0).
+    """
+    limit = float((choices or load_choices())["degenerate_a_over_r_in"])
+    return a_deg < limit * r_in_arcmin / 60
+
+
 def reading(
     band: dict[str, float] | None,
     by_scenario: dict[str, float | None],
     threshold: float,
     bootstrap_complete: bool,
+    degenerate_scenarios: list[str] | None = None,
+    baseline_degenerate: bool = False,
 ) -> dict[str, Any]:
-    """The exploratory reading of protocol UC-03b. It never replaces UC-03's verdict."""
+    """The exploratory reading of protocol UC-03b. It never replaces UC-03's verdict.
+
+    Degenerate corrections are listed and left out of the reading; a degenerate baseline decides nothing.
+    """
+    skipped = sorted(degenerate_scenarios or [])
+    by_scenario = {k: v for k, v in by_scenario.items() if k not in skipped}
     failed = sorted(k for k, v in by_scenario.items() if v is None)
     values = {k: v for k, v in by_scenario.items() if v is not None}
     below = sorted(k for k, v in values.items() if v < threshold)
     above = sorted(k for k, v in values.items() if v >= threshold)
-    if failed or band is None or not bootstrap_complete:
+    if failed or band is None or not bootstrap_complete or baseline_degenerate or not by_scenario:
         status = "mixed"
     elif band["p84"] < threshold and not above:
         status = "consistent_with_H1_after_corrections"
@@ -161,6 +178,8 @@ def reading(
         "scenarios_below": below,
         "scenarios_at_or_above": above,
         "scenarios_failed": failed,
+        "scenarios_degenerate": skipped,
+        "baseline_degenerate": baseline_degenerate,
         "bootstrap_complete": bootstrap_complete,
     }
 
@@ -227,6 +246,7 @@ def run(
     fits: dict[tuple[float, float, float], uc03.Fit | str] = {}
     rows: dict[str, dict[str, Any]] = {}
     by_scenario: dict[str, float | None] = {}
+    flat: list[str] = []
     for c in corrections(choices):
         key = (c.r_in_arcmin, c.g_max, c.error_scale)
         if key not in fits:
@@ -248,8 +268,11 @@ def run(
             "a_deg": outcome.a_deg,
             "sigma0_masyr": outcome.sigma0_masyr,
             "parallax_c_mas": outcome.parallax_c_mas,
+            "degenerate": degenerate(outcome.a_deg, c.r_in_arcmin, choices),
             "corrected": asdict(value) if value is not None else None,
         }
+        if rows[c.label]["degenerate"]:
+            flat.append(c.label)
         by_scenario[c.label] = value.mass_to_light_v if value is not None else None
 
     crowding = [
@@ -257,6 +280,7 @@ def run(
             "r_in_arcmin": c.r_in_arcmin,
             "g_max": c.g_max,
             "stars": rows[c.label].get("stars"),
+            "degenerate": rows[c.label].get("degenerate"),
             "a_pc": (rows[c.label].get("corrected") or {}).get("a_pc"),
             "sigma0_kms": (rows[c.label].get("corrected") or {}).get("sigma0_kms"),
             "mass_solar": (rows[c.label].get("corrected") or {}).get("mass_solar"),
@@ -284,6 +308,7 @@ def run(
                 "parallax_c_mas": base_fit.parallax_c_mas,
                 "parallax_distance_pc": 1000 / base_fit.parallax_c_mas if base_fit.parallax_c_mas > 0 else None,
                 "stars": base_fit.n_stars,
+                "degenerate": degenerate(base_fit.a_deg, base.r_in_arcmin, choices),
             },
             "corrected": asdict(base_value),
             "bootstrap": {
@@ -296,7 +321,14 @@ def run(
         },
         "corrections": rows,
         "crowding": crowding,
-        "reading": reading(band.get("mass_to_light_v"), by_scenario, threshold, complete),
+        "reading": reading(
+            band.get("mass_to_light_v"),
+            by_scenario,
+            threshold,
+            complete,
+            degenerate_scenarios=flat,
+            baseline_degenerate=degenerate(base_fit.a_deg, base.r_in_arcmin, choices),
+        ),
         "comparison": {
             "mass_solar": {"gaia_corrected": base_value.mass_solar, **_comparison(choices, "baumgardt_mass_solar")},
             "sigma0_kms": {

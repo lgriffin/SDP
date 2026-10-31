@@ -179,10 +179,23 @@ def tangent_plane(ra: Array, dec: Array, ra0: float, dec0: float) -> tuple[Array
 SELECTION_ORDER = ("finite", "ruwe", "astrometric_params_solved", "duplicated_source", "g_max")
 
 
-def select(columns: dict[str, Any], choices: dict[str, Any] | None = None) -> tuple[Stars, dict[str, int]]:
-    """Apply the predeclared cuts to native gaia_source columns; returns the stars and the rows each cut removed."""
+def _apply(tests: dict[str, NDArray[np.bool_]], n: int) -> tuple[NDArray[np.bool_], dict[str, int]]:
+    keep = np.ones(n, dtype=bool)
+    removed: dict[str, int] = {}
+    for name in SELECTION_ORDER:
+        removed[name] = int(np.sum(keep & ~tests[name]))
+        keep &= tests[name]
+    return keep, removed
+
+
+def keep_mask(columns: dict[str, Any], choices: dict[str, Any] | None = None) -> NDArray[np.bool_]:
+    """The rows of native gaia_source columns that pass the predeclared cuts (what :func:`select` keeps)."""
+    return _cuts(columns, choices)[0]
+
+
+def _cuts(columns: dict[str, Any], choices: dict[str, Any] | None) -> tuple[NDArray[np.bool_], dict[str, int], Array]:
     choices = choices or load_choices()
-    cuts, target = choices["selection"], choices["target"]
+    cuts = choices["selection"]
 
     def col(name: str) -> Array:
         return np.asarray(columns[name], dtype=np.float64)
@@ -199,11 +212,19 @@ def select(columns: dict[str, Any], choices: dict[str, Any] | None = None) -> tu
         "duplicated_source": ~np.asarray(columns["duplicated_source"], dtype=bool),
         "g_max": np.nan_to_num(col("phot_g_mean_mag"), nan=np.inf) < float(cuts["g_max"]),
     }
-    keep = np.ones(col("ra").size, dtype=bool)
-    removed: dict[str, int] = {}
-    for name in SELECTION_ORDER:
-        removed[name] = int(np.sum(keep & ~tests[name]))
-        keep &= tests[name]
+    keep, removed = _apply(tests, col("ra").size)
+    return keep, removed, corr
+
+
+def select(columns: dict[str, Any], choices: dict[str, Any] | None = None) -> tuple[Stars, dict[str, int]]:
+    """Apply the predeclared cuts to native gaia_source columns; returns the stars and the rows each cut removed."""
+    choices = choices or load_choices()
+    target = choices["target"]
+    keep, removed, corr = _cuts(columns, choices)
+
+    def col(name: str) -> Array:
+        return np.asarray(columns[name], dtype=np.float64)
+
     xi, eta = tangent_plane(col("ra")[keep], col("dec")[keep], target["start_ra_deg"], target["start_dec_deg"])
     stars = Stars(
         xi=xi,

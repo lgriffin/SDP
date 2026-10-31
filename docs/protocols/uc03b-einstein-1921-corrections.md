@@ -1,6 +1,6 @@
 # Protocol UC-03b: corrections to the UC-03 Einstein 1921 rerun (exploratory)
 
-- Protocol id: `uc03b-einstein-1921-corrections`, version 1.0.0. Its parent is [UC-03](uc03-einstein-1921.md).
+- Protocol id: `uc03b-einstein-1921-corrections`, version 1.1.0 (1.0.0 ran on 2026-10-31; 1.1.0 adds the degeneracy rule below). Its parent is [UC-03](uc03-einstein-1921.md).
 - Module: `sdp_relativity.einstein1921_corrections`.
 - Choices: [`sdp_relativity/einstein1921_corrections.json`](../../python/packages/sdp-relativity/src/sdp_relativity/einstein1921_corrections.json). Every run records that file's SHA-256.
 - **Status: exploratory.** This protocol was written on 2026-10-31, after the first UC-03 run on Gaia DR3 and before any of the corrections below was run on data. It cannot change UC-03's verdict, which stays **inconclusive**. Its job is to find out why that run was inconclusive, using corrections that UC-03 itself named in advance as needed before any H0 reading.
@@ -45,6 +45,12 @@ That gives 3 × 3 × 3 = 27 fits. Each is converted at 4 distances, which makes 
 - **Mixed** otherwise, and also if any correction fit or bootstrap refit fails, or if the bootstrap has fewer refits than the declared 100 (a quick look). The report names the scenarios on each side. A corrected baseline that cannot be fitted stops the run with its reason, as in UC-03.
 
 The crowding check is reported but decides nothing. It is a table of `a`, σ₀ and M against `r_in` and the magnitude limit at error scale 1.0, alongside the published comparison values. If the fitted `a` and σ₀ settle as the core cut widens and the limit brightens, crowding was driving the UC-03 split. If they keep moving, the Plummer law itself is the question. M13 is better described by a King model with concentration c = 1.53 (Harris), and a Plummer `a` fitted outside the core is a model choice, not a measurement.
+
+## Degenerate fits (added in 1.1.0, after the first run)
+
+The first UC-03b run read `consistent_with_H1_after_corrections`. Its fits with `r_in` = 6′ slid to `a` = 0.06–0.94 pc, with σ₀ of 18–79 km/s. Once the core cut lies more than a few `a` out, the annulus sees only the Plummer tail. There the surface density falls as `R⁻⁴` and the projected dispersion as `σ₀²·a/R`, so the stars fix the product `a·σ₀²` (the mass) but not `a` and σ₀ separately.
+
+From 1.1.0 on, a fit with `a < 0.2·r_in` is marked **degenerate**. It is reported, with its mass, but left out of the reading. A degenerate corrected baseline makes the reading `mixed`. In the first run, the rule marks all nine 6′ fits and no others: the largest ratio among them is 0.07, and the smallest among the rest is 0.27, at 4.5′ and G < 17. The reading of that run is unchanged, at 1.8 to 3.9 across the remaining 72 corrections (36 were degenerate: 9 fits at 4 distances).
 
 ## What this is not
 
