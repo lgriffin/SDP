@@ -1,0 +1,51 @@
+{
+  "protocol_id": "uc03-einstein-1921",
+  "protocol_version": "1.0.0",
+  "source": "Einstein 1921, Festschrift der Kaiser-Wilhelm-Gesellschaft pp. 50-52 (CPAE 7, Doc. 56)",
+  "einstein_1921": {
+    "A_printed": 0.6,
+    "eq5_coefficient_printed": 1.2,
+    "N": 2000,
+    "m_solar": 15,
+    "v_kms": 26,
+    "star_factor": 100,
+    "two_a_printed_cm": 0.65e18,
+    "two_a_printed_ly": 0.65,
+    "two_a_with_factor_printed_ly": 65,
+    "radius_lower_bound_ly": 100
+  },
+  "target": {
+    "name": "M13 (NGC 6205), the cluster in Hercules",
+    "start_ra_deg": 250.42,
+    "start_dec_deg": 36.46,
+    "cone_radius_deg": 0.6,
+    "source_release": "gaia:DR3"
+  },
+  "selection": {
+    "ruwe_max": 1.4,
+    "astrometric_params_solved": [31, 95],
+    "g_max": 19.0
+  },
+  "light": {
+    "abs_g_sun": 4.67
+  },
+  "hypothesis_threshold_mass_to_light": 10.0,
+  "scenarios": {
+    "r_in_arcmin": [1.5, 3.0],
+    "r_max_deg": [0.4, 0.6],
+    "error_scale": [1.0, 1.1],
+    "parallax_zero_point_mas": [0.0, -0.017, -0.034],
+    "a_g_mag": [0.0, 0.1]
+  },
+  "baseline": {
+    "r_in_arcmin": 3.0,
+    "r_max_deg": 0.6,
+    "error_scale": 1.0,
+    "parallax_zero_point_mas": -0.017,
+    "a_g_mag": 0.0
+  },
+  "bootstrap": {
+    "resamples": 100,
+    "seed": 1921
+  }
+}
