@@ -39,10 +39,11 @@ def parse_centre(text: str) -> tuple[str, float, float]:
 def folder_key(text: str) -> str:
     """A folder inside the source as the index writes paths: ``/`` separators, no leading ``./`` or
     trailing slash (``raw\\IC434\\`` and ``./raw/IC434`` are both ``raw/IC434``)."""
-    parts = [p for p in text.strip().replace("\\", "/").split("/") if p not in ("", ".")]
-    if not parts or ".." in parts or ":" in parts[0]:
+    path = text.strip().replace("\\", "/")
+    parts = [p for p in path.split("/") if p not in ("", ".")]
+    if path.startswith("/") or ".." in parts or (parts and ":" in parts[0]):
         raise LocalSourceError(f"{text!r}: give a folder inside the source, such as raw/IC434")
-    return "/".join(parts)
+    return "/".join(parts) or "."  # "." is the source's own top folder
 
 
 def parse_folder(text: str) -> tuple[str, float, float]:

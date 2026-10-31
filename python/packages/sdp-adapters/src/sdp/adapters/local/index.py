@@ -106,8 +106,8 @@ def pointing(header: dict[str, Any]) -> tuple[float | None, float | None]:
 
 
 def folder_kind(relative: PurePosixPath | str) -> str | None:
-    """The calibration kind a folder holding the frame is named for (``darks``, ``biases``, ...), if any."""
-    for folder in PurePosixPath(relative).parent.parts:
+    """The calibration kind the nearest folder holding the frame is named for (``darks``, ``biases``, ...)."""
+    for folder in reversed(PurePosixPath(relative).parent.parts):
         if folder.lower() in FOLDER_KINDS:
             return FOLDER_KINDS[folder.lower()]
     return None

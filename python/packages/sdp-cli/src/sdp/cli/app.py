@@ -1079,6 +1079,13 @@ def local_names(
     _add_centres(book, centre, folder)
     solvable = [r for r in FrameIndex(source, data).rows() if r["kind"] in SOLVABLE_KINDS and not r["error"]]
     used = sorted({n for r in solvable if (n := usable_name(r["object"]))})
+    # a folder centre whose folder holds no indexed frame (a typo, or the wrong case) would never be used
+    lower = {str(p).lower(): str(p) for r in solvable for p in PurePosixPath(r["path"]).parents}
+    misses = {
+        f: lower.get(f.lower())
+        for f in book.folders()
+        if f != "." and not any(r["path"].startswith(f + "/") for r in solvable)
+    }
     # frames that only a folder can place: no OBJECT, no header pointing, no folder centre yet
     unplaced: dict[str, int] = {}
     for r in solvable:
@@ -1111,6 +1118,11 @@ def local_names(
             "folders": book.folders(),
             "frames_name_these_unknown_targets": unknown,
             **({"folders_of_frames_without_object": dict(sorted(unplaced.items()))} if unplaced else {}),
+            **(
+                {"folder_centres_matching_no_frame": {f: {"did_you_mean": m} for f, m in misses.items()}}
+                if misses
+                else {}
+            ),
             **({"simbad_does_not_know": not_found} if not_found else {}),
             **({"simbad_failed": failed} if fetch and unknown and failed else {}),
         }

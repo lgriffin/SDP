@@ -268,6 +268,7 @@ requirements:
     traces:
       - "python/tests.local.test_folder_centres::test_a_frame_without_object_solves_from_the_centre_given_for_its_folder"
       - "python/tests.local.test_folder_centres::test_the_deepest_folder_given_wins"
+      - "python/tests.local.test_folder_centres::test_a_frame_at_the_top_of_the_source_takes_the_centre_given_for_dot"
       - "python/tests.local.test_folder_centres::test_the_names_and_solve_commands_take_folder_centres"
   - id: LOC-026
     pattern: event

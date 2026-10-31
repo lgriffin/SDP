@@ -40,7 +40,8 @@ def nameless(tmp_path: Path, relative: str = FRAME) -> tuple[LocalSolver, list[d
 def test_a_folder_is_written_as_the_index_writes_paths() -> None:
     assert folder_key("raw\\IC434\\") == folder_key("./raw/IC434") == "raw/IC434"
     assert parse_folder("raw/IC434=85.25,-2.46") == ("raw/IC434", 85.25, -2.46)
-    for bad in ("raw/IC434", "raw/IC434=400,0", "=1,2", "../x=1,2", "D:/x=1,2"):
+    assert folder_key(".") == folder_key("./") == "."  # the source's own top folder
+    for bad in ("raw/IC434", "raw/IC434=400,0", "=1,2", "../x=1,2", "D:/x=1,2", "/raw/IC434=1,2", "\\raw=1,2"):
         with pytest.raises(LocalSourceError):
             parse_folder(bad)
 
@@ -97,6 +98,16 @@ def test_only_folders_that_could_name_a_target_are_tried() -> None:
     assert folder_names("a.fits") == []
 
 
+@pytest.mark.req("LOC-025")
+def test_a_frame_at_the_top_of_the_source_takes_the_centre_given_for_dot(tmp_path: Path) -> None:
+    solver, rows, _ = nameless(tmp_path, "img-0001.fits")
+    (refused,) = solver.run(rows, rows)
+    assert "--folder .=RA,DEC" in refused.reason
+    assert solver.names is not None
+    solver.names.set_folder(*parse_folder(".=10.6847,41.2687"))
+    assert [o.status for o in solver.run(solver.select(rows, retry_refused=True), rows)] == ["solved"]
+
+
 @pytest.mark.req("LOC-027")
 def test_frames_in_calibration_folders_are_calibration_even_when_the_header_says_light(tmp_path: Path) -> None:
     root, data = tmp_path / "astro", tmp_path / "SDP"
@@ -113,6 +124,9 @@ def test_frames_in_calibration_folders_are_calibration_even_when_the_header_says
         "raw/IC434/flats/a.fits": "flat",
         "raw/IC434/lights/a.fits": "light",
     }
+    write(root / "raw" / "darks" / "flats" / "b.fits", raw_sub(IMAGETYP="LIGHT"))
+    index.update()
+    assert {r["path"]: r["kind"] for r in index.rows()}["raw/darks/flats/b.fits"] == "flat", "the nearest folder"
 
 
 @pytest.mark.req("LOC-027")
@@ -141,5 +155,9 @@ def test_the_names_and_solve_commands_take_folder_centres(tmp_path: Path) -> Non
     doc = json.loads(result.stdout)
     assert doc["folders"]["raw/Andromeda"]["ra_deg"] == 10.68
     assert "folders_of_frames_without_object" not in doc
+    typo = runner.invoke(cli.app, ["local", "names", "astro", "--folder", "raw/andromeda=10.68,41.27"], env=env)
+    assert json.loads(typo.stdout)["folder_centres_matching_no_frame"] == {
+        "raw/andromeda": {"did_you_mean": "raw/Andromeda"}
+    }
     bad = runner.invoke(cli.app, ["local", "names", "astro", "--folder", "raw/Andromeda"], env=env)
     assert bad.exit_code != 0
