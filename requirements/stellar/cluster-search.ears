@@ -144,3 +144,20 @@ requirements:
       - "python/tests.stellar.test_significance::test_in_the_sweep_the_planted_cluster_is_significant_and_the_field_itself_is_not"
       - "python/tests.stellar.test_significance::test_a_null_survivor_more_significant_than_the_candidate_makes_it_inconclusive"
       - "python/tests.stellar.test_significance::test_a_new_candidate_is_held_to_each_false_candidate_of_its_tile"
+  - id: STL-012
+    pattern: optional
+    text: "Where the sweep settings name distance scales, the stellar module shall sweep the sky once per parallax shell with that shell's tile size and rim, and keep each candidate and each star in the one shell whose parallax range holds it."
+    rationale: "A cluster's angular size shrinks with distance, so fixed 2-degree tiles cut a cluster 100-250 pc away into fragments; tiles sized per shell span a similar physical size near and far. A parallax rim around each shell lets a cluster on a boundary be seen whole without being counted twice."
+    verification: test
+    tiers: [T1, T3, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_scales::test_a_wide_nearby_cluster_is_found_whole_by_the_near_shell_and_cut_up_by_two_degree_tiles"
+      - "python/tests.stellar.test_scales::test_the_shells_meet_end_to_end_nearest_first"
+      - "python/tests.stellar.test_scales::test_without_scales_the_sweep_is_the_single_legacy_scale"
+      - "python/tests.stellar.test_scales::test_malformed_scales_are_refused"
+      - "python/tests.stellar.test_scales::test_a_candidate_is_kept_only_by_the_shell_that_owns_its_mean_parallax"
+      - "python/tests.stellar.test_scales::test_each_star_counts_in_one_shell_only"
+      - "python/tests.stellar.test_scales::test_a_tile_of_another_scale_is_refused"
+      - "python/tests.stellar.test_scales::test_a_shell_searches_only_its_parallax_window"
+      - "python/tests.cli.test_cli_discover::test_prepare_sweep_report_finds_the_planted_cluster_in_no_benchmark"
