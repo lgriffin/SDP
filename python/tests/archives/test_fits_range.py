@@ -13,9 +13,10 @@ import pytest
 from astropy.io import fits
 from astropy.wcs import WCS
 
-from sdp.adapters.archives.fits_range import RangeUnsupported, range_cutout, range_status
+from sdp.adapters.archives import fits_range
+from sdp.adapters.archives.fits_range import RangeUnsupported, range_cutout, range_cutout_cost, range_status
 from sdp.adapters.archives.mast import MastObservationGateway, file_name, obs_id_of
-from sdp.adapters.archives.transport import HttpRequest, HttpResponse
+from sdp.adapters.archives.transport import HttpRequest, HttpResponse, TransportError
 from sdp.kernel.domain.errors import InvariantViolation
 from sdp.kernel.domain.integration import CutoutMethod, CutoutSupport, cutout_support
 from sdp.kernel.domain.investigation import ProductRef
@@ -126,3 +127,61 @@ def test_cutout_support_states_its_evidence() -> None:
     with pytest.raises(InvariantViolation):
         CutoutSupport(CutoutMethod.SODA, "DataLink #cutout row")
     assert not CutoutSupport(CutoutMethod.NONE, "no #cutout row").supported
+
+
+@pytest.mark.req("INT-025")
+def test_a_cutout_cost_is_what_the_cut_reads_from_the_headers_alone() -> None:
+    source = jwst_i2d()
+    ra, dec = JWST_CENTRE[0] + 2.0 / 3600, JWST_CENTRE[1] - 1.0 / 3600
+    probe = RangeHost(source)
+    cost = range_cutout_cost(probe, URL, ra, dec, 4.0)
+    host = RangeHost(source)
+    cut = range_cutout(host, URL, ra, dec, 4.0)
+    assert probe.sent < 3 * 28_800, "the probe reads headers, not pixels"
+    assert cost.read_bytes == host.sent, "a cutout is costed at every byte it reads, full-width rows included"
+    assert cost.read_bytes > len(cut.data), "a range cutout reads more than it keeps"
+    assert len(cut.data) <= cost.stored_bytes <= len(cut.data) + 3 * 2880
+    assert cost.coverage == pytest.approx(1.0)
+
+
+@pytest.mark.req("INT-025")
+def test_a_square_running_off_the_image_says_how_much_of_it_the_image_holds() -> None:
+    source = jwst_i2d()
+    _, header = sci(source)
+    ra, dec = (float(v) for v in WCS(header).pixel_to_world_values(0, header["NAXIS2"] / 2))
+    cost = range_cutout_cost(RangeHost(source), URL, ra, dec, 4.0)
+    assert 0.4 < cost.coverage < 0.6, "a square centred on the left edge is about half on the image"
+    with pytest.raises(LookupError, match="off the image"):
+        range_cutout_cost(RangeHost(source), URL, JWST_CENTRE[0] + 1.0, JWST_CENTRE[1], 4.0)
+
+
+@pytest.mark.req("INT-025")
+def test_the_mast_gateway_costs_a_cutout_before_cutting_it() -> None:
+    product = ProductRef("mast", "jw-synth-o001/jw-synth_i2d.fits", URL)
+    host = RangeHost(jwst_i2d())
+    gateway = MastObservationGateway(host)
+    cost = gateway.cutout_cost(product, *JWST_CENTRE, 4.0)
+    probed = host.sent
+    gateway.cutout_product(product, *JWST_CENTRE, 4.0)
+    assert cost.read_bytes == host.sent - probed and cost.coverage == pytest.approx(1.0)
+    with pytest.raises(ValueError, match="not a MAST one"):
+        gateway.cutout_cost(ProductRef("dasch", "x", URL), *JWST_CENTRE, 4.0)
+
+
+@pytest.mark.req("INT-025")
+def test_a_failed_header_probe_or_a_broken_header_refuses_that_product_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    @dataclass
+    class Down:
+        def send(self, request: HttpRequest) -> HttpResponse:
+            raise TransportError("timed out")
+
+    with pytest.raises(RangeUnsupported, match=r"header probe .* failed: timed out"):
+        range_cutout_cost(Down(), URL, *JWST_CENTRE, 4.0)
+
+    def no_naxis(*_: object) -> None:
+        raise KeyError("NAXIS1")
+
+    # A missing keyword is a broken product, not a cutout that misses the image (a LookupError).
+    monkeypatch.setattr(fits_range, "_window", no_naxis)
+    with pytest.raises(RangeUnsupported, match="without 'NAXIS1'"):
+        range_cutout_cost(RangeHost(jwst_i2d()), URL, *JWST_CENTRE, 4.0)

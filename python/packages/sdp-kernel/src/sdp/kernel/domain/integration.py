@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import copy
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from datetime import date
@@ -1505,6 +1505,95 @@ def select_items(
             )
         gaps.append(PlanGap(r.requirement_id, reason))
     return items, tuple(gaps)
+
+
+@dataclass(frozen=True)
+class PlanExclusion:
+    """A listed product the plan leaves out, and why (INT-025)."""
+
+    source_id: str
+    target: str
+    reason: str
+
+    def to_document(self) -> dict[str, Any]:
+        return {"source_id": self.source_id, "target": self.target, "reason": self.reason}
+
+
+@dataclass(frozen=True)
+class ProductOption:
+    """One listed product a selection weighs: its group, its preference and when it was taken."""
+
+    source_id: str
+    target: str
+    """The acquisition's target: the product id, or the cutout's id."""
+    group: tuple[tuple[str, str | None], ...]
+    """The (key, value) pairs it is grouped by, e.g. (("mission", "JWST"), ("band", "F200W"))."""
+    priority: int
+    """Lower first: the position of its mission in the profile's list."""
+    single_exposure: bool = False
+    epoch_mjd: float | None = None
+
+
+def select_products(
+    options: Sequence[ProductOption],
+    cost: Callable[[ProductOption], int | str],
+    *,
+    combined_only: bool,
+    max_products: int | None,
+    nominal_bytes: int,
+    spent_bytes: int = 0,
+) -> tuple[dict[str, int], tuple[PlanExclusion, ...]]:
+    """One product per group, fitted to the nominal budget; every product left out says why (INT-025).
+
+    Groups are taken by priority, then newest first, then by key; within a group, combined products
+    before single exposures, newest first, then by target. ``cost`` gives a product's bytes, or the
+    reason it cannot be acquired; it is asked only of products that could still be kept, in this
+    order, so a caller that probes an archive probes as little as it can. A product that does not fit
+    in what the budget has left gives way to the next in its group. Returns each kept target's bytes.
+    """
+    groups: dict[tuple[tuple[str, str | None], ...], list[ProductOption]] = {}
+    for option in options:
+        groups.setdefault(option.group, []).append(option)
+
+    def newest(o: ProductOption) -> float:
+        return -(o.epoch_mjd if o.epoch_mjd is not None else -math.inf)
+
+    def group_order(key: tuple[tuple[str, str | None], ...]) -> tuple[Any, ...]:
+        members = groups[key]
+        return (min(o.priority for o in members), min(newest(o) for o in members), [(k, v or "") for k, v in key])
+
+    kept: dict[str, int] = {}
+    excluded: list[PlanExclusion] = []
+    total = spent_bytes
+    for key in sorted(groups, key=group_order):
+        members = sorted(groups[key], key=lambda o: (o.single_exposure, newest(o), o.target))
+        missing = [k for k, v in key if v is None]
+        winner: str | None = None
+        for option in members:
+            if missing:
+                reason = f"it names no {' or '.join(missing)} to group it by"
+            elif combined_only and option.single_exposure:
+                reason = "a single exposure; the profile keeps combined products only"
+            elif winner is not None:
+                reason = f"its group is served by {winner}"
+            elif max_products is not None and len(kept) >= max_products:
+                reason = f"the profile keeps at most {max_products} products"
+            else:
+                priced = cost(option)
+                if isinstance(priced, str):
+                    reason = priced
+                elif total + priced > nominal_bytes:
+                    reason = (
+                        f"its {priced} bytes would bring the plan to {total + priced}, "
+                        f"over the nominal budget of {nominal_bytes}"
+                    )
+                else:
+                    kept[option.target] = priced
+                    total += priced
+                    winner = option.target
+                    continue
+            excluded.append(PlanExclusion(option.source_id, option.target, reason))
+    return kept, tuple(excluded)
 
 
 @dataclass

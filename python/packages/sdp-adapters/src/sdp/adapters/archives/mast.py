@@ -11,13 +11,14 @@ from __future__ import annotations
 import io
 import math
 import posixpath
+import re
 import urllib.parse
 import zipfile
 from dataclasses import dataclass, replace
 
 import astropy.units as u
 
-from sdp.adapters.archives.fits_range import range_cutout
+from sdp.adapters.archives.fits_range import range_cutout, range_cutout_cost
 from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
 from sdp.kernel.domain.investigation import (
@@ -29,7 +30,7 @@ from sdp.kernel.domain.investigation import (
     ProductRef,
     region_centre,
 )
-from sdp.kernel.ports.investigate import ObservationTarget, cutout_product_id
+from sdp.kernel.ports.investigate import CutoutCost, ObservationTarget, cutout_product_id
 
 MAST_OBSCORE = "https://mast.stsci.edu/vo-tap/api/v0.1/caom"
 HAPCUT = "https://mast.stsci.edu/hapcut/api/v0.1/astrocut"
@@ -79,6 +80,41 @@ def product_id(obs_id: str, access_url: str) -> str:
 def obs_id_of(product_id: str) -> str:
     """The observation a product id names; an id from before file-level ids is the obs_id itself."""
     return product_id.partition("/")[0]
+
+
+#: A filter in a MAST file name: F200W, F444W-F470N, F1130W, F850LP, F657N, F322W2.
+_FILTER = re.compile(r"^f\d{3,4}[a-z]{0,2}\d?$")
+#: An HST rootname: ``ipppss`` names a visit's mosaic, ``ipppssoo`` one exposure in it.
+_HST_VISIT = re.compile(r"^[a-z0-9]{6}$")
+_HST_EXPOSURE = re.compile(r"^[a-z0-9]{8}$")
+
+
+def file_band(name: str) -> tuple[str | None, bool]:
+    """The filter a MAST product's file name names, and whether the file is a single exposure.
+
+    JWST level-3 names (``jw02739-o001_t001_nircam_clear-f200w_i2d.fits``) carry the filter pair, of
+    which ``clear`` and a subarray (``sub160``) are dropped; a JWST name without the ``-o``
+    observation part is one exposure. HST HAP names (``hst_13926_05_wfc3_uvis_f657n_ick905_drc.fits``) carry the filter, then the visit
+    (6 characters) or one exposure (8); a sky-cell mosaic (``..._all_drc.fits``) combines visits.
+    A detection image (``total``) and a legacy rootname (``j9cs01010_drz.fits``) name no filter.
+    """
+    stem = name.lower().rsplit(".", 1)[0]
+    parts = stem.split("_")
+    if stem.startswith("jw"):
+        single = re.match(r"^jw\d{5}-[oac]\d+", stem) is None
+        for part in reversed(parts):
+            filters = [f for f in part.split("-") if _FILTER.match(f)]
+            if filters and all(f == "clear" or f.startswith("sub") or _FILTER.match(f) for f in part.split("-")):
+                return "-".join(f.upper() for f in filters), single
+        return None, single
+    if stem.startswith("hst_"):
+        for i, part in enumerate(parts):
+            filters = [f for f in part.split("-") if _FILTER.match(f)]
+            if filters and len(filters) == len(part.split("-")):
+                after = parts[i + 1] if i + 1 < len(parts) else ""
+                return "-".join(f.upper() for f in filters), bool(_HST_EXPOSURE.match(after))
+        return None, False
+    return None, False
 
 
 def _science_file(row: dict[str, object]) -> bool:
@@ -152,6 +188,7 @@ class MastObservationGateway:
                 continue
             # MAST reports access_estsize in bytes (checked live, 2026-10-29), not the kB ObsCore defines.
             size = _number(row.get("access_estsize"))
+            band, single = file_band(file_name(url))
             records.append(
                 ObservationRecord(
                     product=ProductRef(self.archive_id, product_id(str(row["obs_id"]).strip(), url), url),
@@ -163,6 +200,8 @@ class MastObservationGateway:
                     size_bytes=int(size) if size is not None else None,
                     licence=self.licence,
                     citation=self.citation,
+                    band=band,
+                    single_exposure=single,
                 )
             )
         return ObservationIndex(
@@ -203,6 +242,13 @@ class MastObservationGateway:
         return FetchedProduct(
             ref, cut.data, "application/fits", self.release_label, self.licence, self.citation, product.uri
         )
+
+    def cutout_cost(self, product: ProductRef, ra_deg: float, dec_deg: float, side_arcsec: float) -> CutoutCost:
+        """What ``cutout_product`` would read and keep, from the product's headers alone (INT-025)."""
+        if product.archive != self.archive_id:
+            raise ValueError(f"{product.product_id} is a {product.archive} product, not a MAST one")
+        cost = range_cutout_cost(self.transport, product.uri, ra_deg, dec_deg, side_arcsec)
+        return CutoutCost(cost.read_bytes, cost.stored_bytes, cost.coverage)
 
     def cutout_request(self, field: Field, size: u.Quantity) -> HttpRequest:
         ra, dec = region_centre(field.region)

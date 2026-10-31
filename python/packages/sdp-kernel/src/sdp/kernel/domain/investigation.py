@@ -334,6 +334,59 @@ def check_calibration_level(level: object) -> None:
         raise InvariantViolation(f"an ObsCore calibration level is a whole number 0 to 4, not {level!r}")
 
 
+#: What a product selection may group by: fields every ObservationRecord carries.
+SELECTION_KEYS = ("mission", "instrument", "band")
+
+
+@dataclass(frozen=True)
+class ProductSelection:
+    """Which of an archive's listed products a plan keeps, before the budget decides (INT-025).
+
+    Products are grouped by ``one_per`` and each group keeps one product: combined mosaics before
+    single exposures (a single exposure is dropped outright when ``combined_only``), then the newest,
+    then by product id. ``measure_reads`` costs each cutout at the bytes it reads over the wire,
+    probed from the FITS headers, rather than the bytes it stores, and leaves out a product whose
+    image covers less than ``min_coverage`` of the cutout's square. ``max_products`` caps the items.
+    """
+
+    one_per: tuple[str, ...] = SELECTION_KEYS
+    combined_only: bool = True
+    measure_reads: bool = True
+    max_products: int | None = None
+    min_coverage: float = 0.5
+
+    def __post_init__(self) -> None:
+        unknown = sorted(set(self.one_per) - set(SELECTION_KEYS))
+        if unknown or not self.one_per or len(set(self.one_per)) != len(self.one_per):
+            raise InvariantViolation(
+                f"a selection groups by distinct keys among {', '.join(SELECTION_KEYS)}; not {list(self.one_per)}"
+            )
+        if self.max_products is not None and (isinstance(self.max_products, bool) or self.max_products < 1):
+            raise InvariantViolation("max_products is at least 1 when set")
+        if not (math.isfinite(self.min_coverage) and 0 <= self.min_coverage <= 1):
+            raise InvariantViolation("min_coverage is a share from 0 to 1")
+
+    def to_document(self) -> dict[str, Any]:
+        return {
+            "one_per": list(self.one_per),
+            "combined_only": self.combined_only,
+            "measure_reads": self.measure_reads,
+            "max_products": self.max_products,
+            "min_coverage": self.min_coverage,
+        }
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> ProductSelection:
+        max_products = doc.get("max_products")
+        return cls(
+            one_per=tuple(doc.get("one_per", SELECTION_KEYS)),
+            combined_only=bool(doc.get("combined_only", True)),
+            measure_reads=bool(doc.get("measure_reads", True)),
+            max_products=int(max_products) if max_products is not None else None,
+            min_coverage=float(doc.get("min_coverage", 0.5)),
+        )
+
+
 @dataclass(frozen=True)
 class ArchiveSelection:
     """One archive the profile consults in Retrieve, and how."""
@@ -350,10 +403,14 @@ class ArchiveSelection:
     product supports one (INT-004). ``None`` fetches whole products."""
     min_calibration_level: int | None = None
     """Only products at this ObsCore ``calib_level`` or above, e.g. 3 for combined mosaics alone."""
+    select: ProductSelection | None = None
+    """Keep one product per group and fit them to the profile's budget; ``None`` plans every product."""
 
     def __post_init__(self) -> None:
         if self.role is ArchiveRole.CATALOGUE and not self.columns:
             raise InvariantViolation(f"catalogue archive {self.source_id} must name its columns")
+        if self.select is not None and self.role is ArchiveRole.CATALOGUE:
+            raise InvariantViolation(f"catalogue archive {self.source_id} lists no products to select")
         if self.cutout_arcsec is not None and not 0 < self.cutout_arcsec <= 3600:
             raise InvariantViolation("a cutout side is more than 0 and at most 3600 arcsec")
         check_calibration_level(self.min_calibration_level)
@@ -370,6 +427,7 @@ class ArchiveSelection:
             # Only when set, so profiles written before cutouts keep their hash.
             **({"cutout_arcsec": self.cutout_arcsec} if self.cutout_arcsec is not None else {}),
             **({"min_calibration_level": self.min_calibration_level} if self.min_calibration_level is not None else {}),
+            **({"select": self.select.to_document()} if self.select is not None else {}),
         }
 
     @classmethod
@@ -384,6 +442,7 @@ class ArchiveSelection:
             product_types=tuple(doc.get("product_types", ())),
             cutout_arcsec=float(doc["cutout_arcsec"]) if doc.get("cutout_arcsec") is not None else None,
             min_calibration_level=doc.get("min_calibration_level"),  # validated, never rounded
+            select=ProductSelection.from_document(doc["select"]) if doc.get("select") is not None else None,
         )
 
 
@@ -462,6 +521,39 @@ class NullFieldPlan:
 
 
 @dataclass(frozen=True)
+class ProfileBudget:
+    """The most a run under this profile may download, and the share of it held back (INT-025).
+
+    ``max_bytes`` is the hard cap, in bytes (2 GB is 2,000,000,000). The planner fills products only up
+    to ``max_bytes * (1 - reserve_fraction)``, so archive sizes that turn out larger than listed, and
+    the catalogue queries, still fit under the cap. It can only tighten the deployment's budget.
+    """
+
+    max_bytes: int
+    reserve_fraction: float = 0.10
+
+    def __post_init__(self) -> None:
+        if isinstance(self.max_bytes, bool) or not isinstance(self.max_bytes, int) or self.max_bytes <= 0:
+            raise InvariantViolation(
+                f"a profile's byte budget is a positive whole number of bytes, not {self.max_bytes!r}"
+            )
+        if not (math.isfinite(self.reserve_fraction) and 0 <= self.reserve_fraction < 1):
+            raise InvariantViolation("a budget's reserve is a fraction from 0 up to, not including, 1")
+
+    @property
+    def nominal_bytes(self) -> int:
+        """What the planner may fill with products: the cap less the reserve."""
+        return math.floor(self.max_bytes * (1 - self.reserve_fraction))
+
+    def to_document(self) -> dict[str, Any]:
+        return {"max_bytes": self.max_bytes, "reserve_fraction": self.reserve_fraction}
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> ProfileBudget:
+        return cls(int(doc["max_bytes"]), float(doc.get("reserve_fraction", 0.10)))
+
+
+@dataclass(frozen=True)
 class TestProfile:
     """A versioned document naming the tests, thresholds, null fields and archives (INV-001).
 
@@ -479,6 +571,7 @@ class TestProfile:
     archives: tuple[ArchiveSelection, ...] = ()
     null_fields: NullFieldPlan = dataclass_field(default_factory=NullFieldPlan)
     description: str = ""
+    budget: ProfileBudget | None = None
 
     def __post_init__(self) -> None:
         _slug(self.profile_id, "profile id")
@@ -513,6 +606,8 @@ class TestProfile:
             "tests": [t.to_document() for t in self.tests],
             "ranking": self.ranking.to_document(),
             "null_fields": self.null_fields.to_document(),
+            # Only when set, so profiles written before budgets keep their hash.
+            **({"budget": self.budget.to_document()} if self.budget is not None else {}),
         }
 
     @classmethod
@@ -526,6 +621,7 @@ class TestProfile:
             tests=tuple(TestSelection.from_document(t) for t in doc["tests"]),
             ranking=RankingPolicy.from_document(doc["ranking"]),
             null_fields=NullFieldPlan(int(doc.get("null_fields", {}).get("trials", 20))),
+            budget=ProfileBudget.from_document(doc["budget"]) if doc.get("budget") is not None else None,
         )
 
 
@@ -754,9 +850,16 @@ class ObservationRecord:
     licence: str
     citation: str
     epoch_end_mjd: float | None = None
+    band: str | None = None
+    """The filter (``F200W``, ``F444W-F470N``) where the archive names one; None when it does not."""
+    single_exposure: bool = False
+    """One exposure, where the archive also lists the mosaic combining it with others."""
 
     def to_document(self) -> dict[str, Any]:
         return {
+            # Only when set, so records listed before bands keep their hash.
+            **({"band": self.band} if self.band is not None else {}),
+            **({"single_exposure": True} if self.single_exposure else {}),
             "product": self.product.to_document(),
             "mission": self.mission,
             "instrument": self.instrument,
@@ -780,6 +883,8 @@ class ObservationRecord:
             size_bytes=doc.get("size_bytes"),
             licence=doc["licence"],
             citation=doc["citation"],
+            band=doc.get("band"),
+            single_exposure=bool(doc.get("single_exposure", False)),
         )
 
 

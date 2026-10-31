@@ -18,7 +18,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 
-from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
+from sdp.adapters.archives.transport import HttpRequest, HttpResponse, Transport, TransportError
 
 BLOCK = 2880
 CARD = 80
@@ -101,18 +101,64 @@ def _is_image(header: fits.Header, primary: bool) -> bool:
     return kind == "IMAGE" and int(header.get("NAXIS", 0)) == 2 and not header.get("ZIMAGE")
 
 
-def range_cutout(
+@dataclass(frozen=True)
+class _Window:
+    """Where a cutout lies in a FITS file: which image, which rows and columns, and how many bytes."""
+
+    primary: fits.Header
+    primary_blocks: bytes
+    header: fits.Header
+    data_offset: int
+    in_primary: bool
+    x0: int
+    x1: int
+    y0: int
+    y1: int
+    pixel: int
+    row: int
+    scale: float
+    half: float
+
+    @property
+    def row_bytes(self) -> int:
+        return (self.y1 - self.y0) * self.row
+
+    @property
+    def coverage(self) -> float:
+        """The share of the asked-for square the image holds: less than 1 where it runs off an edge."""
+        side_px = 2.0 * self.half + 1.0
+        return min(1.0, (self.x1 - self.x0) * (self.y1 - self.y0) / (side_px * side_px))
+
+    @property
+    def stored_bytes(self) -> int:
+        """The cutout file's size: the headers kept and the square's pixels, padded to whole blocks."""
+        pixels = (self.x1 - self.x0) * (self.y1 - self.y0) * self.pixel
+        head = len(self.primary_blocks) + (0 if self.in_primary else len(self.header.tostring(padding=True)))
+        return head + 2 * BLOCK + math.ceil(pixels / BLOCK) * BLOCK
+
+
+@dataclass
+class _Counting:
+    """A transport that counts the bytes its responses carry."""
+
+    inner: Transport
+    received: int = 0
+
+    def send(self, request: HttpRequest) -> HttpResponse:
+        response = self.inner.send(request)
+        self.received += len(response.body)
+        return response
+
+
+def _window(
     transport: Transport,
     url: str,
     ra_deg: float,
     dec_deg: float,
     side_arcsec: float,
-    *,
-    extension: str = "SCI",
-    max_read_bytes: int = MAX_READ_BYTES,
-) -> RangeCutout:
-    """The square of ``side_arcsec`` around the position, from the image extension named
-    ``extension`` (else the first 2-D image), reading only headers and the rows it covers."""
+    extension: str,
+    max_read_bytes: int,
+) -> _Window:
     primary, primary_blocks = _header(transport, url, 0)
     offset = len(primary_blocks)
     candidates: list[tuple[fits.Header, int, bool]] = []
@@ -154,6 +200,62 @@ def range_cutout(
         raise RangeUnsupported(
             f"cutting {side_arcsec} arcsec from {url} reads {(y1 - y0) * row} bytes of rows, over {max_read_bytes}"
         )
+    return _Window(primary, primary_blocks, header, data_offset, in_primary, x0, x1, y0, y1, pixel, row, scale, half)
+
+
+@dataclass(frozen=True)
+class RangeCost:
+    read_bytes: int
+    """Every byte the cutout reads over the wire: its header requests and the full-width rows."""
+    stored_bytes: int
+    coverage: float
+    """The share of the square the image holds."""
+
+
+def range_cutout_cost(
+    transport: Transport,
+    url: str,
+    ra_deg: float,
+    dec_deg: float,
+    side_arcsec: float,
+    *,
+    extension: str = "SCI",
+    max_read_bytes: int = MAX_READ_BYTES,
+) -> RangeCost:
+    """What ``range_cutout`` with the same arguments would read and keep, from the headers alone (INT-025).
+
+    ``LookupError`` when the position is off the image; ``RangeUnsupported`` when it cannot be cut."""
+    counting = _Counting(transport)
+    try:
+        w = _window(counting, url, ra_deg, dec_deg, side_arcsec, extension, max_read_bytes)
+    except KeyError as exc:  # a header without NAXISn or BITPIX: not "off the image"
+        raise RangeUnsupported(f"{url} has an image header without {exc}") from exc
+    except TransportError as exc:  # one failed probe leaves that product out, not the whole plan
+        raise RangeUnsupported(f"the header probe of {url} failed: {exc}") from exc
+    return RangeCost(counting.received + w.row_bytes, w.stored_bytes, w.coverage)
+
+
+def range_cutout(
+    transport: Transport,
+    url: str,
+    ra_deg: float,
+    dec_deg: float,
+    side_arcsec: float,
+    *,
+    extension: str = "SCI",
+    max_read_bytes: int = MAX_READ_BYTES,
+) -> RangeCutout:
+    """The square of ``side_arcsec`` around the position, from the image extension named
+    ``extension`` (else the first 2-D image), reading only headers and the rows it covers."""
+    w = _window(transport, url, ra_deg, dec_deg, side_arcsec, extension, max_read_bytes)
+    primary, primary_blocks, header, data_offset, in_primary = (
+        w.primary,
+        w.primary_blocks,
+        w.header,
+        w.data_offset,
+        w.in_primary,
+    )
+    x0, x1, y0, y1, pixel, row, scale = w.x0, w.x1, w.y0, w.y1, w.pixel, w.row, w.scale
     band = bytearray()
     rows_per_request = max(1, ROW_CHUNK // row)
     for start in range(y0, y1, rows_per_request):
