@@ -126,6 +126,9 @@ class PhotutilsPhotometer:
         scale = pixel_arcsec(wcs)
         gain = float(params["gain"]) if params.get("gain") else None
         saturation = saturation_level(params, sci, primary)
+        # a drizzled mosaic is floating point and fills sky no exposure covered with exactly 0; on an
+        # integer (counting) image 0 is an ordinary sky value. The profile may say either way.
+        zero_blank = bool(params.get("zero_is_blank", int(sci.get("BITPIX", -32)) < 0))
         # one pass over the pixels per distinct aperture, the image parsed once for all of them
         by_radius: dict[float, list[int]] = {}
         for i, p in enumerate(positions):
@@ -143,6 +146,7 @@ class PhotutilsPhotometer:
                     ((annulus_arcsec[0] + wider) / scale, (annulus_arcsec[1] + wider) / scale),
                     saturation,
                     gain,
+                    zero_blank,
                 ),
                 strict=True,
             ):
@@ -173,6 +177,7 @@ class PhotutilsPhotometer:
         annulus_px: tuple[float, float],
         saturation: float | None,
         gain: float | None,
+        zero_blank: bool = True,
     ) -> list[tuple[str, float, float, str, float | None]]:
         """(key, flux, error, status, FWHM in pixels) per position, in the order given."""
         if not positions:
@@ -182,7 +187,7 @@ class PhotutilsPhotometer:
         )
         xy = np.column_stack([np.atleast_1d(x), np.atleast_1d(y)])
         # Drizzled HST mosaics fill sky no exposure covered with exactly 0, not NaN: blank, not dark sky
-        bad = ~np.isfinite(data) | (data == 0.0)
+        bad = ~np.isfinite(data) | ((data == 0.0) if zero_blank else False)
         filled = np.where(bad, 0.0, data)
         ny, nx = data.shape
         aperture = CircularAperture(xy, r=r_px)
@@ -216,7 +221,7 @@ class PhotutilsPhotometer:
             weights = aperture[i].to_mask(method="center").data > 0
             pixels = cut[weights] if cut is not None else np.array([np.nan])
             usable = math.isfinite(bkg_median[i]) and math.isfinite(bkg_std[i]) and bkg_std[i] > 0
-            if not np.all(np.isfinite(pixels)) or np.any(pixels == 0.0) or not usable:
+            if not np.all(np.isfinite(pixels)) or (zero_blank and np.any(pixels == 0.0)) or not usable:
                 out.append((p.key, 0.0, 0.0, MASKED, None))
                 continue
             if saturation is not None and float(np.max(pixels)) >= saturation:

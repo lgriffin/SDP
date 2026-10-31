@@ -314,3 +314,6 @@ def test_a_source_compared_in_two_bands_pays_for_both() -> None:
     [b] = EpochChange().evaluate(two, thresholds, np.random.default_rng(0))
     assert a.p_value is not None and b.p_value == pytest.approx(2 * a.p_value) and b.details["bands"] == 2
     assert a.details["verdict"] == CHANGED and b.details["verdict"] == STEADY
+    # each band is read at the adjusted level, so the bands never disagree with the verdict at the top
+    assert [d["verdict"] for d in b.details["per_band"]] == [STEADY, STEADY]
+    assert b.details["per_band"][0]["p_adjusted"] == pytest.approx(b.p_value)

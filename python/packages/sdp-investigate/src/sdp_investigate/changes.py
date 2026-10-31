@@ -506,6 +506,16 @@ class EpochChange(FieldTest):
             # the least likely band of several: Bonferroni over the bands, so a source compared in two
             # filters is no likelier to be flagged by chance than one compared in one
             p = min(1.0, p * len(found))
+            # every band's verdict is read at the same adjusted level, so per_band never disagrees
+            # with the verdict at the top; each band keeps its own p, adjusted, for the reader
+            bands = [
+                {
+                    **d,
+                    "p_adjusted": min(1.0, q * len(found)),
+                    "verdict": STEADY if min(1.0, q * len(found)) >= alpha else d["verdict"],
+                }
+                for q, _, d in found
+            ]
             if len(found) > 1:
                 worst = {**worst, "verdict": STEADY if p >= alpha else worst["verdict"]}
             out.append(
@@ -517,7 +527,7 @@ class EpochChange(FieldTest):
                     details={
                         **worst,
                         "bands": len(found),
-                        **({"per_band": [d for _, _, d in found]} if len(found) > 1 else {}),
+                        **({"per_band": bands} if len(found) > 1 else {}),
                     },
                 )
             )

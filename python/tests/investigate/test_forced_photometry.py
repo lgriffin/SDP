@@ -190,3 +190,25 @@ def test_the_epoch_is_mid_exposure_when_the_header_gives_start_and_end() -> None
     assert header_epoch_mjd(hst) == pytest.approx(56902.25)
     iso = fits.Header({"DATE-BEG": "2022-08-14T00:00:00", "DATE-END": "2022-08-14T12:00:00", "TIMESYS": "UTC"})
     assert header_epoch_mjd(iso) == pytest.approx(59805.25)
+    # a start keyword beside the start and end does not win over the middle
+    assert header_epoch_mjd(fits.Header({"MJD-BEG": 56902.0, "EXPSTART": 56902.0, "EXPEND": 56902.5})) == 56902.25
+    assert header_epoch_mjd(fits.Header({"MJD-OBS": 56902.0})) == 56902.0
+    # a FITS time system astropy does not name is read as the scale it means, never raised
+    ut = fits.Header({"DATE-BEG": "2022-08-14T00:00:00", "DATE-END": "2022-08-14T12:00:00", "TIMESYS": "UT"})
+    assert header_epoch_mjd(ut) == pytest.approx(59805.25)
+    odd = fits.Header({"DATE-BEG": "2022-08-14T00:00:00", "DATE-END": "2022-08-14T12:00:00", "TIMESYS": "XYZ"})
+    assert header_epoch_mjd(odd) == pytest.approx(59805.25)
+
+
+@pytest.mark.req("INT-025")
+def test_zero_is_sky_on_a_counting_image_and_blank_on_a_float_mosaic() -> None:
+    rng = np.random.default_rng(2)
+    counts = rng.poisson(0.3, (SIZE, SIZE)).astype(np.int16)  # most sky pixels count 0
+    buffer = io.BytesIO()
+    fits.PrimaryHDU(counts, header=wcs().to_header()).writeto(buffer)
+    integer = ImageFrame("sha256:" + "c" * 64, buffer.getvalue(), "application/fits")
+    p = PhotutilsPhotometer()
+    [m] = p.measure(integer, [point("faint")], FWHM, (2 * FWHM, 3 * FWHM), {}).measurements
+    assert m.status == MEASURED
+    [m] = p.measure(integer, [point("faint")], FWHM, (2 * FWHM, 3 * FWHM), {"zero_is_blank": True}).measurements
+    assert m.status == MASKED
