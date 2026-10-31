@@ -152,6 +152,85 @@ class SourceDetector(Protocol):
 
 
 @dataclass(frozen=True)
+class SkyPoint:
+    """A position to measure on an image, named so its measurement can be found again."""
+
+    key: str
+    ra_deg: float
+    dec_deg: float
+
+
+#: A forced measurement's status: measured, or why it could not be.
+MEASURED, OFF_IMAGE, MASKED, SATURATED = "ok", "off-image", "masked", "saturated"
+
+
+@dataclass(frozen=True)
+class ForcedMeasurement:
+    """The flux in a circular sky aperture at one position, background subtracted, in the image's units.
+
+    ``flux_err`` is the photon and background error the photometer can derive from the pixels; it is
+    never calibrated, and a test that compares images scales it against the field (INT-025).
+    ``fwhm_arcsec`` is the moment FWHM of the light in the aperture, when it is measurable."""
+
+    key: str
+    flux: float
+    flux_err: float
+    status: str = MEASURED
+    fwhm_arcsec: float | None = None
+
+
+@dataclass(frozen=True)
+class FrameDescription:
+    """What a test needs to know about an image before it measures it: its band (the filter the
+    header names, "" when none), the observation time, the instrument, the pixel scale and the median
+    FWHM of the bright sources at the positions it was given (None when none was measurable)."""
+
+    band: str
+    epoch_mjd: float | None
+    instrument: str
+    pixel_arcsec: float
+    fwhm_arcsec: float | None
+    saturation: float | None = None
+
+
+@dataclass(frozen=True)
+class ForcedPhotometry:
+    measurements: tuple[ForcedMeasurement, ...]
+    radius_arcsec: float
+    annulus_arcsec: tuple[float, float]
+    photometer_id: str
+    params: Mapping[str, Any] = field(default_factory=dict)
+
+
+@runtime_checkable
+class ForcedPhotometer(Protocol):
+    """Forced aperture photometry at given sky positions (photutils in production, a planted fake in
+    tests), the measurement multi-epoch change detection compares across images (INT-025).
+
+    The aperture is given in arcseconds, so a test can measure every image of a field in the same
+    patch of sky whatever its pixel scale. ``frame.wcs``, when set, overrides the header's WCS (an
+    image aligned to Gaia)."""
+
+    @property
+    def photometer_id(self) -> str: ...
+
+    def describe(self, frame: ImageFrame, positions: Sequence[SkyPoint], params: Mapping[str, Any]) -> FrameDescription:
+        """The image's band, epoch, instrument, pixel scale and the median FWHM at ``positions``."""
+        ...
+
+    def measure(
+        self,
+        frame: ImageFrame,
+        positions: Sequence[SkyPoint],
+        radius_arcsec: float,
+        annulus_arcsec: tuple[float, float],
+        params: Mapping[str, Any],
+    ) -> ForcedPhotometry:
+        """One measurement per position, in the order given, background from the annulus around it."""
+        ...
+
+
+@dataclass(frozen=True)
 class RefinedWcs:
     wcs_header: str
     rms_arcsec: float

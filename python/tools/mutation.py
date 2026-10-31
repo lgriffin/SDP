@@ -169,6 +169,12 @@ TARGETS = {
             ("src/sdp_investigate/contradiction.py",),
             ("tests/investigate",),
         ),
+        Target(
+            "sdp-investigate-changes",
+            "sdp-investigate",
+            ("src/sdp_investigate/changes.py",),
+            ("tests/investigate", "tests/local"),
+        ),
         *(
             Target(
                 f"sdp-relativity-{i}",

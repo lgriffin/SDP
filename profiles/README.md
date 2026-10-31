@@ -4,7 +4,7 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These nine profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These ten profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
@@ -14,6 +14,7 @@ These nine profiles ship with SDP. You do not need to edit them to get started. 
 | [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [survey-contradictions](survey-contradictions.yaml) | You want the stars whose other surveys disagree with Gaia: a position or a brightness that does not fit | Gaia, 2MASS and Pan-STARRS | A few minutes: two catalogue pulls for the whole field |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
+| [image-changes](image-changes.yaml) | You want to know which stars changed between Hubble and Webb images of a field taken years or decades apart | Gaia and MAST (HST and JWST) | 10 to 30 minutes, mostly waiting for the archive. Needs the same filter at two dates. |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
 | [my-frames](my-frames.yaml) | You want to check Gaia's stars against your own solved stacks | Gaia and your own frames (`local:astro`) | A minute or two a stack. Add, index and solve your frames first (`sdp local`). |
 | [my-frames-variability](my-frames-variability.yaml) | You want to know which stars changed brightness over the nights you imaged a target | Gaia and the light curves `sdp local lightcurve` measured from your subs | Seconds, once the light curves are built. Solve the subs and run `sdp local lightcurve` first. |
@@ -76,6 +77,39 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
   - `exclude_percentile: 25` lets the background be measured in a crowded cluster, where stars cover more than a tenth of the sky.
   - `align_wcs: true` first slides the whole image onto Gaia. The archive's own coordinates for these M92 mosaics sit about 2 arcseconds off Gaia, which would leave every star "missing". One shift moves the frame, not a star, so a star that really moved still stands out. The fit is recorded with each result.
   - `anchor_sigma_arcsec` and `min_sigma_arcsec: 0.01` are the smallest position uncertainties SDP will assume for Gaia and for JWST: about 10 milliarcseconds, the agreement an aligned mosaic reaches with Gaia. Smaller values would flag ordinary stars.
+
+### image-changes: the same field at different dates
+
+The epoch-change test measures every Gaia star on every HST and JWST image of the field and asks whether
+its brightness changed by more than the images' errors allow. Three things differ between cameras and
+dates, and the test deals with each before it compares two images:
+
+- **Alignment (`align_wcs: true`).** An archived image's coordinates can be an arcsecond off. Each image is
+  first shifted onto Gaia's stars at that image's date, one shift for the whole frame, so a single odd star
+  cannot move it. An image that cannot be aligned is left out and listed, because a misplaced aperture
+  would look like a star dimming. `align_separation_arcsec: 0.5` sets aside stars closer than that while
+  matching, whatever each camera's pixel size.
+- **Resolution (`aperture_fwhm: 1.0`).** Every image of one filter is measured in the same circle on the
+  sky, one FWHM of the blurriest image in radius. A star's light spreads more on a blurry image, but the
+  circle catches the same share of every star on one image, so the calibration takes care of it. Two stars
+  closer than two circles on any image are measured together as one blend, reported under the brighter.
+- **Calibration (`calibrator_snr: 20`, `min_calibrators: 5`).** The same star gives a different count on
+  each camera. Each image is scaled to the deepest image of its filter using the field's own clean stars,
+  with a median that ignores the odd variable among them, and the scale's own error is added to every
+  comparison. An image with fewer than 5 such stars is left out.
+- **`error_scale: field`.** In a crowded field the errors photometry quotes are too small. The test
+  scales them by how much the field's stars scatter, allowing for how few images each star has, and never
+  shrinks them.
+- **Only one filter at a time.** F656N in 1995 and F656N in 2022 are compared; F656N against F200W is
+  not, because a red star and a blue one differ between filters without changing at all. You may join two
+  filters under one name (`bands: {F656N: halpha, F657N: halpha}`), and must then give
+  `band_systematic_mag`, the brightness difference two nearly-alike filters can show.
+- **`phot_g_mean_mag` between 16 and 20.5.** Brighter stars saturate HST and JWST; fainter ones have
+  proper motions too uncertain to place them on an image taken decades from Gaia's 2016.
+
+Each flagged star gets a verdict: **changed**, **appeared** (not seen on an earlier image, seen on a later
+one), or **vanished** (the reverse), with every image's measurement and a 5-sigma upper limit where it
+was not seen.
 
 ### Archive settings (jwst-image-check)
 
