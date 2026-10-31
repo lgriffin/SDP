@@ -91,6 +91,60 @@ def test_fast_hdbscan_condenses_a_tree_too_deep_for_the_main_threads_stack() -> 
     assert result.labels.shape == (700_000,)
 
 
+def _field_against_an_edge(seed: int = 5) -> np.ndarray:
+    """A crowded field piled against a hard edge on its first axis, as a parallax window leaves it, with
+    a tight 80-star cluster inside it."""
+    rng = np.random.default_rng(seed)
+    field = np.column_stack([rng.exponential(0.6, 6000), rng.normal(0, 1, (6000, 2))])
+    return np.vstack([field, np.array([1.2, 0.5, 0.0]) + rng.normal(0, 0.06, (80, 3))])
+
+
+@pytest.mark.req("STL-013")
+@pytest.mark.parametrize(("cap", "min_cluster_size"), [(2000, 10), (1000, 10), (500, 40), (90, 40)])
+def test_fast_hdbscan_caps_cluster_size_as_scikit_learn_does(cap: int, min_cluster_size: int) -> None:
+    """With ``max_cluster_size`` excess-of-mass selection passes over a cluster larger than the cap and
+    judges its children instead (#159), as scikit-learn's does."""
+    x = _field_against_an_edge()
+    params = {"min_cluster_size": min_cluster_size, "min_samples": 10, "max_cluster_size": cap}
+    fast = FastHdbscan().search(x, params, seed=1)
+    ref = SklearnHdbscan().search(x, params, seed=1)
+    assert fast.n_clusters == ref.n_clusters > 0
+    assert np.bincount(fast.labels[fast.labels >= 0]).max() <= cap
+    assert np.count_nonzero(fast.labels != ref.labels) <= len(x) // 1000
+
+
+@pytest.mark.req("STL-013")
+def test_a_cap_the_whole_tile_fits_under_changes_nothing() -> None:
+    x = _field_against_an_edge()
+    params = {"min_cluster_size": 10, "min_samples": 10}
+    plain = FastHdbscan().search(x, params, seed=1)
+    capped = FastHdbscan().search(x, {**params, "max_cluster_size": len(x)}, seed=1)
+    assert np.array_equal(plain.labels, capped.labels)
+    assert np.allclose(plain.probabilities, capped.probabilities)
+
+
+@pytest.mark.req("STL-013")
+def test_a_cap_that_leaves_one_cluster_below_the_root_labels_it() -> None:
+    """The field is one cluster over the cap with no children big enough to keep, so only the small
+    cluster beside it is selected: fast_hdbscan 0.3.2 raises KeyError labelling that, the adapter does not."""
+    rng = np.random.default_rng(2)
+    x = np.vstack([rng.normal(0, 1, (3000, 3)), np.array([8.0, 0, 0]) + rng.normal(0, 0.1, (60, 3))])
+    params = {"min_cluster_size": 40, "min_samples": 10, "max_cluster_size": 1000}
+    fast = FastHdbscan().search(x, params, seed=1)
+    assert fast.n_clusters == 1 and np.all(fast.labels[-60:] == 0) and np.all(fast.labels[:3000] == -1)
+    assert np.array_equal(fast.labels, SklearnHdbscan().search(x, params, seed=1).labels)
+
+
+@pytest.mark.req("STL-013")
+def test_a_cap_with_leaf_selection_is_refused() -> None:
+    with pytest.raises(ValueError, match="excess-of-mass"):
+        FastHdbscan().search(
+            _field_against_an_edge(),
+            {"min_cluster_size": 10, "min_samples": 10, "max_cluster_size": 100, "cluster_selection_method": "leaf"},
+            seed=1,
+        )
+
+
 class TestSklearnDbscan(ClusterSearchContract):
     @pytest.fixture
     def clusterer(self) -> SklearnDbscan:

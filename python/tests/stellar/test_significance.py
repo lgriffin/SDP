@@ -100,10 +100,8 @@ def test_in_the_sweep_the_planted_cluster_is_significant_and_the_field_itself_is
     result = sweep.sweep_tile(tile_rows(t, praesepe_field()), t, settings(), clusterers(), benchmarks(), 2026)
     new = [c for c in result["candidates"] if c["status"] == "potentially_new"]
     assert len(new) == 1 and new[0]["significance_sigma"] > 5.0
-    field = max(result["candidates"], key=lambda c: c["n_members"])
-    assert field["status"] == "rejected"
-    # rejected as the field itself before the neighbour queries, so it is never tested
-    assert any("the field itself" in r for r in field["reasons"]) and field["significance_sigma"] is None
+    # capped at the field-fraction limit (STL-013), the field is never chosen whole as a candidate
+    assert not any("the field itself" in r for c in result["candidates"] for r in c["reasons"])
     assert result["null_survivor_sigmas"] == []
     row = next(r for r in sweep.candidate_rows([result]) if r["status"] == "potentially_new")
     assert row["significance_sigma"] == new[0]["significance_sigma"]

@@ -48,7 +48,7 @@ from sdp_stellar import benchmark as bm
 from sdp_stellar.features import PolicyError, apply_policy
 from sdp_stellar.null import null_field
 from sdp_stellar.quality import QualityCuts, column
-from sdp_stellar.search import configurations, labelling_document, run
+from sdp_stellar.search import Configuration, configurations, labelling_document, run
 
 LABEL = "EXPLORATORY"
 SCHEMA = "sdp-stellar/sweep-tile@1"
@@ -238,13 +238,28 @@ def tile_seed(tile_id: str, seed: int) -> int:
 def _labellings(
     table: pa.Table, t: Tile, settings: Mapping[str, Any], clusterers: Mapping[str, ClusterSearchAlgorithm], seed: int
 ) -> tuple[np.ndarray, list[dict[str, Any]]]:
-    """The feature matrix the clustering saw, and one labelling per grid point."""
+    """The feature matrix the clustering saw, and one labelling per grid point.
+
+    Each grid point is capped at the largest cluster the field-fraction check lets through
+    (``max_cluster_size``, #159). Inside a shell's truncated parallax window the field piles up at the
+    window's dense edge into one huge, long-lived cluster; uncapped, excess-of-mass selection keeps
+    it instead of its children, so every real cluster inside it disappears with it, and the giant is
+    then rejected as the field. Capped, a cluster too big to pass that check is never chosen, and its
+    children are judged instead. A candidate the check would accept is chosen as before."""
     fm = apply_policy(settings["feature_space_policy"], table, t.ra_deg, t.dec_deg)
+    cap = field_sized(settings, table.num_rows)
     out = []
-    for config in configurations(settings["algorithms"], settings["hyperparameter_grid"]):
+    for grid_point in configurations(settings["algorithms"], settings["hyperparameter_grid"]):
+        config = Configuration(grid_point.algorithm_id, {**grid_point.params, "max_cluster_size": cap})
         impl = clusterers[config.algorithm_id]
         out.append(labelling_document(run(impl, fm, config, seed), config, str(getattr(impl, "backend", "cpu"))))
     return fm.values, out
+
+
+def field_sized(settings: Mapping[str, Any], searched: int) -> int:
+    """The largest cluster of ``searched`` stars the field-fraction check does not reject as the field."""
+    fraction = float(settings["candidate_checks"]["max_field_fraction"])
+    return max(1, math.floor(fraction * searched))
 
 
 def _with_mean_parallax(candidates: list[dict[str, Any]], table: pa.Table) -> list[dict[str, Any]]:
@@ -411,12 +426,14 @@ def distinct(results: Sequence[Mapping[str, Any]]) -> tuple[list[Mapping[str, An
 
     Candidates are taken largest first (ties to the nearer, higher mean parallax), and one is dropped
     when a candidate already taken from another shell holds at least ``SAME_CLUSTER`` of its members.
+    Rejected candidates are taken after every other, so a rejected copy, such as a field-sized group at
+    a shell's edge, never hides a candidate that passed its checks in the neighbouring shell (#159).
     Within one shell tiles own disjoint centres, so only copies across shells are looked for."""
     pool = [(str(r.get("tile", {}).get("scale", "")), c) for r in results for c in r["candidates"]]
 
-    def order(sc: tuple[str, Mapping[str, Any]]) -> tuple[int, float]:
+    def order(sc: tuple[str, Mapping[str, Any]]) -> tuple[bool, int, float]:
         mean = sc[1].get("mean_parallax_mas")
-        return -int(sc[1]["n_members"]), math.inf if mean is None else -float(mean)
+        return sc[1].get("status") == "rejected", -int(sc[1]["n_members"]), math.inf if mean is None else -float(mean)
 
     pool.sort(key=order)
     holder: dict[str, list[int]] = {}  # member key -> indices into taken
