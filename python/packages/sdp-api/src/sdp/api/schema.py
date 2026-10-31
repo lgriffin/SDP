@@ -316,6 +316,9 @@ class Investigation:
     transitions: list[InvestigationTransition]
     notes: JSONValue
     links: JSONValue
+    references: JSONValue = strawberry.field(
+        description="What reference catalogues held at the candidate's position, oldest pull first (INV-023)."
+    )
 
     @strawberry.field(description="The candidate's dossier, rebuilt from the set's stage artifacts.")  # type: ignore[untyped-decorator]
     def dossier(self, info: Info[Any, None]) -> JSONValue | None:
@@ -346,7 +349,17 @@ class Investigation:
             ],
             notes=doc["notes"],
             links=doc["links"],
+            references=doc["references"],
         )
+
+
+@strawberry.type(description="A catalogue a candidate can be compared against (INV-023).")
+class ReferenceCatalogue:
+    source_id: str
+    title: str
+    release_label: str
+    citation: str
+    description: str
 
 
 @strawberry.type(description="One run of Investigate over a field under a profile, with its multiplicity.")
@@ -530,6 +543,21 @@ class Query:
         query = _kernel(info).query_investigations
         found = query.investigation(str(id)) if query else None
         return Investigation.of(found) if found else None
+
+    @strawberry.field(description="Catalogues a candidate can be compared against, by title (INV-023).")  # type: ignore[untyped-decorator]
+    def reference_catalogues(self, info: Info[Any, None]) -> list[ReferenceCatalogue]:
+        pulls = _kernel(info).pull_references
+        found = pulls.available() if pulls else []
+        return [
+            ReferenceCatalogue(
+                source_id=c.source_id,
+                title=c.title,
+                release_label=c.release_label,
+                citation=c.citation,
+                description=c.description,
+            )
+            for c in found
+        ]
 
     @strawberry.field(description="Acquisition plans (ADR-020).")  # type: ignore[untyped-decorator]
     def plans(self, info: Info[Any, None]) -> list[Plan]:

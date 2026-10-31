@@ -1,6 +1,7 @@
 // A fake sdp-api: answers the UI's GraphQL operations from fixture data, so the GraphQL adapter is
 // tested over real HTTP-shaped requests without a server (fakes over mocks, TST-005).
 import { FIXTURES, type FixtureData } from "./fixtures.ts";
+import { DEMO_CATALOGUES } from "./references.ts";
 
 interface Request {
   query: string;
@@ -36,6 +37,10 @@ export function fakeApi(data: FixtureData = FIXTURES, status = 200, planner = tr
         return { plans: data.plans };
       case "Plan":
         return { plan: data.plans.find((p) => p.id === v.id) ?? null };
+      case "Comparison": {
+        const found = data.investigation[String(v.id)];
+        return { referenceCatalogues: DEMO_CATALOGUES, investigation: found ? { references: data.references[String(v.id)] ?? [] } : null };
+      }
       case "Archives":
         return { archives: data.archives };
       case "Events":

@@ -9,6 +9,7 @@ import {
   type InvestigateRequest,
   type JobRun,
   type PlanState,
+  type PullSummary,
   type ReproductionRun,
   type TriageAction,
   type Workbench,
@@ -119,6 +120,15 @@ export class RestWorkbench implements Workbench {
   async registerArchives(): Promise<ArchivesStatus> {
     const r = await this.post("/archives/register", {}, true);
     return { sources: (r.sources ?? []) as ArchiveSource[], registration: (r.registration ?? null) as JobRun | null };
+  }
+
+  async pullReferences(investigationId: string, sources: string[], radiusArcsec: number, actor: string): Promise<PullSummary> {
+    const r = await this.post(`/investigations/${encodeURIComponent(investigationId)}/references`, {
+      sources,
+      radius_arcsec: radiusArcsec,
+      actor,
+    });
+    return { pulls: (r.pulls ?? []) as PullSummary["pulls"] };
   }
 
   async reproduceSet(setId: string): Promise<ReproductionRun> {

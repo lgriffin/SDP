@@ -220,3 +220,26 @@ describe("the desktop app's API token", () => {
     expect(withToken(base, undefined)).toBe(base);
   });
 });
+
+describe("reference pulls (INV-023)", () => {
+  it("[INV-023] the REST adapter posts the catalogues, radius and actor", async () => {
+    const s = server(200, JSON.stringify({ investigation_id: "inv-1", pulls: [{ source_id: "simbad", status: "none", matches: 0 }] }));
+    const w = new RestWorkbench("http://api.test", s.fetch);
+    expect(await w.pullReferences("inv 1", ["simbad", "gaia"], 5, "ada")).toEqual({ pulls: [{ source_id: "simbad", status: "none", matches: 0 }] });
+    expect(s.sent).toEqual([{ url: "http://api.test/investigations/inv%201/references", body: { sources: ["simbad", "gaia"], radius_arcsec: 5, actor: "ada" } }]);
+  });
+
+  it("[INV-023] the fake keeps every pull with the candidate and refuses what the kernel refuses", async () => {
+    const source = new InMemoryEvidenceSource();
+    const w = new InMemoryWorkbench(source, () => "2026-10-31T10:00:00Z");
+    const summary = await w.pullReferences("inv-000001", ["gaia", "simbad"], 5, "ada");
+    expect(summary.pulls.map((p) => [p.source_id, p.status])).toEqual([["gaia", "found"], ["simbad", "none"]]);
+    await w.pullReferences("inv-000001", ["gaia"], 2, "ada");
+    const pulls = (await source.comparison("inv-000001"))?.pulls ?? [];
+    expect(pulls.map((p) => [p.source_id, p.radius_arcsec, p.matches.length])).toEqual([["gaia", 5, 2], ["simbad", 5, 0], ["gaia", 2, 1]]);
+    await expect(w.pullReferences("inv-000001", ["nowhere"], 5, "ada")).rejects.toThrow(CommandRefused);
+    await expect(w.pullReferences("inv-000001", ["gaia"], 0, "ada")).rejects.toThrow(/radius/);
+    await expect(w.pullReferences("inv-000001", ["gaia"], 5, " ")).rejects.toThrow(/who asked/);
+    await expect(w.pullReferences("inv-missing", ["gaia"], 5, "ada")).rejects.toThrow(/no investigation/);
+  });
+});

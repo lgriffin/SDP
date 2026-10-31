@@ -214,6 +214,7 @@ test("pages never scroll sideways", async ({ page }) => {
     "/investigations",
     "/investigations/invset-000001",
     "/investigations/invset-000001/inv-000002",
+    "/investigations/invset-000001/inv-000002/compare",
     "/investigations/invset-000101",
     "/investigations/invset-000101/images",
     "/investigations/invset-000101/images?star=j-pair-a",

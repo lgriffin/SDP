@@ -1,6 +1,7 @@
 """The ASGI app: ``/graphql`` for queries, ``/health``, run/validate command endpoints (ADR-016),
 ``POST /investigations``, which the field viewer and the evidence UI call to run InvestigateField
-(INV-012), ``POST /investigations/{id}/triage`` for the unsigned triage steps, and the planner
+(INV-012), ``POST /investigations/{id}/triage`` for the unsigned triage steps, ``POST /investigations/{id}/references``,
+which asks reference catalogues what they hold at a candidate's position (INV-023), and the planner
 (ADR-020): ``POST /plans``, ``/plans/{id}/approve``, ``/plans/{id}/refuse`` and ``/plans/{id}/execute``
 (``{"background": true}`` runs it as a job, INV-018), and ``/archives`` with ``POST /archives/register``,
 which reads what each archive offers so a new installation can plan (INV-019).
@@ -19,6 +20,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -30,6 +32,7 @@ from sdp.api.jobs import REGISTER_JOB, REPRODUCE_JOBS, RUNNING, JobBusy, Jobs, p
 from sdp.api.schema import schema
 from sdp.kernel.application.kernel import Kernel
 from sdp.kernel.application.planning import DEFAULT_BUDGET, plan_view
+from sdp.kernel.application.references import DEFAULT_RADIUS_ARCSEC, PullReferencesCommand
 from sdp.kernel.application.set_bundle import DOSSIER_MEDIA_TYPE
 from sdp.kernel.domain.errors import DomainError, IntegrityError
 from sdp.kernel.domain.ids import ArtifactId
@@ -201,6 +204,38 @@ def create_app(
                 "investigation_id": investigation.investigation_id,
                 "state": investigation.state.value,
                 "transitions": len(investigation.transitions),
+            }
+        )
+
+    async def references(request: Request) -> Response:
+        use_case = runtime.kernel.pull_references
+        if use_case is None or not use_case.catalogues:
+            return JSONResponse({"error": "no reference catalogues are wired on this server"}, status_code=503)
+        investigation_id = request.path_params["investigation_id"]
+        try:
+            body = await request.json()
+            raw_sources = body["sources"]
+            if not isinstance(raw_sources, list):
+                raise TypeError("sources is a list of catalogue ids")
+            command = PullReferencesCommand(
+                investigation_id,
+                tuple(str(s) for s in raw_sources),
+                str(body["actor"]),
+                float(body.get("radius_arcsec", DEFAULT_RADIUS_ARCSEC)),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return JSONResponse({"error": f"bad request: {exc}", "type": type(exc).__name__}, status_code=400)
+        try:
+            # archives take seconds to a minute; the event loop keeps answering reads meanwhile
+            investigation = await run_in_threadpool(use_case.execute, command)
+        except DomainError as exc:
+            status = 404 if str(exc).startswith("no investigation ") else 409
+            return JSONResponse({"error": str(exc), "type": type(exc).__name__}, status_code=status)
+        asked = investigation.references[-len(command.sources) :]
+        return JSONResponse(
+            {
+                "investigation_id": investigation.investigation_id,
+                "pulls": [{"source_id": p.source_id, "status": p.status, "matches": len(p.matches)} for p in asked],
             }
         )
 
@@ -454,6 +489,7 @@ def create_app(
             Route("/archives/register", register_archives, methods=["POST"]),
             Route("/investigations", investigate, methods=["POST"]),
             Route("/investigations/{investigation_id}/triage", triage, methods=["POST"]),
+            Route("/investigations/{investigation_id}/references", references, methods=["POST"]),
             Route("/investigations/{set_id}/dossier.zip", set_dossier),
             Route("/investigations/{set_id}/reproduce", reproduce_set, methods=["GET", "POST"]),
             Route("/experiments/{experiment_id}/run", command(run), methods=["POST"]),

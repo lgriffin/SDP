@@ -8,6 +8,7 @@ import {
   type JobRun,
   type Investigation,
   type PlanState,
+  type PullSummary,
   type ReproductionRun,
   type TriageAction,
   type Workbench,
@@ -15,6 +16,7 @@ import {
 import { EXAMPLES } from "../examples.ts";
 import { coneRegion } from "../plain.ts";
 import { type InMemoryEvidenceSource, REGISTERED_ARCHIVES } from "./fixtures.ts";
+import { DEMO_CATALOGUES, demoPull } from "./references.ts";
 
 const TRIAGE: Record<Exclude<TriageAction, "annotate">, { to: string; from: string[] }> = {
   park: { to: "parked", from: ["open"] },
@@ -175,6 +177,20 @@ export class InMemoryWorkbench implements Workbench {
   }
 
   /** A demonstration check reads as running, then reproduced: its results are recorded, not recomputed. */
+  async pullReferences(investigationId: string, sources: string[], radiusArcsec: number, actor: string): Promise<PullSummary> {
+    this.commands.push({ command: "references", args: [investigationId, sources, radiusArcsec, actor] });
+    const i = this.investigationOrRefuse(investigationId);
+    if (!actor.trim()) throw new CommandRefused("a reference pull records who asked for it", 400);
+    if (!sources.length) throw new CommandRefused("choose at least one catalogue to pull", 409);
+    const unknown = sources.find((s) => !DEMO_CATALOGUES.some((c) => c.sourceId === s));
+    if (unknown) throw new CommandRefused(`unknown reference catalogue '${unknown}'`, 409);
+    if (!(radiusArcsec > 0 && radiusArcsec <= 600)) throw new CommandRefused("the search radius is above 0 and at most 600 arcsec", 409);
+    const at = this.now();
+    const pulls = [...new Set(sources)].map((s) => demoPull(s, i, radiusArcsec, actor, at));
+    (this.source.data.references[investigationId] ??= []).push(...pulls);
+    return { pulls: pulls.map((p) => ({ source_id: p.source_id, status: p.status, matches: p.matches.length })) };
+  }
+
   async reproduceSet(setId: string): Promise<ReproductionRun> {
     this.commands.push({ command: "reproduce", args: [setId] });
     const set = this.source.data.investigationSet[setId];

@@ -31,6 +31,7 @@ from sdp.kernel.application.planning import (
 from sdp.kernel.application.predeclarations import FreezePredeclarationUseCase
 from sdp.kernel.application.publication import PublishBundleUseCase
 from sdp.kernel.application.queries import QueryEvidenceUseCase
+from sdp.kernel.application.references import PullReferencesUseCase
 from sdp.kernel.application.set_bundle import SetDossierUseCase
 from sdp.kernel.ports.archives import ArchiveGateway, DialectCurator
 from sdp.kernel.ports.compute import ComputeExecutor, EnvironmentProbe
@@ -40,6 +41,7 @@ from sdp.kernel.ports.integration import AdapterCompatibilitySource, CapabilityD
 from sdp.kernel.ports.ledger import Ledger
 from sdp.kernel.ports.plugins import ProtocolRegistry
 from sdp.kernel.ports.publication import BundlePublisher
+from sdp.kernel.ports.references import ReferenceCatalogue
 from sdp.kernel.ports.repositories import UnitOfWork
 from sdp.kernel.ports.storage import ArtifactStore
 
@@ -68,6 +70,8 @@ class KernelPorts:
     """The release's adapter compatibility records (Integration v0.4.0 §6); none admits no adapter."""
     discovery: CapabilityDiscoveryService | None = None
     """What the planner matches requirements against (v0.4.0 §2); without it nothing is planned."""
+    references: Mapping[str, ReferenceCatalogue] = field(default_factory=dict)
+    """Catalogues a candidate can be compared against, by source id (INV-023); none offers no pulls."""
 
 
 @dataclass
@@ -90,6 +94,7 @@ class Kernel:
     plan_investigation: PlanInvestigationUseCase | None = None
     execute_plan: ExecutePlanUseCase | None = None
     set_dossier: SetDossierUseCase | None = None
+    pull_references: PullReferencesUseCase | None = None
 
     @classmethod
     def build(cls, ports: KernelPorts) -> Kernel:
@@ -133,6 +138,10 @@ class Kernel:
             query_investigations=QueryInvestigationsUseCase(ports.uow, ports.store),
             query_plans=QueryPlansUseCase(ports.uow),
             approve_plan=ApprovePlanUseCase(ports.uow, ports.ledger, ports.clock),
+        )
+        assert kernel.query_investigations is not None
+        kernel.pull_references = PullReferencesUseCase(
+            ports.uow, ports.store, ports.clock, ports.references, kernel.query_investigations.dossier
         )
         if ports.investigate is not None:
             kernel.investigate_field = InvestigateFieldUseCase(

@@ -123,6 +123,47 @@ export interface ArchivesStatus {
   registration: JobRun | null;
 }
 
+/** A catalogue a candidate can be compared against (INV-023). */
+export interface ReferenceCatalogueOption {
+  sourceId: string;
+  title: string;
+  releaseLabel: string;
+  citation: string;
+  description: string;
+}
+
+/** A row in canonical names: ra_deg, dec_deg, epoch_jyear, g_mag, j_mag, object_type, ... */
+export type ReferenceRow = Record<string, unknown> & { source_key?: string | null; separation_arcsec?: number };
+
+/** One catalogue's answer to one cone around a candidate, as kept with the investigation (INV-023). */
+export interface ReferencePull {
+  source_id: string;
+  title: string;
+  release_label: string;
+  citation: string;
+  radius_arcsec: number;
+  target: {
+    ra_deg: number;
+    dec_deg: number;
+    epoch_jyear: number | null;
+    pm_ra_cosdec_masyr: number | null;
+    pm_dec_masyr: number | null;
+  };
+  asked_at: string;
+  actor: string;
+  status: "found" | "none" | "failed";
+  /** Nearest first, each with its separation_arcsec from the candidate at the row's epoch. */
+  matches: ReferenceRow[];
+  raw_artifact_id: string | null;
+  error: string | null;
+}
+
+/** What the comparison page reads: the catalogues on offer and every pull made for the candidate. */
+export interface Comparison {
+  catalogues: ReferenceCatalogueOption[];
+  pulls: ReferencePull[];
+}
+
 export interface EvidenceSource {
   experiments(state?: string): Promise<ExperimentSummary[]>;
   experiment(id: string): Promise<Experiment | null>;
@@ -145,6 +186,8 @@ export interface EvidenceSource {
   dossier(setId: string): Promise<ArtifactBytes | null>;
   /** The last check that the set reproduces from its dossier; null when none was started (INV-022). */
   reproduction(setId: string): Promise<ReproductionRun | null>;
+  /** The catalogues on offer and the candidate's pulls (INV-023); null from an sdp-api before comparisons. */
+  comparison(investigationId: string): Promise<Comparison | null>;
 }
 
 /** The Test stage re-run from a set's dossier alone and compared with what it records (INV-022). */
@@ -186,6 +229,12 @@ export interface Workbench {
   registerArchives(): Promise<ArchivesStatus>;
   /** Starts saving the set's dossier and re-running its tests from it alone (INV-022); answers at once. */
   reproduceSet(setId: string): Promise<ReproductionRun>;
+  /** Asks each catalogue for one cone around the candidate and keeps every answer (INV-023); takes up to a minute. */
+  pullReferences(investigationId: string, sources: string[], radiusArcsec: number, actor: string): Promise<PullSummary>;
+}
+
+export interface PullSummary {
+  pulls: { source_id: string; status: ReferencePull["status"]; matches: number }[];
 }
 
 export interface ProfileOption {

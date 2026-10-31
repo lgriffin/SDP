@@ -1,0 +1,24 @@
+{
+ "recorded_at": "2026-10-31T10:14:29.460847Z",
+ "recorder": "sdp",
+ "request": {
+  "body": {
+   "text": "REQUEST=doQuery&LANG=ADQL&FORMAT=votable&MAXREC=200&QUERY=SELECT+TOP+200+designation%2C+ra%2C+dec%2C+jdate%2C+j_m%2C+h_m%2C+k_m%2C+ph_qual+FROM+fp_psc+WHERE+1+%3D+CONTAINS%28POINT%28%27ICRS%27%2C+ra%2C+dec%29%2C+CIRCLE%28%27ICRS%27%2C+269.4487909%2C+4.6685359%2C+0.002777777777777778%29%29"
+  },
+  "headers": {
+   "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "method": "POST",
+  "url": "https://irsa.ipac.caltech.edu/TAP/sync"
+ },
+ "response": {
+  "body": {
+   "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<VOTABLE version=\"1.3\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\" xmlns:stc=\"http://www.ivoa.net/xml/STC/v1.30\" xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/STC/v1.30 http://www.ivoa.net/xml/STC/v1.30\">\n  <RESOURCE type=\"results\">\n    <INFO name=\"QUERY_STATUS\" value=\"OK\"/>\n    <TABLE>\n      <FIELD name=\"designation\" datatype=\"char\" arraysize=\"*\" ID=\"col_0\" ucd=\"meta.id;meta.main\">\n        <DESCRIPTION>source designation formed from sexigesimal coordinates</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"ra\" datatype=\"double\" ID=\"col_1\" irsa_format=\"10.6f\" precision=\"F6\" ucd=\"pos.eq.ra;meta.main\" unit=\"deg\">\n        <DESCRIPTION>right ascension (J2000 decimal deg)</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"dec\" datatype=\"double\" ID=\"col_2\" irsa_format=\"10.6f\" precision=\"F6\" ucd=\"pos.eq.dec;meta.main\" unit=\"deg\">\n        <DESCRIPTION>declination (J2000 decimal deg)</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"jdate\" datatype=\"double\" ID=\"col_3\" irsa_format=\"12.4f\" precision=\"F4\" ucd=\"time;obs.exposure\" unit=\"d\">\n        <DESCRIPTION>julian date of source measurement to +/- 30 sec</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"j_m\" datatype=\"float\" ID=\"col_4\" irsa_format=\"6.3f\" precision=\"F3\" ucd=\"phot.mag;em.IR.J\" unit=\"mag\">\n        <DESCRIPTION>J band selected &quot;default&quot; magnitude</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"h_m\" datatype=\"float\" ID=\"col_5\" irsa_format=\"6.3f\" precision=\"F3\" ucd=\"phot.mag;em.IR.H\" unit=\"mag\">\n        <DESCRIPTION>H band selected &quot;default&quot; magnitude</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"k_m\" datatype=\"float\" ID=\"col_6\" irsa_format=\"6.3f\" precision=\"F3\" ucd=\"phot.mag;em.IR.K\" unit=\"mag\">\n        <DESCRIPTION>K band selected &quot;default&quot; magnitude</DESCRIPTION>\n      </FIELD>\n      <FIELD name=\"ph_qual\" datatype=\"char\" arraysize=\"*\" ID=\"col_7\" ucd=\"meta.code.qual\">\n        <DESCRIPTION>flag indicating photometric quality of source</DESCRIPTION>\n      </FIELD>\n      <DATA>\n        <TABLEDATA>\n          <TR>\n            <TD>17574770+0440067</TD>\n            <TD>269.448788</TD>\n            <TD>4.668536</TD>\n            <TD>2451692.9284</TD>\n            <TD>14.489</TD>\n            <TD>14.012</TD>\n            <TD>13.942</TD>\n            <TD>AAA</TD>\n          </TR>\n        </TABLEDATA>\n      </DATA>\n    </TABLE>\n  </RESOURCE>\n</VOTABLE>\n"
+  },
+  "headers": {
+   "Content-Type": "application/x-votable+xml"
+  },
+  "sha256": "ce62e6d9abc3b8dff3516c741045471d2361dbbe9f8d2b4137276968abfcd175",
+  "status": 200
+ }
+}

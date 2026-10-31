@@ -59,6 +59,10 @@
   Exploratory. These results came from looking, so they cannot confirm anything. To turn this into a finding,
   plan a hypothesis test in advance that uses evidence this search did not.
 </p>
+<p class="compare-link">
+  <a class="button secondary" href="/investigations/{i.setId}/{i.id}/compare" data-testid="compare-link">Compare with catalogues</a>
+  <span class="muted">Is it already known, or an artefact? See it beside SIMBAD, Gaia, 2MASS, WISE, Pan-STARRS and AAVSO VSX.</span>
+</p>
 
 <div class="top">
   <section aria-labelledby="results-h">
@@ -233,6 +237,7 @@
 <style>
   .sub { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0 0 0.9rem; }
   .notice { background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--line)); border-radius: var(--radius); padding: 0.75rem 1rem; max-width: none; }
+  .compare-link { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; max-width: none; margin: 0.9rem 0 0; }
   .top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.4rem; align-items: start; }
   .decide { margin-top: 2.4rem; }
   .decide h2 { margin-top: 0; }
