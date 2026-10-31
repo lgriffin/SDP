@@ -49,6 +49,13 @@ sdp local solved astro
 copy. A name SIMBAD does not know can be given by hand: `sdp local names astro --centre "M31=10.68,41.27"`
 (right ascension and declination in degrees).
 
+Some frames have no target name in their header at all. `sdp local names astro` lists their folders
+under `folders_of_frames_without_object`. SDP first tries each folder's name as a target (`raw\IC434`
+is looked up as IC434), and records that the centre came from the folder name. When that doesn't
+work, give the folder's centre by hand, and it covers every folder inside it:
+`sdp local names astro --folder "raw/IC434=85.25,-2.46"`. Frames in folders named `darks`, `biases`
+or `flats` are indexed as calibration frames even when the header says LIGHT, so they are never solved.
+
 For each frame SDP takes a rough centre from the target name in its header (from the names file), finds
 the stars, and matches the triangles they make against Gaia stars brighter than G = 15 in a 2° circle,
 whatever the frame's rotation or mirroring. It accepts a fit with at least 12 matched stars and an error

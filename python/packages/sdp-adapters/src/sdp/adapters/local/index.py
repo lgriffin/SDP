@@ -21,7 +21,7 @@ from sdp.adapters.local.sources import LocalSource, LocalSourceError
 SUFFIXES = (".fits", ".fit", ".fts")
 PROGRESS_EVERY = 500
 KINDS = ("light", "dark", "flat", "bias", "stack")
-_FOLDER_KINDS = {
+FOLDER_KINDS = {
     "dark": "dark",
     "darks": "dark",
     "flat": "flat",
@@ -105,18 +105,26 @@ def pointing(header: dict[str, Any]) -> tuple[float | None, float | None]:
     return ra, dec
 
 
+def folder_kind(relative: PurePosixPath | str) -> str | None:
+    """The calibration kind the nearest folder holding the frame is named for (``darks``, ``biases``, ...)."""
+    for folder in reversed(PurePosixPath(relative).parent.parts):
+        if folder.lower() in FOLDER_KINDS:
+            return FOLDER_KINDS[folder.lower()]
+    return None
+
+
 def frame_kind(header: dict[str, Any], relative: PurePosixPath) -> str:
     """``IMAGETYP`` when present, else a calibration folder's name, else a stack (``STACKCNT``, or a
-    floating-point colour cube), else a light frame."""
+    floating-point colour cube), else a light frame. A calibration folder's name wins over an
+    ``IMAGETYP`` of LIGHT: the Vespera writes LIGHT on its darks and biases too (#143)."""
     imagetyp = (_text(header, "IMAGETYP", "FRAME") or "").lower()
     for kind in ("dark", "flat", "bias", "light"):
         if kind in imagetyp:
-            return kind
+            return (folder_kind(relative) or kind) if kind == "light" else kind
     if "offset" in imagetyp:
         return "bias"
-    for folder in relative.parent.parts:
-        if folder.lower() in _FOLDER_KINDS:
-            return _FOLDER_KINDS[folder.lower()]
+    if (by_folder := folder_kind(relative)) is not None:
+        return by_folder
     cube = header.get("NAXIS") == 3 and isinstance(header.get("BITPIX"), int) and int(header["BITPIX"]) < 0
     if header.get("STACKCNT") is not None or cube:
         return "stack"
@@ -212,6 +220,9 @@ class FrameIndex:
                 and set(SCHEMA.names) <= previous.keys()  # an index from before a column was added
                 and (previous["size"], previous["mtime_ns"]) == (stat.st_size, stat.st_mtime_ns)
             ):
+                if previous["kind"] == "light" and (by_folder := folder_kind(relative)) is not None:
+                    # indexed as a light before a calibration folder's name won over IMAGETYP (#143)
+                    previous = {**previous, "kind": by_folder}
                 rows.append(previous)
                 reused += 1
             else:
