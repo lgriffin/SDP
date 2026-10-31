@@ -92,7 +92,7 @@ That is 48 scenarios. The **baseline** is `r_in` = 3 arcmin, `R_max` = 0.6°, er
 - **Supports UC03-H0** when the baseline's 16th percentile of `Υ` and every scenario's `Υ` are 10 or more.
 - **Inconclusive** otherwise. The report names the scenarios on each side.
 
-The fit must converge in every scenario, and the fitted cluster fraction must be positive. A scenario that fails either is reported by name, and the verdict is inconclusive.
+The fit must converge in every scenario and in every one of the baseline's bootstrap refits, and the fitted cluster fraction must be positive. A refit that fails is counted and its reason recorded. A band from fewer refits than requested decides nothing, and the verdict is then inconclusive. A scenario that fails either is reported by name, and the verdict is inconclusive.
 
 ## Validation before use
 

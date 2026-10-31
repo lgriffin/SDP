@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import re
 
 import numpy as np
 import pytest
@@ -168,6 +169,29 @@ def test_a_failed_scenario_or_a_missing_bootstrap_makes_the_verdict_inconclusive
 
 
 @pytest.mark.req("REL-014")
+def test_a_bootstrap_with_any_failed_refit_decides_nothing() -> None:
+    assert e.verdict(_band(1.5, 2.5), {"a": 2.0}, 10.0, bootstrap_complete=False) == {
+        "status": "inconclusive",
+        "threshold": 10.0,
+        "scenarios_below": ["a"],
+        "scenarios_at_or_above": [],
+        "scenarios_failed": [],
+        "bootstrap_complete": False,
+    }
+
+
+@pytest.mark.req("REL-014")
+def test_a_refit_that_raises_is_recorded_as_a_failure_not_an_abort(planted: dict[str, np.ndarray]) -> None:
+    stars, _ = e.select(planted)
+    centre = e.find_centre(stars)
+    sparse = stars.take(np.arange(60))  # too few stars in the annulus once resampled
+    boot = e.bootstrap(sparse, centre, e.baseline(), np.zeros(len(e.PARAMS)), 2, 1921)
+    assert boot.requested == 2 and boot.results == [] and not boot.complete
+    assert len(boot.failures) == 2
+    assert all(re.match(r"^only \d+ stars in the annulus", f) for f in boot.failures)
+
+
+@pytest.mark.req("REL-014")
 def test_the_predeclared_grid_has_48_scenarios_and_contains_the_baseline() -> None:
     grid = e.scenarios()
     assert len(grid) == 48 and len(set(grid)) == 48
@@ -199,11 +223,19 @@ def test_a_run_records_the_committed_choices_and_says_when_they_were_changed(pla
     assert report["verdict"]["status"] in {"supports_H1", "inconclusive"}
     assert report["selection"]["kept"] == report["selection"]["stars_in"]
 
+    assert report["baseline"]["bootstrap"]["succeeded"] == 2 and report["baseline"]["bootstrap"]["failures"] == []
+
     changed = copy.deepcopy(e.load_choices())
     changed["hypothesis_threshold_mass_to_light"] = 3.0
-    altered = e.run(planted, resamples=0, all_scenarios=False, choices=changed)
+    changed["light"]["abs_g_sun"] = 5.67  # one magnitude fainter Sun: every light 2.5 times larger in suns
+    altered = e.run(planted, resamples=2, all_scenarios=False, choices=changed)
     assert altered["choices_match_committed"] is False
     assert altered["verdict"]["threshold"] == 3.0
+    ratio = report["baseline"]["physical"]["light_g_solar"] / altered["baseline"]["physical"]["light_g_solar"]
+    assert ratio == pytest.approx(10**-0.4)
+    band = report["baseline"]["bootstrap"]["percentiles"]["light_g_solar"]["p50"]
+    altered_band = altered["baseline"]["bootstrap"]["percentiles"]["light_g_solar"]["p50"]
+    assert band / altered_band == pytest.approx(10**-0.4)  # the bootstrap uses the run's choices too
 
 
 @pytest.mark.req("REL-015")

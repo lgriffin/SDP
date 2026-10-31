@@ -36,7 +36,7 @@ requirements:
       - "python/tests.relativity.test_einstein1921::test_too_few_stars_in_the_annulus_is_refused_by_name"
   - id: REL-014
     pattern: unwanted
-    text: "If a UC-03 scenario fails or the baseline band and every scenario do not fall on one side of the predeclared mass-to-light threshold, then the relativity module shall not report a verdict other than inconclusive."
+    text: "If a UC-03 scenario or bootstrap refit fails or the baseline band and every scenario do not fall on one side of the predeclared mass-to-light threshold, then the relativity module shall not report a verdict other than inconclusive."
     rationale: "The decision rule is fixed before the data; a split across scenarios is reported, never resolved by choosing a scenario."
     verification: test
     tiers: [T1]
@@ -45,6 +45,8 @@ requirements:
       - "python/tests.relativity.test_einstein1921::test_the_verdict_supports_einstein_only_when_the_band_and_every_scenario_are_below_ten"
       - "python/tests.relativity.test_einstein1921::test_the_verdict_goes_against_einstein_only_when_everything_is_at_or_above_ten"
       - "python/tests.relativity.test_einstein1921::test_a_failed_scenario_or_a_missing_bootstrap_makes_the_verdict_inconclusive"
+      - "python/tests.relativity.test_einstein1921::test_a_bootstrap_with_any_failed_refit_decides_nothing"
+      - "python/tests.relativity.test_einstein1921::test_a_refit_that_raises_is_recorded_as_a_failure_not_an_abort"
       - "python/tests.relativity.test_einstein1921::test_the_predeclared_grid_has_48_scenarios_and_contains_the_baseline"
       - "python/tests.relativity.test_einstein1921::test_the_verdict_follows_the_planted_mass_to_light_ratio"
   - id: REL-015

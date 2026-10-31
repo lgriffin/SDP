@@ -485,18 +485,43 @@ def physical(stars: Stars, f: Fit, scenario: Scenario, choices: dict[str, Any] |
 # Scenarios, bootstrap, verdict
 
 
+@dataclass(frozen=True)
+class Bootstrap:
+    """Star-resampled refits: the physical quantities of those that succeeded, and why the others failed."""
+
+    requested: int
+    results: list[Physical]
+    failures: list[str]
+
+    @property
+    def complete(self) -> bool:
+        return self.requested > 0 and len(self.results) == self.requested
+
+
 def bootstrap(
-    stars: Stars, centre: tuple[float, float], scenario: Scenario, start: Array, resamples: int, seed: int
-) -> list[Physical]:
-    """Physical quantities for ``resamples`` star-resampled refits; the seed is recorded in the report."""
+    stars: Stars,
+    centre: tuple[float, float],
+    scenario: Scenario,
+    start: Array,
+    resamples: int,
+    seed: int,
+    choices: dict[str, Any] | None = None,
+) -> Bootstrap:
+    """``resamples`` star-resampled refits under the run's choices; a refit that fails is recorded, not dropped."""
     rng = np.random.default_rng(seed)
-    out = []
+    results: list[Physical] = []
+    failures: list[str] = []
     for _ in range(resamples):
         sample = stars.take(rng.integers(0, len(stars), len(stars)))
-        f = fit(sample, centre, scenario, start=start)
-        if f.converged:
-            out.append(physical(sample, f, scenario))
-    return out
+        try:
+            f = fit(sample, centre, scenario, start=start)
+            if not f.converged:
+                failures.append(f"did not converge: {f.message}")
+                continue
+            results.append(physical(sample, f, scenario, choices))
+        except ValueError as error:
+            failures.append(str(error))
+    return Bootstrap(resamples, results, failures)
 
 
 def percentiles(values: list[Physical]) -> dict[str, dict[str, float]]:
@@ -514,15 +539,19 @@ def percentiles(values: list[Physical]) -> dict[str, dict[str, float]]:
 
 
 def verdict(
-    baseline_band: dict[str, dict[str, float]], by_scenario: dict[str, float | None], threshold: float
+    baseline_band: dict[str, dict[str, float]],
+    by_scenario: dict[str, float | None],
+    threshold: float,
+    bootstrap_complete: bool = True,
 ) -> dict[str, Any]:
-    """The predeclared decision rule on the mass-to-light ratio (protocol, Decision rule)."""
+    """The predeclared decision rule on the mass-to-light ratio (protocol, Decision rule). A band from fewer
+    refits than were requested decides nothing."""
     failed = sorted(label for label, value in by_scenario.items() if value is None)
     values = {k: v for k, v in by_scenario.items() if v is not None}
     below = sorted(k for k, v in values.items() if v < threshold)
     above = sorted(k for k, v in values.items() if v >= threshold)
     band = baseline_band.get("mass_to_light")
-    if failed or band is None:
+    if failed or band is None or not bootstrap_complete:
         status = "inconclusive"
     elif band["p84"] < threshold and not above:
         status = "supports_H1"
@@ -536,6 +565,7 @@ def verdict(
         "scenarios_below": below,
         "scenarios_at_or_above": above,
         "scenarios_failed": failed,
+        "bootstrap_complete": bootstrap_complete,
     }
 
 
@@ -558,7 +588,8 @@ def run(
     base_physical = physical(stars, base_fit, base, choices)
     n_boot = int(choices["bootstrap"]["resamples"]) if resamples is None else resamples
     seed = int(choices["bootstrap"]["seed"])
-    band = percentiles(bootstrap(stars, centre, base, start, n_boot, seed))
+    boot = bootstrap(stars, centre, base, start, n_boot, seed, choices)
+    band = percentiles(boot.results)
     rows: dict[str, dict[str, Any]] = {}
     by_scenario: dict[str, float | None] = {}
     for s in scenarios(choices) if all_scenarios else [base]:
@@ -599,10 +630,16 @@ def run(
                 "stars": base_fit.n_stars,
             },
             "physical": asdict(base_physical),
-            "bootstrap": {"resamples": n_boot, "seed": seed, "percentiles": band},
+            "bootstrap": {
+                "resamples": n_boot,
+                "succeeded": len(boot.results),
+                "failures": boot.failures,
+                "seed": seed,
+                "percentiles": band,
+            },
         },
         "scenarios": rows,
-        "verdict": verdict(band, by_scenario, threshold),
+        "verdict": verdict(band, by_scenario, threshold, boot.complete),
         "einstein_vs_gaia": {
             "v_kms": {"einstein": choices["einstein_1921"]["v_kms"], "gaia": base_physical.v_rms_kms},
             "two_a_ly": {
