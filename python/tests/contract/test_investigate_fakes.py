@@ -9,15 +9,24 @@ import pytest
 
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import FetchedProduct, Field, ObservationCriteria, ProductRef
-from sdp.kernel.ports.investigate import Detection, ImageFrame, ObservationTarget, ServiceRecord
+from sdp.kernel.ports.investigate import (
+    Detection,
+    FrameDescription,
+    ImageFrame,
+    ObservationTarget,
+    ServiceRecord,
+    SkyPoint,
+)
 from sdp.testing.contracts.integration import PlanRepositoryContract
 from sdp.testing.contracts.investigate import (
     DetectorCase,
     DialectCase,
+    ForcedPhotometerContract,
     InvestigationRepositoryContract,
     ObjectResolverContract,
     ObservationArchiveGatewayContract,
     ObservationCase,
+    PhotometerCase,
     ProductDialectContract,
     RefinerCase,
     RegistryCase,
@@ -27,7 +36,14 @@ from sdp.testing.contracts.investigate import (
     WcsRefinerContract,
 )
 from sdp.testing.fakes import InMemoryDatabase
-from sdp.testing.fakes.investigate import NearestWcsRefiner, PlantedDetector, StaticSourceRegistry, ThinningDialect
+from sdp.testing.fakes.investigate import (
+    NearestWcsRefiner,
+    PlantedDetector,
+    PlantedImage,
+    PlantedPhotometer,
+    StaticSourceRegistry,
+    ThinningDialect,
+)
 from sdp.testing.investigate import (
     fixture_resolver,
     observation_archive,
@@ -87,6 +103,21 @@ class TestNearestWcsRefiner(WcsRefinerContract):
     @pytest.fixture
     def refiner_case(self) -> RefinerCase:
         return RefinerCase(NearestWcsRefiner(), planted(), FRAME, REF_RA, REF_DEC, max_rms_arcsec=0.01)
+
+
+class TestPlantedPhotometer(ForcedPhotometerContract):
+    @pytest.fixture
+    def photometer_case(self) -> PhotometerCase:
+        image = PlantedImage(FrameDescription("F656N", 50000.0, "WFC3", 0.04, 0.1), {"s": (120.0, -10.0, 5000.0)})
+        return PhotometerCase(
+            PlantedPhotometer({FRAME.artifact_id: image}),
+            FRAME,
+            SkyPoint("s", 120.0, -10.0),
+            5000.0,
+            0.1,
+            "F656N",
+            SkyPoint("far", 121.0, -10.0),
+        )
 
 
 class TestFixtureResolver(ObjectResolverContract):

@@ -30,11 +30,15 @@ from sdp.kernel.domain.investigation import (
     TestResult,
 )
 from sdp.kernel.ports.investigate import (
+    MEASURED,
+    OFF_IMAGE,
+    ForcedPhotometer,
     ImageFrame,
     ObjectResolver,
     ObservationArchiveGateway,
     ObservationTarget,
     ProductDialect,
+    SkyPoint,
     SourceDetector,
     SourceRegistry,
     WcsRefiner,
@@ -119,6 +123,64 @@ class SourceDetectorContract:
         a = detector_case.detector.detect(detector_case.frame, {})
         b = detector_case.detector.detect(detector_case.frame, {})
         assert a.detections == b.detections
+
+
+@dataclass(frozen=True)
+class PhotometerCase:
+    photometer: ForcedPhotometer
+    frame: ImageFrame
+    star: SkyPoint
+    """A star on the image, isolated and well above the noise."""
+    flux: float
+    """Its total flux in the image's units."""
+    fwhm_arcsec: float
+    band: str
+    outside: SkyPoint
+    """A position off the image."""
+    rtol: float = 0.05
+
+
+class ForcedPhotometerContract:
+    @pytest.mark.req("INT-025")
+    def test_an_aperture_of_three_fwhm_holds_the_whole_star(self, photometer_case: PhotometerCase) -> None:
+        c = photometer_case
+        got = c.photometer.measure(
+            c.frame, [c.star], 3.0 * c.fwhm_arcsec, (4.0 * c.fwhm_arcsec, 6.0 * c.fwhm_arcsec), {}
+        )
+        [m] = got.measurements
+        assert m.key == c.star.key and m.status == MEASURED
+        assert m.flux == pytest.approx(c.flux, rel=c.rtol) and 0 < m.flux_err < 0.1 * m.flux
+        assert got.photometer_id == c.photometer.photometer_id and got.radius_arcsec == 3.0 * c.fwhm_arcsec
+
+    @pytest.mark.req("INT-025")
+    def test_a_smaller_aperture_holds_less_of_the_star(self, photometer_case: PhotometerCase) -> None:
+        c = photometer_case
+        annulus = (4.0 * c.fwhm_arcsec, 6.0 * c.fwhm_arcsec)
+        small = c.photometer.measure(c.frame, [c.star], 0.5 * c.fwhm_arcsec, annulus, {}).measurements[0]
+        large = c.photometer.measure(c.frame, [c.star], 2.0 * c.fwhm_arcsec, annulus, {}).measurements[0]
+        assert 0 < small.flux < large.flux
+
+    @pytest.mark.req("INT-025")
+    def test_a_position_off_the_image_is_not_measured(self, photometer_case: PhotometerCase) -> None:
+        c = photometer_case
+        got = c.photometer.measure(
+            c.frame, [c.outside, c.star], c.fwhm_arcsec, (2 * c.fwhm_arcsec, 3 * c.fwhm_arcsec), {}
+        )
+        assert [m.key for m in got.measurements] == [c.outside.key, c.star.key]
+        assert got.measurements[0].status == OFF_IMAGE and got.measurements[1].status == MEASURED
+
+    @pytest.mark.req("INT-025")
+    def test_the_description_names_the_band_and_the_stars_width(self, photometer_case: PhotometerCase) -> None:
+        c = photometer_case
+        d = c.photometer.describe(c.frame, [c.star], {})
+        assert d.band == c.band and d.pixel_arcsec > 0
+        assert d.fwhm_arcsec == pytest.approx(c.fwhm_arcsec, rel=0.1)
+
+    def test_measurement_is_deterministic(self, photometer_case: PhotometerCase) -> None:
+        c = photometer_case
+        annulus = (2 * c.fwhm_arcsec, 3 * c.fwhm_arcsec)
+        first = c.photometer.measure(c.frame, [c.star], c.fwhm_arcsec, annulus, {})
+        assert c.photometer.measure(c.frame, [c.star], c.fwhm_arcsec, annulus, {}) == first
 
 
 @dataclass(frozen=True)

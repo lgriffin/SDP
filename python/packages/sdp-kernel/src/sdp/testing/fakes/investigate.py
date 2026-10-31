@@ -25,13 +25,19 @@ from sdp.kernel.domain.investigation import (
     region_centre,
 )
 from sdp.kernel.ports.investigate import (
+    MEASURED,
+    OFF_IMAGE,
     CuratedProduct,
     Detection,
     DetectionList,
+    ForcedMeasurement,
+    ForcedPhotometry,
+    FrameDescription,
     ImageFrame,
     ObservationTarget,
     RefinedWcs,
     ServiceRecord,
+    SkyPoint,
 )
 
 
@@ -160,6 +166,58 @@ class PlantedDetector:
             detector_id=self.detector_id,
             params=dict(params),
         )
+
+
+@dataclass(frozen=True)
+class PlantedImage:
+    """What the planted photometer knows of one image: its description, and each source's total flux
+    and position. A position within ``radius`` of a source gets that share of its flux."""
+
+    description: FrameDescription
+    sources: Mapping[str, tuple[float, float, float]]
+    """key -> (ra_deg, dec_deg, flux)"""
+    flux_err: float = 1.0
+    half_width_arcsec: float = 30.0
+
+
+@dataclass
+class PlantedPhotometer:
+    """The ForcedPhotometer fake: each image is a set of Gaussian stars of the description's FWHM, and
+    a measurement is the share of every planted star's flux the aperture holds (no pixels, no noise)."""
+
+    images: Mapping[str, PlantedImage]
+    photometer_id: str = "planted-photometer"
+
+    def describe(
+        self, frame: ImageFrame, positions: Sequence[SkyPoint], params: Mapping[str, object]
+    ) -> FrameDescription:
+        return self.images[frame.artifact_id].description
+
+    def measure(
+        self,
+        frame: ImageFrame,
+        positions: Sequence[SkyPoint],
+        radius_arcsec: float,
+        annulus_arcsec: tuple[float, float],
+        params: Mapping[str, object],
+    ) -> ForcedPhotometry:
+        image = self.images[frame.artifact_id]
+        sigma = (image.description.fwhm_arcsec or 1.0) / (2 * math.sqrt(2 * math.log(2)))
+        centre = next(iter(image.sources.values()), (0.0, 0.0, 0.0))
+        out = []
+        for p in positions:
+            if separation_arcsec(p.ra_deg, p.dec_deg, centre[0], centre[1]) > image.half_width_arcsec:
+                out.append(ForcedMeasurement(p.key, 0.0, 0.0, OFF_IMAGE))
+                continue
+            flux = 0.0
+            for ra, dec, total in image.sources.values():
+                d = separation_arcsec(p.ra_deg, p.dec_deg, ra, dec)
+                # the share of a Gaussian centred d away inside the aperture, to first order in d
+                flux += (
+                    total * (1 - math.exp(-(radius_arcsec**2) / (2 * sigma**2))) * math.exp(-(d**2) / (2 * sigma**2))
+                )
+            out.append(ForcedMeasurement(p.key, flux, image.flux_err, MEASURED, image.description.fwhm_arcsec))
+        return ForcedPhotometry(tuple(out), radius_arcsec, annulus_arcsec, self.photometer_id, dict(params))
 
 
 def _mean_position(detections: Sequence[Detection]) -> tuple[float, float]:
