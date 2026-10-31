@@ -134,8 +134,9 @@ def align(
         {
             "fitgeom": "shift",
             "searchrad": float(thresholds.get("align_search_arcsec", 5.0)),
-            # Sources closer than two PSF widths are confusable, so the matcher sets them aside.
-            "separation": 2.0 * fwhm_arcsec,
+            # Sources closer than two PSF widths are confusable, so the matcher sets them aside. A
+            # profile comparing cameras of different pixel scales gives it in arcseconds instead.
+            "separation": float(thresholds.get("align_separation_arcsec", 2.0 * fwhm_arcsec)),
             # Tight, because a crowded field offers a random detection within an arcsecond of
             # every star: after the 2-D histogram's first guess, pairs must agree to 0.3 arcsec.
             "tolerance": float(thresholds.get("align_tolerance_arcsec", 0.3)),

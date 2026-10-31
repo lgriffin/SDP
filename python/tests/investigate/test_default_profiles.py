@@ -21,6 +21,7 @@ from sdp.adapters.association import BayesFactorAssociation, LikelihoodRatioAsso
 from sdp.adapters.bootstrap import clusterers
 from sdp.adapters.compute.clustering import SklearnHdbscan
 from sdp.adapters.imaging.photutils_detector import PhotutilsDetector
+from sdp.adapters.imaging.photutils_photometry import PhotutilsPhotometer
 from sdp.adapters.imaging.tweakwcs_refiner import TweakwcsRefiner
 from sdp.adapters.local.gateway import LocalFrameDialect, LocalImageGateway
 from sdp.kernel.application.investigate import (
@@ -34,6 +35,7 @@ from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, Field, Stage, StageState, TestProfile
 from sdp.kernel.ports.investigate import InvestigateFieldCommand
 from sdp.kernel.science import products
+from sdp.testing.epochs import epoch_catalogue, epoch_cutting_archive, epoch_field
 from sdp.testing.investigate import (
     CANONICAL_COLUMNS,
     gaia_archive,
@@ -174,17 +176,29 @@ def test_a_default_profile_runs_end_to_end(path: Path, tmp_path: Path) -> None:
     # A profile that reads JWST images runs on the synthetic JWST field, with a gateway that cuts;
     # one that reads the person's own frames runs on synthetic solved frames.
     images = any(a.source_id == MAST for a in profile.archives)
+    # a profile that compares images across epochs runs on the synthetic field four cameras imaged
+    epochs = images and any(t.name == "epoch-change" for t in profile.tests)
     local = next((a.source_id for a in profile.archives if a.source_id.startswith("local:")), None)
     world = local_world(tmp_path) if local else None
-    catalogue = jwst_catalogue() if images else world.catalogue if world else synthetic_catalogue()
+    catalogue = (
+        epoch_catalogue()
+        if epochs
+        else jwst_catalogue()
+        if images
+        else world.catalogue
+        if world
+        else synthetic_catalogue()
+    )
     ports = investigate_ports(
         *registered_tests(),
         catalogue=catalogue,
         rankers=load_candidate_rankers(),
-        resolver=jwst_resolver(catalogue) if images else None,
+        resolver=jwst_resolver(catalogue) if images and not epochs else None,
     )
     if images:
-        ports.observation_gateways = {MAST: jwst_cutting_archive(catalogue)}
+        ports.observation_gateways = {
+            MAST: epoch_cutting_archive(catalogue) if epochs else jwst_cutting_archive(catalogue)
+        }
     if world is not None and local is not None:
         frames = LocalImageGateway(world.source, world.data)
         ports.observation_gateways = {local: frames}
@@ -201,8 +215,9 @@ def test_a_default_profile_runs_end_to_end(path: Path, tmp_path: Path) -> None:
         "detector": PhotutilsDetector(),
         "associators": (BayesFactorAssociation(), LikelihoodRatioAssociation()),
         "refiner": TweakwcsRefiner(),
+        "photometer": PhotutilsPhotometer(),
     }
-    field_ = jwst_field() if images else synthetic_field()
+    field_ = epoch_field() if epochs else jwst_field() if images else synthetic_field()
     if world is not None:
         field_ = Field(Cone(*world.centre, 0.12), epoch_jyear=2016.0, label="synthetic M31 frames")
     run = use_case.execute(InvestigateFieldCommand(field_, profile, seed=1))

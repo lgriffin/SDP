@@ -163,6 +163,12 @@ TARGETS = {
             ("src/sdp_investigate/exposures.py",),
             ("tests/investigate", "tests/local"),
         ),
+        Target(
+            "sdp-investigate-changes",
+            "sdp-investigate",
+            ("src/sdp_investigate/changes.py",),
+            ("tests/investigate", "tests/local"),
+        ),
         *(
             Target(
                 f"sdp-relativity-{i}",

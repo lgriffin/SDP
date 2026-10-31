@@ -1,0 +1,80 @@
+# Image changes: has anything in this field changed between Hubble and Webb images taken years apart?
+#
+# For every Gaia star in the field, this profile measures the star on each archived HST and JWST image
+# of the field, at the place its Gaia proper motion puts it on that image's date, and asks whether its
+# brightness changed by more than the images' errors allow:
+#   epoch-change -> steady, changed, appeared or vanished, with the change in magnitudes
+# Before comparing anything it shifts each image onto Gaia (archival astrometry can be off by an
+# arcsecond), measures every image in one aperture sized to the blurriest image's stars (so two stars
+# one camera splits and another blends are summed alike), and calibrates each image against the deepest
+# one on the field's own stars. Only images in the same filter are compared. It cuts a small square out
+# of each mosaic (cutout_arcsec), so a run reads tens of megabytes, not gigabytes.
+#
+# Good fields have the same filter at two dates: over the Pillars of Creation (M16), WFC3/IR F110W and
+# F160W in 2014 (programme 13926) and 2018 (programme 15238).
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: image-changes
+version: 1.0.0
+description: >-
+  Hubble and Webb images of one field, years or decades apart, compared star by star. Each image is
+  aligned to Gaia, measured at the coarsest image's resolution and calibrated on the field's own stars,
+  so a flag means the star changed, not the camera. Exploratory: a flag is a lead, never a claim.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}               # well-behaved single-star astrometry (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: ">", value: 16.0}   # brighter stars saturate HST and JWST mosaics
+    - {column: phot_g_mean_mag, op: "<", value: 20.5}   # Gaia's proper motions grow too uncertain to place fainter stars decades away
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: false                       # SIMBAD costs a request per star and adds little to a crowded field
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: mast
+    role: observations
+    release_label: mast:caom
+    columns: []
+    match_radius_arcsec: 180.0         # mosaics whose centre lies within 3 arcmin of the field
+    missions: [HST, JWST]
+    product_types: [image]
+    min_calibration_level: 3           # combined mosaics only, not every single exposure
+    cutout_arcsec: 60.0                # a one-arcminute square of each mosaic
+
+tests:
+  - name: epoch-change
+    version: 1.0.0
+    thresholds:
+      source_id: gaia
+      fwhm_px: 2.5                     # the stars' width on a drizzled HST or JWST mosaic, as a first guess
+      nsigma: 5.0                      # a detection, and a star "seen" on an image, is 5 times its noise
+      exclude_percentile: 25.0         # a crowded field fills more than a tenth of each background box
+      align_wcs: true                  # shift each image onto Gaia first: archived astrometry can be off by an arcsecond
+      align_search_arcsec: 3.0
+      align_separation_arcsec: 0.5     # stars closer than this are set aside by the alignment matcher
+      align_tolerance_arcsec: 0.3
+      anchor_sigma_arcsec: 0.01
+      aperture_fwhm: 1.0               # aperture radius: one FWHM of the blurriest image compared
+      calibrator_snr: 20.0             # stars this clean on both images set each image's zero point
+      min_calibrators: 5
+      error_scale: field               # errors scaled by the field's own scatter, never below as quoted
+      alpha: 0.01                      # below this p-value the verdict is changed, appeared or vanished
+    needs_products: [image]            # the test reads the images, so the plan must fetch some
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0                       # one test, so a star is a candidate only when it is significant
+
+null_fields:
+  trials: 20
