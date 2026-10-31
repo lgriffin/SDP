@@ -74,10 +74,10 @@ foreach ($item in @("tiles", "candidates.csv")) {
     }
 }
 
-$band = Step "1 Band 57 check" { Sdp discover sweep --name $Name --bands 57 --workers $Workers | Out-Null }
+$band = Step "1 Band 57 check" { Sdp discover sweep --name $script:Name --bands 57 --workers $Workers | Out-Null }
 if ($band) {
-    Step "2 Whole-sky sweep" { Sdp discover sweep --name $Name --workers $Workers | Out-Null } | Out-Null
-    Step "3 Report" { Sdp discover report --name $Name | Out-Null } | Out-Null
+    Step "2 Whole-sky sweep" { Sdp discover sweep --name $script:Name --workers $Workers | Out-Null } | Out-Null
+    Step "3 Report" { Sdp discover report --name $script:Name | Out-Null } | Out-Null
 } else { Write-Host "Band 57 failed, so the whole-sky sweep is not started" }
 
 Pop-Location
