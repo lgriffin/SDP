@@ -206,6 +206,7 @@ class PlantedPhotometer:
         centre = next(iter(image.sources.values()), (0.0, 0.0, 0.0))
         out = []
         for p in positions:
+            r = p.radius_arcsec or radius_arcsec
             if separation_arcsec(p.ra_deg, p.dec_deg, centre[0], centre[1]) > image.half_width_arcsec:
                 out.append(ForcedMeasurement(p.key, 0.0, 0.0, OFF_IMAGE))
                 continue
@@ -213,9 +214,7 @@ class PlantedPhotometer:
             for ra, dec, total in image.sources.values():
                 d = separation_arcsec(p.ra_deg, p.dec_deg, ra, dec)
                 # the share of a Gaussian centred d away inside the aperture, to first order in d
-                flux += (
-                    total * (1 - math.exp(-(radius_arcsec**2) / (2 * sigma**2))) * math.exp(-(d**2) / (2 * sigma**2))
-                )
+                flux += total * (1 - math.exp(-(r**2) / (2 * sigma**2))) * math.exp(-(d**2) / (2 * sigma**2))
             out.append(ForcedMeasurement(p.key, flux, image.flux_err, MEASURED, image.description.fwhm_arcsec))
         return ForcedPhotometry(tuple(out), radius_arcsec, annulus_arcsec, self.photometer_id, dict(params))
 

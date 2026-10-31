@@ -59,6 +59,8 @@ ABSENT_SNR = 2.0
 MEDIAN_ERROR = math.sqrt(math.pi / 2.0)
 STEADY, CHANGED, APPEARED, VANISHED = "steady", "changed", "appeared", "vanished"
 UNFILTERED = "unfiltered"
+#: The G magnitude a source without one is weighted as in a blend: fainter than Gaia's limit.
+UNKNOWN_G = 21.5
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,15 @@ def enclosed(radius: float, fwhm: float) -> float:
     """The share of a Gaussian star's light within ``radius`` of its centre."""
     sigma = fwhm / FWHM_PER_SIGMA
     return 1.0 - math.exp(-(radius**2) / (2.0 * sigma**2))
+
+
+def enclosed_offset(radius: float, offset: float, fwhm: float) -> float:
+    """The share of a Gaussian star's light within ``radius`` of a point ``offset`` from its centre:
+    the non-central chi-squared law with two degrees of freedom (Marcum's Q)."""
+    sigma = fwhm / FWHM_PER_SIGMA
+    return (
+        float(stats.ncx2.cdf((radius / sigma) ** 2, 2, (offset / sigma) ** 2)) if offset > 0 else enclosed(radius, fwhm)
+    )
 
 
 def offset_arcsec(ra1: float, dec1: float, ra2: float, dec2: float) -> tuple[float, float]:
@@ -186,7 +197,9 @@ class EpochChange(FieldTest):
             if row is not None and finite(row.get("ra_deg"), row.get("dec_deg")):
                 anchors[b.object_key] = anchor(b, row, float(thresholds.get("anchor_sigma_arcsec", 0.002)))
                 g = row.get("g_mag")
-                brightness[b.object_key] = 10 ** (-0.4 * float(g)) if g is not None and finite(g) else 1.0
+                # a source with no G magnitude counts as faint, so it never pulls a blend's centre
+                g = g if g is not None and finite(g) else UNKNOWN_G
+                brightness[b.object_key] = 10 ** (-0.4 * float(g))
             for p in b.products:
                 if p.product_type == IMAGE:
                     images.setdefault(p.artifact_id.value, p.product.product_id)
@@ -311,25 +324,27 @@ class EpochChange(FieldTest):
         measured: list[dict[str, tuple[ForcedMeasurement, float]]] = []
         for f, where in zip(members, placed, strict=True):
             out: dict[str, tuple[ForcedMeasurement, float]] = {}
-            singles = [SkyPoint(g[0], *where[g[0]]) for g in groups if len(g) == 1 and g[0] in where]
-            for m in photometer.measure(f.frame, singles, r, annulus, params).measurements:
-                out[m.key] = (m, 1.0)
+            points = [SkyPoint(g[0], *where[g[0]]) for g in groups if len(g) == 1 and g[0] in where]
+            corrections: dict[str, float] = {}
             for g in groups:
                 if len(g) == 1 or not all(k in where for k in g):
                     continue
-                weights = np.array([brightness.get(k, 1.0) for k in g])
+                weights = np.array([brightness[k] for k in g])
                 ra0, dec0 = where[g[0]]
                 offsets = np.array([offset_arcsec(ra0, dec0, *where[k]) for k in g])
                 centre = offsets.T @ weights / weights.sum()
-                reach = float(np.max(np.hypot(*(offsets - centre).T)))
+                spread = np.hypot(*(offsets - centre).T)
+                rg = r + float(np.max(spread))
                 cosd = math.cos(math.radians(dec0))
-                point = SkyPoint(_lead(g, brightness), ra0 + centre[0] / 3600 / cosd, dec0 + centre[1] / 3600)
-                rg = r + reach
-                inner = rg + 1.5 * fwhm_max
-                [m] = photometer.measure(f.frame, [point], rg, (inner, inner + 2.0 * fwhm_max), params).measurements
-                # the blend's wider aperture holds more of each star than r does, by a share that
-                # depends on the image's sharpness; scale it back to what r would hold
-                out[point.key] = (m, enclosed(r, f.fwhm_arcsec) / enclosed(rg, f.fwhm_arcsec))
+                key = _lead(g, brightness)
+                points.append(SkyPoint(key, ra0 + centre[0] / 3600 / cosd, dec0 + centre[1] / 3600, rg))
+                # the blend's wider aperture, off its members' centres, holds a share of their light that
+                # depends on the image's sharpness; scale it to the share r holds of a centred star, as
+                # the zero point assumes
+                held = float(np.sum(weights * [enclosed_offset(rg, d, f.fwhm_arcsec) for d in spread]) / weights.sum())
+                corrections[key] = enclosed(r, f.fwhm_arcsec) / held
+            for m in photometer.measure(f.frame, points, r, annulus, params).measurements:
+                out[m.key] = (m, corrections.get(m.key, 1.0))
             measured.append(out)
         lead_of = {(_lead(g, brightness) if len(g) > 1 else g[0]): g for g in groups}
         isolated = {g[0] for g in groups if len(g) == 1}
@@ -379,6 +394,9 @@ class EpochChange(FieldTest):
                 m, correction = got
                 if m.status != MEASURED:
                     skipped[f.product_id] = m.status
+                    continue
+                if not m.flux_err > 0:
+                    skipped[f.product_id] = "no noise estimate (blank background)"
                     continue
                 scale = 10 ** (0.4 * zp[0]) * correction
                 rows.append((f.product_id, f.description.epoch_mjd, m.flux * scale, m.flux_err * scale, zp[1]))
@@ -443,7 +461,10 @@ class EpochChange(FieldTest):
             chi2 = float(np.sum(((s.flux - mean) / sigma) ** 2))
             dof = len(s.flux) - 1
             p = float(stats.chi2.sf(chi2, dof))
-            snr = s.flux / sigma
+            # whether an image saw the source, and its upper limit, rest on that image's own noise;
+            # the zero-point and band terms, shares of the mean flux, belong to the comparison
+            own = s.err * scale
+            snr = s.flux / own
             hi, lo = int(np.argmax(s.flux)), int(np.argmin(s.flux))
             z = float((s.flux[hi] - s.flux[lo]) / math.hypot(sigma[hi], sigma[lo]))
             first, last = (lo, hi) if lo < hi else (hi, lo)
@@ -467,9 +488,9 @@ class EpochChange(FieldTest):
                         "flux": float(f),
                         "flux_err": float(e),
                         "snr": float(q),
-                        **({"upper_limit_5sigma": float(5.0 * e)} if q < ABSENT_SNR else {}),
+                        **({"upper_limit_5sigma": float(5.0 * o)} if q < ABSENT_SNR else {}),
                     }
-                    for image, t, f, e, q in zip(s.images, s.epoch_mjd, s.flux, sigma, snr, strict=True)
+                    for image, t, f, e, o, q in zip(s.images, s.epoch_mjd, s.flux, sigma, own, snr, strict=True)
                 ],
                 "comparison": comparisons.get(s.band, {}),
                 **({"images_left_out": dict(left_out)} if left_out else {}),
@@ -482,6 +503,21 @@ class EpochChange(FieldTest):
         for key, found in sorted(per_key.items()):
             p, chi2, worst = min(found, key=lambda r: (r[0], -r[1]))
             delta = worst["largest_change"]["delta_mag"]
+            # the least likely band of several: Bonferroni over the bands, so a source compared in two
+            # filters is no likelier to be flagged by chance than one compared in one
+            p = min(1.0, p * len(found))
+            # every band's verdict is read at the same adjusted level, so per_band never disagrees
+            # with the verdict at the top; each band keeps its own p, adjusted, for the reader
+            bands = [
+                {
+                    **d,
+                    "p_adjusted": min(1.0, q * len(found)),
+                    "verdict": STEADY if min(1.0, q * len(found)) >= alpha else d["verdict"],
+                }
+                for q, _, d in found
+            ]
+            if len(found) > 1:
+                worst = {**worst, "verdict": STEADY if p >= alpha else worst["verdict"]}
             out.append(
                 Scored(
                     Subject.of_object(key),
@@ -491,7 +527,7 @@ class EpochChange(FieldTest):
                     details={
                         **worst,
                         "bands": len(found),
-                        **({"per_band": [d for _, _, d in found]} if len(found) > 1 else {}),
+                        **({"per_band": bands} if len(found) > 1 else {}),
                     },
                 )
             )

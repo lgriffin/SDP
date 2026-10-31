@@ -31,12 +31,32 @@ DEFAULTS: Mapping[str, Any] = {
 
 
 #: Header keywords for the mid-exposure time, best first; DATE-OBS is the fallback.
-EPOCH_KEYWORDS = ("MJD-AVG", "MJD-MID", "MJD-BEG", "MJD-OBS")
+EPOCH_KEYWORDS = ("MJD-AVG", "MJD-MID")
+#: Start-of-exposure keywords, read only when the header gives no midpoint and no start and end.
+START_KEYWORDS = ("MJD-BEG", "MJD-OBS")
+#: FITS TIMESYS values astropy does not take as a scale, and the scale each one means (GPS is TAI
+#: less 19 s, below anything an epoch comparison resolves).
+TIME_SCALES = {"ut": "utc", "gmt": "utc", "tdt": "tt", "et": "tt", "gps": "tai", "local": "utc"}
 
 
 def header_epoch_mjd(*headers: fits.Header) -> float | None:
-    """The observation time a FITS image names, as MJD, or None."""
+    """The observation time a FITS image names, as MJD (mid-exposure where it can tell), or None."""
     for key in EPOCH_KEYWORDS:
+        for h in headers:
+            if h.get(key) is not None:
+                return float(h[key])
+    # the middle of the exposure where the header gives its start and end: HST's EXPSTART/EXPEND (MJD),
+    # or the ISO DATE-BEG/DATE-END in the header's TIMESYS (UTC when it names none)
+    for h in headers:
+        if h.get("EXPSTART") is not None and h.get("EXPEND") is not None:
+            return (float(h["EXPSTART"]) + float(h["EXPEND"])) / 2.0
+    for h in headers:
+        if h.get("DATE-BEG") and h.get("DATE-END"):
+            scale = str(h.get("TIMESYS") or "utc").strip().lower()
+            scale = TIME_SCALES.get(scale, scale if scale in Time.SCALES else "utc")
+            beg, end = Time(str(h["DATE-BEG"]), scale=scale), Time(str(h["DATE-END"]), scale=scale)
+            return float((beg.utc.mjd + end.utc.mjd) / 2.0)
+    for key in START_KEYWORDS:
         for h in headers:
             if h.get(key) is not None:
                 return float(h[key])

@@ -36,6 +36,7 @@ New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") | Out-Null
 $Summary = @()
+$Failed = $false
 
 function Step($Name, [scriptblock]$Body) {
     Write-Host "`n=== ${Name}: started $(Get-Date -Format HH:mm:ss) ==="
@@ -46,6 +47,7 @@ function Step($Name, [scriptblock]$Body) {
     $line = "{0,-34} {1,-6} {2}" -f $Name, ($(if ($ok) { "ok" } else { "FAILED" })), $t.Elapsed.ToString("hh\:mm\:ss")
     Write-Host "=== $line ==="
     $script:Summary += $line
+    if (-not $ok) { $script:Failed = $true }
     return $ok
 }
 
@@ -99,17 +101,19 @@ if ($drafted) {
             $listed = Sdp investigate list $script:SetId
             $start = $listed.IndexOf("["); $end = $listed.LastIndexOf("]")
             $found = if ($start -ge 0 -and $end -gt $start) { $listed.Substring($start, $end - $start + 1) | ConvertFrom-Json } else { @() }
-            Write-Host ("  {0} candidate(s)" -f @($found).Count)
-            $shown = $false
+            # the candidates are the flagged stars; every other star measured came out steady
+            $examined = $manifest.multiplicity.objects_examined
+            Write-Host ("  {0} candidate(s) flagged; the rest of the {1} stars examined were steady or not on two images" -f @($found).Count, $examined)
+            $shown = @{}
             foreach ($inv in @($found)) {
                 $dossier = Json (Sdp investigate dossier $inv.investigation_id)
                 foreach ($r in @($dossier.test_results | Where-Object { $_.test_name -eq "epoch-change" })) {
                     $d = $r.details
                     $dm = if ($null -ne $d.largest_change.delta_mag) { "{0:+0.000;-0.000} mag" -f $d.largest_change.delta_mag } else { "not seen on one image" }
                     Write-Host ("    {0,-28} {1,-9} {2,-8} {3}  p={4:E2}" -f $inv.candidate, $d.verdict, $d.band, $dm, $r.p_value)
-                    if (-not $shown) {
-                        $shown = $true
-                        $c = $d.comparison
+                    foreach ($c in @($d.comparison) + @($d.per_band | ForEach-Object { $_.comparison })) {
+                        if (-not $c -or $shown.ContainsKey($c.band)) { continue }
+                        $shown[$c.band] = $true
                         Write-Host ("  band {0}: aperture {1:N3} arcsec, reference {2}" -f $c.band, $c.aperture_arcsec, $c.reference)
                         foreach ($i in @($c.images)) {
                             Write-Host ("    {0,-60} {1,-8} FWHM {2:N3} arcsec  zp {3:N3}  aligned on {4} stars" -f $i.image, $i.instrument, $i.fwhm_arcsec, $i.zero_point_mag, $i.alignment.matches)
@@ -130,3 +134,4 @@ if ($script:SetId) {
 }
 Stop-Transcript | Out-Null
 Pop-Location
+if ($Failed) { exit 1 }
