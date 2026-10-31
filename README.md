@@ -16,6 +16,7 @@ Two programmes run on the kernel:
 | `ledger/` | Signed predeclaration and approval entries (§15) |
 | `docs/` | Architecture, ADRs, C4 views, protocols, spike report |
 | `python/` | uv workspace: kernel, contracts, adapters, science modules, CLI, API |
+| `harness/` | PowerShell scripts that run long jobs on the PC one after another and log them ([harness/README.md](harness/README.md)) |
 | `typescript/` | pnpm workspace: generated contracts, spec harness, evidence UI, e2e, and the Windows desktop app (`typescript/apps/sdp-desktop`) |
 | `experiments/` | Predeclarations and run manifests by protocol |
 | `profiles/` | Default Investigate test profiles, with a plain-language guide to every setting |
