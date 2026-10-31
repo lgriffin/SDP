@@ -211,6 +211,10 @@ def quality_mask(columns: Mapping[str, Any], choices: Mapping[str, Any] | None =
 
 def observe(columns: Mapping[str, Any], zero_point_mas: float) -> Stars:
     """Galactic positions, distances 1/(parallax - zero point) and velocities in km/s."""
+    if _col(columns, "ra").size == 0:  # astropy cannot transform an empty set of motions
+        empty = np.zeros(0)
+        rv0 = empty if "radial_velocity" in columns else None
+        return Stars(empty, empty, empty, empty, empty, rv0, empty, empty)
     pm = SkyCoord(
         ra=_col(columns, "ra") * u.deg,
         dec=_col(columns, "dec") * u.deg,
@@ -232,7 +236,9 @@ def observe(columns: Mapping[str, Any], zero_point_mas: float) -> Stars:
     )
 
 
-def scenario_mask(stars: Stars, scenario: Scenario, choices: Mapping[str, Any] | None = None) -> NDArray[np.bool_]:
+def scenario_mask(
+    stars: Stars, scenario: Scenario, choices: Mapping[str, Any] | None = None, *, radial: bool = False
+) -> NDArray[np.bool_]:
     lo, hi = scenario.shell_kpc
     keep = (stars.d_kpc >= lo) & (stars.d_kpc <= hi) & (np.abs(stars.b_deg) < scenario.b_max_deg)
     keep &= stars.g < scenario.g_max
@@ -241,7 +247,9 @@ def scenario_mask(stars: Stars, scenario: Scenario, choices: Mapping[str, Any] |
             keep &= stars.bp_rp < (choices or load_choices())["selection"]["blue_bp_rp_max"]
     elif scenario.population != "all":
         raise ValueError(f"unknown population {scenario.population!r}")
-    if stars.v_r is not None:
+    if radial:
+        if stars.v_r is None:
+            raise ValueError("no radial velocities")
         keep &= np.isfinite(stars.v_r)
     return np.asarray(keep, dtype=bool)
 
@@ -299,6 +307,8 @@ class Fit:
     covariance: Array
     n_stars: int
     n_clipped: int
+    #: which of the stars given were kept after clipping (not written to the report)
+    kept: NDArray[np.bool_] | None = None
 
     def value(self, p: str) -> float:
         return float(self.values[self.parameters.index(p)])
@@ -307,20 +317,30 @@ class Fit:
         i = self.parameters.index(p)
         return float(math.sqrt(self.covariance[i, i]))
 
-    def derived(self) -> dict[str, float]:
+    def derived(self) -> dict[str, float | None]:
         a, c = self.value("A"), self.value("C")
         i_a, i_c = self.parameters.index("A"), self.parameters.index("C")
         amp = math.hypot(a, c)
-        # gradients of the amplitude and of l0 = -atan2(C, A) / 2 with respect to (A, C)
-        g_amp = np.array([a, c]) / amp
-        g_l0 = -0.5 * np.array([-c, a]) / amp**2
         sub = self.covariance[np.ix_([i_a, i_c], [i_a, i_c])]
-        out = {
-            "amplitude": amp,
-            "amplitude_error": float(math.sqrt(g_amp @ sub @ g_amp)),
-            "l0_deg": math.degrees(-0.5 * math.atan2(c, a)),
-            "l0_error_deg": math.degrees(float(math.sqrt(g_l0 @ sub @ g_l0))),
-        }
+        out: dict[str, float | None]
+        if amp == 0.0:
+            # no double wave at all: its phase is undefined, and the amplitude's error is the larger axis
+            out = {
+                "amplitude": 0.0,
+                "amplitude_error": float(math.sqrt(np.linalg.eigvalsh(sub).max())),
+                "l0_deg": None,
+                "l0_error_deg": None,
+            }
+        else:
+            # gradients of the amplitude and of l0 = -atan2(C, A) / 2 with respect to (A, C)
+            g_amp = np.array([a, c]) / amp
+            g_l0 = -0.5 * np.array([-c, a]) / amp**2
+            out = {
+                "amplitude": amp,
+                "amplitude_error": float(math.sqrt(g_amp @ sub @ g_amp)),
+                "l0_deg": math.degrees(-0.5 * math.atan2(c, a)),
+                "l0_error_deg": math.degrees(float(math.sqrt(g_l0 @ sub @ g_l0))),
+            }
         if "B" in self.parameters:
             i_b = self.parameters.index("B")
             omega = a - self.value("B")
@@ -352,7 +372,7 @@ def fit(
     n_comp, n_par = len(components), len(parameters)
     keep = np.ones(len(stars), dtype=bool)
     theta = np.zeros(n_par)
-    for _ in range(int(f["clip_passes"]) + 1):
+    for _ in range(int(f["clip_passes"])):
         rows = np.repeat(keep, n_comp)
         theta, *_ = np.linalg.lstsq(x[rows], y[rows], rcond=None)
         resid = (y - x @ theta).reshape(-1, n_comp)
@@ -361,13 +381,17 @@ def fit(
         if np.array_equal(new, keep):
             break
         keep = new
+    if int(keep.sum()) < int(f["min_stars"]):
+        raise ValueError(f"{int(keep.sum())} stars after clipping, fewer than the declared {f['min_stars']}")
+    # the reported fit is always the one on the stars finally kept
     rows = np.repeat(keep, n_comp)
     xk = x[rows]
+    theta, *_ = np.linalg.lstsq(xk, y[rows], rcond=None)
     resid = (y[rows] - xk @ theta).reshape(-1, n_comp)
     score = np.einsum("nci,nc->ni", xk.reshape(-1, n_comp, n_par), resid)
     bread = np.linalg.inv(xk.T @ xk)
     cov = bread @ (score.T @ score) @ bread
-    return Fit(tuple(parameters), theta, cov, int(keep.sum()), int((~keep).sum()))
+    return Fit(tuple(parameters), theta, cov, int(keep.sum()), int((~keep).sum()), keep)
 
 
 # --- verdict ------------------------------------------------------------------------------------
@@ -409,7 +433,9 @@ def comparison(fits: Mapping[str, Fit | str], choices: Mapping[str, Any] | None 
     for k, f in fits.items():
         if isinstance(f, Fit):
             dv = f.derived()
-            z[k] = (dv["amplitude"] - a0) / math.hypot(dv["amplitude_error"], e0)
+            amp, err = dv["amplitude"], dv["amplitude_error"]
+            assert amp is not None and err is not None  # always set, even for a zero amplitude
+            z[k] = (amp - a0) / math.hypot(err, e0)
     limit = c["decision"]["agree_sigma"]
     within = sorted(k for k, v in z.items() if abs(v) < limit)
     if not z or len(z) < len(fits):
@@ -453,7 +479,9 @@ def method(
         if s.parallax_zero_point_mas not in by_zp:
             by_zp[s.parallax_zero_point_mas] = observe(cols, s.parallax_zero_point_mas)
         stars = by_zp[s.parallax_zero_point_mas]
-        fits[s.label] = _fit_or_reason(stars.take(scenario_mask(stars, s, choices)), components, parameters, choices)
+        fits[s.label] = _fit_or_reason(
+            stars.take(scenario_mask(stars, s, choices, radial="r" in components)), components, parameters, choices
+        )
     with_b = "B" in parameters
     reading = detection(fits, choices, with_b=with_b)
     if baseline_only:
@@ -469,6 +497,7 @@ def method(
     }
     if isinstance(base_fit, Fit) and with_b:
         omega = base_fit.derived()["omega"]
+        assert omega is not None
         v = float(choices["oort"]["assumed_V_km_s"])
         o = choices["oort"]
         doc["oort_radius"] = {

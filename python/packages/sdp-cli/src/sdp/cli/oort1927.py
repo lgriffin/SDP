@@ -6,12 +6,16 @@ The protocol is docs/protocols/uc04-oort-1927.md; the science is sdp_stellar.oor
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
 from sdp.kernel.domain.errors import DomainError
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 oort1927_app = typer.Typer(
     help="Oort's 1927 detection of galactic rotation, checked and rerun with Gaia (UC-04).",
@@ -58,10 +62,9 @@ def _prefilters(choices: dict[str, Any]) -> list[tuple[str, str, Any]]:
     ]
 
 
-def read_bulk(rv: bool) -> dict[str, Any] | None:
-    """The stars every scenario could use, from the full bulk copy, or with ``rv`` from its rvs subset
-    (None when that subset is not built yet)."""
-    import numpy as np
+def scan_bulk(rv: bool) -> Iterator[pa.Table] | None:
+    """Each file's stars that pass the shared cuts, one file at a time, from the full bulk copy or with
+    ``rv`` from its rvs subset (None when that subset is not built yet)."""
     import pyarrow as pa
 
     from sdp.adapters.archives.bulk import BulkCatalogueGateway, load_subsets
@@ -87,13 +90,27 @@ def read_bulk(rv: bool) -> dict[str, Any] | None:
         if done % 100 == 0 or done == total:
             _say(f"{'rvs' if rv else 'gaia'} {done}/{total} files")
 
-    parts = []
-    for table in bulk.scan(columns, _prefilters(choices), progress=report):
-        cols = {name: table.column(name).to_numpy(zero_copy_only=False) for name in table.column_names}
-        keep = quality_mask(cols, choices)
-        if keep.any():
-            parts.append(table.filter(pa.array(keep)))
-    whole = pa.concat_tables(parts) if parts else pa.schema([]).empty_table()
+    def tables() -> Iterator[pa.Table]:
+        for table in bulk.scan(columns, _prefilters(choices), progress=report):
+            cols = {name: table.column(name).to_numpy(zero_copy_only=False) for name in table.column_names}
+            yield table.filter(pa.array(quality_mask(cols, choices)))
+
+    return tables()
+
+
+def read_bulk(rv: bool) -> dict[str, Any] | None:
+    """The stars every scenario could use, as arrays; the columns are there even when no star is."""
+    import numpy as np
+    import pyarrow as pa
+
+    tables = scan_bulk(rv)
+    if tables is None:
+        return None
+    parts = list(tables)
+    whole = pa.concat_tables(parts).combine_chunks() if parts else None
+    del parts
+    if whole is None:
+        return {name: np.zeros(0) for name in ((*COLUMNS, "radial_velocity") if rv else COLUMNS)}
     return {name: np.asarray(whole.column(name).to_numpy(zero_copy_only=False)) for name in whole.column_names}
 
 
@@ -150,7 +167,11 @@ def markdown(report: dict[str, Any]) -> str:
                 *(f"| {p} | {b[p]['value']:.2f} | {b[p]['error']:.2f} |" for p in params),
                 "",
                 f"Amplitude hypot(A, C) {b['derived']['amplitude']:.2f} ± {b['derived']['amplitude_error']:.2f} km/s/kpc,"
-                f" l0 {b['derived']['l0_deg']:.1f} ± {b['derived']['l0_error_deg']:.1f} deg (modern galactic longitude).",
+                + (
+                    f" l0 {b['derived']['l0_deg']:.1f} ± {b['derived']['l0_error_deg']:.1f} deg (modern galactic longitude)."
+                    if b["derived"]["l0_deg"] is not None
+                    else " l0 undefined (no double wave)."
+                ),
                 "",
             ]
         r, c = m["reading"], m["comparison"]
@@ -183,15 +204,21 @@ def oort1927_run(
     Reads the whole sky from your bulk Gaia copy (one pass over every file), or from --parquet. The
     radial-velocity method reads the rvs subset (`sdp archive bulk --subset rvs`) and is skipped,
     with a note, until that subset is complete."""
-    from sdp_stellar.oort1927 import run
+    from sdp_stellar.oort1927 import RV_PARAMETERS, load_choices, method, run
 
     columns = read_parquet(parquet) if parquet is not None else read_bulk(rv=False)
     assert columns is not None
+    _say(f"{len(columns['ra']):,} stars pass the shared cuts")
+    report = run(columns, None, baseline_only=baseline_only)
+    del columns  # one catalogue in memory at a time: the radial velocities are read after
     rv_columns = (
         read_parquet(rv_parquet) if rv_parquet is not None else (None if parquet is not None else read_bulk(rv=True))
     )
-    _say(f"{len(columns['ra']):,} stars pass the shared cuts")
-    report = run(columns, rv_columns, baseline_only=baseline_only)
+    if rv_columns is not None:
+        _say(f"{len(rv_columns['ra']):,} stars with a radial velocity pass the shared cuts")
+        report["radial_velocities"] = method(
+            rv_columns, ("r",), RV_PARAMETERS, load_choices(), baseline_only=baseline_only
+        )
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True), "utf-8")
     (out / "report.md").write_text(markdown(report), "utf-8")
@@ -209,11 +236,22 @@ def oort1927_export(
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    columns = read_bulk(rv=rv)
-    if columns is None:
+    tables = scan_bulk(rv=rv)
+    if tables is None:
         raise DomainError("the rvs subset is not complete; finish `sdp archive bulk --subset rvs` first")
-    keep = columns["source_id"] % every == 0
-    table = pa.table({k: v[keep] for k, v in columns.items()})
     out.parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(table, out, compression="zstd")
-    _say(f"wrote {table.num_rows:,} of {len(keep):,} stars to {out}")
+    kept = seen = 0
+    writer: pq.ParquetWriter | None = None
+    try:
+        for table in tables:  # one file at a time: the sample is written as it is drawn
+            seen += table.num_rows
+            ids = table.column("source_id").to_numpy(zero_copy_only=False)
+            sample = table.filter(pa.array(ids % every == 0))
+            if writer is None:
+                writer = pq.ParquetWriter(out, sample.schema, compression="zstd")
+            writer.write_table(sample)
+            kept += sample.num_rows
+    finally:
+        if writer is not None:
+            writer.close()
+    _say(f"wrote {kept:,} of {seen:,} stars to {out}")

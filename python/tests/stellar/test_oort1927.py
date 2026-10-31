@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import math
 from typing import Any
 
@@ -195,3 +196,50 @@ def test_the_report_carries_oorts_radius_from_the_fitted_constants(flat: dict[st
     a_pc = pm["baseline"]["A"]["value"] / 1000.0
     assert pm["oort_radius"]["R_kpc_from_A"]["k2_zero"] == pytest.approx(0.75 * 272.0 / a_pc / 1000.0)
     assert math.isfinite(pm["baseline"]["derived"]["l0_deg"])
+
+
+@pytest.mark.req("STL-015")
+def test_the_reported_constants_are_fitted_to_exactly_the_stars_kept(flat: dict[str, Any]) -> None:
+    cols = {k: np.array(v, copy=True) for k, v in flat.items()}
+    cols["pmra"][:2000] += np.linspace(50.0, 400.0, 2000)  # outliers that take several passes to clear
+    stars = o.observe(cols, 0.0)
+    sample = stars.take(o.scenario_mask(stars, o.Scenario((0.3, 1.0), 30.0, 15.0, 0.0, "all")))
+    choices = copy.deepcopy(o.load_choices())
+    choices["fit"]["clip_passes"] = 1  # the last permitted pass still changes the mask
+    f = o.fit(sample, choices=choices)
+    assert f.kept is not None and f.n_clipped > 0
+    x, y = o.design(sample.take(f.kept), ("l", "b"), o.PARAMETERS)
+    theta, *_ = np.linalg.lstsq(x, y, rcond=None)
+    assert f.values == pytest.approx(theta)
+
+
+@pytest.mark.req("STL-015")
+def test_a_fit_clipped_below_the_declared_minimum_fails() -> None:
+    cols = o.synthetic_galaxy(n=40_000, seed=5)
+    stars = o.observe(cols, 0.0)
+    sample = stars.take(o.scenario_mask(stars, o.baseline()))
+    sample = sample.take(np.arange(len(sample)) < 205)
+    v_l = np.array(sample.v_l, copy=True)
+    v_l[:10] += 5000.0
+    with pytest.raises(ValueError, match="after clipping, fewer than the declared 200"):
+        o.fit(o.Stars(sample.l_deg, sample.b_deg, sample.d_kpc, v_l, sample.v_b, None, sample.g, sample.bp_rp))
+
+
+def test_a_zero_amplitude_has_no_phase_and_a_finite_error() -> None:
+    cov = np.diag([1.0, 1.0, 1.0, 0.04, 0.09, 0.16, 0.25])
+    f = o.Fit(o.PARAMETERS, np.array([10.0, 12.0, 7.0, 0.0, -5.0, 0.0, 0.0]), cov, 1000, 0)
+    d = f.derived()
+    assert d["amplitude"] == 0.0 and d["amplitude_error"] == pytest.approx(0.4)
+    assert d["l0_deg"] is None and d["l0_error_deg"] is None
+    assert "NaN" not in json.dumps(f.to_document())
+
+
+@pytest.mark.req("STL-016")
+def test_a_radial_velocity_column_never_changes_the_proper_motion_sample(flat: dict[str, Any]) -> None:
+    without = {k: v for k, v in flat.items() if k != "radial_velocity"}
+    with_nulls = {**without, "radial_velocity": np.where(np.arange(flat["ra"].size) % 2 == 0, np.nan, 1.0)}
+    a = o.method(without, ("l", "b"), o.PARAMETERS, o.load_choices(), baseline_only=True)
+    b = o.method(with_nulls, ("l", "b"), o.PARAMETERS, o.load_choices(), baseline_only=True)
+    assert a["baseline"]["n_stars"] == b["baseline"]["n_stars"]
+    r = o.method(with_nulls, ("r",), o.RV_PARAMETERS, o.load_choices(), baseline_only=True)
+    assert r["baseline"]["n_stars"] + r["baseline"]["n_clipped"] < a["baseline"]["n_stars"] + a["baseline"]["n_clipped"]

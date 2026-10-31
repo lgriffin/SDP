@@ -24,6 +24,8 @@ requirements:
       - "python/tests.stellar.test_oort1927::test_radial_velocities_alone_give_a_but_not_b"
       - "python/tests.stellar.test_oort1927::test_high_velocity_stars_are_clipped_not_fitted"
       - "python/tests.stellar.test_oort1927::test_too_few_stars_is_a_named_failure"
+      - "python/tests.stellar.test_oort1927::test_the_reported_constants_are_fitted_to_exactly_the_stars_kept"
+      - "python/tests.stellar.test_oort1927::test_a_fit_clipped_below_the_declared_minimum_fails"
   - id: STL-016
     pattern: ubiquitous
     text: "The stellar module shall select UC-04 stars with the predeclared quality cuts, then each scenario's distance shell, latitude limit, magnitude limit, parallax zero-point and population."
@@ -33,6 +35,7 @@ requirements:
     status: approved
     traces:
       - "python/tests.stellar.test_oort1927::test_the_shared_cuts_and_the_scenario_cuts_are_the_declared_ones"
+      - "python/tests.stellar.test_oort1927::test_a_radial_velocity_column_never_changes_the_proper_motion_sample"
   - id: STL-017
     pattern: event
     text: "When a UC-04 run completes, the stellar module shall read UC04-H1 only if every scenario's A is at least 5 sigma above zero and B at least 5 sigma below, read UC04-H0 only if every scenario's A is within 2 sigma of zero, and read inconclusive otherwise."
@@ -57,3 +60,5 @@ requirements:
       - "python/tests.cli.test_cli_oort1927::test_a_run_reads_the_whole_sky_from_the_bulk_copy_and_skips_rvs_until_it_is_built"
       - "python/tests.cli.test_cli_oort1927::test_a_built_rvs_subset_adds_oorts_own_method"
       - "python/tests.cli.test_cli_oort1927::test_the_export_is_a_fixed_sample_that_runs_from_parquet"
+      - "python/tests.cli.test_cli_oort1927::test_a_copy_with_no_star_passing_the_cuts_reports_failed_fits"
+      - "python/tests.cli.test_cli_oort1927::test_the_export_writes_its_sample_file_by_file"

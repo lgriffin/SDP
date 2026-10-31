@@ -137,3 +137,29 @@ def test_a_run_without_a_bulk_copy_says_what_to_do(tmp_path: Path, monkeypatch: 
     result = runner.invoke(cli.app, ["oort1927", "run", "--out", str(tmp_path / "x")])
     assert result.exit_code != 0
     assert "finish `sdp archive bulk`" in (result.output + str(result.exception))
+
+
+@pytest.mark.req("STL-018")
+def test_a_copy_with_no_star_passing_the_cuts_reports_failed_fits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, galaxy: dict[str, Any]
+) -> None:
+    root = tmp_path / "artifacts"
+    monkeypatch.setenv("SDP_ARTIFACT_ROOT", str(root))
+    bad = {k: v for k, v in galaxy.items() if k != "radial_velocity"}
+    bad["ruwe"] = np.full(bad["ra"].size, 2.0)
+    store_copy(root, bad, "bulk/gaia/gaia_DR3", rv=False)
+    out = tmp_path / "uc04"
+    result = runner.invoke(cli.app, ["oort1927", "run", "--out", str(out), "--baseline-only"])
+    assert result.exit_code == 0, result.output
+    report = json.loads((out / "report.json").read_text("utf-8"))
+    assert "fewer than the declared 200" in report["proper_motions"]["baseline"]["failed"]
+    assert report["verdict"]["status"] == "inconclusive"
+
+
+@pytest.mark.req("STL-018")
+def test_the_export_writes_its_sample_file_by_file(bulk: Path, tmp_path: Path, galaxy: dict[str, Any]) -> None:
+    path = tmp_path / "every-one.parquet"
+    result = runner.invoke(cli.app, ["oort1927", "export", "--out", str(path), "--every", "1"])
+    assert result.exit_code == 0, result.output
+    sample = pq.read_table(path)
+    assert sample.num_rows > 0 and pq.ParquetFile(path).metadata.num_row_groups == 2  # one per bulk file
