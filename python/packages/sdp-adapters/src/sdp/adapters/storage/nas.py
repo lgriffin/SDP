@@ -8,6 +8,12 @@ Layout under ``root``::
 
 Writes go to a temporary file in the same directory, are fsynced, then renamed into place, so a
 crash never leaves a partial object under its final name. Every read re-hashes the bytes.
+
+Two writers may store the same object at once (bulk workers whose files hold the same bytes, #171).
+POSIX lets the second rename replace the first; Windows refuses to rename onto a read-only file with
+"Access is denied". The object is content-addressed, so when its final name already exists the second
+writer has nothing left to do and drops its temporary file. A rename refused for any other reason
+(an antivirus or indexer briefly holding the new file open) is retried with a short backoff.
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ import os
 import shutil
 import stat
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -31,6 +38,10 @@ _CAN_FSYNC_DIRECTORIES = os.name != "nt"
 # Logical paths are only ever looked up by name, so each segment is %-escaped on the way to disk there;
 # elsewhere a segment is its own file name, as stores written before this expect.
 _ESCAPED = frozenset('<>:"|?*\\%') if os.name == "nt" else frozenset()
+# A rename Windows refuses while something else holds the file is tried this often, waiting
+# _RENAME_BACKOFF_S, then twice that, and so on (about 1.5 s in all) before the error is raised.
+_RENAME_ATTEMPTS = 6
+_RENAME_BACKOFF_S = 0.05
 
 
 def _segment(name: str) -> str:
@@ -38,6 +49,8 @@ def _segment(name: str) -> str:
 
 
 def _atomic_write(path: Path, data: bytes, *, read_only: bool) -> None:
+    """Write ``data`` to ``path`` through a fsynced temporary file. ``read_only`` marks a write-once,
+    content-addressed file: if another writer puts it in place first, this write is already done."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-")
     try:
@@ -47,11 +60,38 @@ def _atomic_write(path: Path, data: bytes, *, read_only: bool) -> None:
             os.fsync(handle.fileno())
         if read_only:
             os.chmod(tmp, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
-        os.replace(tmp, path)
+        if not _rename(tmp, path, write_once=read_only):
+            _discard(tmp)
+            return
     except BaseException:
-        Path(tmp).unlink(missing_ok=True)
+        _discard(tmp)
         raise
     _fsync_directory(path.parent)
+
+
+def _rename(tmp: str, path: Path, *, write_once: bool) -> bool:
+    """Move ``tmp`` onto ``path``. False when a write-once ``path`` was already in place, so ``tmp``
+    is not needed; a refusal with nothing in place is retried, then raised."""
+    for attempt in range(_RENAME_ATTEMPTS):
+        try:
+            os.replace(tmp, path)
+            return True
+        except PermissionError:
+            if write_once and path.exists():
+                return False
+            if attempt == _RENAME_ATTEMPTS - 1:
+                raise
+            time.sleep(_RENAME_BACKOFF_S * 2**attempt)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _discard(tmp: str) -> None:
+    """Remove a temporary file, read-only or not (Windows will not delete a read-only file)."""
+    try:
+        os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
 
 
 def _fsync_directory(directory: Path) -> None:
