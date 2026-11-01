@@ -86,11 +86,13 @@ def _rename(tmp: str, path: Path, *, write_once: bool) -> bool:
 
 
 def _discard(tmp: str) -> None:
-    """Remove a temporary file, read-only or not (Windows will not delete a read-only file)."""
+    """Remove a temporary file, read-only or not (Windows will not delete a read-only file). Best
+    effort: a leftover ``.tmp-*`` is harmless (``usage`` skips it), while failing here would hide the
+    write's own error or fail a write another writer already completed."""
     try:
         os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
         os.unlink(tmp)
-    except FileNotFoundError:
+    except OSError:
         pass
 
 

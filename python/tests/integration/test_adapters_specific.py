@@ -189,6 +189,29 @@ def test_nas_gives_up_on_a_rename_that_stays_refused(tmp_path: Path, monkeypatch
     assert _leftover_temporaries(tmp_path) == []  # the read-only temporary file is removed too
 
 
+def test_nas_a_temporary_file_that_cannot_be_removed_does_not_fail_or_mask_the_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def held(path: str) -> None:
+        raise PermissionError(13, "Access is denied", path)  # the scanner still has the temporary file open
+
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"stored once", "text/plain")
+    hexdigest = artifact.value.removeprefix("sha256:")
+    target = tmp_path / "objects" / "sha256" / hexdigest[:2] / hexdigest[2:]
+    _windows_replace(monkeypatch)
+    monkeypatch.setattr(os, "unlink", held)
+    nas._atomic_write(target, b"stored once", read_only=True)  # already in place: done, temp left behind
+    assert store.get(artifact) == b"stored once"
+
+    def disk_full(src: str, dst: Path) -> None:
+        raise OSError(28, "No space left on device", src)
+
+    monkeypatch.setattr(os, "replace", disk_full)
+    with pytest.raises(OSError, match="No space left"):
+        store.put(b"new bytes", "text/plain")
+
+
 def test_nas_logical_paths_hold_characters_windows_refuses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(nas, "_ESCAPED", frozenset('<>:"|?*\\%'))  # as on Windows, wherever this runs
     store = NasArtifactStore(tmp_path)
