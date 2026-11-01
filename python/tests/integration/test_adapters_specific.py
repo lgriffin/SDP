@@ -9,6 +9,8 @@ import os
 import stat
 import subprocess
 import sys
+import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -89,6 +91,125 @@ def test_nas_put_restores_a_media_type_lost_to_an_interrupted_write(tmp_path: Pa
     media.unlink()
     assert store.put(b"half written", "application/json") == artifact
     assert store.media_type(artifact) == "application/json"
+
+
+def _windows_replace(monkeypatch: pytest.MonkeyPatch) -> Callable[[str, Path], None]:
+    """os.replace as Windows does it: refused with "Access is denied" onto a read-only file (#171)."""
+    real_replace = os.replace
+
+    def replace(src: str, dst: Path) -> None:
+        if Path(dst).exists() and not Path(dst).stat().st_mode & stat.S_IWUSR:
+            raise PermissionError(13, "Access is denied", str(dst))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
+    return replace
+
+
+def _leftover_temporaries(root: Path) -> list[Path]:
+    return list(root.rglob(".tmp-*"))
+
+
+def test_nas_writing_an_object_already_in_place_is_a_no_op_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _windows_replace(monkeypatch)
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"same bytes", "application/vnd.apache.parquet")
+    hexdigest = artifact.value.removeprefix("sha256:")
+    target = tmp_path / "objects" / "sha256" / hexdigest[:2] / hexdigest[2:]
+    nas._atomic_write(target, b"same bytes", read_only=True)  # a second writer that missed the exists check
+    nas._atomic_write(target.with_name(target.name + ".media"), b"application/vnd.apache.parquet", read_only=True)
+    assert store.get(artifact) == b"same bytes"
+    assert _leftover_temporaries(tmp_path) == []
+
+
+def test_nas_two_threads_storing_the_same_object_both_succeed_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    windows_replace = _windows_replace(monkeypatch)
+    writers = 4
+    all_past_the_exists_check = threading.Barrier(writers, timeout=10)
+
+    def racing_replace(src: str, dst: Path) -> None:
+        if not Path(dst).name.endswith(".media"):
+            all_past_the_exists_check.wait()  # every writer found the object missing and wrote its own copy
+        windows_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", racing_replace)
+    store = NasArtifactStore(tmp_path)
+    results: list[object] = []
+
+    def put() -> None:
+        try:
+            results.append(store.put(b"an empty bulk file", "application/vnd.apache.parquet"))
+        except BaseException as exc:  # reported by the assert below
+            results.append(exc)
+
+    threads = [threading.Thread(target=put) for _ in range(writers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    expected = sha256_id(b"an empty bulk file")
+    assert [getattr(r, "value", r) for r in results] == [expected] * writers
+    assert _leftover_temporaries(tmp_path) == []
+
+
+def test_nas_retries_a_rename_refused_while_another_program_holds_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_replace = os.replace
+    refused: list[str] = []
+
+    def held_twice(src: str, dst: Path) -> None:
+        if len(refused) < 2:
+            refused.append(src)
+            raise PermissionError(13, "Access is denied", src)  # an antivirus scan or the indexer
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", held_twice)
+    monkeypatch.setattr(nas, "_RENAME_BACKOFF_S", 0.0)
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"held", "text/plain")
+    assert len(refused) == 2
+    assert store.get(artifact) == b"held" and store.media_type(artifact) == "text/plain"
+    assert _leftover_temporaries(tmp_path) == []
+
+
+def test_nas_gives_up_on_a_rename_that_stays_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def always_held(src: str, dst: Path) -> None:
+        raise PermissionError(13, "Access is denied", src)
+
+    monkeypatch.setattr(os, "replace", always_held)
+    monkeypatch.setattr(nas, "_RENAME_BACKOFF_S", 0.0)
+    store = NasArtifactStore(tmp_path)
+    with pytest.raises(PermissionError):
+        store.put(b"never lands", "text/plain")
+    assert _leftover_temporaries(tmp_path) == []  # the read-only temporary file is removed too
+
+
+def test_nas_a_temporary_file_that_cannot_be_removed_does_not_fail_or_mask_the_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def held(path: str) -> None:
+        raise PermissionError(13, "Access is denied", path)  # the scanner still has the temporary file open
+
+    store = NasArtifactStore(tmp_path)
+    artifact = store.put(b"stored once", "text/plain")
+    hexdigest = artifact.value.removeprefix("sha256:")
+    target = tmp_path / "objects" / "sha256" / hexdigest[:2] / hexdigest[2:]
+    _windows_replace(monkeypatch)
+    monkeypatch.setattr(os, "unlink", held)
+    nas._atomic_write(target, b"stored once", read_only=True)  # already in place: done, temp left behind
+    assert store.get(artifact) == b"stored once"
+
+    def disk_full(src: str, dst: Path) -> None:
+        raise OSError(28, "No space left on device", src)
+
+    monkeypatch.setattr(os, "replace", disk_full)
+    with pytest.raises(OSError, match="No space left"):
+        store.put(b"new bytes", "text/plain")
 
 
 def test_nas_logical_paths_hold_characters_windows_refuses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
