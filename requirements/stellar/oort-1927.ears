@@ -62,3 +62,15 @@ requirements:
       - "python/tests.cli.test_cli_oort1927::test_the_export_is_a_fixed_sample_that_runs_from_parquet"
       - "python/tests.cli.test_cli_oort1927::test_a_copy_with_no_star_passing_the_cuts_reports_failed_fits"
       - "python/tests.cli.test_cli_oort1927::test_the_export_writes_its_sample_file_by_file"
+  - id: STL-019
+    pattern: ubiquitous
+    text: "The stellar module shall reproduce, from the recorded Gaia DR3 sample, the baseline Oort constants of Leigh's full UC-04 run within three times the sample's own errors."
+    rationale: "Leigh's run of 2026-11-01 on the whole bulk copy (6.6 million baseline stars) read supports_UC04_H1 in all 48 scenarios, with A = 15.22 +/- 0.02 km/s/kpc against Oort's 31.0 +/- 3.7; a fixed source_id sample of 26,357 stars, pinned by SHA-256, keeps that answer in CI as the M13 cone does for UC-03."
+    verification: test
+    tiers: [T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort_recorded::test_the_recorded_sample_is_the_one_committed_and_every_star_passes_the_shared_cuts"
+      - "python/tests.stellar.test_oort_recorded::test_the_full_run_read_the_committed_choices_and_detected_rotation_in_every_scenario"
+      - "python/tests.stellar.test_oort_recorded::test_the_sample_reproduces_the_full_baseline_within_its_own_errors"
+      - "python/tests.stellar.test_oort_recorded::test_gaias_stars_show_oorts_rotation_at_half_his_value"
