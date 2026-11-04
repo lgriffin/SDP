@@ -6,7 +6,7 @@
   import FieldImage from "$lib/components/FieldImage.svelte";
   import MatchList from "$lib/components/MatchList.svelte";
   import { candidateStateLabel, humanTime, imageTitle, observedOn, STAR_WORDS, starStatus } from "$lib/plain.ts";
-  import { contradictionResult, details as contradictionDetails } from "$lib/contradictions.ts";
+  import { contradictionResult, details as contradictionDetails, starResults } from "$lib/contradictions.ts";
   import { belowAlpha, formatNumber, formatPercent, investigationTone, shortHash, type TestResultDoc } from "$lib/view.ts";
 
   let { data, form } = $props();
@@ -24,7 +24,7 @@
     multiplicity: { objects_examined: number; tests_applied: number };
   }
   const dossier = $derived(i.dossier as DossierDoc | null);
-  const results = $derived(dossier?.test_results ?? (i.testResults as TestResultDoc[]));
+  const results = $derived(starResults(dossier, i.testResults));
   const contradiction = $derived(contradictionResult(results));
   const used = $derived(i.evidenceUsed as { archives: string[]; releases: string[]; epoch_min_jyear: number | null; epoch_max_jyear: number | null });
   const notes = $derived((i.notes ?? []) as { text: string; author: string; at: string }[]);

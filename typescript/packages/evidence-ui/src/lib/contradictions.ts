@@ -58,6 +58,12 @@ export function contradictionResult(results: readonly TestResultDoc[] | null | u
   return results?.find((r) => r.test_name === CONTRADICTION_TEST) ?? null;
 }
 
+/** A star's test results: the dossier's when it has one, else the investigation's own (both pages read them so). */
+export function starResults(dossier: unknown, testResults: unknown): TestResultDoc[] {
+  const fromDossier = (dossier as { test_results?: TestResultDoc[] } | null | undefined)?.test_results;
+  return fromDossier ?? ((testResults as TestResultDoc[] | null | undefined) ?? []);
+}
+
 export function details(result: TestResultDoc): ContradictionDetails {
   return result.details as unknown as ContradictionDetails;
 }
@@ -106,7 +112,7 @@ function when(c: ComparisonDoc): string {
 }
 
 /** One row per comparison: the flagged ones first, then the rest counted, then those set aside. */
-export function comparisonRows(d: ContradictionDetails, flagZ = 3): ComparisonRow[] {
+export function comparisonRows(d: ContradictionDetails): ComparisonRow[] {
   const flagged = new Set(d.flagged);
   const rank = (c: ComparisonDoc) => (flagged.has(c.channel) ? 0 : c.counted ? 1 : 2);
   return [...d.comparisons]
@@ -114,7 +120,8 @@ export function comparisonRows(d: ContradictionDetails, flagZ = 3): ComparisonRo
     .map((c) => {
       const z = num(c.z);
       const total = num(c.total_sigma);
-      const verdict = !c.counted ? "set aside" : flagged.has(c.channel) || (z !== null && Math.abs(z) >= flagZ) ? "disagrees" : "agrees";
+      // the engine's own flag decides, at the profile's flag_z, never a threshold of the page's
+      const verdict = !c.counted ? "set aside" : flagged.has(c.channel) ? "disagrees" : "agrees";
       let measured = "—";
       let difference = "—";
       let why = "";
@@ -175,7 +182,7 @@ export function summary(d: ContradictionDetails): string {
   const lead = worst ? comparisonRows({ ...d, comparisons: [worst] })[0] : undefined;
   const head =
     lead && worst
-      ? `${lead.label} is ${lead.difference.replace(/^[+−]/, "")} ${lead.why}, ${Math.abs(num(worst.z) ?? 0).toFixed(1)} times the expected scatter.`
+      ? `${lead.label} is ${lead.difference.replace(/^[+−]/, "")} ${lead.why}, a ${Math.abs(num(worst.z) ?? 0).toFixed(1)}σ disagreement.`
       : `${names.join(", ")} disagree with Gaia.`;
   const others = names.length > 1 ? ` ${names.length} comparisons disagree: ${names.join(", ")}.` : "";
   return `${head}${others} Reading: ${d.pattern_reading}.`;

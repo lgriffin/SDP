@@ -9,6 +9,7 @@ import {
   details,
   direction,
   positionResidual,
+  starResults,
   summary,
   type ComparisonDoc,
 } from "../src/lib/contradictions.ts";
@@ -23,6 +24,13 @@ describe("survey contradictions [INV-029]", () => {
     expect(contradictionResult([other, result("moved")])).toBe(result("moved"));
     expect(contradictionResult([other])).toBeNull();
     expect(contradictionResult(null)).toBeNull();
+  });
+
+  it("[INV-029] reads a star's results from its dossier, or from the investigation when it has none", () => {
+    const own = [result("moved")];
+    expect(contradictionResult(starResults(null, own))).toBe(result("moved"));
+    expect(starResults({ test_results: [result("agrees")] }, own)).toEqual([result("agrees")]);
+    expect(starResults(null, null)).toEqual([]);
   });
 
   it("[INV-029] names each channel the way a scientist says it", () => {
@@ -67,7 +75,7 @@ describe("survey contradictions [INV-029]", () => {
 
   it("[INV-029] says in one sentence what disagreed, by how much, and how to read it", () => {
     const said = summary(details(result("ks_excess")));
-    expect(said).toMatch(/^2MASS Ks is 0\.\d\d mag brighter than Gaia's colour predicts, \d+\.\d times the expected scatter\. Reading: /);
+    expect(said).toMatch(/^2MASS Ks is 0\.\d\d mag brighter than Gaia's colour predicts, a \d+\.\dσ disagreement\. Reading: /);
     expect(summary(details(result("moved")))).toMatch(/^2MASS position is \d+ mas east out of place/);
     expect(summary(details(result("agrees")))).toMatch(/^Every survey agrees with Gaia within the expected scatter \(\d+ comparisons\)\.$/);
   });
@@ -101,6 +109,14 @@ describe("survey contradictions [INV-029]", () => {
     expect(row!.measured).toBe("-4.25 (instrumental), Gaia predicts -4.25");
     expect(row!.expected).toBe("0.005 mag (0.004 reported, 0.003 from the field)");
     expect(row!.when).toBe("2014.7 (1.3 yr before Gaia)");
+  });
+
+  it("[INV-029] takes the verdict from the engine's flag, not from a z of its own", () => {
+    // a profile with flag_z 5 leaves a 3.5-sigma comparison unflagged: the page must agree
+    const d = details(result("ks_excess"));
+    const loud = { ...d.comparisons.find((c) => c.channel === "2mass:J")!, z: 3.5 };
+    const rows = comparisonRows({ ...d, comparisons: [loud], flagged: [] });
+    expect(rows[0]).toMatchObject({ channel: "2mass:J", verdict: "agrees", why: "", z: "+3.5σ" });
   });
 
   it("[INV-029] reads directions from east and north", () => {

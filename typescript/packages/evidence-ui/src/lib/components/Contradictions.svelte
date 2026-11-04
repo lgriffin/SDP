@@ -54,8 +54,10 @@
     <p class="small">
       Each row is one thing a survey or an image measured, set against what Gaia predicts for it: the position moved
       along Gaia's proper motion to that date, or the brightness Gaia's G and BP − RP predict in that band, fitted on the
-      field's own stars. The expected scatter is the survey's own error plus the extra scatter the field shows; z is the
-      difference in units of it. A row is set aside when the survey cannot separate the star from a neighbour, flags the
+      field's own stars. The expected scatter is the survey's own error plus the extra scatter the field shows. z is how
+      unlikely the difference is against that scatter, said as the number of standard deviations a normal error would
+      need to reach it; the field's scatter is itself estimated from few stars, so z can be smaller than the difference
+      divided by the scatter. A row is set aside when the survey cannot separate the star from a neighbour, flags the
       measurement, or has too few stars to calibrate. A disagreement is a lead, not a verdict: a variable star, an
       unresolved companion or a wrong match all look like this.
     </p>

@@ -16,7 +16,7 @@
     RADII,
     shownQuantities,
   } from "$lib/compare.ts";
-  import { contradictionResult, details as contradictionDetails } from "$lib/contradictions.ts";
+  import { contradictionResult, details as contradictionDetails, starResults } from "$lib/contradictions.ts";
   import { humanTime } from "$lib/plain.ts";
   import type { ReferencePull } from "$lib/ports.ts";
   import { formatNumber, shortHash, type TestResultDoc } from "$lib/view.ts";
@@ -37,7 +37,7 @@
   const crowded = $derived(latest.filter((p) => p.matches.length > 1));
   const structure = $derived(i.candidateKey.startsWith("structure:"));
   // what the search's own survey comparisons found, beside the references
-  const contradiction = $derived(contradictionResult((i.dossier as { test_results?: TestResultDoc[] } | null)?.test_results));
+  const contradiction = $derived(contradictionResult(starResults(i.dossier, i.testResults)));
 
   // What the form starts with: the catalogues not asked yet, or all of them once every one has answered.
   const fresh = $derived(notYetPulled(catalogues, pulls));
