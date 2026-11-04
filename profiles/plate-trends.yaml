@@ -1,0 +1,67 @@
+# Plate trends: has a star brightened or faded since the 1890s, beyond what its field's own stars show?
+#
+#   century-trend -> each star's magnitude per century on the Harvard plates (DASCH), after correcting
+#                    every plate by the star's nearest unblended neighbours on it, compared with the
+#                    slopes of its unblended peers of the same colour and brightness (INT-027)
+#
+# The test is only as good as its field: it calibrates on the field's own stars, so it needs a few
+# hundred stars with plates on both sides of the 1953-1969 gap. Around M67 (1.1 degrees, B < 15) that
+# was 1,100 stars and 520 with enough plates; the field's own null flagged 1.5% of them at alpha 0.001.
+# Blends are judged from the stars the profile lists, so the G cut also decides which neighbours count
+# (tools/century_scan.py lists neighbours to G 17 without fetching their plates).
+#
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: plate-trends
+version: 1.0.0
+description: >-
+  Finds stars whose brightness changed over the century the Harvard plates cover, judged against the
+  field's own stars. Needs a field of several hundred bright stars; contacts DASCH for every star.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    # The plates reach about B 15 (G 14.5), but the listed stars are also every neighbour the blend
+    # check sees: down to G 16, a 10% blend is caught for every star brighter than G 13.5, where
+    # nearly all stars with 100 plates are. Fainter stars cost a DASCH search and are rarely tested.
+    - {column: phot_g_mean_mag, op: "<", value: 16.0}
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: true
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: dasch
+    role: observations
+    release_label: dasch:DR7
+    product_types: [lightcurve]
+    match_radius_arcsec: 3.0           # plate positions are good to roughly 1-2"; 3" finds the star, not a neighbour
+
+tests:
+  - name: century-trend
+    version: 1.0.0
+    thresholds:
+      source_id: gaia
+      min_points: 100                  # plate measurements, after cleaning
+      min_each_side: 20                # before 1953 and after 1969, so the slope is not one side's offset
+      ensemble_k: 15                   # neighbours that set each plate's correction for a star
+      bin_years: 5.0                   # red-noise error from 5-year bin means
+      blend_radius_arcsec: 60.0        # the coarsest patrol plates merge neighbours this far away
+      max_blend: 0.1                   # neighbours adding over 10% of the star's light never calibrate
+    needs_products: [lightcurve]
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.001                         # the field's own null runs at about 1.5 to 1.7% at this alpha near M67
+  threshold: 1.0
+
+null_fields:
+  trials: 20
