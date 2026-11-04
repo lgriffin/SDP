@@ -34,7 +34,8 @@ if (-not $Data) { Write-Error "SDP_DATA is not set by $EnvFile"; exit 1 }
 $Reports = Join-Path $Data "reports\audit"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
-Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") | Out-Null
+# -Append: a rerun after the pull may start within the same minute and must not erase this record
+Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") -Append | Out-Null
 $Summary = @()
 
 function Step($Name, [scriptblock]$Body) {
