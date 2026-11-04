@@ -137,7 +137,7 @@ def test_the_comparisons_carry_the_archive_s_errors() -> None:
     assert bands.build("2mass:J", "2mass", "band").sigma[0] == pytest.approx(0.04)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def reported() -> dict[str, Any]:
     test = CrossSurveyContradiction()
     return {str(r.subject.object_key): r for r in test.run(field(reported=True), THRESHOLDS, context())}

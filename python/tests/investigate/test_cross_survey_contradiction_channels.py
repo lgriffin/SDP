@@ -40,7 +40,8 @@ pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-028")]
 WITH_WISE: dict[str, Any] = {"source_id": "gaia", "surveys": {"2mass": "2mass", "ps1": "ps1", "allwise": "allwise"}}
 
 
-@pytest.fixture(scope="module")
+# per test, not per module: mutmut credits a module fixture's run only to the first test that builds it
+@pytest.fixture
 def wise() -> dict[str, Any]:
     test = CrossSurveyContradiction()
     return {str(r.subject.object_key): r for r in test.run(field(allwise=True), WITH_WISE, context())}
@@ -123,10 +124,12 @@ def catalogues(missing: str | None = None) -> tuple[pa.Table, pa.Table]:
     return gaia, pa.Table.from_pylist(rows, schema=gaia.schema)
 
 
-def run_images(trials: int = 5, missing: str | None = None) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+def run_images(
+    trials: int = 5, missing: str | None = None, cameras: tuple[Any, ...] = IMAGES
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     gaia, seen = catalogues(missing)
     ports = investigate_ports(CrossSurveyContradiction(), catalogue=gaia)
-    ports.observation_gateways = {MAST: epoch_archive(seen, IMAGES)}
+    ports.observation_gateways = {MAST: epoch_archive(seen, cameras)}
     ports.services = {
         "detector": PhotutilsDetector(),
         "refiner": TweakwcsRefiner(),
@@ -153,20 +156,13 @@ def run_images(trials: int = 5, missing: str | None = None) -> tuple[dict[str, d
     return {r["subject"]["object_key"]: r for r in doc["results"]}, doc
 
 
-@pytest.fixture(scope="module")
-def run() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    return run_images(trials=100)
+@pytest.fixture
+def images() -> dict[str, dict[str, Any]]:
+    return run_images(trials=2)[0]
 
 
-@pytest.fixture(scope="module")
-def images(run: tuple[dict[str, dict[str, Any]], dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    return run[0]
-
-
-def test_null_fields_on_the_images_hold_the_rate_near_alpha(
-    run: tuple[dict[str, dict[str, Any]], dict[str, Any]],
-) -> None:
-    [null] = run[1]["null_results"]
+def test_null_fields_on_the_images_hold_the_rate_near_alpha() -> None:
+    [null] = run_images(trials=100)[1]["null_results"]
     assert null["trials"] == 100 and null["examined"] > 3000
     assert null["false_positive_rate"] < 0.025
 
@@ -208,6 +204,35 @@ def test_steady_stars_on_the_images_are_not_flagged(images: dict[str, dict[str, 
     flagged = {k for k, r in images.items() if r["p_value"] is not None and r["p_value"] < 0.01}
     assert flagged <= {BRIGHTER, DISPLACED, "e-vanished", "e-brightens", "e-fades"}
     assert {BRIGHTER, DISPLACED} <= flagged
+
+
+def test_each_image_comparison_is_dated_by_its_image(images: dict[str, dict[str, Any]]) -> None:
+    for camera in IMAGES:
+        gap = (camera.epoch_mjd - 57388.5) / 365.25  # Gaia DR3's epoch, 2016.0, is MJD 57388.5
+        dated = [
+            c["epoch_gap_years"]
+            for r in images.values()
+            for c in r["details"]["comparisons"]
+            if c["channel"].startswith(f"image:{camera.product_id}:")
+        ]
+        assert dated and all(d == pytest.approx(gap, abs=0.01) for d in dated)
+
+
+def test_a_moved_star_is_measured_where_it_is_so_its_brightness_agrees(images: dict[str, dict[str, Any]]) -> None:
+    for camera in IMAGES:
+        band = by_channel(images[DISPLACED])[f"image:{camera.product_id}:{camera.band}"]
+        assert band["counted"] and band["residual_mag"] == pytest.approx(0.0, abs=0.15)
+        assert 0.0 < band["reported_sigma"] < 0.05
+
+
+def test_an_image_that_cannot_be_aligned_is_named_and_left_out() -> None:
+    # archived astrometry 20 arcsec off: no Gaia star within the alignment search, so nothing is measured there
+    lost = replace(OTHER_BAND, product_id="jwst-lost_i2d.fits", wcs_error_arcsec=(20.0, 0.0))
+    images, _ = run_images(trials=2, cameras=(*IMAGES, lost))
+    for r in images.values():
+        assert r["details"]["images_left_out"] == {lost.product_id: "could not be aligned to Gaia"}
+        assert not [c for c in r["details"]["comparisons"] if lost.product_id in c["channel"]]
+    assert {BRIGHTER, DISPLACED} <= {k for k, r in images.items() if r["p_value"] is not None and r["p_value"] < 0.01}
 
 
 def test_a_star_no_image_shows_gets_no_comparison_on_it() -> None:
