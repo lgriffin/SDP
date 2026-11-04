@@ -1,8 +1,11 @@
 # 2MASS PSC to canonical astrometry: positions at each source's observation epoch, no astrometric solution.
 # 1.1.0: J, H and Ks magnitudes are canonical columns too (photometric-corroboration reads them, #141);
 # they stay in quality_flags under the archive's names as well.
+# 1.2.0: the archive's own uncertainties, j/h/k_msigcom (mag) and the 1-sigma position error ellipse
+# err_maj/err_min (arcsec), are kept in quality_flags when the fetch asks for them. They are optional, so
+# a profile written before them still curates to the same rows. cross-survey-contradiction reads them (INV-027).
 dialect_id: 2mass-psc
-dialect_version: 1.1.0
+dialect_version: 1.2.0
 source_id: 2mass
 source_release: 2mass:psc
 source_key: "2mass:{designation}"
@@ -15,5 +18,6 @@ columns:
   k_mag: {column: k_m, unit: mag}
 astrometric_corr: null
 quality_flags: [ph_qual, j_m, h_m, k_m]
+optional_quality_flags: [j_msigcom, h_msigcom, k_msigcom, err_maj, err_min]
 quality_class: {column: ph_qual, map: {AAA: good, AAB: marginal, ABA: marginal, BAA: marginal}, default: poor}
 zero_point_corrected: false

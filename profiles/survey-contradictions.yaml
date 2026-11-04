@@ -1,8 +1,8 @@
 # Survey contradictions: do other surveys measure each star the way Gaia does?
 #
-# For every well-measured Gaia star in the field, this profile asks 2MASS (infrared, about 1999) and
-# Pan-STARRS (optical, about 2012) what they measured, and compares each measurement with what Gaia
-# predicts for it:
+# For every well-measured Gaia star in the field, this profile asks 2MASS (infrared, about 1999),
+# Pan-STARRS (optical, about 2012) and AllWISE (mid-infrared, 2010) what they measured, and compares
+# each measurement with what Gaia predicts for it:
 #   cross-survey-contradiction -> a position or a brightness that disagrees beyond what the
 #                                 surveys' uncertainties, calibrated on the field itself, allow
 # A flag is a lead: a wrong Gaia motion, an unresolved companion, a variable star, an infrared
@@ -11,9 +11,9 @@
 # Changing anything here makes a new profile: raise `version` (the run records this file's hash).
 schema_version: "1.0.0"
 profile_id: survey-contradictions
-version: 1.0.0
+version: 1.2.0
 description: >-
-  Gaia against 2MASS and Pan-STARRS. Flags stars whose position or brightness in another survey
+  Gaia against 2MASS, Pan-STARRS and AllWISE. Flags stars whose position or brightness in another survey
   disagrees with Gaia by more than the field's own measurements allow. Exploratory: a flag is a lead.
 
 identify:
@@ -36,20 +36,28 @@ archives:
   - source_id: 2mass
     role: catalogue
     release_label: 2mass:psc
-    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual]
+    # the *_msigcom and err_* columns are 2MASS's own errors: the budget starts from them
+    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual, j_msigcom, h_msigcom, k_msigcom, err_maj, err_min]
     match_radius_arcsec: 1.5           # wider than 2MASS's ~0.1" errors, so a real position disagreement is still matched
   - source_id: ps1
     role: catalogue
     release_label: ps1:DR2
-    columns: [objID, raMean, decMean, epochMean, gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, nDetections]
+    columns: [objID, raMean, decMean, epochMean, nDetections,
+              gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, zMeanPSFMag, yMeanPSFMag,
+              gMeanPSFMagErr, rMeanPSFMagErr, iMeanPSFMagErr, zMeanPSFMagErr, yMeanPSFMagErr, raMeanErr, decMeanErr]
     match_radius_arcsec: 1.0           # Pan-STARRS positions are good to a few hundredths of an arcsecond
+  - source_id: allwise
+    role: catalogue
+    release_label: allwise:psd
+    columns: [designation, ra, dec, sigra, sigdec, w1mpro, w1sigmpro, w2mpro, w2sigmpro, ph_qual, cc_flags, ext_flg]
+    match_radius_arcsec: 2.0           # AllWISE's 6-arcsecond beam places a star to a few tenths of an arcsecond
 
 tests:
   - name: cross-survey-contradiction
-    version: 1.0.0
+    version: 1.2.0
     thresholds:
       source_id: gaia
-      surveys: {2mass: 2mass, ps1: ps1}  # which archive in this profile holds each survey
+      surveys: {2mass: 2mass, ps1: ps1, allwise: allwise}  # which archive in this profile holds each survey
       blend_delta_mag: 2.5             # a neighbour within 2.5 mag in G inside a survey's resolution spoils the comparison
       magnitude_bins: 3                # the field sets the budget separately for bright, middle and faint stars
       min_per_bin: 15                  # fewer stars than this cannot set a budget, so their comparisons are set aside

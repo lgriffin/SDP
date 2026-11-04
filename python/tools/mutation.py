@@ -81,7 +81,7 @@ RELATIVITY_SHARDS = (
 ANALYSIS_TIMEOUT = 2
 STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd", "significance"),
-    ("protocol", "features", "quality", "ranking"),
+    ("protocol", "features", "quality", "ranking", "audit"),
     ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
     ("oort1927",),
     ("companions",),
@@ -175,6 +175,12 @@ TARGETS = {
             "sdp-investigate-changes",
             "sdp-investigate",
             ("src/sdp_investigate/changes.py",),
+            ("tests/investigate", "tests/local"),
+        ),
+        Target(
+            "sdp-investigate-century",
+            "sdp-investigate",
+            ("src/sdp_investigate/century.py",),
             ("tests/investigate", "tests/local"),
         ),
         *(

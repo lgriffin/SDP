@@ -3,6 +3,7 @@
 
   import { enhance } from "$app/forms";
   import Badge from "$lib/components/Badge.svelte";
+  import Contradictions from "$lib/components/Contradictions.svelte";
   import {
     compareCell,
     findings,
@@ -15,9 +16,10 @@
     RADII,
     shownQuantities,
   } from "$lib/compare.ts";
+  import { contradictionResult, details as contradictionDetails, starResults } from "$lib/contradictions.ts";
   import { humanTime } from "$lib/plain.ts";
   import type { ReferencePull } from "$lib/ports.ts";
-  import { formatNumber, shortHash } from "$lib/view.ts";
+  import { formatNumber, shortHash, type TestResultDoc } from "$lib/view.ts";
 
   let { data, form } = $props();
   const i = $derived(data.investigation);
@@ -34,6 +36,8 @@
   const said = $derived(findings(latest, found, i.candidateKey));
   const crowded = $derived(latest.filter((p) => p.matches.length > 1));
   const structure = $derived(i.candidateKey.startsWith("structure:"));
+  // what the search's own survey comparisons found, beside the references
+  const contradiction = $derived(contradictionResult(starResults(i.dossier, i.testResults)));
 
   // What the form starts with: the catalogues not asked yet, or all of them once every one has answered.
   const fresh = $derived(notYetPulled(catalogues, pulls));
@@ -142,6 +146,17 @@
       </form>
     </section>
   </div>
+
+  {#if contradiction}
+    <section aria-labelledby="engine-h" data-testid="engine">
+      <h2 id="engine-h">Where the surveys disagree with Gaia</h2>
+      <p class="muted">
+        What the search's own comparisons found: each survey's and image's measurement of this star against Gaia's
+        prediction, judged against the field's scatter. The table below shows the catalogues as they are.
+      </p>
+      <Contradictions details={contradictionDetails(contradiction)} compact />
+    </section>
+  {/if}
 
   {#if columns.length}
     <section aria-labelledby="side-h">

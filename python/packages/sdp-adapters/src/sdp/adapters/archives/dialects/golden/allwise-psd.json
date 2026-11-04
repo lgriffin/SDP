@@ -1,0 +1,101 @@
+{
+ "note": "Hand-written rows that pin the mapping (units, epoch, key, flags). They are not archive data.",
+ "native": [
+  {
+   "designation": "J030200.00-121500.0",
+   "ra": 45.5,
+   "dec": -12.25,
+   "sigra": 0.0625,
+   "sigdec": 0.0625,
+   "w1mpro": 11.5,
+   "w1sigmpro": 0.025,
+   "w2mpro": 11.25,
+   "w2sigmpro": 0.0275,
+   "ph_qual": "AABU",
+   "cc_flags": "0000",
+   "ext_flg": 0
+  },
+  {
+   "designation": "J030206.00-123000.0",
+   "ra": 45.525,
+   "dec": -12.5,
+   "sigra": 0.125,
+   "sigdec": 0.25,
+   "w1mpro": 12.5,
+   "w1sigmpro": null,
+   "w2mpro": 12.0,
+   "w2sigmpro": 0.05,
+   "ph_qual": "BCUU",
+   "cc_flags": "dh00",
+   "ext_flg": 3
+  }
+ ],
+ "canonical": [
+  {
+   "source_key": "allwise:J030200.00-121500.0",
+   "ra_deg": 45.5,
+   "dec_deg": -12.25,
+   "epoch_jyear": 2010.5558,
+   "parallax_mas": null,
+   "parallax_mas_err": null,
+   "pm_ra_cosdec_masyr": null,
+   "pm_ra_cosdec_masyr_err": null,
+   "pm_dec_masyr": null,
+   "pm_dec_masyr_err": null,
+   "astrometric_corr": null,
+   "g_mag": null,
+   "bp_rp": null,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
+   "ruwe": null,
+   "quality_flags": {
+    "cc_flags": "0000",
+    "ext_flg": 0,
+    "ph_qual": "AABU",
+    "sigdec": 0.0625,
+    "sigra": 0.0625,
+    "w1mpro": 11.5,
+    "w1sigmpro": 0.025,
+    "w2mpro": 11.25,
+    "w2sigmpro": 0.0275
+   },
+   "quality_class": "good",
+   "zero_point_corrected": false,
+   "source_release": "allwise:psd"
+  },
+  {
+   "source_key": "allwise:J030206.00-123000.0",
+   "ra_deg": 45.525,
+   "dec_deg": -12.5,
+   "epoch_jyear": 2010.5558,
+   "parallax_mas": null,
+   "parallax_mas_err": null,
+   "pm_ra_cosdec_masyr": null,
+   "pm_ra_cosdec_masyr_err": null,
+   "pm_dec_masyr": null,
+   "pm_dec_masyr_err": null,
+   "astrometric_corr": null,
+   "g_mag": null,
+   "bp_rp": null,
+   "j_mag": null,
+   "h_mag": null,
+   "k_mag": null,
+   "ruwe": null,
+   "quality_flags": {
+    "cc_flags": "dh00",
+    "ext_flg": 3,
+    "ph_qual": "BCUU",
+    "sigdec": 0.25,
+    "sigra": 0.125,
+    "w1mpro": 12.5,
+    "w1sigmpro": null,
+    "w2mpro": 12.0,
+    "w2sigmpro": 0.05
+   },
+   "quality_class": "poor",
+   "zero_point_corrected": false,
+   "source_release": "allwise:psd"
+  }
+ ]
+}

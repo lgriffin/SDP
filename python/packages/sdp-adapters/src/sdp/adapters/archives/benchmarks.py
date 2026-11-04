@@ -63,6 +63,8 @@ class KnownClusterCatalogue:
     citation: str
     description: str
     licence: str = LICENCE
+    #: not a UC-01 benchmark: fetched only when named, for the claim audit (STL-024)
+    audit_only: bool = False
 
 
 CATALOGUES: dict[str, KnownClusterCatalogue] = {
@@ -79,6 +81,14 @@ CATALOGUES: dict[str, KnownClusterCatalogue] = {
         "cga20:v1",
         "Cantat-Gaudin et al. 2020, A&A 640, A1 (doi:10.1051/0004-6361/202038192)",
         "2,017 open clusters with Gaia DR2 members and ages",
+    ),
+    "cwnu23": KnownClusterCatalogue(
+        "cwnu23",
+        "J/ApJS/264/8/clusters",
+        "cwnu23:v1",
+        "He et al. 2023, ApJS 264, 8 (VizieR J/ApJS/264/8)",
+        "1,656 new CWNU clusters found in Gaia EDR3; only for the claim audit (STL-024)",
+        audit_only=True,
     ),
 }
 

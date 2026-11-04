@@ -1,0 +1,11 @@
+{
+  "notes": "Settings of the claim audit (STL-024). Everything else (cuts, feature policy, grid, pass marks, significance test, distance shells) is the sweep's. Two catalogues list the same object when their centres lie within match_radius_deg on the sky, widened to what match_radius_pc subtends for a nearby object, and their mean proper motions within pm_window_masyr; the 0.1 deg and 1 mas/yr are UC-01's cross-match window. Every object only one catalogue lists is audited, with control_sample objects two or more catalogues list (sampled once each, named by the first catalogue in control_from that lists it) as the control. Each claim's field gets null_fields_per_claim null fields; a claim survives only when more significant than every false candidate they produce.",
+  "catalogues": ["hr23", "cga20", "cwnu23"],
+  "match_radius_deg": 0.1,
+  "match_radius_pc": 5.0,
+  "pm_window_masyr": 1.0,
+  "control_sample": 300,
+  "control_from": ["hr23", "cga20", "cwnu23"],
+  "null_fields_per_claim": 3,
+  "seed": 2026
+}

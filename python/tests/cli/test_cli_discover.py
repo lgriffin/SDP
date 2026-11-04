@@ -357,3 +357,64 @@ def test_the_predeclared_run_reads_gaia_and_issues_a_verdict(k: InMemoryKernel) 
     assert {"benchmark:hr23", "benchmark:cga20", "field:praesepe"} <= roles
     # freezing again is the same entry, so a second run reuses the predeclaration
     assert len([e for e in k.ledger.entries() if e.kind == "predeclaration"]) == 1
+
+
+# --- the claim audit (STL-024) ---------------------------------------------------------------------
+
+
+def store_cwnu(store: Any) -> None:
+    """A third catalogue claiming SYN-B, which neither synthetic benchmark lists, and an object that is not there."""
+    from sdp_stellar.benchmark import with_metadata
+
+    syn_b_ra = 130.1 - 0.4 / math.cos(math.radians(19.97))
+    table = pa.table(
+        {
+            "name": ["CWNU SYN-B", "CWNU GHOST"],
+            "ra_deg": [syn_b_ra, 131.5],
+            "dec_deg": [19.97, 21.0],
+            "pm_ra_cosdec_masyr": [-36.0, 10.0],
+            "pm_dec_masyr": [-13.0, 10.0],
+            "parallax_mas": [1000.0 / 185.0, 5.0],
+        }
+    )
+    table = with_metadata(table, "cwnu23:v1", "CC0-1.0 (synthetic)", "synthetic cwnu23")
+    store.link(discover._benchmark_path("cwnu23", "cwnu23:v1"), store.put(parquet(table), PARQUET))
+
+
+@pytest.mark.req("STL-024")
+def test_audit_and_report_say_which_single_catalogue_claims_survive(bulk: Path) -> None:
+    invoke("discover", "prepare", "--workers", "1")
+    result = runner.invoke(cli.app, ["discover", "audit"])
+    # two of the three bulk files are stored and prepared
+    assert result.exit_code != 0 and "only 2 of the 3 bulk Gaia files are prepared" in str(result.exception)
+    result = runner.invoke(cli.app, ["discover", "audit", "--allow-partial"])
+    assert result.exit_code != 0 and "--catalogue cwnu23" in str(result.exception)
+    store_cwnu(artifact_store(bulk / "artifacts"))
+    ran = invoke("discover", "audit", "--workers", "2", "--catalogue", "cwnu23", "--allow-partial")
+    assert ran["label"] == "EXPLORATORY" and ran["failed"] == []
+    assert ran["verdicts_this_run"] == {"not_recovered": 1, "survives": 1}
+    folder = bulk / "data" / "audit" / "claims"
+    with open(folder / "catalogue-agreement.csv", encoding="utf-8") as handle:
+        agreement = {row["claim_id"]: row["claimed_by"] for row in csv.DictReader(handle)}
+    assert agreement["cwnu23:CWNU SYN-B"] == "cwnu23" and agreement["hr23:SYN-A"] == "cga20 hr23"
+    again = invoke("discover", "audit", "--workers", "1", "--catalogue", "cwnu23", "--allow-partial")
+    assert again["claims_this_run"] == 0
+
+    report = invoke("discover", "audit-report")
+    # the cwnu23 claims are done, the hr23 single claim and the control are not
+    assert report["complete"] is False and report["claims_done"] == 2 and report["claims_owed"] > 2
+    single = report["groups"]["single"]["cwnu23"]
+    assert single["verdicts"]["survives"] == 1 and single["survival"] == 0.5
+    with open(report["csv"], encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["claim_id"] == "cwnu23:CWNU SYN-B" and rows[0]["verdict"] == "survives"
+
+
+def test_an_audit_report_needs_audited_claims(bulk: Path) -> None:
+    result = runner.invoke(cli.app, ["discover", "audit-report"])
+    assert result.exit_code != 0 and "run `sdp discover audit` first" in str(result.exception)
+
+
+def test_claim_files_are_safe_names_and_never_shared() -> None:
+    a, b = discover._claim_file("cwnu23:CWNU 1/2"), discover._claim_file("cwnu23:CWNU 1_2")
+    assert a != b and re.fullmatch(r"[A-Za-z0-9_.-]+\.json", a)

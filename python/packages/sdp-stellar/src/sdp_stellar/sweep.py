@@ -246,7 +246,20 @@ def _labellings(
     it instead of its children, so every real cluster inside it disappears with it, and the giant is
     then rejected as the field. Capped, a cluster too big to pass that check is never chosen, and its
     children are judged instead. A candidate the check would accept is chosen as before."""
-    fm = apply_policy(settings["feature_space_policy"], table, t.ra_deg, t.dec_deg)
+    return labellings_at(table, t.ra_deg, t.dec_deg, settings, clusterers, seed)
+
+
+def labellings_at(
+    table: pa.Table,
+    ra_deg: float,
+    dec_deg: float,
+    settings: Mapping[str, Any],
+    clusterers: Mapping[str, ClusterSearchAlgorithm],
+    seed: int,
+) -> tuple[np.ndarray, list[dict[str, Any]]]:
+    """``_labellings`` about any centre: the feature matrix projected about (ra_deg, dec_deg), and one
+    capped labelling per grid point. The claim audit (STL-024) searches fields centred on a claim."""
+    fm = apply_policy(settings["feature_space_policy"], table, ra_deg, dec_deg)
     cap = field_sized(settings, table.num_rows)
     out = []
     for grid_point in configurations(settings["algorithms"], settings["hyperparameter_grid"]):

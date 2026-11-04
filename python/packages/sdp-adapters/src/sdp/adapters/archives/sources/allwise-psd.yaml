@@ -1,0 +1,28 @@
+# AllWISE Source Catalog (W1 3.4 um, W2 4.6 um) through the IRSA TAP service.
+source_id: allwise
+release_label: allwise:psd
+service_url: https://irsa.ipac.caltech.edu/TAP
+table: allwise_p3as_psd
+ra_column: ra
+dec_column: dec
+key_column: designation
+paging: single
+max_rows_per_call: 100000
+min_seconds_between_calls: 1.0
+dialect_id: allwise-psd
+licence: "WISE and NEOWISE data are public; acknowledge per https://wise2.ipac.caltech.edu/docs/release/allwise/"
+citation: Wright et al. 2010, AJ 140, 1868; Mainzer et al. 2011, ApJ 731, 53; Cutri et al. 2013, AllWISE Explanatory Supplement
+doi: 10.1088/0004-6256/140/6/1868
+columns:
+  - {name: designation, datatype: char}
+  - {name: ra, datatype: double, unit: deg}
+  - {name: dec, datatype: double, unit: deg}
+  - {name: sigra, datatype: double, unit: arcsec, description: "1-sigma uncertainty in RA"}
+  - {name: sigdec, datatype: double, unit: arcsec, description: "1-sigma uncertainty in Dec"}
+  - {name: w1mpro, datatype: double, unit: mag, description: "W1 profile-fit magnitude"}
+  - {name: w1sigmpro, datatype: double, unit: mag}
+  - {name: w2mpro, datatype: double, unit: mag, description: "W2 profile-fit magnitude"}
+  - {name: w2sigmpro, datatype: double, unit: mag}
+  - {name: ph_qual, datatype: char, description: "photometric quality letter per band, W1 to W4"}
+  - {name: cc_flags, datatype: char, description: "contamination and confusion flag per band, 0 = clean"}
+  - {name: ext_flg, datatype: int, description: "0 = point source"}
