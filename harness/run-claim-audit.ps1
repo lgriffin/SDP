@@ -22,6 +22,8 @@ param(
     [string]$Name = "claims2"
 )
 $ErrorActionPreference = "Continue"
+# PowerShell has read this file before the pull below can change it, so a changed copy is run afresh
+$Before = (Get-FileHash -LiteralPath $PSCommandPath).Hash
 
 cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
     if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
@@ -66,6 +68,15 @@ Push-Location $Code
 Setup "git fetch" { git fetch origin }
 Setup "git checkout $Branch" { git checkout $Branch }
 Setup "git pull" { git pull origin $Branch }
+if ((Get-FileHash -LiteralPath $PSCommandPath).Hash -ne $Before) {
+    Write-Host "The pull changed this script, so the new version runs now"
+    Pop-Location
+    Stop-Transcript | Out-Null
+    $Again = @()
+    foreach ($k in $PSBoundParameters.Keys) { $Again += "-$k"; $Again += "$($PSBoundParameters[$k])" }
+    & powershell -ExecutionPolicy Bypass -File $PSCommandPath @Again
+    exit $LASTEXITCODE
+}
 Set-Location (Join-Path $Code "python")
 Setup "uv sync" { uv sync --frozen }
 
@@ -83,8 +94,12 @@ if ($fetched) {
     if ($trial) {
         $whole = Step "3 Whole audit" { Sdp discover audit --name $script:Name --sweep $script:Sweep --workers $Workers | Out-Null }
     }
-    # the report runs either way and says how many claims are done; a failed step still fails the run
-    $report = Step "4 Report" { Sdp discover audit-report --name $script:Name | Out-Null }
+    # after a whole audit that stopped part way the report still runs and says how many claims are
+    # done; after a failed trial nothing new was audited, so there is nothing to report
+    $report = $false
+    if ($trial) {
+        $report = Step "4 Report" { Sdp discover audit-report --name $script:Name | Out-Null }
+    }
     $failed = -not ($trial -and $whole -and $report)
 } else {
     $failed = $true
