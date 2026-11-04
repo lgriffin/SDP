@@ -1,0 +1,101 @@
+{
+  "protocol_id": "uc05-oort-1932",
+  "version": "1.0.0",
+  "written": "2026-11-04, before any Gaia star was read for this protocol",
+  "paper": {
+    "citation": "J. H. Oort (1932), The force exerted by the stellar system in the direction perpendicular to the galactic plane and some related problems, Bull. Astron. Inst. Netherlands 6, No. 238, 249-287",
+    "bibcode": "1932BAN.....6..249O",
+    "read_from": "the scan Leigh uploaded on 2026-11-04 (oort-1932/oort-1932-BAN-238.pdf in the project files)"
+  },
+  "oort": {
+    "table14": [
+      {"z_pc": 50, "K_preliminary": 1.15, "K_mean_corrected": 0.77, "integral": 21.0},
+      {"z_pc": 100, "K_preliminary": 2.30, "K_mean_corrected": 1.55, "integral": 86.0},
+      {"z_pc": 150, "K_preliminary": 3.15, "K_mean_corrected": 2.59, "integral": 193.0},
+      {"z_pc": 200, "K_preliminary": 3.80, "K_mean_corrected": 3.52, "integral": 342.0},
+      {"z_pc": 250, "K_preliminary": 3.80, "K_mean_corrected": 3.78, "integral": 526.0},
+      {"z_pc": 300, "K_preliminary": 3.80, "K_mean_corrected": 3.86, "integral": 716.0},
+      {"z_pc": 400, "K_preliminary": 3.75, "K_mean_corrected": 3.68, "integral": 1100.0},
+      {"z_pc": 600, "K_preliminary": 3.80, "K_mean_corrected": 4.44, "integral": 1884.0}
+    ],
+    "table14_units": "K in 1e-9 cm/s^2, the integral of K' from 0 to z in 1e-9 cm/s^2 pc",
+    "summary_linear_to_pc": 200,
+    "summary_plateau_pc": [200, 500],
+    "summary_plateau_K_1e9": 3.8,
+    "eq9_constant": 7.48e-9,
+    "z0_constant": 6.17e8,
+    "z0_example": {"Z0_km_s": 30.0, "z_pc": 500},
+    "dK_dz_s2": 5.62e-30,
+    "shape_factor_x": [
+      {"a_over_c": 5.0, "x": 0.750},
+      {"a_over_c": 10.0, "x": 0.860},
+      {"a_over_c": 30.0, "x": 0.950},
+      {"a_over_c": null, "x": 1.000}
+    ],
+    "density_cases_msun_pc3": {"I a": 0.108, "I b": 0.093, "II a": 0.089, "II b": 0.079},
+    "unit_msun_pc3_in_g_cm3": 6.85e-23,
+    "total_density_msun_pc3": 0.092,
+    "total_density_g_cm3": 6.3e-24,
+    "probable_error_fraction": 0.20,
+    "visible_stars_msun_pc3": 0.038,
+    "sun_above_plane_pc_tentative": 30.0,
+    "earlier_estimates_msun_pc3": {"Kapteyn": 0.099, "Jeans": 0.143, "Lindblad": 0.217},
+    "absolute_magnitude_groups": [[-1.5, -0.5], [-0.5, 1.5], [1.5, 3.5], [3.5, 5.5]]
+  },
+  "rotation": {
+    "A_km_s_kpc": 15.22,
+    "A_error": 0.02,
+    "B_km_s_kpc": -13.24,
+    "B_error": 0.02,
+    "source": "UC-04 baseline of Leigh's full run, 2026-11-01 (python/tests/cassettes/gaia-oort/report.json)"
+  },
+  "selection": {
+    "ruwe_max": 1.4,
+    "parallax_over_error_min": 10.0,
+    "duplicated_source": false,
+    "b_min_deg": 20.0,
+    "z_table_max_pc": 1000.0
+  },
+  "groups": {
+    "all": [-1.5, 5.5],
+    "M-1.5..-0.5": [-1.5, -0.5],
+    "M-0.5..1.5": [-0.5, 1.5],
+    "M1.5..3.5": [1.5, 3.5],
+    "M3.5..5.5": [3.5, 5.5]
+  },
+  "fit": {
+    "inner_max_pc": 200.0,
+    "plateau_pc": [200.0, 500.0],
+    "min_density_stars_per_bin": 50,
+    "min_velocity_stars_per_bin": 30,
+    "min_inner_points": 3,
+    "min_plateau_points": 3,
+    "clip_mad_multiple": 4.0,
+    "z_sun_window_pc": 300.0,
+    "draws": 1000,
+    "seed": 1932
+  },
+  "scenarios": {
+    "group": ["all", "M-1.5..-0.5", "M-0.5..1.5", "M1.5..3.5", "M3.5..5.5"],
+    "cylinder_radius_pc": [150.0, 300.0],
+    "bin_pc": [25.0, 50.0],
+    "parallax_zero_point_mas": [0.0, -0.017],
+    "clip": [true, false]
+  },
+  "baseline": {
+    "group": "all",
+    "cylinder_radius_pc": 300.0,
+    "bin_pc": 50.0,
+    "parallax_zero_point_mas": -0.017,
+    "clip": true
+  },
+  "decision": {
+    "detect_sigma": 5.0,
+    "flat_ratio": 0.5,
+    "ratio_sigma": 2.0,
+    "agree_sigma": 2.0
+  },
+  "target": {
+    "source_release": "gaia:DR3"
+  }
+}
