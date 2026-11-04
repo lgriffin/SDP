@@ -254,6 +254,8 @@ requirements:
       - "python/tests.investigate.test_cross_survey_contradiction_channels::test_a_star_displaced_on_the_images_is_flagged_by_position"
       - "python/tests.investigate.test_cross_survey_contradiction_channels::test_a_pair_the_detector_could_not_split_is_a_blend_where_it_was_not_split"
       - "python/tests.investigate.test_cross_survey_contradiction_channels::test_a_star_no_image_shows_gets_no_comparison_on_it"
+      - "python/tests.investigate.test_cross_survey_contradiction_channels::test_an_image_that_cannot_be_aligned_is_named_and_left_out"
+      - "python/tests.investigate.test_cross_survey_contradiction_channels::test_a_moved_star_is_measured_where_it_is_so_its_brightness_agrees"
       - "python/tests.investigate.test_cross_survey_contradiction_channels::test_null_fields_on_the_images_hold_the_rate_near_alpha"
   - id: INV-029
     pattern: event
