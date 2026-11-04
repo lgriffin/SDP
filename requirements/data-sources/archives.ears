@@ -119,6 +119,7 @@ requirements:
       - "python/tests.archives.test_benchmarks::test_columns_are_chosen_by_ucd_and_never_by_an_error_column"
       - "python/tests.archives.test_benchmarks::test_a_column_in_another_unit_is_refused_by_name"
       - "python/tests.archives.test_benchmarks::test_a_fetched_catalogue_is_a_benchmark_the_cross_match_accepts"
+      - "python/tests.archives.test_benchmarks::test_cwnu23_names_its_cluster_number_column_and_writes_names_as_cwnu_n"
       - "python/tests.cli.test_cli_benchmark::test_fetch_stores_both_catalogues_and_prints_the_input_to_define_with"
   - id: DSI-016
     pattern: ubiquitous

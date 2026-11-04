@@ -430,3 +430,50 @@ def test_a_mirror_reply_cut_off_in_its_rows_moves_on_to_the_next_mirror() -> Non
     fake.raw(source.mirror_request(hr23, MIRRORS[1]), whole)
     table = source.fetch("hr23")
     assert table.schema.metadata[b"sdp.benchmark.source"].endswith(MIRRORS[1].encode())
+
+
+#: J/ApJS/264/8/clusters as the IVOA registry describes it (GAVO RegTAP, 2026-11-04): the cluster number
+#: is its only identifier and is marked meta.id.parent, so no UCD picks a name (Leigh's run, 2026-11-04)
+CWNU_SCHEMA = [
+    {"column_name": "recno", "ucd": "meta.record", "unit": ""},
+    {"column_name": "CWNU", "ucd": "meta.id.parent", "unit": ""},
+    {"column_name": "GLON", "ucd": "pos.galactic.lon", "unit": "deg"},
+    {"column_name": "_RA.icrs", "ucd": "pos.eq.ra", "unit": "deg"},
+    {"column_name": "_DE.icrs", "ucd": "pos.eq.dec", "unit": "deg"},
+    {"column_name": "plx", "ucd": "pos.parallax.trig", "unit": "mas"},
+    {"column_name": "pmRA", "ucd": "pos.pm;pos.eq.ra", "unit": "mas/yr"},
+    {"column_name": "s_pmRA", "ucd": "instr.dispersion", "unit": "mas/yr"},
+    {"column_name": "pmDE", "ucd": "pos.pm;pos.eq.dec", "unit": "mas/yr"},
+]
+
+
+@pytest.mark.req("DSI-015")
+def test_cwnu23_names_its_cluster_number_column_and_writes_names_as_cwnu_n() -> None:
+    with pytest.raises(CatalogueSchemaError, match="name: no column with UCD"):
+        choose_columns(CWNU_SCHEMA)
+    catalogue = CATALOGUES["cwnu23"]
+    chosen = choose_columns(CWNU_SCHEMA, bm.with_defaults(catalogue, None))
+    assert chosen == {
+        "name": "CWNU",
+        "ra_deg": "_RA.icrs",
+        "dec_deg": "_DE.icrs",
+        "pm_ra_cosdec_masyr": "pmRA",
+        "pm_dec_masyr": "pmDE",
+        "parallax_mas": "plx",
+    }
+    fake = PrimedService()
+    source = VizierKnownClusters(fake)
+    fake.table(source.schema_request(catalogue), schema_rows(CWNU_SCHEMA))
+    rows = {"name": [12, 3], "ra_deg": [10.0, 20.0], "dec_deg": [1.0, 2.0], "pm_ra_cosdec_masyr": [0.5, 1.5]}
+    fake.table(source.rows_request(catalogue, chosen), {**rows, "pm_dec_masyr": [0.1, 0.2], "parallax_mas": [0.4, 0.6]})
+    table = source.fetch("cwnu23")
+    assert table.column("name").to_pylist() == ["CWNU 12", "CWNU 3"]
+    # a --column the caller names still wins over the catalogue's own choice
+    assert bm.with_defaults(catalogue, {"name": "recno"})["name"] == "recno"
+
+
+def test_an_override_matches_a_column_whatever_its_case_when_only_one_does() -> None:
+    assert choose_columns(SCHEMA, {"name": "seq"})["name"] == "Seq"
+    twice = [*SCHEMA, {"column_name": "SEQ", "ucd": "meta.record", "unit": ""}]
+    with pytest.raises(CatalogueSchemaError, match="no column 'seq'"):
+        choose_columns(twice, {"name": "seq"})

@@ -65,6 +65,10 @@ class KnownClusterCatalogue:
     licence: str = LICENCE
     #: not a UC-01 benchmark: fetched only when named, for the claim audit (STL-024)
     audit_only: bool = False
+    #: benchmark column -> native column, for a column VizieR's UCDs do not pick (a --column still wins)
+    columns: tuple[tuple[str, str], ...] = ()
+    #: written before each name, for a catalogue whose identifier is a bare number
+    name_prefix: str = ""
 
 
 CATALOGUES: dict[str, KnownClusterCatalogue] = {
@@ -89,6 +93,10 @@ CATALOGUES: dict[str, KnownClusterCatalogue] = {
         "He et al. 2023, ApJS 264, 8 (VizieR J/ApJS/264/8)",
         "1,656 new CWNU clusters found in Gaia EDR3; only for the claim audit (STL-024)",
         audit_only=True,
+        # the cluster number is the table's only identifier and VizieR marks it meta.id.parent, not
+        # meta.id (it links the members table), so no UCD picks it
+        columns=(("name", "CWNU"),),
+        name_prefix="CWNU ",
     ),
 }
 
@@ -130,10 +138,16 @@ def choose_columns(
     if unknown:
         raise CatalogueSchemaError(f"no benchmark column {unknown}; the columns are {[w.column for w in WANTED]}")
     by_name = {str(r["column_name"]): r for r in schema}
+    # a name not written exactly as the service writes it is matched ignoring case, when that is unambiguous
+    folded: dict[str, list[Mapping[str, object]]] = {}
+    for r in schema:
+        folded.setdefault(str(r["column_name"]).lower(), []).append(r)
     chosen: dict[str, str] = {}
     for want in WANTED:
         if want.column in overrides:
             row = by_name.get(overrides[want.column])
+            if row is None and len(folded.get(overrides[want.column].lower(), [])) == 1:
+                row = folded[overrides[want.column].lower()][0]
             if row is None:
                 raise CatalogueSchemaError(f"{want.column}: the table has no column {overrides[want.column]!r}")
         else:
@@ -277,11 +291,16 @@ class VizierKnownClusters:
         described = run_sync(self.transport, self.schema_request(catalogue), f"VizieR {catalogue.vizier_table}")
         if described.num_rows == 0:
             raise CatalogueSchemaError(f"VizieR does not describe {catalogue.vizier_table}")
-        columns = choose_columns(described.to_pylist(), overrides)
+        columns = choose_columns(described.to_pylist(), with_defaults(catalogue, overrides))
         raw = run_sync(self.transport, self.rows_request(catalogue, columns), f"VizieR {catalogue.vizier_table}")
         if raw.num_rows >= MAXREC:
             raise CatalogueSchemaError(f"{catalogue.vizier_table} filled the {MAXREC}-row limit; it was cut off")
         return benchmark_table(catalogue, raw, columns)
+
+
+def with_defaults(catalogue: KnownClusterCatalogue, overrides: Mapping[str, str] | None) -> dict[str, str]:
+    """The catalogue's own column choices, with any the caller names taking their place."""
+    return {**dict(catalogue.columns), **dict(overrides or {})}
 
 
 def _down(status: int | None) -> bool:
@@ -348,7 +367,7 @@ def from_votable(
         )
     if not table.columns:
         raise CatalogueSchemaError(f"the VOTable for {catalogue.vizier_table} has no columns")
-    columns = choose_columns(table.columns, overrides)
+    columns = choose_columns(table.columns, with_defaults(catalogue, overrides))
     try:
         native = votable.parse(as_text(body, {columns["name"]}))
     except ValueError as exc:  # rows cut off or malformed after the fields: not a whole table
@@ -365,6 +384,8 @@ def benchmark_table(
     """The benchmark table: typed columns, rows without a position dropped, sorted by name, and the
     metadata STL-G-02 checks."""
     names = pc.utf8_trim_whitespace(pc.cast(raw.column("name"), pa.string()))
+    if catalogue.name_prefix:
+        names = pc.binary_join_element_wise(catalogue.name_prefix, names, "")
     data = {"name": names}
     for want in WANTED[1:]:
         if want.column in columns:
