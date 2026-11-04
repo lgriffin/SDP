@@ -3,6 +3,7 @@ a bulk Gaia copy with sweep tiles (STL-023). Not Gaia data."""
 
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -189,3 +190,27 @@ def test_fetch_writes_the_orbit_table_through_the_transport(data: Path, monkeypa
     result = runner.invoke(cli.app, ["companions", "fetch", "--out", str(out)])
     assert result.exit_code == 0, result.output
     assert calls == [1] and pq.read_table(out).num_rows == 1
+
+
+@pytest.mark.req("STL-023")
+def test_the_cluster_table_keeps_every_column_when_some_clusters_are_not_screened(data: Path, tmp_path: Path) -> None:
+    listed = tmp_path / "members.csv"
+    listed.write_text(
+        "cluster,source_id\n" + "".join(f"A,{i}\n" for i in range(1, 151)) + "gone,999999999\ngone,888888888\n",
+        "utf-8",
+    )
+    result = runner.invoke(cli.app, ["companions", "screen", "--members", str(listed)])
+    assert result.exit_code == 0, result.output
+    with (data / "companions" / "clusters" / "clusters.csv").open(newline="", encoding="utf-8") as handle:
+        table = list(csv.DictReader(handle))
+    assert {r["cluster_id"] for r in table} == {"A", "gone"}
+    assert "wobblers_field_p" in table[0] and "note" in table[0]
+
+
+@pytest.mark.req("STL-023")
+def test_the_field_list_fails_when_gaia_bh1_is_not_flagged(data: Path, tmp_path: Path) -> None:
+    without = tmp_path / "no-bh1.parquet"
+    pq.write_table(orbit_table([155], [1.0], [3.0], [5.0], [True]), without)
+    result = runner.invoke(cli.app, ["companions", "field", "--orbits", str(without), "--out", str(tmp_path)])
+    assert result.exit_code != 0 and "Gaia BH1" in str(result.exception)
+    assert (tmp_path / "field.csv").exists()

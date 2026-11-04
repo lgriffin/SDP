@@ -287,3 +287,22 @@ def test_clusters_come_from_sweep_tiles_once_each_or_from_a_member_list() -> Non
 def test_the_settings_are_hashed_for_every_report() -> None:
     assert len(c.settings_sha256()) == 64
     assert SETTINGS["orbits"]["combination_methods"] == ["Orbital+M1"]
+
+
+@pytest.mark.req("STL-022")
+def test_the_field_share_counts_each_star_once_and_only_inside_the_scanned_parallax_range() -> None:
+    counts = c.FieldCounts(SETTINGS)
+    counts.add(np.full(100, 13.0), np.full(100, 1.2), np.ones(100))
+    o = orbit_rows([0.8] * 3, [2.0] * 3, [1.2, 1.2, 0.5], [400.0] * 3, [True] * 3, source_id=[9, 9, 8])
+    o["nss_solution_type"] = np.asarray(["Orbital", "OrbitalTargetedSearchValidated", "Orbital"], dtype=object)
+    share = c.field_orbit_share(o, counts, SETTINGS)
+    # star 9's two solutions count once; star 8, nearer than the scan's floor of 1 mas, not at all
+    assert share.sum() == pytest.approx(1 / 100)
+
+
+@pytest.mark.req("STL-021")
+def test_a_member_orbit_with_a_poor_own_parallax_is_not_used_at_the_clusters_distance(sky: dict[str, Any]) -> None:
+    o = copy.deepcopy(sky["orbits"])
+    o["parallax_error"][0] = o["parallax"][0] / 5.0  # parallax_over_error 5, below the gate of 10
+    (row,) = c.screen(sky["clusters"], sky["stars"], o, sky["field"], SETTINGS)["candidates"]
+    assert row["source_id"] == 175 and row["verdict"] == c.UNUSABLE

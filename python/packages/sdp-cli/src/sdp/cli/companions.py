@@ -80,7 +80,8 @@ def _orbits(path: Path | None) -> dict[str, Any]:
 def _write_csv(path: Path, rows: Sequence[dict[str, Any]], empty: Sequence[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]) if rows else list(empty))
+        names = list(dict.fromkeys(k for r in rows for k in r)) or list(empty)
+        writer = csv.DictWriter(handle, fieldnames=names, restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -127,6 +128,12 @@ def companions_field(
         + f". Gaia BH1 {'is' if bh1 and bh1['verdict'] == COMPACT else 'is NOT'} flagged as a neutron star or black hole."
     )
     _say(f"Every row is a candidate from Gaia's published orbit, not a confirmed companion. Open {target}.")
+    if bh1 is None or bh1["verdict"] != COMPACT:
+        raise DomainError(
+            "the known-answer check failed: Gaia BH1 (4373465352415301632) is "
+            + ("missing from the orbit table" if bh1 is None else f"judged {bh1['verdict']!r}")
+            + "; the screen is not trustworthy"
+        )
     typer.echo(
         json.dumps(
             {

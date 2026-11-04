@@ -10,7 +10,7 @@
 # 3. The field list: every orbit at its own distance; the log says whether Gaia BH1 is flagged (it must be)
 # 4. The cluster screen over the bulk Gaia copy, two passes, using the sweep's clusters (-Name)
 # 5. Prints the clusters with a dark partner and the most wobblers against the field
-# Nothing is deleted. Results land in <SDP data>\companions.
+# A failed step stops the steps after it, and the script exits 1. Nothing is deleted. Results land in <SDP data>\companions.
 
 param(
     [string]$Code = (Split-Path -Parent $PSScriptRoot),
@@ -51,12 +51,22 @@ function Sdp {
     return ($out -join "`n")
 }
 
+function Must($What, [scriptblock]$Body) {
+    & $Body
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FAILED: $What exited $LASTEXITCODE, so nothing runs (the checkout may be stale)"
+        Pop-Location
+        Stop-Transcript | Out-Null
+        exit 1
+    }
+}
+
 Push-Location $Code
-git fetch origin
-git checkout $Branch
-git pull origin $Branch
+Must "git fetch" { git fetch origin }
+Must "git checkout $Branch" { git checkout $Branch }
+Must "git pull" { git pull origin $Branch }
 Set-Location (Join-Path $Code "python")
-uv sync --frozen
+Must "uv sync" { uv sync --frozen }
 
 $Orbits = Join-Path $Data "companions\gaia-dr3-orbits.parquet"
 $have = $true
@@ -64,21 +74,25 @@ if ($Refetch -or -not (Test-Path $Orbits)) {
     $have = Step "1 Fetch Gaia DR3 orbits" { Sdp companions fetch | Out-Null }
 } else { Write-Host "Orbit table already at $Orbits (pass -Refetch to download again)" }
 
+$fieldOk = $false
+$screenOk = $false
 if ($have) {
-    Step "2 Field list" { Sdp companions field | Out-Null } | Out-Null
-    Step "3 Cluster screen" { Sdp companions screen --sweep $script:Name | Out-Null } | Out-Null
+    $fieldOk = Step "2 Field list" { Sdp companions field | Out-Null }
+    if ($fieldOk) {
+        $screenOk = Step "3 Cluster screen" { Sdp companions screen --sweep $script:Name | Out-Null }
+    } else { Write-Host "The field list failed (Gaia BH1 must be flagged), so the cluster screen does not run" }
 } else { Write-Host "The orbit download failed, so nothing else runs" }
 
 Pop-Location
 $Clusters = Join-Path $Data "companions\clusters\clusters.csv"
 $Candidates = Join-Path $Data "companions\clusters\candidates.csv"
-if (Test-Path $Candidates) {
+if ($screenOk -and (Test-Path $Candidates)) {
     Write-Host "`n=== Cluster members with a dark partner ==="
     Import-Csv $Candidates | Where-Object { $_.verdict -in @("neutron-star-or-black-hole", "dark-partner") } |
         Format-Table cluster_id, cluster_matches, source_id, verdict, m2_lower_msun, m1_msun, period_days, seed_member -AutoSize |
         Out-String -Width 200 | Write-Host
 }
-if (Test-Path $Clusters) {
+if ($screenOk -and (Test-Path $Clusters)) {
     Write-Host "`n=== Clusters with the most wobblers against the field (lowest field p first) ==="
     Import-Csv $Clusters | Where-Object { $_.members -and [int]$_.members -gt 0 } |
         Sort-Object { [double]$_.wobblers_field_p } | Select-Object -First 15 |
@@ -89,3 +103,4 @@ Write-Host "`n=== Summary ==="
 $Summary | ForEach-Object { Write-Host $_ }
 Stop-Transcript | Out-Null
 Write-Host "Log: $Reports\run-$Stamp.log"
+if (-not ($have -and $fieldOk -and $screenOk)) { exit 1 }

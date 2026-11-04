@@ -219,7 +219,8 @@ def judge(
 ) -> tuple[dict[str, Array], NDArray[np.str_]]:
     """Masses and verdicts for orbits, at their own parallax or (for cluster members) the cluster's."""
     masses = companion_masses(orbits, settings, parallax_mas, parallax_error_mas)
-    usable = usable_orbits(orbits, settings, own_parallax=parallax_mas is None)
+    # the parallax-quality gate holds at a cluster's distance too, so members and field pass the same cut
+    usable = usable_orbits(orbits, settings)
     return masses, verdicts(masses["m2_lower_msun"], is_dark(orbits), usable, settings)
 
 
@@ -437,17 +438,40 @@ def near_any(footprints: Sequence[Footprint], ra_deg: Array, dec_deg: Array) -> 
     out = np.zeros(len(np.asarray(ra_deg)), dtype=bool)
     if not footprints or len(out) == 0:
         return out
-    centres = np.stack([fp.unit for fp in footprints])
-    radii = np.asarray([fp.radius_deg for fp in footprints])
-    widest = 2.0 * math.sin(math.radians(float(radii.max())) / 2.0) + 1e-12
-    u = _unit(ra_deg, dec_deg)
-    for i, hits in enumerate(cKDTree(centres).query_ball_point(u, widest)):
+    tree = cKDTree(_unit(ra_deg, dec_deg))  # one tree of the file's stars, one ball query per cluster
+    for fp in footprints:
+        hits = tree.query_ball_point(fp.unit, 2.0 * math.sin(math.radians(fp.radius_deg) / 2.0) + 1e-12)
         if hits:
-            out[i] = bool(np.any(_sep_deg(centres[hits], u[i][None, :]) <= radii[hits]))
+            out[np.asarray(hits, dtype=np.int64)] = True
     return out
 
 
 # --- the screen -----------------------------------------------------------------------------------
+
+
+def field_orbit_share(
+    orbits: Mapping[str, Any], field: FieldCounts, settings: Mapping[str, Any]
+) -> NDArray[np.float64]:
+    """The field share of stars with a flagged orbit in each (G, parallax) bin: every orbit star judged at
+    its own parallax, counted once however many solutions it has, and only inside the scanned parallax
+    range (the bins clamp, so a nearer-than-floor star would otherwise land in the first bin)."""
+    orbit_ids = np.asarray(orbits["source_id"], dtype=np.int64)
+    _, own_verdict = judge(orbits, settings)
+    own_plx = np.asarray(orbits["parallax"], dtype=float)
+    gi_o, pi_o = bin_index(np.asarray(orbits["phot_g_mean_mag"], dtype=float), own_plx, settings)
+    total = field.stars()
+    flagged = np.zeros(total.shape)
+    floor = float(np.asarray(settings["field"]["parallax_bins_mas"], dtype=float)[0])
+    ok = (gi_o >= 0) & (pi_o >= 0) & (own_plx >= floor) & np.isin(own_verdict, FLAGGED)
+    first = np.zeros(len(orbit_ids), dtype=bool)
+    seen: set[int] = set()
+    for i in np.flatnonzero(ok):
+        if int(orbit_ids[i]) not in seen:
+            seen.add(int(orbit_ids[i]))
+            first[i] = True
+    np.add.at(flagged, (gi_o[first], pi_o[first]), 1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(total > 0, flagged / total, 0.0)
 
 
 def screen(
@@ -469,17 +493,7 @@ def screen(
     orbit_rows: dict[int, list[int]] = {}
     for i, s in enumerate(orbit_ids):
         orbit_rows.setdefault(int(s), []).append(i)
-    # the field share of flagged orbits, from every orbit star with its own parallax
-    _, own_verdict = judge(orbits, settings)
-    gi_o, pi_o = bin_index(
-        np.asarray(orbits["phot_g_mean_mag"], dtype=float), np.asarray(orbits["parallax"], dtype=float), settings
-    )
-    total = field.stars()
-    flagged = np.zeros(total.shape)
-    ok = (gi_o >= 0) & (pi_o >= 0) & np.isin(own_verdict, FLAGGED)
-    np.add.at(flagged, (gi_o[ok], pi_o[ok]), 1)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        orbit_share = np.where(total > 0, flagged / total, 0.0)
+    orbit_share = field_orbit_share(orbits, field, settings)
     wobble_share = field.wobbler_share()
     z_all = field.z(np.asarray(stars["phot_g_mean_mag"], dtype=float), np.asarray(stars["ruwe"], dtype=float))
     z_min = float(settings["wobble"]["z_min"])
@@ -511,7 +525,7 @@ def screen(
         expected_orb = float(orbit_share[gi[good], pi[good]].sum())
         wob = int(np.sum(z_all[mem] > z_min))
         with_orbit = [(r, o) for r in mem for o in orbit_rows.get(int(ids[r]), [])]
-        found = 0
+        flagged_members: set[int] = set()
         if with_orbit:
             o_idx = np.asarray([o for _, o in with_orbit])
             sub = {k: np.asarray(v)[o_idx] for k, v in orbits.items()}
@@ -519,7 +533,8 @@ def screen(
             masses, verdict = judge(sub, settings, np.full(len(o_idx), fp.parallax), np.full(len(o_idx), plx_err))
             for j, (r, _) in enumerate(with_orbit):
                 v = str(verdict[j])
-                found += v in FLAGGED
+                if v in FLAGGED:
+                    flagged_members.add(int(ids[r]))
                 rows.append(
                     {
                         "cluster_id": c.cluster_id,
@@ -558,13 +573,14 @@ def screen(
                 "wobblers_expected": _r(expected_wob),
                 "wobblers_field_p": _r(poisson_tail(wob, expected_wob)),
                 "orbits": len({r for r, _ in with_orbit}),
-                "flagged_orbits": int(found),
+                "flagged_orbits": len(flagged_members),
                 "flagged_expected": _r(expected_orb),
-                "flagged_field_p": _r(poisson_tail(int(found), expected_orb)),
+                "flagged_field_p": _r(poisson_tail(len(flagged_members), expected_orb)),
             }
         )
     order = {v: i for i, v in enumerate(VERDICTS)}
     rows.sort(key=lambda r: (order.get(r["verdict"], 9), -(r["m2_lower_msun"] or 0.0)))
+    _, own_verdict = judge(orbits, settings)
     field_verdicts = {v: int(np.sum(own_verdict == v)) for v in VERDICTS}
     return {"candidates": rows, "clusters": summary, "field_orbit_verdicts": field_verdicts}
 
