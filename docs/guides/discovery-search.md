@@ -207,8 +207,15 @@ claims there would find no stars and look unrecovered. `--allow-partial` audits 
 | not_recovered | nothing in the field matches the claimed centre and proper motion |
 | unassessable | the catalogue gives no parallax, or the field has too few stars |
 
+Each claim's line in the log ends with the first reason for its verdict. The audit refuses a stored
+catalogue that has no parallax column, since none of its claims could be searched: a copy of `hr23`
+fetched before SDP read its mean parallax (VizieR marks it `pos.parallax;stat.mean`) must be fetched
+again. `sdp benchmark list` shows the columns each stored copy has. Note that refetching `hr23` changes
+the catalogue the sweep cross-matches against, so a sweep folder begun before the refetch has to be
+resumed under a new `--name`.
+
 **Success:** `audit-report` prints the share of single claims and of the control that survive, with a
-95% interval, and writes `%SDP_DATA%\audit\claims\audit.csv` (single claims first) beside
+95% interval, and writes `%SDP_DATA%\audit\<name>\audit.csv` (single claims first) beside
 `catalogue-agreement.csv`, every catalogued object with the catalogues that list it. Like the sweep,
 every result is EXPLORATORY: a claim that does not survive is a reason to look at it again, not proof
 that it is not there.

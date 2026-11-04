@@ -5,6 +5,7 @@
 #   powershell -ExecutionPolicy Bypass -File harness\run-claim-audit.ps1 -Branch claude/project-thread-8c2bfy
 #
 # 1. Fetches the three catalogues (hr23, cga20 and the CWNU 2023 list), skipping any already stored
+#    with a parallax column (a copy without one is fetched again: every claim in it would be unassessable)
 # 2. A 20-claim trial, to time one claim
 # 3. The whole audit (resumable: run the script again to carry on), then the report
 # Needs the prepared sweep catalogue (`sdp discover prepare`). Run it on its own, not beside another
@@ -17,7 +18,8 @@ param(
     [string]$Branch = "main",
     [int]$Workers = 12,
     [string]$Sweep = "gaia-dr3",
-    [string]$Name = "claims"
+    # claims2: the first run (claims) read hr23 without its parallaxes, so its folder cannot be reused
+    [string]$Name = "claims2"
 )
 $ErrorActionPreference = "Continue"
 
@@ -71,7 +73,7 @@ $fetched = Step "1 Catalogues" {
     $stored = (Sdp benchmark list | Out-String | ConvertFrom-Json)
     foreach ($id in @("hr23", "cga20", "cwnu23")) {
         $row = $stored | Where-Object { $_.benchmark -eq $id }
-        if ($row -and $row.artifact) { Write-Host "$id already stored"; continue }
+        if ($row -and $row.artifact -and $row.columns.parallax_mas) { Write-Host "$id already stored"; continue }
         Sdp benchmark fetch --catalogue $id | Out-Null
     }
 }

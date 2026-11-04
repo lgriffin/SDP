@@ -125,6 +125,8 @@ def test_list_shows_what_is_stored(k: tuple[InMemoryKernel, FakeVizier]) -> None
     after = invoke("benchmark", "list")
     assert after[2]["artifact"] == fetched[0]["artifact"] and after[2]["input"] == fetched[0]["input"]
     assert after[0]["artifact"] is None and after[1]["artifact"] is None
+    # the stored copy's columns, so a copy fetched without parallaxes can be told apart
+    assert before[2]["columns"] is None and after[2]["columns"] == COLUMNS
 
 
 #: a table saved from a VizieR page: every FIELD carries its UCD and unit

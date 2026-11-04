@@ -1964,12 +1964,21 @@ def benchmark_fetch(
 @benchmark_app.command("list")
 def benchmark_list() -> None:
     """The catalogues SDP knows, and the stored copy of each (null until fetched)."""
+    import io
+
+    import pyarrow.parquet as pq
+
     from sdp.adapters.archives.benchmarks import CATALOGUES
 
     store = state.runtime().store
     out = []
     for benchmark_id, c in sorted(CATALOGUES.items()):
         artifact = store.resolve(_benchmark_path(benchmark_id, c.release_label))
+        # which benchmark columns the stored copy has, and the native column each came from
+        columns = None
+        if artifact:
+            meta = pq.read_schema(io.BytesIO(store.get(artifact))).metadata or {}
+            columns = json.loads(meta.get(b"sdp.benchmark.columns", b"{}"))
         out.append(
             {
                 "benchmark": benchmark_id,
@@ -1978,6 +1987,7 @@ def benchmark_list() -> None:
                 "citation": c.citation,
                 "description": c.description,
                 "artifact": artifact.value if artifact else None,
+                "columns": columns,
                 "input": f"benchmark:{benchmark_id}={artifact.value}" if artifact else None,
             }
         )

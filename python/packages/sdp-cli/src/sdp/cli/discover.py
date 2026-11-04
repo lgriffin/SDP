@@ -544,7 +544,12 @@ def run_claim(table: Any, claim: Any, group: str, settings: dict[str, Any], out:
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(result, sort_keys=True, default=_jsonable), "utf-8")
     tmp.replace(path)
-    return {"claim_id": claim.claim_id, "verdict": result["verdict"], "seconds": result["seconds"]}
+    return {
+        "claim_id": claim.claim_id,
+        "verdict": result["verdict"],
+        "seconds": result["seconds"],
+        "reason": result["reasons"][0] if result["reasons"] else "",
+    }
 
 
 @discover_app.command("audit")
@@ -614,6 +619,16 @@ def discover_audit(
             + "; run `sdp benchmark fetch "
             + " ".join(f"--catalogue {m}" for m in missing)
             + "` first"
+        )
+    # a catalogue without parallaxes has no distance shell for any claim, so all of it would be unassessable
+    blind = [b.benchmark_id for b in benchmarks if "parallax_mas" not in b.table.column_names]
+    if blind:
+        raise DomainError(
+            "the stored "
+            + ", ".join(blind)
+            + " has no parallax column, so none of its clusters can be searched; run `sdp benchmark fetch "
+            + " ".join(f"--catalogue {b}" for b in blind)
+            + "` again"
         )
     every = claims(benchmarks, doc)
     picked = chosen(every, doc, int(doc["seed"]))
@@ -686,7 +701,8 @@ def discover_audit(
             _say(f"{claim_id} failed: {exc}")
             return
         verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
-        _say(f"{finished}/{len(todo)} {r['claim_id']}: {r['verdict'].replace('_', ' ')}, {r['seconds']:.1f} s")
+        why = f" ({r['reason']})" if r.get("reason") else ""
+        _say(f"{finished}/{len(todo)} {r['claim_id']}: {r['verdict'].replace('_', ' ')}, {r['seconds']:.1f} s{why}")
 
     def run_all(pool: ProcessPoolExecutor, jobs: Iterator[tuple[Any, Any, str]]) -> None:
         """Submit claims as workers free up, so no more than two per worker are held in memory."""
