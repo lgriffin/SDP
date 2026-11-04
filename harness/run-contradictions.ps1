@@ -4,7 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File harness\run-contradictions.ps1 -Branch claude/project-thread-1pvnyf
 #   powershell -ExecutionPolicy Bypass -File harness\run-contradictions.ps1 -SkipImages
 #
-# 1. Updates the checkout (-Branch, main by default)
+# 1. Updates the checkout (-Branch, main by default) and registers the archive descriptors; stops if either fails
 # 2. Catalogues: drafts, approves and executes profiles\survey-contradictions.yaml on -CatalogueRegion
 #    (M67 by default: an old cluster with thousands of Gaia stars that 2MASS, Pan-STARRS and AllWISE all cover)
 # 3. Images: the same for profiles\image-contradictions.yaml on -ImageRegion (a 29-arcsecond patch of the
@@ -113,21 +113,33 @@ function RunProfile($Label, $Profile, $Region) {
     return $set
 }
 
+function Native([string]$What, [scriptblock]$Body) {
+    & $Body | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "$What exited $LASTEXITCODE" }
+}
+
 Push-Location $Code
-git fetch origin
-git checkout $Branch
-git pull origin $Branch
-Set-Location (Join-Path $Code "python")
-uv sync --frozen
+# nothing runs on a checkout or an environment that failed to update
+$ready = Step "0 Update checkout and tools" {
+    Native "git fetch" { git fetch origin }
+    Native "git checkout" { git checkout $script:Branch }
+    Native "git pull" { git pull origin $script:Branch }
+    Set-Location (Join-Path $script:Code "python")
+    Native "uv sync" { uv sync --frozen }
+}
+# the planner matches each requirement against the registered archive descriptors
+$ready = $ready -and (Step "0 Register descriptors" { Sdp integration register | Out-Null })
 
-Step "1 Catalogues (M67)" {
-    $script:Sets += RunProfile "survey contradictions M67" (Join-Path $Code "profiles\survey-contradictions.yaml") $CatalogueRegion
-} | Out-Null
-
-if (-not $SkipImages) {
-    Step "2 Images (M16)" {
-        $script:Sets += RunProfile "image contradictions M16" (Join-Path $Code "profiles\image-contradictions.yaml") $ImageRegion
+if ($ready) {
+    Step "1 Catalogues (M67)" {
+        $script:Sets += RunProfile "survey contradictions M67" (Join-Path $Code "profiles\survey-contradictions.yaml") $CatalogueRegion
     } | Out-Null
+
+    if (-not $SkipImages) {
+        Step "2 Images (M16)" {
+            $script:Sets += RunProfile "image contradictions M16" (Join-Path $Code "profiles\image-contradictions.yaml") $ImageRegion
+        } | Out-Null
+    }
 }
 
 Write-Host "`n=== Summary ==="

@@ -101,12 +101,13 @@ def test_a_contamination_letter_clears_only_a_zero_and_a_short_string_clears_not
 
 BRIGHTER = "e-12"  # 0.7 mag brighter on the images than its Gaia colour predicts
 DISPLACED = "e-20"  # 0.4 arcsec north on the images of where Gaia's motion puts it
+MISSING = "e-30"  # in Gaia's catalogue, on no image
 IMAGES = (CAMERAS[2], OTHER_BAND)  # WFC3 F656N in 2014 and NIRCam F200W in 2022
 
 
-def catalogues() -> tuple[pa.Table, pa.Table]:
+def catalogues(missing: str | None = None) -> tuple[pa.Table, pa.Table]:
     """Gaia's catalogue, with colours spread so a colour relation can be fitted, and the world the
-    images show: the same stars, one brighter and one moved."""
+    images show: the same stars, one brighter, one moved and ``missing`` not there at all."""
     gaia = epoch_catalogue(stars=40)
     rng = np.random.default_rng(3)
     gaia = gaia.set_column(
@@ -118,11 +119,12 @@ def catalogues() -> tuple[pa.Table, pa.Table]:
             r["g_mag"] -= 0.7
         if r["source_key"] == DISPLACED:
             r["dec_deg"] += 0.4 / 3600
+    rows = [r for r in rows if r["source_key"] != missing]
     return gaia, pa.Table.from_pylist(rows, schema=gaia.schema)
 
 
-def run_images(trials: int = 5) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    gaia, seen = catalogues()
+def run_images(trials: int = 5, missing: str | None = None) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    gaia, seen = catalogues(missing)
     ports = investigate_ports(CrossSurveyContradiction(), catalogue=gaia)
     ports.observation_gateways = {MAST: epoch_archive(seen, IMAGES)}
     ports.services = {
@@ -206,6 +208,14 @@ def test_steady_stars_on_the_images_are_not_flagged(images: dict[str, dict[str, 
     flagged = {k for k, r in images.items() if r["p_value"] is not None and r["p_value"] < 0.01}
     assert flagged <= {BRIGHTER, DISPLACED, "e-vanished", "e-brightens", "e-fades"}
     assert {BRIGHTER, DISPLACED} <= flagged
+
+
+def test_a_star_no_image_shows_gets_no_comparison_on_it() -> None:
+    # forced photometry where Gaia puts it reads only noise, which is not the star's brightness
+    images, _ = run_images(trials=2, missing=MISSING)
+    # with no survey in this run, a star with nothing to compare has no result at all
+    assert MISSING not in images
+    assert {BRIGHTER, DISPLACED} <= {k for k, r in images.items() if r["p_value"] is not None and r["p_value"] < 0.01}
 
 
 def test_a_pair_the_detector_could_not_split_is_a_blend_where_it_was_not_split(

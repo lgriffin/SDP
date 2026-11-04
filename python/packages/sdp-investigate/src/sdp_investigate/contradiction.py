@@ -591,8 +591,9 @@ def _image_channels(
     fainter puts light in its aperture (within the aperture radius plus one FWHM), or when its
     counterpart is ambiguous: a second detection less than one FWHM further away, or a detection
     another star also calls its nearest (two stars the detector did not split). Saturated or
-    masked stars are set aside. A star with no counterpart is measured where Gaia puts it and has no
-    position comparison: a missing star is image-counterpart's question.
+    masked stars are set aside. A star with no counterpart has no comparison on that image: forced
+    photometry where Gaia puts it reads the background, and a missing star is image-counterpart's
+    question.
     """
     photometer: ForcedPhotometer = context.service("photometer")
     anchors = {b.object_key: anchor(b, row, float(cfg["anchor_sigma_arcsec"])) for b, row in stars.rows}
@@ -642,7 +643,7 @@ def _image_channels(
             if not math.isnan(bp_rp):
                 if m.status != MEASURED:
                     bands.add(i, stars.g[i], bp_rp, math.nan, 0.0, gap, SATURATED_ON_IMAGE)
-                elif m.flux > 0 and m.flux_err > 0:
+                elif b.object_key in hits and m.flux > 0 and m.flux_err > 0:
                     mag = -2.5 * math.log10(m.flux / whole)
                     sigma = 2.5 / math.log(10.0) * m.flux_err / m.flux
                     bands.add(i, stars.g[i], bp_rp, mag, sigma, gap, BLENDED if blended else None)

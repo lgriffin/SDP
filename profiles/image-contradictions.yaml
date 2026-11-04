@@ -1,7 +1,7 @@
 # Image contradictions: do Hubble, Webb and the infrared surveys measure each star the way Gaia does?
 #
 # For every Gaia star in the field, this profile measures the star on each archived HST and JWST image
-# (its brightness, and where the image puts it) and asks 2MASS and AllWISE what they measured, then
+# (its brightness, and where the image puts it) and asks 2MASS, Pan-STARRS and AllWISE what they measured, then
 # compares each measurement with what Gaia predicts for it:
 #   cross-survey-contradiction -> a position or a brightness that disagrees beyond what the field's
 #                                 own measurements allow
@@ -19,7 +19,7 @@ schema_version: "1.0.0"
 profile_id: image-contradictions
 version: 1.0.0
 description: >-
-  Gaia against Hubble and Webb images, 2MASS and AllWISE. Flags stars whose brightness or position on
+  Gaia against Hubble and Webb images, 2MASS, Pan-STARRS and AllWISE. Flags stars whose brightness or position on
   an image or in a survey disagrees with Gaia by more than the field's own measurements allow.
   Exploratory: a flag is a lead, never a claim.
 
@@ -46,6 +46,13 @@ archives:
     release_label: 2mass:psc
     columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual, j_msigcom, h_msigcom, k_msigcom, err_maj, err_min]
     match_radius_arcsec: 1.5
+  - source_id: ps1
+    role: catalogue
+    release_label: ps1:DR2
+    columns: [objID, raMean, decMean, epochMean, nDetections,
+              gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, zMeanPSFMag, yMeanPSFMag,
+              gMeanPSFMagErr, rMeanPSFMagErr, iMeanPSFMagErr, zMeanPSFMagErr, yMeanPSFMagErr, raMeanErr, decMeanErr]
+    match_radius_arcsec: 1.0           # Pan-STARRS covers the sky north of -30 degrees, M16 included
   - source_id: allwise
     role: catalogue
     release_label: allwise:psd
@@ -66,7 +73,7 @@ tests:
     version: 1.2.0
     thresholds:
       source_id: gaia
-      surveys: {2mass: 2mass, allwise: allwise}  # which archive in this profile holds each survey
+      surveys: {2mass: 2mass, ps1: ps1, allwise: allwise}  # which archive in this profile holds each survey
       blend_delta_mag: 2.5             # a neighbour within 2.5 mag in G that a survey or an image cannot separate spoils the comparison
       magnitude_bins: 3                # the field sets the budget separately for bright, middle and faint stars
       min_per_bin: 15                  # fewer stars than this cannot set a budget, so their comparisons are set aside

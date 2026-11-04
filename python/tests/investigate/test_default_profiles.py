@@ -31,6 +31,7 @@ from sdp.kernel.application.investigate import (
     load_candidate_rankers,
 )
 from sdp.kernel.application.media import JSON, decode_artifact
+from sdp.kernel.application.planning import derive_requirements
 from sdp.kernel.domain.archive import Cone
 from sdp.kernel.domain.investigation import ArchiveRole, ArchiveSelection, Field, Stage, StageState, TestProfile
 from sdp.kernel.ports.investigate import InvestigateFieldCommand
@@ -117,6 +118,16 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
             assert all(set(p) <= {"min_cluster_size", "min_samples"} for p in params), "HDBSCAN's parameters"
 
     assert profile.ranking.policy_id in {SIGNIFICANCE_POLICY, *load_candidate_rankers()}
+
+    # the planner asks for every catalogue a selected test reads, so the profile must fetch each one
+    tests = [registered[(s.name, s.version)] for s in profile.tests]
+    served = {profile.identify.source_id} | {a.source_id for a in profile.archives if a.role is ArchiveRole.CATALOGUE}
+    needed = {
+        r.requirement_id.rpartition(":")[2]
+        for r in derive_requirements(synthetic_field(), profile, tests)
+        if ":catalogue:" in r.requirement_id
+    }
+    assert needed <= served, f"the plan would have a gap: {sorted(needed - served)}"
 
 
 @pytest.mark.req("INV-001")
