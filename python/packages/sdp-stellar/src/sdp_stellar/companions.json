@@ -1,0 +1,32 @@
+{
+  "protocol": "companions-in-clusters",
+  "status": "EXPLORATORY: the Gaia DR3 trial run of the hidden-companion screen; the Gaia DR4 run is predeclared separately before 2 December 2026",
+  "source_release": "gaia:DR3",
+  "orbits": {
+    "solution_types": ["Orbital", "OrbitalTargetedSearchValidated", "OrbitalAlternativeValidated"],
+    "combination_methods": ["Orbital+M1"],
+    "significance_min": 5.0,
+    "parallax_over_error_min": 10.0
+  },
+  "mass": {
+    "chandrasekhar_msun": 1.4,
+    "cluster_parallax_sigma": 2.0
+  },
+  "wobble": {
+    "g_bins": [6.0, 8.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 21.0],
+    "log_ruwe_edges": {"start": -0.5, "stop": 2.5, "count": 600},
+    "z_min": 3.0
+  },
+  "membership": {
+    "parallax_min_mas": 1.0,
+    "extend_with": "ruwe_above",
+    "ruwe_above": 1.4,
+    "radius_factor": 1.0,
+    "pm_sigma": 3.0,
+    "parallax_sigma": 3.0,
+    "pm_floor_masyr": 0.5
+  },
+  "field": {
+    "parallax_bins_mas": [1.0, 1.5, 2.0, 3.0, 5.0, 10.0, 1000.0]
+  }
+}

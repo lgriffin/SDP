@@ -1,0 +1,55 @@
+# requirements/stellar/companions.ears
+capability: Hidden companions of star-cluster members
+owner: stellar
+requirements:
+  - id: STL-020
+    pattern: ubiquitous
+    text: "The stellar module shall compute each Gaia orbit's photocentre size, astrometric mass function and dark-partner mass, and call a partner a neutron star or black hole only when Gaia found no main-sequence flux ratio for it (or put it in AMRF class III) and Gaia's lower mass bound is above the Chandrasekhar mass."
+    rationale: "Gaia's binary_masses lower bound carries the orbit's full covariance; SDP's own Kepler arithmetic is reported beside it (Gaia BH1 gives 12.8 solar masses both ways). Only Orbital+M1 combinations are judged, because Gaia documents m2_lower for them (DR3 data model, read 2026-11-04)."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_companions::test_the_thiele_innes_elements_give_back_the_orbits_size_whatever_its_orientation"
+      - "python/tests.stellar.test_companions::test_keplers_law_gives_back_the_partners_mass"
+      - "python/tests.stellar.test_companions::test_the_mass_solver_is_exact_from_tiny_to_huge_mass_functions_and_refuses_bad_input"
+      - "python/tests.stellar.test_companions::test_only_a_dark_partner_above_the_chandrasekhar_mass_is_a_neutron_star_or_black_hole"
+      - "python/tests.stellar.test_companions::test_an_orbit_of_another_kind_or_too_weak_is_not_used"
+      - "python/tests.stellar.test_companions::test_a_cluster_distance_moves_gaias_lower_bound_and_nearer_means_lighter"
+      - "python/tests.stellar.test_companions::test_the_settings_are_hashed_for_every_report"
+  - id: STL-021
+    pattern: ubiquitous
+    text: "The stellar module shall measure the field's wobble baseline (median and 1.4826 times the median absolute deviation of log RUWE per G bin) and the field shares of wobblers and flagged orbits per G and parallax bin, and give a Poisson tail for a cluster's counts against the sum of its members' field shares."
+    rationale: "The null is the field itself: a cluster is remarkable only if it holds more wobblers or dark partners than stars of the same brightness and distance elsewhere."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_companions::test_the_wobble_baseline_is_the_fields_own_median_and_spread_at_each_brightness"
+      - "python/tests.stellar.test_companions::test_the_field_share_of_wobblers_is_counted_from_the_same_histogram"
+      - "python/tests.stellar.test_companions::test_the_poisson_tail_says_how_often_the_field_gives_as_many"
+  - id: STL-022
+    pattern: ubiquitous
+    text: "The stellar module shall find each cluster's members again from its seed members' footprint, motion and parallax, without reading RUWE, and judge every member's Gaia orbit at the cluster's parallax."
+    rationale: "The sweep's catalogue drops high-RUWE stars, which are the ones that wobble; a shared cluster distance is more precise than one star's parallax (as cmd_policy cluster-distance)."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_companions::test_members_are_found_again_blind_to_ruwe"
+      - "python/tests.stellar.test_companions::test_the_second_scan_keeps_only_stars_inside_a_footprint"
+      - "python/tests.stellar.test_companions::test_a_dark_partner_of_a_member_is_found_and_the_cluster_is_judged_against_the_field"
+      - "python/tests.stellar.test_companions::test_a_cluster_with_too_few_seeds_in_the_scan_is_reported_not_screened"
+      - "python/tests.stellar.test_companions::test_clusters_come_from_sweep_tiles_once_each_or_from_a_member_list"
+  - id: STL-023
+    pattern: event
+    text: "When `sdp companions field` or `sdp companions screen` is invoked, the system shall write the flagged orbits (and for a screen each cluster's counts) to CSV files with a summary marked EXPLORATORY, reading clusters from sweep tiles or a member list and stars from the complete bulk Gaia copy in two passes."
+    rationale: "The Gaia DR3 trial of the screen the Gaia DR4 run will use; the field list carries the known-answer check that Gaia BH1 is flagged."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_companions::test_the_field_list_flags_gaia_bh1_and_says_so"
+      - "python/tests.cli.test_cli_companions::test_a_screen_finds_the_dark_partner_of_a_member_the_sweep_left_out"
+      - "python/tests.cli.test_cli_companions::test_a_screen_needs_one_source_of_clusters_and_a_fetched_orbit_table"
+      - "python/tests.cli.test_cli_companions::test_fetch_writes_the_orbit_table_through_the_transport"
