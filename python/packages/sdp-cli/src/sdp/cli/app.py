@@ -1878,7 +1878,7 @@ def _known_clusters() -> Any:
 @benchmark_app.command("fetch")
 def benchmark_fetch(
     catalogue: Annotated[
-        list[str] | None, typer.Option("--catalogue", help="hr23 or cga20; repeat; both when omitted")
+        list[str] | None, typer.Option("--catalogue", help="hr23, cga20 or cwnu23; repeat; hr23 and cga20 when omitted")
     ] = None,
     column: Annotated[
         list[str] | None,
@@ -1911,7 +1911,11 @@ def benchmark_fetch(
     files = dict(_pair(f, "--file") for f in file or [])
     if files and catalogue:
         raise typer.BadParameter("--file names its own catalogue; leave out --catalogue", param_hint="--file")
-    chosen = sorted(files) if files else catalogue or sorted(CATALOGUES, reverse=True)
+    chosen = (
+        sorted(files)
+        if files
+        else catalogue or sorted((c for c in CATALOGUES if not CATALOGUES[c].audit_only), reverse=True)
+    )
     unknown = [c for c in chosen if c not in CATALOGUES]
     if unknown:
         raise typer.BadParameter(f"unknown {unknown}; known: {sorted(CATALOGUES)}", param_hint="--catalogue")

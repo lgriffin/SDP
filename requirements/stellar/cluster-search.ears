@@ -182,3 +182,24 @@ requirements:
       - "python/tests.stellar.test_clustering::test_a_cap_the_whole_tile_fits_under_changes_nothing"
       - "python/tests.stellar.test_clustering::test_a_cap_that_leaves_one_cluster_below_the_root_labels_it"
       - "python/tests.stellar.test_clustering::test_a_cap_with_leaf_selection_is_refused"
+  - id: STL-024
+    pattern: optional
+    text: "Where a claim audit is run, the stellar module shall search a field centred on every cluster that only one stored catalogue lists, and on a seeded control sample of clusters two or more catalogues list, with the sweep's cuts, grid, pass marks and significance test, and call a claim surviving only when a candidate matching it passes every check and is more significant than every false candidate its field's null fields produced."
+    rationale: "Published cluster catalogues disagree, and objects only one catalogue lists are where false clusters hide. Testing each claim with the same predeclared pipeline and its own null fields gives a survival rate per catalogue; the control says how often SDP recovers a cluster several catalogues accept, so a low single-claim rate cannot just be SDP's own blindness."
+    verification: test
+    tiers: [T1, T4, T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_audit::test_an_object_is_listed_by_every_catalogue_with_a_cluster_at_its_place_and_motion"
+      - "python/tests.stellar.test_audit::test_a_nearby_clusters_centres_may_differ_by_what_five_parsecs_subtend"
+      - "python/tests.stellar.test_audit::test_two_catalogues_agree_whichever_side_the_match_is_seen_from"
+      - "python/tests.stellar.test_audit::test_a_row_without_a_position_or_proper_motion_is_kept_and_cannot_be_assessed"
+      - "python/tests.stellar.test_audit::test_two_rows_of_one_catalogue_matching_the_same_object_enter_the_control_once"
+      - "python/tests.stellar.test_audit::test_every_single_claim_and_a_seeded_control_sample_with_no_object_twice_are_audited"
+      - "python/tests.stellar.test_audit::test_a_real_cluster_one_catalogue_claims_survives_with_its_null_fields_run"
+      - "python/tests.stellar.test_audit::test_a_claim_with_nothing_at_its_place_and_motion_is_not_recovered"
+      - "python/tests.stellar.test_audit::test_a_claim_without_a_parallax_cannot_be_assessed"
+      - "python/tests.stellar.test_audit::test_a_field_with_too_few_stars_cannot_be_assessed"
+      - "python/tests.stellar.test_audit::test_a_claim_survives_only_above_every_false_candidate_of_its_field"
+      - "python/tests.stellar.test_audit::test_the_summary_gives_survival_per_group_and_catalogue_of_the_claims_assessed"
+      - "python/tests.cli.test_cli_discover::test_audit_and_report_say_which_single_catalogue_claims_survive"

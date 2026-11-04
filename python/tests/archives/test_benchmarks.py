@@ -70,9 +70,11 @@ def primed(rows: dict[str, object] | None = None, schema: list[dict[str, str]] =
 
 @pytest.mark.req("DSI-015")
 def test_the_two_predeclared_catalogues_are_registered_with_their_release_labels() -> None:
-    assert {k: (c.vizier_table, c.release_label) for k, c in CATALOGUES.items()} == {
-        "hr23": ("J/A+A/673/A114/clusters", "hr23:v1.0"),
-        "cga20": ("J/A+A/640/A1/table1", "cga20:v1"),
+    assert {k: (c.vizier_table, c.release_label, c.audit_only) for k, c in CATALOGUES.items()} == {
+        "hr23": ("J/A+A/673/A114/clusters", "hr23:v1.0", False),
+        "cga20": ("J/A+A/640/A1/table1", "cga20:v1", False),
+        # the claim audit's third catalogue (STL-024), never a UC-01 benchmark
+        "cwnu23": ("J/ApJS/264/8/clusters", "cwnu23:v1", True),
     }
     assert TAPVIZIER == "https://tapvizier.cds.unistra.fr/TAPVizieR/tap"
     assert MAXREC == 100_000
@@ -180,7 +182,7 @@ def test_a_missing_value_becomes_null_not_nan() -> None:
 
 def test_an_unknown_catalogue_is_refused_before_any_request() -> None:
     fake = PrimedService()
-    with pytest.raises(KeyError, match=r"unknown catalogue 'mwsc'; known: \['cga20', 'hr23'\]"):
+    with pytest.raises(KeyError, match=r"unknown catalogue 'mwsc'; known: \['cga20', 'cwnu23', 'hr23'\]"):
         VizierKnownClusters(fake).fetch("mwsc")
     assert fake.calls == 0
 

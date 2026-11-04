@@ -109,7 +109,7 @@ def test_an_unknown_catalogue_is_refused_before_any_download(k: tuple[InMemoryKe
     _, fake = k
     result = runner.invoke(cli.app, ["benchmark", "fetch", "--catalogue", "mwsc"], env=WIDE)
     assert result.exit_code != 0
-    assert "unknown ['mwsc']; known: ['cga20', 'hr23']" in _plain(result.output)
+    assert "unknown ['mwsc']; known: ['cga20', 'cwnu23', 'hr23']" in _plain(result.output)
     assert fake.asked == []
 
 
@@ -117,13 +117,14 @@ def test_list_shows_what_is_stored(k: tuple[InMemoryKernel, FakeVizier]) -> None
     before = invoke("benchmark", "list")
     assert [(b["benchmark"], b["artifact"], b["input"]) for b in before] == [
         ("cga20", None, None),
+        ("cwnu23", None, None),
         ("hr23", None, None),
     ]
-    assert before[1]["vizier_table"] == "J/A+A/673/A114/clusters"
+    assert before[2]["vizier_table"] == "J/A+A/673/A114/clusters"
     fetched = invoke("benchmark", "fetch", "--catalogue", "hr23")
     after = invoke("benchmark", "list")
-    assert after[1]["artifact"] == fetched[0]["artifact"] and after[1]["input"] == fetched[0]["input"]
-    assert after[0]["artifact"] is None
+    assert after[2]["artifact"] == fetched[0]["artifact"] and after[2]["input"] == fetched[0]["input"]
+    assert after[0]["artifact"] is None and after[1]["artifact"] is None
 
 
 #: a table saved from a VizieR page: every FIELD carries its UCD and unit
@@ -151,7 +152,7 @@ def test_a_saved_votable_is_stored_without_any_download(k: tuple[InMemoryKernel,
     assert [(o["benchmark"], o["clusters"]) for o in out] == [("hr23", 2)]
     stored = pq.read_table(io.BytesIO(kernel.store.get(ArtifactId(out[0]["artifact"]))))
     assert stored.schema.metadata[b"sdp.benchmark.source"] == b"VizieR J/A+A/673/A114/clusters from file hr23.vot"
-    assert invoke("benchmark", "list")[1]["artifact"] == out[0]["artifact"]
+    assert invoke("benchmark", "list")[2]["artifact"] == out[0]["artifact"]
 
 
 def test_a_file_names_its_own_catalogue(k: tuple[InMemoryKernel, FakeVizier], tmp_path: Path) -> None:
