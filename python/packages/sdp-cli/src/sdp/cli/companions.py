@@ -55,10 +55,10 @@ def folder() -> Path:
 
 
 def transport() -> Transport:
-    """The live Gaia TAP service, politely; tests replace this."""
+    """The live Gaia TAP service, politely, waiting up to ten minutes for a busy server; tests replace this."""
     from sdp.adapters.archives.transport import PoliteTransport, UrllibTransport
 
-    return PoliteTransport(UrllibTransport(), min_seconds_between_calls=1.0)
+    return PoliteTransport(UrllibTransport(timeout_s=600.0), min_seconds_between_calls=1.0)
 
 
 def _orbits(path: Path | None) -> dict[str, Any]:
@@ -92,17 +92,24 @@ def companions_fetch(
         Path | None, typer.Option(help="Where to write the orbit table (default <SDP data>/companions)")
     ] = None,
 ) -> None:
-    """Download every Gaia DR3 orbit on the sky with Gaia's masses (about 169,000 rows, a few minutes)."""
+    """Download every Gaia DR3 orbit on the sky with Gaia's masses (about 169,000 rows, about 10 minutes).
+    Each part is kept as it arrives, so running it again after a failure resumes where it stopped."""
+    import shutil
+
     import pyarrow.parquet as pq
 
     from sdp.adapters.archives.gaia_nss import fetch_orbits
 
     path = out or folder() / ORBITS_FILE
-    table = fetch_orbits(transport(), progress=lambda i, n: _say(f"orbits part {i}/{n}"))
+    parts = path.parent / (path.stem + ".parts")
+    if parts.exists():
+        _say(f"resuming: the parts already downloaded are in {parts}")
+    table = fetch_orbits(transport(), progress=lambda i, n: _say(f"orbits part {i}/{n}"), parts_dir=parts)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".parquet.tmp")
     pq.write_table(table, tmp)
     tmp.replace(path)
+    shutil.rmtree(parts, ignore_errors=True)
     _say(f"{table.num_rows:,} orbits written to {path}")
     typer.echo(json.dumps({"orbits": table.num_rows, "path": str(path)}, indent=2, sort_keys=True))
 

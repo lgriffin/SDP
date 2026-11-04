@@ -5,7 +5,8 @@
 #   powershell -ExecutionPolicy Bypass -File harness\run-companions.ps1 -Branch claude/project-thread-lf7jxs
 #
 # 1. Updates the checkout (-Branch, main by default)
-# 2. Downloads every Gaia DR3 orbit with Gaia's masses (about 169,000 rows, a few minutes), unless the
+# 2. Downloads every Gaia DR3 orbit with Gaia's masses (about 169,000 rows, 36 parts, about 10 minutes; a rerun
+#    after a timeout resumes from the parts already saved), unless the
 #    orbit table is already there (-Refetch to download again)
 # 3. The field list: every orbit at its own distance; the log says whether Gaia BH1 is flagged (it must be)
 # 4. The cluster screen over the bulk Gaia copy, two passes, using the sweep's clusters (-Name)

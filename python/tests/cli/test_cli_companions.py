@@ -180,7 +180,7 @@ def test_a_screen_needs_one_source_of_clusters_and_a_fetched_orbit_table(data: P
 def test_fetch_writes_the_orbit_table_through_the_transport(data: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
-    def fake(transport: object, progress: Any = None) -> pa.Table:
+    def fake(transport: object, progress: Any = None, parts_dir: Path | None = None) -> pa.Table:
         calls.append(1)
         return orbit_table([1], [1.0], [0.5], [3.0], [False])
 

@@ -25,6 +25,10 @@ uv run sdp companions field
 uv run sdp companions screen --sweep gaia-dr3
 ```
 
+`fetch` asks Gaia's archive for the orbits in 36 parts (about 10 minutes in all), and keeps each part as it
+arrives. If the archive is busy and a part times out, run the same command again: it carries on from the
+parts it already has.
+
 `--members my-members.csv` (columns `cluster,source_id`) screens a published member list instead of a
 sweep.
 

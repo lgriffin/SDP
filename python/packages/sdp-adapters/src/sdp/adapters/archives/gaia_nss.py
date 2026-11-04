@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 import pyarrow as pa
 
@@ -26,7 +27,7 @@ LICENCE = "CC BY-SA 3.0 IGO (ESA Gaia, https://www.cosmos.esa.int/web/gaia-users
 #: Gaia source_ids run up to 2^63; the 35 low bits are not position, so equal ranges hold similar sky areas
 SOURCE_ID_MAX = 2**63 - 1
 #: ranges asked for in turn; about 14,000 orbits each, which the synchronous service returns in seconds
-PARTS = 12
+PARTS = 36
 #: rows allowed per answer, well above any one range's count, so a cut-off would show as a short answer
 MAXREC = 200_000
 
@@ -143,13 +144,29 @@ def fetch_orbits(
     parts: int = PARTS,
     service_url: str = GAIA_TAP,
     progress: Callable[[int, int], None] | None = None,
+    parts_dir: Path | None = None,
 ) -> pa.Table:
-    """Every Gaia DR3 orbit on the sky with its star's G, RUWE and Gaia's mass range, one table."""
+    """Every Gaia DR3 orbit on the sky with its star's G, RUWE and Gaia's mass range, one table.
+
+    With ``parts_dir`` each source_id range is saved there as it arrives, and a range already saved is
+    read back instead of asked for again, so a download that stops part way resumes where it stopped."""
+    import pyarrow.parquet as pq
+
     tables = []
     spans = ranges(parts)
     for i, (lo, hi) in enumerate(spans):
-        table = run_sync(transport, sync_request(service_url, orbit_query(lo, hi), MAXREC), "Gaia DR3 orbits")
-        tables.append(_checked(table, f"Gaia DR3 orbits {lo}..{hi}"))
+        saved = parts_dir / f"part-{i + 1:03d}-of-{parts:03d}.parquet" if parts_dir is not None else None
+        if saved is not None and saved.exists():
+            table = pq.read_table(saved)
+        else:
+            table = run_sync(transport, sync_request(service_url, orbit_query(lo, hi), MAXREC), "Gaia DR3 orbits")
+            table = _checked(table, f"Gaia DR3 orbits {lo}..{hi}")
+            if saved is not None:
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                tmp = saved.with_suffix(".tmp")
+                pq.write_table(table, tmp)
+                tmp.replace(saved)
+        tables.append(table)
         if progress is not None:
             progress(i + 1, len(spans))
     whole = one_mass_per_orbit(pa.concat_tables(tables, promote_options="permissive").combine_chunks())

@@ -9,7 +9,7 @@ import pyarrow as pa
 import pytest
 
 from sdp.adapters.archives import gaia_nss as nss
-from sdp.adapters.archives.transport import CassetteTransport
+from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport
 from sdp.adapters.archives.vo import sync_request
 from sdp_stellar import companions as c
 
@@ -99,3 +99,25 @@ def test_the_recorded_orbits_flag_gaia_bh1_as_a_neutron_star_or_black_hole() -> 
     # SDP's own Kepler arithmetic gives back Gaia's dark-partner mass for BH1
     assert m2 == pytest.approx(float(o["m2"][o["source_id"].tolist().index(4373465352415301632)]), rel=1e-4)
     assert by_id[5706622788776714752][0] == c.ORDINARY
+
+
+@pytest.mark.req("DSI-023")
+def test_a_download_that_stops_part_way_resumes_from_the_saved_parts(tmp_path: Path) -> None:
+    spans = nss.ranges(2)
+    first = PrimedService()
+    first.table(
+        sync_request(nss.GAIA_TAP, nss.orbit_query(*spans[0]), nss.MAXREC),
+        rows([5], ["Orbital"], ["Orbital+M1"], [0.8]),
+    )
+    with pytest.raises(CassetteMissing):  # the second range is not primed, as if the server stopped answering
+        nss.fetch_orbits(first, parts=2, parts_dir=tmp_path)
+    assert first.calls == 2 and len(list(tmp_path.glob("part-*.parquet"))) == 1
+
+    second = PrimedService()
+    second.table(
+        sync_request(nss.GAIA_TAP, nss.orbit_query(*spans[1]), nss.MAXREC),
+        rows([2**62 + 1], ["Orbital"], ["Orbital+M1"], [1.1]),
+    )
+    table = nss.fetch_orbits(second, parts=2, parts_dir=tmp_path)
+    assert second.calls == 1  # only the range that was missing
+    assert table.column("source_id").to_pylist() == [5, 2**62 + 1]

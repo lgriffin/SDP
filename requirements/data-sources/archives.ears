@@ -178,8 +178,8 @@ requirements:
       - "python/tests.cli.test_cli_oort1927::test_a_scan_reads_every_file_with_its_filters_and_refuses_an_incomplete_copy"
   - id: DSI-023
     pattern: event
-    text: "When Gaia DR3 orbits are requested, the system shall fetch every nss_two_body_orbit row with Thiele-Innes elements joined to its gaia_source G, RUWE and position and to Gaia's binary_masses, in source_id ranges, keeping one mass row per orbit, refusing an answer that lacks a declared column or reaches MAXREC, and recording release, citation, licence and query."
-    rationale: "About 169,000 orbits (live count 2026-11-04) come back in twelve synchronous queries in under five minutes; binary_masses holds a row per way of combining solutions, so the row combining the orbit's own type with M1 is kept."
+    text: "When Gaia DR3 orbits are requested, the system shall fetch every nss_two_body_orbit row with Thiele-Innes elements joined to its gaia_source G, RUWE and position and to Gaia's binary_masses, in source_id ranges, keeping one mass row per orbit, refusing an answer that lacks a declared column or reaches MAXREC, saving each range as it arrives so that a stopped download resumes from the ranges already saved, and recording release, citation, licence and query."
+    rationale: "About 169,000 orbits (live count 2026-11-04) come back in 36 synchronous queries, 11.5 minutes in all on the evening of 2026-11-04; on 2026-11-04 a busy server timed out a twelve-range download part way, so ranges are smaller and saved as they arrive; binary_masses holds a row per way of combining solutions, so the row combining the orbit's own type with M1 is kept."
     verification: test
     tiers: [T3]
     status: approved
