@@ -176,6 +176,12 @@ TARGETS = {
             ("src/sdp_investigate/changes.py",),
             ("tests/investigate", "tests/local"),
         ),
+        Target(
+            "sdp-investigate-century",
+            "sdp-investigate",
+            ("src/sdp_investigate/century.py",),
+            ("tests/investigate", "tests/local"),
+        ),
         *(
             Target(
                 f"sdp-relativity-{i}",

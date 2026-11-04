@@ -4,7 +4,7 @@ A **test profile** is the recipe for exploring a patch of sky. It says which sta
 
 SDP records a fingerprint (a hash) of the profile before anything runs. A run therefore cannot be tuned after the fact to make a result look better. If you change a profile, raise its `version`, because it is now a different recipe.
 
-These twelve profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
+These profiles ship with SDP. You do not need to edit them to get started. The Start page picks first-look for you, because it is first in alphabetical order.
 
 | Profile | Use it when | Archives | Typical run |
 |---|---|---|---|
@@ -14,6 +14,7 @@ These twelve profiles ship with SDP. You do not need to edit them to get started
 | [moving-group-search](moving-group-search.yaml) | You are hunting for a star cluster or moving group | Gaia and 2MASS | Up to about ten minutes |
 | [survey-contradictions](survey-contradictions.yaml) | You want the stars whose other surveys disagree with Gaia: a position or a brightness that does not fit | Gaia, 2MASS, Pan-STARRS and AllWISE | A few minutes: three catalogue pulls for the whole field |
 | [star-history](star-history.yaml) | You want a century of each bright star's past | Gaia and DASCH plates | Minutes. Keep the field small. |
+| [plate-trends](plate-trends.yaml) | You want the stars that slowly brightened or faded over the last century, judged against their neighbours | Gaia and DASCH plates | About half an hour for a field of 1,000 stars: one plate light curve each. Needs a field of several hundred bright stars. |
 | [image-changes](image-changes.yaml) | You want to know which stars changed between Hubble and Webb images of a field taken years or decades apart | Gaia and MAST (HST and JWST) | 10 to 30 minutes, mostly waiting for the archive. Needs the same filter at two dates. |
 | [image-contradictions](image-contradictions.yaml) | You want the stars whose Hubble or Webb image, or whose 2MASS, Pan-STARRS or AllWISE measurement, disagrees with Gaia | Gaia, 2MASS, Pan-STARRS, AllWISE and MAST (HST and JWST) | 10 to 30 minutes, mostly waiting for the archive |
 | [jwst-image-check](jwst-image-check.yaml) | You want to check Gaia's stars against a James Webb Space Telescope image | Gaia and MAST (JWST) | 10 to 20 minutes, mostly waiting for the archive. Try `sdp demo jwst`. |
@@ -82,6 +83,34 @@ Alongside the real field, SDP also runs the same tests on **null fields**. These
   - `exclude_percentile: 25` lets the background be measured in a crowded cluster, where stars cover more than a tenth of the sky.
   - `align_wcs: true` first slides the whole image onto Gaia. The archive's own coordinates for these M92 mosaics sit about 2 arcseconds off Gaia, which would leave every star "missing". One shift moves the frame, not a star, so a star that really moved still stands out. The fit is recorded with each result.
   - `anchor_sigma_arcsec` and `min_sigma_arcsec: 0.01` are the smallest position uncertainties SDP will assume for Gaia and for JWST: about 10 milliarcseconds, the agreement an aligned mosaic reaches with Gaia. Smaller values would flag ordinary stars.
+
+### plate-trends: a century of slow brightness change
+
+The century-trend test fits a straight line through each star's Harvard plate magnitudes from the 1890s
+to 1989 and asks whether it slopes more than its neighbours' do. Taken on its own errors, a third of the
+constant stars near M67 seem to trend, so every setting here is about measuring the field's own errors
+(docs/century-trends.md has the M67 run):
+
+- **Plate corrections (`ensemble_k: 15`).** Each plate is a little brighter or fainter in places, and
+  more so for red or blue stars. Every measurement is corrected by how much the 15 nearest clean stars
+  of the same brightness and colour were off on that same plate.
+- **Slow wanders (`bin_years: 5.0`).** Plates from different telescopes and decades disagree by a few
+  hundredths of a magnitude for years at a time. The trend's error comes from how much 5-year averages
+  scatter, so a run of odd plates cannot pass for a trend.
+- **Both sides of the gap (`min_points: 100`, `min_each_side: 20`).** Harvard took almost no plates from
+  1953 to 1969. A star needs 100 good measurements, 20 of them before the gap and 20 after, or its slope
+  is one era's offset against the other's.
+- **Blends (`blend_radius_arcsec: 60.0`, `max_blend: 0.1`).** The patrol plates of the 1970s and 1980s
+  are coarse enough to merge stars a minute of arc apart, so a star with a neighbour there looks brighter
+  after the gap. Stars whose Gaia neighbours add more than 10% of their light are still tested, but never
+  used to calibrate, and each result says how blended its star is. All five first-pass candidates near
+  M67 were blends.
+- **Peers.** The slope is compared with the slopes of the clean stars of the same colour and brightness,
+  and their spread beyond their own errors (`sigma_sys`, about 0.03 magnitudes a century near M67) is
+  added to every star's error.
+- **`alpha: 0.001`.** The null run calibrates on half the field and tests the other half, so it measures
+  how often the field's own clean stars pass: about 1.5 to 1.7% at this alpha near M67, not the 0.1% the alpha
+  promises. Expect a few false candidates in a field of a few hundred stars.
 
 ### image-changes: the same field at different dates
 
