@@ -106,7 +106,11 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
     registered = {(t.name, t.version): t for t in registered_tests()}
     for selection in profile.tests:
         test = registered[(selection.name, selection.version)]
-        assert set(selection.needs_products) == set(test.needs_products), f"{selection.name} needs its products"
+        if getattr(test, "products_optional", False):
+            # the test uses products when the profile fetches them, and runs without them
+            assert set(selection.needs_products) <= set(test.needs_products), f"{selection.name} cannot use them"
+        else:
+            assert set(selection.needs_products) == set(test.needs_products), f"{selection.name} needs its products"
         if isinstance(test, AstrometricCoherence):
             test.check_thresholds(selection.thresholds)
             params = [selection.thresholds["clusterer_params"], *selection.thresholds["clusterer_grid"]]

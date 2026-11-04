@@ -36,6 +36,7 @@ from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.investigation import EvidenceBundle, Subject
 from sdp.kernel.ports.investigate import (
     MEASURED,
+    DetectionList,
     ForcedMeasurement,
     ForcedPhotometer,
     FrameDescription,
@@ -75,6 +76,8 @@ class Frame:
     band: str
     fwhm_arcsec: float
     alignment: Mapping[str, Any] | None
+    detections: DetectionList | None = None
+    """The image's detections in the aligned frame, when it was aligned."""
 
 
 @dataclass(frozen=True)
@@ -245,62 +248,7 @@ class EpochChange(FieldTest):
         photometer: ForcedPhotometer,
         left_out: dict[str, str],
     ) -> Frame | None:
-        data = product_bytes(context, artifact_id)
-        frame = ImageFrame(artifact_id, data, "application/fits")
-        alignment: dict[str, Any] | None = None
-        epoch_mjd: float | None = None
-        if thresholds.get("align_wcs"):
-            detector: SourceDetector = context.service("detector")
-            params = {
-                "fwhm": float(thresholds.get("fwhm_px", 3.0)),
-                "nsigma": float(thresholds.get("nsigma", 5.0)),
-                **{k: thresholds[k] for k in DETECTOR_MESH if k in thresholds},
-            }
-            found = detector.detect(frame, params)
-            epoch_mjd = found.epoch_mjd
-            if epoch_mjd is None:
-                left_out[product_id] = "names no observation time"
-                return None
-            epoch = float(Time(epoch_mjd, format="mjd").jyear)
-            aligned, alignment = align(found, anchors.values(), epoch, thresholds, context)
-            if not alignment["matches"]:
-                # an image whose WCS could not be checked against Gaia would put its apertures beside
-                # its stars by as much as its archival error, which reads as a change
-                left_out[product_id] = "could not be aligned to Gaia"
-                return None
-            frame = ImageFrame(artifact_id, data, "application/fits", wcs=aligned.wcs_header.encode())
-        guess = {"fwhm_px": float(thresholds.get("fwhm_px", 3.0)), **_photometer_params(thresholds)}
-        if epoch_mjd is None:
-            described = photometer.describe(frame, (), guess)
-            epoch_mjd = described.epoch_mjd
-            if epoch_mjd is None:
-                left_out[product_id] = "names no observation time"
-                return None
-        epoch = float(Time(epoch_mjd, format="mjd").jyear)
-        description = photometer.describe(frame, _points(anchors, epoch), guess)
-        if description.epoch_mjd is None:
-            description = FrameDescription(
-                description.band,
-                epoch_mjd,
-                description.instrument,
-                description.pixel_arcsec,
-                description.fwhm_arcsec,
-                description.saturation,
-            )
-        fwhm = _fwhm(description, thresholds)
-        if fwhm is None:
-            left_out[product_id] = "no star bright enough to measure its FWHM, and the profile gives none"
-            return None
-        return Frame(
-            product_id,
-            artifact_id,
-            frame,
-            description,
-            epoch,
-            band_of(description, thresholds.get("bands") or {}),
-            fwhm,
-            alignment,
-        )
+        return prepare_frame(artifact_id, product_id, anchors, thresholds, context, photometer, left_out)
 
     def _compare(
         self,
@@ -556,6 +504,77 @@ class EpochChange(FieldTest):
                 )
             )
         return Features(features.keys, {**features.arrays, "series": drawn})
+
+
+def prepare_frame(
+    artifact_id: str,
+    product_id: str,
+    anchors: Mapping[str, CatalogueSource],
+    thresholds: Mapping[str, Any],
+    context: TaskContext,
+    photometer: ForcedPhotometer,
+    left_out: dict[str, str],
+) -> Frame | None:
+    """One image aligned to Gaia at its own date and described by the ``photometer``, or None with the
+    reason in ``left_out``. With ``align_wcs`` the aligned detections come with it."""
+    data = product_bytes(context, artifact_id)
+    frame = ImageFrame(artifact_id, data, "application/fits")
+    alignment: dict[str, Any] | None = None
+    aligned: DetectionList | None = None
+    epoch_mjd: float | None = None
+    if thresholds.get("align_wcs"):
+        detector: SourceDetector = context.service("detector")
+        params = {
+            "fwhm": float(thresholds.get("fwhm_px", 3.0)),
+            "nsigma": float(thresholds.get("nsigma", 5.0)),
+            **{k: thresholds[k] for k in DETECTOR_MESH if k in thresholds},
+        }
+        found = detector.detect(frame, params)
+        epoch_mjd = found.epoch_mjd
+        if epoch_mjd is None:
+            left_out[product_id] = "names no observation time"
+            return None
+        epoch = float(Time(epoch_mjd, format="mjd").jyear)
+        aligned, alignment = align(found, anchors.values(), epoch, thresholds, context)
+        if not alignment["matches"]:
+            # an image whose WCS could not be checked against Gaia would put its apertures beside
+            # its stars by as much as its archival error, which reads as a change
+            left_out[product_id] = "could not be aligned to Gaia"
+            return None
+        frame = ImageFrame(artifact_id, data, "application/fits", wcs=aligned.wcs_header.encode())
+    guess = {"fwhm_px": float(thresholds.get("fwhm_px", 3.0)), **_photometer_params(thresholds)}
+    if epoch_mjd is None:
+        described = photometer.describe(frame, (), guess)
+        epoch_mjd = described.epoch_mjd
+        if epoch_mjd is None:
+            left_out[product_id] = "names no observation time"
+            return None
+    epoch = float(Time(epoch_mjd, format="mjd").jyear)
+    description = photometer.describe(frame, _points(anchors, epoch), guess)
+    if description.epoch_mjd is None:
+        description = FrameDescription(
+            description.band,
+            epoch_mjd,
+            description.instrument,
+            description.pixel_arcsec,
+            description.fwhm_arcsec,
+            description.saturation,
+        )
+    fwhm = _fwhm(description, thresholds)
+    if fwhm is None:
+        left_out[product_id] = "no star bright enough to measure its FWHM, and the profile gives none"
+        return None
+    return Frame(
+        product_id,
+        artifact_id,
+        frame,
+        description,
+        epoch,
+        band_of(description, thresholds.get("bands") or {}),
+        fwhm,
+        alignment,
+        aligned,
+    )
 
 
 def verdict(p: float, alpha: float, snr: np.ndarray, nsigma: float) -> str:

@@ -29,7 +29,7 @@ ENV = {"SDP_DATABASE_URL": "postgresql://unused", "SDP_ARTIFACT_ROOT": "/tmp/unu
 def test_replay_mode_puts_every_gateway_on_cassettes(tmp_path: Path) -> None:
     settings = Settings.from_env({**ENV, "SDP_ARCHIVE_MODE": "replay", "SDP_CASSETTE_DIR": str(tmp_path)})
     gateways = archive_gateways(settings)
-    assert set(gateways) == {"gaia", "2mass", "ps1"}
+    assert set(gateways) == {"gaia", "2mass", "ps1", "allwise"}
     for sid, gateway in gateways.items():
         transport = gateway.transport  # type: ignore[attr-defined]
         assert isinstance(transport, CassetteTransport) and transport.mode == "replay"
