@@ -1,0 +1,64 @@
+# requirements/stellar/oort-1932.ears
+capability: Oort 1932 vertical force rerun
+owner: stellar
+requirements:
+  - id: STL-025
+    pattern: ubiquitous
+    text: "The stellar module shall report Oort's 1932 formula constants, shape factors, slope of the force, flat-layer density, plateau force, density units and Table 14 integral as recomputed from his inputs, each beside the printed figure."
+    rationale: "Every figure is read from the uploaded scan of BAN 6, 249 and recomputed, never replaced; a difference is reported, not asserted (docs/protocols/uc05-oort-1932.md, part A)."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1932::test_oorts_arithmetic_is_recomputed_beside_his_printed_figures"
+      - "python/tests.stellar.test_oort1932::test_the_density_from_a_slope_takes_off_the_rotation_term"
+  - id: STL-026
+    pattern: ubiquitous
+    text: "The stellar module shall select UC-05 tracers with the predeclared quality cuts, absolute-magnitude group, cylinder radius, latitude floor and parallax zero-point, and divide their counts by the column's exact volume about the plane it finds from the two hemispheres."
+    rationale: "The column is a cone near the Sun and a cylinder beyond it; the per-file reduction of the bulk read must never drop a star some scenario uses, and a star without a radial velocity still counts toward the density."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1932::test_the_column_volume_is_a_cone_then_a_cylinder_and_odd_in_z"
+      - "python/tests.stellar.test_oort1932::test_every_star_a_scenario_uses_survives_the_per_file_reduction"
+      - "python/tests.stellar.test_oort1932::test_the_shared_cuts_keep_a_star_without_a_radial_velocity_in_the_density"
+      - "python/tests.stellar.test_oort1932::test_the_suns_height_is_found_from_the_two_hemispheres"
+  - id: STL-027
+    pattern: ubiquitous
+    text: "The stellar module shall apply Oort's formula (7) to binned tracer densities and error-corrected mean square vertical velocities, and report the slope near the plane, the flattening over 200 to 500 pc, the plateau force and the local density, with Monte Carlo errors."
+    rationale: "Synthetic isothermal tracers in a self-gravitating sheet and in a uniform slab fix the signs, the units, the Poisson rotation term and the bias of a straight line over 0 to 200 pc."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1932::test_a_self_gravitating_sheet_gives_its_slope_and_flattens"
+      - "python/tests.stellar.test_oort1932::test_a_uniform_slab_gives_its_slope_and_does_not_flatten"
+      - "python/tests.stellar.test_oort1932::test_the_radial_velocity_error_is_taken_off_the_mean_square"
+      - "python/tests.stellar.test_oort1932::test_too_few_stars_is_a_named_failure"
+      - "python/tests.stellar.test_oort1932::test_clipping_drops_a_runaway_from_its_bin_only_when_on"
+  - id: STL-028
+    pattern: event
+    text: "When a UC-05 run completes, the stellar module shall read UC05-H1 only if every scenario's force flattens by the declared rule, read UC05-H0 only if no scenario's force flattens and every one rises, and read inconclusive otherwise."
+    rationale: "A failed scenario or a baseline-only quick look decides nothing; the comparison with Oort's 0.092 Msun/pc3 and Table 14 is reported beside the verdict and never changes it."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_oort1932::test_the_verdict_follows_the_planted_force"
+      - "python/tests.stellar.test_oort1932::test_oorts_density_is_compared_with_the_local_density"
+      - "python/tests.stellar.test_oort1932::test_a_failed_scenario_or_a_quick_look_decides_nothing"
+      - "python/tests.stellar.test_oort1932::test_the_report_sets_gaia_beside_table_14"
+  - id: STL-029
+    pattern: event
+    text: "When `sdp oort1932 run` is invoked, the system shall read the density from the complete bulk Gaia copy or a given Parquet file and the velocities from the rvs subset or a given Parquet file, and write report.json and report.md."
+    rationale: "Leigh runs UC-05 on the PC's bulk copy and rvs subset; without velocities the run says how to build them, and the export of both column samples becomes the recorded known-answer test."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_oort1932::test_the_arithmetic_needs_no_data"
+      - "python/tests.cli.test_cli_oort1932::test_a_run_without_velocities_says_how_to_build_them"
+      - "python/tests.cli.test_cli_oort1932::test_a_run_reads_the_density_from_the_bulk_copy_and_the_velocities_from_its_rvs_subset"
+      - "python/tests.cli.test_cli_oort1932::test_the_export_writes_both_samples_and_they_run_from_parquet"
+      - "python/tests.cli.test_cli_oort1932::test_a_column_with_no_star_passing_the_cuts_reports_a_failed_baseline"

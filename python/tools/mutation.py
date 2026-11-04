@@ -83,7 +83,7 @@ STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd", "significance"),
     ("protocol", "features", "quality", "ranking", "audit"),
     ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
-    ("oort1927",),
+    ("oort1927", "oort1932"),
     ("companions",),
 )
 
