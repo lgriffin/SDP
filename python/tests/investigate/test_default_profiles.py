@@ -8,6 +8,7 @@ ranking policy and null-field plan as written, so a threshold a test cannot use 
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -272,3 +273,7 @@ def test_a_default_profile_runs_end_to_end(path: Path, tmp_path: Path) -> None:
         "exposure-counterpart",
         "century-trend",
     }
+    if profile.profile_id == "image-contradictions":
+        # the stars are compared on the synthetic NIRCam mosaic, not only in the catalogues
+        compared = [r for r in results if r["test_name"] == "cross-survey-contradiction"]
+        assert '"image:' in json.dumps(compared)
