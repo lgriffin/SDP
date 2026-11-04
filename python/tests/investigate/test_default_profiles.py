@@ -236,6 +236,12 @@ def test_a_default_profile_runs_end_to_end(path: Path, tmp_path: Path) -> None:
     # exception is the structure test, which reports groups only: the synthetic field's planted group
     # has 5 members, below UC-01's smallest min_cluster_size of 10, so it rightly finds none. The
     # exposure test reads per-exposure positions, which the synthetic plates' light curves do not
-    # carry; test_exposure_counterpart and the recorded NEOWISE product exercise it (INT-024).
+    # carry; test_exposure_counterpart and the recorded NEOWISE product exercise it (INT-024). The
+    # century-trend test calibrates on a field of hundreds of stars with a century of plates each, which
+    # the synthetic world's few 40-point light curves are not; test_century_trend exercises it (INT-027).
     judged = {r["test_name"] for r in results}
-    assert judged == {t.name for t in profile.tests} - {"astrometric-coherence", "exposure-counterpart"}
+    assert judged == {t.name for t in profile.tests} - {
+        "astrometric-coherence",
+        "exposure-counterpart",
+        "century-trend",
+    }
