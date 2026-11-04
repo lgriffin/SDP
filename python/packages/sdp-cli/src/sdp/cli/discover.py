@@ -556,6 +556,13 @@ def discover_audit(
     catalogue: Annotated[
         list[str] | None, typer.Option("--catalogue", help="Only claims from this catalogue; repeat")
     ] = None,
+    allow_partial: Annotated[
+        bool,
+        typer.Option(
+            "--allow-partial",
+            help="Audit although not every bulk file is prepared (claims in the missing sky find no stars)",
+        ),
+    ] = False,
 ) -> None:
     """Search the Gaia stars around every cluster only one catalogue claims, and a control sample of
     clusters two or more agree on, with the sweep's own tests and null fields (STL-020). EXPLORATORY.
@@ -586,8 +593,20 @@ def discover_audit(
         "tile_deg": float(settings["tile_deg"]),
     }:
         raise DomainError("the prepared catalogue used other cuts or tiles than this SDP version; prepare it again")
+    root = _artifact_root()
+    if not allow_partial:
+        from sdp.adapters.archives.bulk import BulkCatalogueGateway
+        from sdp.adapters.archives.tap import load_sources
+
+        release = BulkCatalogueGateway(artifact_store(root), load_sources()["gaia"].descriptor).files()
+        ready = len(list((prepared / "_done").glob("*.json"))) if (prepared / "_done").is_dir() else 0
+        if ready < len(release):
+            raise DomainError(
+                f"only {ready} of the {len(release)} bulk Gaia files are prepared, so part of the sky has no stars "
+                "and its claims would look unrecovered; finish `sdp discover prepare`, or pass --allow-partial"
+            )
     labels = [CATALOGUES[c].release_label for c in doc["catalogues"]]
-    benchmarks, missing, used = _load_benchmarks(artifact_store(_artifact_root()), labels)
+    benchmarks, missing, used = _load_benchmarks(artifact_store(root), labels)
     if missing:
         raise DomainError(
             "no stored "
@@ -612,11 +631,25 @@ def discover_audit(
     # every claim with the catalogues that list it, so the agreement can be checked by hand
     with (folder / "catalogue-agreement.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csvlib.writer(handle)
-        writer.writerow(["claim_id", "catalogue", "claimed_by", "ra_deg", "dec_deg", "parallax_mas"])
+        writer.writerow(["claim_id", "catalogue", "claimed_by", "matches", "ra_deg", "dec_deg", "parallax_mas"])
         for c in every:
-            writer.writerow([c.claim_id, c.catalogue, " ".join(c.claimed_by), c.ra_deg, c.dec_deg, c.parallax_mas])
+            writer.writerow(
+                [
+                    c.claim_id,
+                    c.catalogue,
+                    " ".join(c.claimed_by),
+                    "; ".join(c.partners),
+                    c.ra_deg,
+                    c.dec_deg,
+                    c.parallax_mas,
+                ]
+            )
     out = folder / "claims"
     out.mkdir(parents=True, exist_ok=True)
+    # every claim this audit owes, so the report can say how much of it is done
+    (folder / "_claims.json").write_text(
+        json.dumps(sorted(_claim_file(c.claim_id) for c, _ in picked), indent=0), "utf-8"
+    )
     todo = [(c, g) for c, g in picked if not (out / _claim_file(c.claim_id)).exists()]
     if catalogue:
         todo = [(c, g) for c, g in todo if c.catalogue in catalogue]
@@ -643,22 +676,35 @@ def discover_audit(
     started = time.monotonic()
     finished = 0
 
-    def drain(futures: dict[Future[Any], str]) -> None:
+    def record(future: Future[Any], claim_id: str) -> None:
         nonlocal finished
-        for future in _as_done(futures):
-            finished += 1
-            try:
-                r = future.result()
-            except Exception as exc:  # one bad claim never stops the audit; it is retried next run
-                failed.append(futures[future])
-                _say(f"{futures[future]} failed: {exc}")
-                continue
-            verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
-            _say(f"{finished}/{len(todo)} {r['claim_id']}: {r['verdict'].replace('_', ' ')}, {r['seconds']:.1f} s")
+        finished += 1
+        try:
+            r = future.result()
+        except Exception as exc:  # one bad claim never stops the audit; it is retried next run
+            failed.append(claim_id)
+            _say(f"{claim_id} failed: {exc}")
+            return
+        verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
+        _say(f"{finished}/{len(todo)} {r['claim_id']}: {r['verdict'].replace('_', ' ')}, {r['seconds']:.1f} s")
 
-    with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
-        # no parallax, so no shell and no stars: judged unassessable without reading any
-        drain({pool.submit(run_claim, pa.table({}), c, g, settings, str(out)): c.claim_id for c, g in unplaced})
+    def run_all(pool: ProcessPoolExecutor, jobs: Iterator[tuple[Any, Any, str]]) -> None:
+        """Submit claims as workers free up, so no more than two per worker are held in memory."""
+        pending: dict[Future[Any], str] = {}
+        for rows, c, g in jobs:
+            if len(pending) >= 2 * workers:
+                done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for f in sorted(done, key=lambda f: pending[f]):
+                    record(f, pending.pop(f))
+            pending[pool.submit(run_claim, rows, c, g, settings, str(out))] = c.claim_id
+        for f in _as_done(pending):
+            record(f, pending[f])
+
+    def jobs() -> Iterator[tuple[Any, Any, str]]:
+        nothing = pa.table({})
+        # no position, proper motion or parallax: no shell, so judged unassessable without reading stars
+        for c, g in unplaced:
+            yield nothing, c, g
         shells = {s.name: s for s in scales(settings)}
         for (scale_name, band), group in sorted(batches.items()):
             scale = shells[scale_name]
@@ -668,17 +714,12 @@ def discover_audit(
             span = band_of(np.array([lo, hi]), tile_deg)
             table = _band_table(prepared, list(range(int(span[0]), int(span[1]) + 1)), scale.window)
             if table is None:
-                _say(f"{scale_name} band {band:03d}: no prepared stars")
-                continue
-            # one band's claims at a time, so only their fields are held in memory
-            drain(
-                {
-                    pool.submit(
-                        run_claim, table.filter(pa.array(in_field(table, c, scale))), c, g, settings, str(out)
-                    ): (c.claim_id)
-                    for c, g in group
-                }
-            )
+                _say(f"{scale_name} band {band:03d}: no prepared stars; its claims are recorded as unassessable")
+            for c, g in group:
+                yield (nothing if table is None else table.filter(pa.array(in_field(table, c, scale)))), c, g
+
+    with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
+        run_all(pool, jobs())
     _emit(
         {
             "label": "EXPLORATORY",
@@ -713,6 +754,16 @@ def discover_audit_report(
         writer.writeheader()
         writer.writerows(rows)
     summary = summarise(results)
+    owed_path = folder / "_claims.json"
+    owed = set(json.loads(owed_path.read_text("utf-8"))) if owed_path.exists() else set()
+    summary["claims_owed"] = len(owed)
+    summary["claims_done"] = len(owed & {p.name for p in files})
+    summary["complete"] = bool(owed) and summary["claims_done"] == len(owed)
+    if not summary["complete"]:
+        _say(
+            f"The audit is not finished: {summary['claims_done']} of {len(owed)} claims done. "
+            "These shares are of the claims done so far; run `sdp discover audit` again to carry on."
+        )
     for group in ("single", "control"):
         whole = summary["groups"].get(group, {}).get("all")
         if whole and whole["survival"] is not None:

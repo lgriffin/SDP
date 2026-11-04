@@ -385,18 +385,24 @@ def store_cwnu(store: Any) -> None:
 def test_audit_and_report_say_which_single_catalogue_claims_survive(bulk: Path) -> None:
     invoke("discover", "prepare", "--workers", "1")
     result = runner.invoke(cli.app, ["discover", "audit"])
+    # two of the three bulk files are stored and prepared
+    assert result.exit_code != 0 and "only 2 of the 3 bulk Gaia files are prepared" in str(result.exception)
+    result = runner.invoke(cli.app, ["discover", "audit", "--allow-partial"])
     assert result.exit_code != 0 and "--catalogue cwnu23" in str(result.exception)
     store_cwnu(artifact_store(bulk / "artifacts"))
-    ran = invoke("discover", "audit", "--workers", "2", "--catalogue", "cwnu23")
+    ran = invoke("discover", "audit", "--workers", "2", "--catalogue", "cwnu23", "--allow-partial")
     assert ran["label"] == "EXPLORATORY" and ran["failed"] == []
     assert ran["verdicts_this_run"] == {"not_recovered": 1, "survives": 1}
     folder = bulk / "data" / "audit" / "claims"
     with open(folder / "catalogue-agreement.csv", encoding="utf-8") as handle:
         agreement = {row["claim_id"]: row["claimed_by"] for row in csv.DictReader(handle)}
     assert agreement["cwnu23:CWNU SYN-B"] == "cwnu23" and agreement["hr23:SYN-A"] == "cga20 hr23"
-    assert invoke("discover", "audit", "--workers", "1", "--catalogue", "cwnu23")["claims_this_run"] == 0
+    again = invoke("discover", "audit", "--workers", "1", "--catalogue", "cwnu23", "--allow-partial")
+    assert again["claims_this_run"] == 0
 
     report = invoke("discover", "audit-report")
+    # the cwnu23 claims are done, the hr23 single claim and the control are not
+    assert report["complete"] is False and report["claims_done"] == 2 and report["claims_owed"] > 2
     single = report["groups"]["single"]["cwnu23"]
     assert single["verdicts"]["survives"] == 1 and single["survival"] == 0.5
     with open(report["csv"], encoding="utf-8") as handle:

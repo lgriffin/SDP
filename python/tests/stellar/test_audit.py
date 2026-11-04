@@ -77,6 +77,37 @@ def test_a_nearby_clusters_centres_may_differ_by_what_five_parsecs_subtend() -> 
 
 
 @pytest.mark.req("STL-020")
+def test_two_catalogues_agree_whichever_side_the_match_is_seen_from() -> None:
+    # one row has no parallax (0.1 deg), the other is 100 pc away (2.9 deg): 1 degree apart is a match both ways
+    a = catalogue("a", [("A", 60.0, 20.0, 5.0, -5.0, None)])
+    b = catalogue("b", [("B", 61.06, 20.0, 5.0, -5.0, 10.0)])
+    by_id = {x.claim_id: x for x in audit.claims([a, b], doc())}
+    assert by_id["a:A"].claimed_by == by_id["b:B"].claimed_by == ("a", "b")
+    assert by_id["a:A"].partners == ("b:B",) and by_id["b:B"].partners == ("a:A",)
+
+
+@pytest.mark.req("STL-020")
+def test_a_row_without_a_position_or_proper_motion_is_kept_and_cannot_be_assessed() -> None:
+    a = catalogue("a", [("A", 60.0, 20.0, math.nan, -5.0, 1.0), ("B", 61.0, 20.0, 5.0, -5.0, 1.0)])
+    by_id = {x.claim_id: x for x in audit.claims([a, catalogue("b", [])], doc())}
+    assert set(by_id) == {"a:A", "a:B"} and by_id["a:A"].claimed_by == ("a",)
+    assert not audit.placed(by_id["a:A"]) and audit.scale_for(by_id["a:A"], audit.load_settings()) is None
+    r = audit.audit_claim(pa.table({}), by_id["a:A"], "single", audit.load_settings(), {}, 1)
+    assert r["verdict"] == "unassessable" and "no position or proper motion" in r["reasons"][0]
+
+
+@pytest.mark.req("STL-020")
+def test_two_rows_of_one_catalogue_matching_the_same_object_enter_the_control_once() -> None:
+    a = catalogue("a", [("A1", 10.0, 0.0, 0.0, 0.0, 1.0), ("A2", 10.02, 0.0, 0.2, 0.0, 1.0)])
+    b = catalogue("b", [("B", 10.01, 0.0, 0.1, 0.0, 1.0)])
+    every = audit.claims([a, b], doc())
+    assert all(c.agreement == 2 for c in every)
+    for seed in range(5):
+        control = [c for c, g in audit.chosen(every, doc(control_sample=10, control_from=["a", "b"]), seed)]
+        assert len(control) == 1 and control[0].catalogue == "a"
+
+
+@pytest.mark.req("STL-020")
 def test_every_single_claim_and_a_seeded_control_sample_with_no_object_twice_are_audited() -> None:
     rows = [(f"K{i}", float(i), 0.0, 0.0, 0.0, 1.0) for i in range(40)]
     a = catalogue("a", [*rows, ("SOLO", 300.0, 60.0, 1.0, 1.0, 1.0)])
@@ -146,6 +177,9 @@ def test_a_claim_with_nothing_at_its_place_and_motion_is_not_recovered() -> None
 
 @pytest.mark.req("STL-020")
 def test_a_claim_without_a_parallax_cannot_be_assessed() -> None:
+    assert audit.audit_claim(
+        pa.table({}), claim("E", 1.0, 2.0, (0.0, 0.0), 1.0), "single", audit.load_settings(), {}, 1
+    )["reasons"] == ["no prepared stars around the claim"]
     r = audited("NO-PLX")
     assert r["verdict"] == "unassessable" and r["scale"] is None
     assert "no parallax" in r["reasons"][0]

@@ -193,8 +193,10 @@ sdp discover audit
 sdp discover audit-report
 ```
 
-Or run all of it with `harness\run-claim-audit.ps1`. It needs the prepared catalogue from Part 4
-(the sweep itself need not have run). Each claim comes out as one of:
+Or run all of it with `harness\run-claim-audit.ps1`. It needs the prepared catalogue from Part 4,
+all of it (the sweep itself need not have run): with part of the sky unprepared it refuses, since the
+claims there would find no stars and look unrecovered. `--allow-partial` audits anyway, and
+`audit-report` always says how many of the claims owed are done. Each claim comes out as one of:
 
 | Verdict | Meaning |
 | --- | --- |

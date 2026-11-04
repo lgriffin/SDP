@@ -66,6 +66,8 @@ class Claim:
     pm_dec_masyr: float
     parallax_mas: float | None
     claimed_by: tuple[str, ...]
+    #: the other catalogues' rows it matches, as ``catalogue:name``
+    partners: tuple[str, ...] = ()
 
     @property
     def claim_id(self) -> str:
@@ -101,8 +103,10 @@ def _floats(table: pa.Table, name: str) -> np.ndarray:
 
 def claims(benchmarks: Sequence[bm.Benchmark], doc: Mapping[str, Any]) -> list[Claim]:
     """Every object of every catalogue, with the catalogues that list it: another catalogue lists it
-    when one of its clusters lies within the match radius on the sky and ``pm_window_masyr`` in proper
-    motion. Rows without a proper motion cannot be matched and are left out."""
+    when one of its clusters lies within the pair's match radius on the sky (the wider of the two
+    objects' radii, so the match is the same seen from either side) and ``pm_window_masyr`` in proper
+    motion. A row without a position or a proper motion cannot be matched: it is kept, claimed by its
+    own catalogue alone, and the audit calls it unassessable."""
     window = float(doc["pm_window_masyr"])
     loaded = []
     for b in benchmarks:
@@ -111,37 +115,42 @@ def claims(benchmarks: Sequence[bm.Benchmark], doc: Mapping[str, Any]) -> list[C
         pmra, pmdec = column(t, "pm_ra_cosdec_masyr"), column(t, "pm_dec_masyr")
         plx = _floats(t, "parallax_mas")
         ok = np.isfinite(ra) & np.isfinite(dec) & np.isfinite(pmra) & np.isfinite(pmdec)
-        loaded.append((b.benchmark_id, t.column("name").to_pylist(), ra, dec, pmra, pmdec, plx, ok))
+        radii = np.array([match_radius_deg(float(p) if np.isfinite(p) else None, doc) for p in plx])
+        names = [str(n) for n in t.column("name").to_pylist()]
+        loaded.append((b.benchmark_id, names, ra, dec, pmra, pmdec, plx, ok, radii))
     out: list[Claim] = []
-    for own, names, ra, dec, pmra, pmdec, plx, ok in loaded:
+    for own, names, ra, dec, pmra, pmdec, plx, ok, radii in loaded:
         rows = np.nonzero(ok)[0]
-        here = SkyCoord(ra[rows] * u.deg, dec[rows] * u.deg)
-        radii = np.array([match_radius_deg(None if not np.isfinite(p) else float(p), doc) for p in plx[rows]])
-        listed: list[set[str]] = [{own} for _ in rows]
-        for other, _, ora, odec, opmra, opmdec, _, ook in loaded:
-            if other == own or not ook.any():
-                continue
+        listed: dict[int, set[str]] = {int(r): {own} for r in range(len(names))}
+        partners: dict[int, set[str]] = {int(r): set() for r in range(len(names))}
+        for other, onames, ora, odec, opmra, opmdec, _, ook, oradii in loaded:
             orows = np.nonzero(ook)[0]
+            if other == own or not orows.size or not rows.size:
+                continue
+            here = SkyCoord(ra[rows] * u.deg, dec[rows] * u.deg)
             there = SkyCoord(ora[orows] * u.deg, odec[orows] * u.deg)
-            i, j, sep, _ = there.search_around_sky(here, float(radii.max()) * u.deg) if rows.size else ([], [], [], 0)
-            for a, b, s in zip(np.asarray(i), np.asarray(j), np.asarray(getattr(sep, "deg", sep)), strict=True):
-                if s > radii[a]:
+            reach = max(float(radii[rows].max()), float(oradii[orows].max()))
+            i, j, sep, _ = there.search_around_sky(here, reach * u.deg)
+            for a, b, sep_deg in zip(np.asarray(i), np.asarray(j), np.asarray(sep.deg), strict=True):
+                ra_row, ob_row = int(rows[a]), int(orows[b])
+                if sep_deg > max(radii[ra_row], oradii[ob_row]):
                     continue
-                dpm = math.hypot(opmra[orows[b]] - pmra[rows[a]], opmdec[orows[b]] - pmdec[rows[a]])
-                if dpm <= window:
-                    listed[a].add(other)
-        for k, r in enumerate(rows.tolist()):
+                if math.hypot(opmra[ob_row] - pmra[ra_row], opmdec[ob_row] - pmdec[ra_row]) <= window:
+                    listed[ra_row].add(other)
+                    partners[ra_row].add(f"{other}:{onames[ob_row]}")
+        for r in range(len(names)):
             p = float(plx[r])
             out.append(
                 Claim(
                     own,
-                    str(names[r]),
+                    names[r],
                     float(ra[r]),
                     float(dec[r]),
                     float(pmra[r]),
                     float(pmdec[r]),
                     p if math.isfinite(p) else None,
-                    tuple(sorted(listed[k])),
+                    tuple(sorted(listed[r])),
+                    tuple(sorted(partners[r])),
                 )
             )
     return out
@@ -151,24 +160,43 @@ def chosen(all_claims: Sequence[Claim], doc: Mapping[str, Any], seed: int) -> li
     """The claims to audit and the group each is in: every claim only its own catalogue makes
     (``single``), and a seeded sample of ``control_sample`` claims two or more catalogues make
     (``control``). An object several catalogues list is sampled once, as the first catalogue in
-    ``control_from`` that lists it gives it, so the control holds no object twice."""
+    ``control_from`` that lists it gives it; and a row that shares a matching row of another catalogue
+    with one already sampled is passed over, so the control holds no object twice."""
     singles = [(c, "single") for c in all_claims if c.agreement == 1]
     order = list(doc["control_from"])
-    agreed = [
-        c
-        for c in all_claims
-        if c.agreement >= 2 and c.catalogue in order and c.catalogue == next(x for x in order if x in c.claimed_by)
-    ]
-    agreed.sort(key=lambda c: c.claim_id)
+    agreed = sorted(
+        (
+            c
+            for c in all_claims
+            if c.agreement >= 2 and c.catalogue in order and c.catalogue == next(x for x in order if x in c.claimed_by)
+        ),
+        key=lambda c: c.claim_id,
+    )
     want = int(doc["control_sample"])
-    rng = np.random.default_rng(seed)
-    picked = sorted(rng.choice(len(agreed), size=min(want, len(agreed)), replace=False).tolist()) if agreed else []
-    return singles + [(agreed[i], "control") for i in picked]
+    shuffled = np.random.default_rng(seed).permutation(len(agreed)).tolist() if agreed else []
+    used: set[str] = set()
+    picked: list[Claim] = []
+    for i in shuffled:
+        if len(picked) >= want:
+            break
+        c = agreed[i]
+        if used & set(c.partners):
+            continue
+        used.update(c.partners)
+        picked.append(c)
+    picked.sort(key=lambda c: c.claim_id)
+    return singles + [(c, "control") for c in picked]
+
+
+def placed(claim: Claim) -> bool:
+    """Whether the claim has a finite position and proper motion, so it can be matched and searched."""
+    return all(math.isfinite(v) for v in claim.centre().values())
 
 
 def scale_for(claim: Claim, settings: Mapping[str, Any]) -> Scale | None:
-    """The distance shell that owns the claim's parallax, or None when the catalogue gives none."""
-    if claim.parallax_mas is None:
+    """The distance shell that owns the claim's parallax, or None when the catalogue gives none (or
+    gives no position or proper motion)."""
+    if claim.parallax_mas is None or not placed(claim):
         return None
     return next(s for s in scales(settings) if s.owns(np.array([claim.parallax_mas]))[0])
 
@@ -242,8 +270,14 @@ def audit_claim(
         "reasons": [],
     }
     scale = scale_for(claim, settings)
+    if not placed(claim):
+        result["reasons"].append("the catalogue gives no position or proper motion, so nothing can be matched to it")
+        return result
     if scale is None:
         result["reasons"].append("the catalogue gives no parallax, so no distance shell can be chosen")
+        return result
+    if table.num_rows == 0:
+        result["reasons"].append("no prepared stars around the claim")
         return result
     result["scale"], result["field_radius_deg"] = scale.name, field_radius_deg(scale)
     kept, _ = QualityCuts.from_parameters(settings["quality_cuts"]).apply(table)

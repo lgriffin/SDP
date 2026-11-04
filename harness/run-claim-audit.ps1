@@ -51,12 +51,21 @@ function Sdp {
     return ($out -join "`n")
 }
 
+function Setup($What, [scriptblock]$Body) {
+    & $Body
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FAILED: $What exited $LASTEXITCODE, so nothing is audited on a stale checkout"
+        Stop-Transcript | Out-Null
+        exit 1
+    }
+}
+
 Push-Location $Code
-git fetch origin
-git checkout $Branch
-git pull origin $Branch
+Setup "git fetch" { git fetch origin }
+Setup "git checkout $Branch" { git checkout $Branch }
+Setup "git pull" { git pull origin $Branch }
 Set-Location (Join-Path $Code "python")
-uv sync --frozen
+Setup "uv sync" { uv sync --frozen }
 
 $fetched = Step "1 Catalogues" {
     $stored = (Sdp benchmark list | Out-String | ConvertFrom-Json)
@@ -68,11 +77,15 @@ $fetched = Step "1 Catalogues" {
 }
 if ($fetched) {
     $trial = Step "2 Trial (20 claims)" { Sdp discover audit --name $script:Name --sweep $script:Sweep --limit 20 --workers $Workers | Out-Null }
+    $whole = $false
     if ($trial) {
-        Step "3 Whole audit" { Sdp discover audit --name $script:Name --sweep $script:Sweep --workers $Workers | Out-Null } | Out-Null
+        $whole = Step "3 Whole audit" { Sdp discover audit --name $script:Name --sweep $script:Sweep --workers $Workers | Out-Null }
     }
-    Step "4 Report" { Sdp discover audit-report --name $script:Name | Out-Null } | Out-Null
+    # the report runs either way and says how many claims are done; a failed step still fails the run
+    $report = Step "4 Report" { Sdp discover audit-report --name $script:Name | Out-Null }
+    $failed = -not ($trial -and $whole -and $report)
 } else {
+    $failed = $true
     Write-Host "A catalogue could not be fetched. If VizieR is down, save the table as a VOTable from any VizieR"
     Write-Host "page and run: uv run sdp benchmark fetch --file cwnu23=PATH (see docs/guides/discovery-search.md)"
 }
@@ -83,3 +96,7 @@ $Summary | ForEach-Object { Write-Host $_ }
 Write-Host "Results: $Data\audit\$Name\audit.csv (single claims first) and catalogue-agreement.csv"
 Stop-Transcript | Out-Null
 Write-Host "Log: $Reports\run-$Stamp.log"
+if ($failed) {
+    Write-Host "A step failed. Run the script again to carry on: claims already done are kept."
+    exit 1
+}
