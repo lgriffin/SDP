@@ -118,6 +118,17 @@ def test_every_star_a_scenario_uses_survives_the_per_file_reduction(sheet: dict[
 
 
 @pytest.mark.req("STL-026")
+def test_velocities_without_their_errors_are_refused_or_cut(sheet: dict[str, Any]) -> None:
+    cols = {k: np.asarray(v)[:1000].copy() for k, v in sheet.items()}
+    cols["radial_velocity_error"][:5] = np.nan
+    keep = o.quality_mask(cols, velocities=True)
+    assert not keep[:5].any() and keep[5:].all()
+    del cols["radial_velocity_error"]
+    with pytest.raises(ValueError, match="radial_velocity_error"):
+        o.place(cols, 0.0)
+
+
+@pytest.mark.req("STL-026")
 def test_the_shared_cuts_keep_a_star_without_a_radial_velocity_in_the_density(sheet: dict[str, Any]) -> None:
     cols = {k: np.asarray(v)[:1000].copy() for k, v in sheet.items()}
     cols["radial_velocity"][:10] = np.nan
@@ -130,8 +141,29 @@ def test_the_shared_cuts_keep_a_star_without_a_radial_velocity_in_the_density(sh
 
 
 @pytest.mark.req("STL-026")
-def test_the_suns_height_is_found_from_the_two_hemispheres(sheet_baseline: o.Estimate) -> None:
+def test_the_suns_height_is_found_from_the_two_hemispheres(sheet: dict[str, Any], sheet_baseline: o.Estimate) -> None:
     assert sheet_baseline.z_sun_pc == pytest.approx(20.0, abs=5.0)
+    # minus the median height, the first draft's estimator, is pulled far off by the column's cone near the Sun
+    c = o.load_choices()
+    s = o.baseline(c)
+    stars = o.place(sheet, s.parallax_zero_point_mas)
+    z = stars.take(o.scenario_mask(stars, s, c)).z_helio
+    assert abs(-float(np.median(z[np.abs(z) <= 300.0])) - 20.0) > 20.0
+
+
+@pytest.mark.req("STL-026")
+def test_the_choices_file_is_the_one_committed_with_the_protocol(
+    sheet: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert o.choices_sha256() == o.COMMITTED_CHOICES_SHA256
+    text = o.choices_text()
+    monkeypatch.setattr(o, "choices_text", lambda: text.replace("\n", "\r\n"))
+    assert o.choices_sha256() == o.COMMITTED_CHOICES_SHA256  # a Windows checkout hashes the same
+    monkeypatch.setattr(o, "choices_text", lambda: text.replace('"draws": 1000', '"draws": 10'))
+    empty = {k: np.asarray(v)[:0] for k, v in sheet.items()}
+    report = o.run(empty, empty, baseline_only=True)
+    assert report["choices_match_committed"] is False
+    assert report["installed_choices_sha256"] != report["committed_choices_sha256"]
 
 
 # --- formula (7) ----------------------------------------------------------------------------------

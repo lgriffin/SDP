@@ -24,6 +24,8 @@ requirements:
       - "python/tests.stellar.test_oort1932::test_every_star_a_scenario_uses_survives_the_per_file_reduction"
       - "python/tests.stellar.test_oort1932::test_the_shared_cuts_keep_a_star_without_a_radial_velocity_in_the_density"
       - "python/tests.stellar.test_oort1932::test_the_suns_height_is_found_from_the_two_hemispheres"
+      - "python/tests.stellar.test_oort1932::test_the_choices_file_is_the_one_committed_with_the_protocol"
+      - "python/tests.stellar.test_oort1932::test_velocities_without_their_errors_are_refused_or_cut"
   - id: STL-027
     pattern: ubiquitous
     text: "The stellar module shall apply Oort's formula (7) to binned tracer densities and error-corrected mean square vertical velocities, and report the slope near the plane, the flattening over 200 to 500 pc, the plateau force and the local density, with Monte Carlo errors."

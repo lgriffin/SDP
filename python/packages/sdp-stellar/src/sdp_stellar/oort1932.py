@@ -33,6 +33,8 @@ from numpy.typing import NDArray
 from sdp_stellar.oort1927 import KAPPA, _unit_vectors
 
 CHOICES_FILE = "oort1932.json"
+#: SHA-256 of oort1932.json as committed with the protocol; a run on any other file says so
+COMMITTED_CHOICES_SHA256 = "fc60bffeca39690c59c6b51eb4dfc6119e9bd26873d57520e5b5f9cb7f905828"
 PROTOCOL_ID = "uc05-oort-1932"
 #: one parsec in cm, and G in cgs, from astropy
 PC_CM = float((1 * u.pc).to_value(u.cm))
@@ -61,7 +63,8 @@ def load_choices() -> dict[str, Any]:
 
 
 def choices_sha256() -> str:
-    return hashlib.sha256(choices_text().encode("utf-8")).hexdigest()
+    """SHA-256 of the installed choices file, with Windows line endings read as Unix ones."""
+    return hashlib.sha256(choices_text().replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
 # --- Part A: Oort's arithmetic ------------------------------------------------------------------
@@ -201,7 +204,7 @@ def quality_mask(
         keep = (_col(columns, "ruwe") < sel["ruwe_max"]) & (plx / err > sel["parallax_over_error_min"])
         keep &= np.isfinite(_col(columns, "phot_g_mean_mag"))
         if velocities:
-            for name in ("radial_velocity", "pmra", "pmdec"):
+            for name in ("radial_velocity", "radial_velocity_error", "pmra", "pmdec"):
                 keep &= np.isfinite(_col(columns, name))
     keep &= np.asarray(np.asarray(columns["duplicated_source"]) == sel["duplicated_source"], dtype=bool)
     return np.asarray(keep, dtype=bool)
@@ -270,7 +273,9 @@ def place(columns: Mapping[str, Any], zero_point_mas: float) -> Placed:
         b = np.asarray(gal.b.rad, dtype=np.float64)
         v_b = KAPPA * np.asarray(gal.pm_b.to_value(u.mas / u.yr)) * d / 1000.0
         rv = _col(columns, "radial_velocity")
-        rv_err = _col(columns, "radial_velocity_error") if "radial_velocity_error" in columns else np.zeros(d.size)
+        if "radial_velocity_error" not in columns:
+            raise ValueError("radial velocities without radial_velocity_error: their errors cannot be taken off")
+        rv_err = _col(columns, "radial_velocity_error")
         v_z: Array | None = rv * np.sin(b) + v_b * np.cos(b)
         v_err: Array | None = rv_err * np.abs(np.sin(b))
     else:
@@ -665,8 +670,9 @@ def run(
     return {
         "protocol_id": PROTOCOL_ID,
         "version": c["version"],
-        "committed_choices_sha256": choices_sha256(),
-        "choices_match_committed": c == load_choices(),
+        "committed_choices_sha256": COMMITTED_CHOICES_SHA256,
+        "installed_choices_sha256": choices_sha256(),
+        "choices_match_committed": choices_sha256() == COMMITTED_CHOICES_SHA256 and c == load_choices(),
         "quick_look": baseline_only,
         "arithmetic": arithmetic(c),
         "baseline_label": base.label,
