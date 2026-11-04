@@ -21,4 +21,13 @@ columns:
   - {name: gMeanPSFMag, datatype: float, unit: mag}
   - {name: rMeanPSFMag, datatype: float, unit: mag}
   - {name: iMeanPSFMag, datatype: float, unit: mag}
+  - {name: zMeanPSFMag, datatype: float, unit: mag}
+  - {name: yMeanPSFMag, datatype: float, unit: mag}
+  - {name: gMeanPSFMagErr, datatype: float, unit: mag}
+  - {name: rMeanPSFMagErr, datatype: float, unit: mag}
+  - {name: iMeanPSFMagErr, datatype: float, unit: mag}
+  - {name: zMeanPSFMagErr, datatype: float, unit: mag}
+  - {name: yMeanPSFMagErr, datatype: float, unit: mag}
+  - {name: raMeanErr, datatype: float, unit: arcsec}
+  - {name: decMeanErr, datatype: float, unit: arcsec}
   - {name: nDetections, datatype: short}

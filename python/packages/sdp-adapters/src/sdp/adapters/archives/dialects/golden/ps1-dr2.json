@@ -9,7 +9,16 @@
    "gMeanPSFMag": 18.5,
    "rMeanPSFMag": 18.0,
    "iMeanPSFMag": 17.75,
-   "nDetections": 25
+   "nDetections": 25,
+   "zMeanPSFMag": 17.5,
+   "yMeanPSFMag": 17.25,
+   "gMeanPSFMagErr": 0.0125,
+   "rMeanPSFMagErr": 0.01,
+   "iMeanPSFMagErr": 0.01,
+   "zMeanPSFMagErr": 0.015,
+   "yMeanPSFMagErr": 0.025,
+   "raMeanErr": 0.0125,
+   "decMeanErr": 0.015
   },
   {
    "objID": 108000455000000002,
@@ -19,7 +28,16 @@
    "gMeanPSFMag": null,
    "rMeanPSFMag": 18.0,
    "iMeanPSFMag": 17.75,
-   "nDetections": 2
+   "nDetections": 2,
+   "zMeanPSFMag": -999.0,
+   "yMeanPSFMag": 17.25,
+   "gMeanPSFMagErr": -999.0,
+   "rMeanPSFMagErr": 0.01,
+   "iMeanPSFMagErr": 0.01,
+   "zMeanPSFMagErr": -999.0,
+   "yMeanPSFMagErr": 0.025,
+   "raMeanErr": 0.25,
+   "decMeanErr": 0.25
   }
  ],
  "canonical": [
@@ -42,10 +60,19 @@
    "k_mag": null,
    "ruwe": null,
    "quality_flags": {
+    "decMeanErr": 0.015,
     "gMeanPSFMag": 18.5,
+    "gMeanPSFMagErr": 0.0125,
     "iMeanPSFMag": 17.75,
+    "iMeanPSFMagErr": 0.01,
     "nDetections": 25,
-    "rMeanPSFMag": 18.0
+    "rMeanPSFMag": 18.0,
+    "rMeanPSFMagErr": 0.01,
+    "raMeanErr": 0.0125,
+    "yMeanPSFMag": 17.25,
+    "yMeanPSFMagErr": 0.025,
+    "zMeanPSFMag": 17.5,
+    "zMeanPSFMagErr": 0.015
    },
    "quality_class": "good",
    "zero_point_corrected": false,
@@ -70,10 +97,19 @@
    "k_mag": null,
    "ruwe": null,
    "quality_flags": {
+    "decMeanErr": 0.25,
     "gMeanPSFMag": null,
+    "gMeanPSFMagErr": -999.0,
     "iMeanPSFMag": 17.75,
+    "iMeanPSFMagErr": 0.01,
     "nDetections": 2,
-    "rMeanPSFMag": 18.0
+    "rMeanPSFMag": 18.0,
+    "rMeanPSFMagErr": 0.01,
+    "raMeanErr": 0.25,
+    "yMeanPSFMag": 17.25,
+    "yMeanPSFMagErr": 0.025,
+    "zMeanPSFMag": -999.0,
+    "zMeanPSFMagErr": -999.0
    },
    "quality_class": "poor",
    "zero_point_corrected": false,

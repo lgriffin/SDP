@@ -70,7 +70,8 @@ def sigma_mag(g: float) -> float:
     return 0.015 + 0.012 * (g - 11.0)
 
 
-def field(n: int = 120, seed: int = 26) -> list[EvidenceBundle]:
+def field(n: int = 120, seed: int = 26, reported: bool = False) -> list[EvidenceBundle]:
+    """The synthetic field; ``reported`` gives every 2MASS and PS1 row the archive's own errors."""
     rng = np.random.default_rng(seed)
     bundles: list[EvidenceBundle] = []
     ra0, dec0 = 150.0, 20.0
@@ -125,6 +126,9 @@ def field(n: int = 120, seed: int = 26) -> list[EvidenceBundle]:
             "k_m": mags["k"],
             "ph_qual": "AAU" if i == POOR else "AAA",
         }
+        if reported:
+            axis = (80 + 20 * (g - 11)) / 1000.0  # the true per-axis scatter, in arcsec
+            native |= {f"{b}_msigcom": s for b in "jhk"} | {"err_maj": axis * 1.2, "err_min": axis * 0.8}
         rows["2mass"] = (TWOMASS.row(native),)
         arts["2mass"] = IR_ART
         if i % 4 != 0:  # PS1 covers three stars in four
@@ -139,6 +143,8 @@ def field(n: int = 120, seed: int = 26) -> list[EvidenceBundle]:
                 "iMeanPSFMag": mags["i"],
                 "nDetections": 40,
             }
+            if reported:
+                ps |= {f"{b}MeanPSFMagErr": s for b in "gri"} | {"raMeanErr": 0.015, "decMeanErr": 0.015}
             rows["ps1"] = (PS1.row(ps),)
             arts["ps1"] = PS_ART
         obj = IdentifiedObject(key, IdentificationMethod.CATALOGUE, ra, dec, (GAIA_ART,), gaia_source_key=key)
@@ -164,7 +170,7 @@ def test_it_is_registered_with_a_question_and_a_null_model() -> None:
     names = {t.name for t in registered_tests()}
     assert "cross-survey-contradiction" in names
     test = CrossSurveyContradiction()
-    assert test.question and test.null_model and test.version == "1.0.0"
+    assert test.question and test.null_model and test.version == "1.1.0"
 
 
 @pytest.mark.scientific

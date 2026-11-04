@@ -1,6 +1,6 @@
 # Pan-STARRS1 DR2 mean objects to canonical astrometry: mean positions at the mean detection epoch.
 dialect_id: ps1-dr2
-dialect_version: 1.1.0
+dialect_version: 1.2.0
 source_id: ps1
 source_release: ps1:DR2
 source_key: "ps1:DR2:{objID}"
@@ -11,6 +11,10 @@ columns:
   ra_deg: {column: raMean, unit: deg}
   dec_deg: {column: decMean, unit: deg}
 astrometric_corr: null
+# 1.2.0: z and y magnitudes, every band's PSF magnitude error and the mean position errors (arcsec) are
+# kept in quality_flags when the fetch asks for them; -999 marks a missing value there. They are optional,
+# so a profile written before them still curates to the same rows. cross-survey-contradiction reads them (INV-027).
 quality_flags: [nDetections, gMeanPSFMag, rMeanPSFMag, iMeanPSFMag]
+optional_quality_flags: [zMeanPSFMag, yMeanPSFMag, gMeanPSFMagErr, rMeanPSFMagErr, iMeanPSFMagErr, zMeanPSFMagErr, yMeanPSFMagErr, raMeanErr, decMeanErr]
 quality_class: {column: nDetections, below: [[3, poor], [10, marginal]], otherwise: good}
 zero_point_corrected: false

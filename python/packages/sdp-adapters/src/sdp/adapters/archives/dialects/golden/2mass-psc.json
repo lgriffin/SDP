@@ -9,7 +9,12 @@
    "j_m": 12.5,
    "h_m": 12.0,
    "k_m": 11.75,
-   "ph_qual": "AAA"
+   "ph_qual": "AAA",
+   "j_msigcom": 0.025,
+   "h_msigcom": 0.03,
+   "k_msigcom": 0.0275,
+   "err_maj": 0.0625,
+   "err_min": 0.0625
   },
   {
    "designation": "03020600-1230000",
@@ -19,7 +24,12 @@
    "j_m": 12.5,
    "h_m": 12.0,
    "k_m": 11.75,
-   "ph_qual": "AAC"
+   "ph_qual": "AAC",
+   "j_msigcom": 0.025,
+   "h_msigcom": 0.03,
+   "k_msigcom": null,
+   "err_maj": 0.125,
+   "err_min": 0.0625
   }
  ],
  "canonical": [
@@ -42,9 +52,14 @@
    "k_mag": 11.75,
    "ruwe": null,
    "quality_flags": {
+    "err_maj": 0.0625,
+    "err_min": 0.0625,
     "h_m": 12.0,
+    "h_msigcom": 0.03,
     "j_m": 12.5,
+    "j_msigcom": 0.025,
     "k_m": 11.75,
+    "k_msigcom": 0.0275,
     "ph_qual": "AAA"
    },
    "quality_class": "good",
@@ -70,9 +85,14 @@
    "k_mag": 11.75,
    "ruwe": null,
    "quality_flags": {
+    "err_maj": 0.125,
+    "err_min": 0.0625,
     "h_m": 12.0,
+    "h_msigcom": 0.03,
     "j_m": 12.5,
+    "j_msigcom": 0.025,
     "k_m": 11.75,
+    "k_msigcom": null,
     "ph_qual": "AAC"
    },
    "quality_class": "poor",

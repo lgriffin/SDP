@@ -225,3 +225,16 @@ requirements:
       - "python/tests.investigate.test_cross_survey_contradiction::test_the_field_is_not_flagged_once_its_budget_is_calibrated"
       - "python/tests.investigate.test_cross_survey_contradiction::test_a_blend_is_set_aside_with_its_reason_and_never_counted"
       - "python/tests.investigate.test_cross_survey_contradiction::test_null_fields_stay_near_the_nominal_false_positive_rate"
+  - id: INV-027
+    pattern: event
+    text: "When the cross-survey-contradiction test compares a 2MASS or Pan-STARRS measurement with Gaia, the system shall start that comparison's uncertainty budget from the error the archive reports for the measurement."
+    rationale: "INV-026 had to let the field set the whole budget because canonical 2MASS and Pan-STARRS rows carried no per-row errors, so a faint star with a large real error and a bright star with a small one were judged by the same bin-wide scatter. The 2mass-psc and ps1-dr2 dialects (1.2.0) now keep the archive's own errors in quality_flags when a fetch asks for them: 2MASS j/h/k_msigcom and the 1-sigma error ellipse err_maj/err_min, Pan-STARRS g to y PSF magnitude errors and raMeanErr/decMeanErr, plus Pan-STARRS z and y magnitudes. They are optional columns, so a profile written before them still curates to the rows it always did. A position error is the root mean square of the two the archive gives, per axis. A missing value, Pan-STARRS's -999, a zero or an implausibly large error counts as no reported error, and the field's calibration term then carries the budget as before. With the true errors reported on the synthetic field the calibration term falls below 0.6 of the reported error and the null false-alarm rate stays under 2.5 percent at alpha 0.01."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.investigate.test_cross_survey_contradiction_errors::test_the_error_columns_are_optional_and_kept_when_fetched"
+      - "python/tests.investigate.test_cross_survey_contradiction_errors::test_a_fetch_without_them_curates_to_the_rows_it_always_did"
+      - "python/tests.investigate.test_cross_survey_contradiction_errors::test_the_comparisons_carry_the_archive_s_errors"
+      - "python/tests.investigate.test_cross_survey_contradiction_errors::test_with_the_true_errors_reported_the_field_adds_little"
+      - "python/tests.investigate.test_cross_survey_contradiction_errors::test_null_fields_with_reported_errors_stay_near_the_nominal_rate"
