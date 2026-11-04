@@ -330,9 +330,7 @@ def curate_columnar(dialect: Dialect, native: pa.Table) -> pa.Table:
         elif name == "astrometric_corr":
             out[name] = correlations
         elif name == "quality_flags":
-            out[name] = pa.array(
-                [canonical_json({f: flags[f][i] for f in kept}) for i in range(n)], pa.string()
-            )
+            out[name] = pa.array([canonical_json({f: flags[f][i] for f in kept}) for i in range(n)], pa.string())
         elif name == "quality_class":
             out[name] = pa.array(_quality_classes(dialect, native), pa.string())
         elif name == "zero_point_corrected":
