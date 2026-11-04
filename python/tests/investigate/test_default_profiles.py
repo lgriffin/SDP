@@ -130,6 +130,18 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
     assert needed <= served, f"the plan would have a gap: {sorted(needed - served)}"
 
 
+@pytest.mark.req("INV-028")
+def test_the_image_contradictions_profile_keeps_mast_under_its_request_cap() -> None:
+    # M16 lists about 400 level-3 mosaics within 3 arcmin; a plan may ask one source 200 times at most,
+    # so the profile keeps one mosaic per camera and filter, and caps the rest
+    profile = load(PROFILES[0].parent / "image-contradictions.yaml")
+    (mast,) = [a for a in profile.archives if a.source_id == "mast"]
+    assert mast.select is not None
+    assert set(mast.select.one_per) == {"mission", "instrument", "band"}
+    assert mast.select.combined_only
+    assert mast.select.max_products is not None and mast.select.max_products <= 50
+
+
 @pytest.mark.req("INV-001")
 @pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
 def test_the_production_archives_accept_a_default_profiles_queries(path: Path) -> None:
