@@ -16,6 +16,7 @@ from tests.investigate.test_cross_survey_contradiction import (
     MOVED,
     WISE_CONTAMINATED,
     WISE_EXCESS,
+    WISE_EXTENDED,
     comparisons,
     context,
     field,
@@ -31,7 +32,7 @@ from sdp.testing.epochs import CAMERAS, OTHER_BAND, epoch_archive, epoch_catalog
 from sdp.testing.investigate import gaia_archive, investigate_ports
 from sdp.testing.jwst import GAIA, MAST
 from sdp.testing.wiring import build_in_memory_kernel
-from sdp_investigate.contradiction import CONTAMINATED, CrossSurveyContradiction, _clean_band
+from sdp_investigate.contradiction import CONTAMINATED, POOR_QUALITY, CrossSurveyContradiction, _clean_band
 from sdp_investigate.contradiction import SURVEYS as KNOWN
 
 pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-028")]
@@ -67,6 +68,13 @@ def test_a_band_allwise_flags_as_contaminated_is_set_aside_with_the_position(wis
     assert star["allwise:position"]["set_aside"] == CONTAMINATED
     assert star["allwise:W2"]["counted"], "W2's own flag is clean"
     assert wise[f"gaia:DR3:{WISE_CONTAMINATED}"].p_value > 0.01
+
+
+def test_a_row_allwise_fits_as_extended_is_set_aside_whole(wise: dict[str, Any]) -> None:
+    star = comparisons(wise[f"gaia:DR3:{WISE_EXTENDED}"])
+    allwise = [c for c in star.values() if c["survey"] == "allwise"]
+    assert allwise and all(c["set_aside"] == POOR_QUALITY for c in allwise)
+    assert wise[f"gaia:DR3:{WISE_EXTENDED}"].p_value > 0.01
 
 
 def test_the_catalogue_contradictions_are_still_found_beside_allwise(wise: dict[str, Any]) -> None:

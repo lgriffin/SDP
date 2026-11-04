@@ -109,7 +109,7 @@ class Survey:
     good_quality: str = ""
     row_quality: bool = False
     """Set aside every comparison of a row whose canonical ``quality_class`` is ``poor`` (Pan-STARRS:
-    fewer than three detections)."""
+    fewer than three detections; AllWISE: fitted as an extended source)."""
     single_epoch: bool = False
     """Positions are measured at one date, so they carry the star's parallax shift on that date
     (2MASS); a mean over many dates (Pan-STARRS) averages most of it away."""
@@ -158,6 +158,7 @@ SURVEYS: dict[str, Survey] = {
         ),
         quality_flag="ph_qual",
         good_quality="AB",
+        row_quality=True,
         position_error=("sigra", "sigdec"),
         clean_flag="cc_flags",
     ),

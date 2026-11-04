@@ -53,6 +53,7 @@ PAIR = (10, 11)  # 1.2 arcsec apart, equal brightness: 2MASS cannot split them
 POOR = 13  # Ks flagged U (upper limit) by 2MASS and far off
 WISE_EXCESS = 17  # 0.8 mag brighter in W1 and W2 than its colour predicts (only in an AllWISE field)
 WISE_CONTAMINATED = 19  # W1 1.5 mag off under a flagged diffraction spike (only in an AllWISE field)
+WISE_EXTENDED = 23  # a galaxy behind it: AllWISE fits it as extended and both bands come out 1 mag bright
 PLANTED = {MOVED, KS_EXCESS, FADED, *PAIR, POOR}
 
 
@@ -182,6 +183,8 @@ def wise_native(
         w = {b: m - 0.8 for b, m in w.items()}  # warm dust: brighter in both bands than its colour predicts
     if i == WISE_CONTAMINATED:
         w["w1"] -= 1.5  # a diffraction spike across it, which AllWISE flags
+    if i == WISE_EXTENDED:
+        w = {b: m - 1.0 for b, m in w.items()}
     return {
         "designation": f"J{i:06d}",
         "ra": (ra + (pmra * dt + float(rng.normal(0, 150))) / 3.6e6 / cosd) % 360.0,
@@ -194,7 +197,7 @@ def wise_native(
         "w2sigmpro": 0.03,
         "ph_qual": "AAUU",
         "cc_flags": "d000" if i == WISE_CONTAMINATED else "0000",
-        "ext_flg": 0,
+        "ext_flg": 1 if i == WISE_EXTENDED else 0,
     }
 
 
