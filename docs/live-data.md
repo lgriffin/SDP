@@ -306,6 +306,35 @@ sdp archive bulk --subset rvs --status
 Runs that need radial velocities read this subset with their own gateway. The `SDP_GAIA_SOURCE`
 switch above does not apply to it.
 
+## 2MASS and AllWISE on your own disk
+
+2MASS and AllWISE come only from IRSA, so when IRSA is down (HTTP 503 for hours on 2026-11-04) every
+run that compares surveys stops. `sdp archive bulk --source 2mass` and `--source allwise` copy both
+catalogues whole, keeping only the columns SDP reads, in the same layout as the Gaia copy
+(`bulk/2mass/2mass_psc/`, `bulk/allwise/allwise_psd/`).
+
+| Source | IRSA publishes | Checked by | Read | Kept |
+|---|---|---|---|---|
+| `2mass` | 92 gzipped, pipe-separated files (`psc_aaa.gz` ...), no MD5s | the gzip trailer's CRC and length | about 45 GB | about 14 GB |
+| `allwise` | 12,288 HEALPix Parquet files, on IRSA and on AWS S3, with MD5s and row counts | each file's published row count | about 28 GB (our 12 of 298 columns, by byte range) | about 23 GB |
+
+AllWISE is read from IRSA first and from AWS when IRSA does not answer, file by file. Reading only our
+columns means each file's MD5 cannot be checked, so its row count is. Both are estimates from sample
+files read from the cloud sandbox: one 2MASS file took 87 s, one AllWISE file about 5 s.
+
+```
+sdp archive bulk --source 2mass --count 1       # one file first: about 5 million stars
+sdp archive bulk --source 2mass --workers 4     # then the rest; Ctrl+C and rerun to resume
+sdp archive bulk --source allwise --workers 8
+sdp archive bulk --source allwise --status
+```
+
+Once a copy is complete, fields read it with no call to IRSA. `SDP_SURVEY_SOURCE` chooses for both, as
+`SDP_GAIA_SOURCE` does for Gaia: `auto` (the default: each copy once it is complete, IRSA until then),
+`tap` (always IRSA) or `bulk` (always the copies; a run is refused while a file is missing). A 0.05
+degree cone read from the copies matched IRSA's TAP row for row; 2MASS's combined magnitude errors can
+differ in the last digit (0.001 mag), since the files print three decimals.
+
 ## Cross-matching without CDS
 
 Pairing the stars of one catalogue with another (Gaia with 2MASS in a run, detections with Gaia in a

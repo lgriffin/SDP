@@ -132,7 +132,8 @@ What each setting means:
 | `PYTHONUTF8=1` | Windows only: makes Python read and write files as UTF-8, as SDP expects. |
 
 Other settings you may meet later: `SDP_GAIA_SOURCE` (where Gaia rows come from once you have the bulk
-copy, see the [cluster hunt](discovery-search.md)), `SDP_ARCHIVE_MIRRORS=0` (never fail over to a
+copy, see the [cluster hunt](discovery-search.md)), `SDP_SURVEY_SOURCE` (the same for 2MASS and
+AllWISE, see [live data](../live-data.md)), `SDP_ARCHIVE_MIRRORS=0` (never fail over to a
 mirror archive), and `SDP_PLAN_APPROVAL_THRESHOLD_BYTES` (the plan size above which approval needs your
 signature; 500 MB by default). They are all read in
 [`sdp/adapters/settings.py`](../../python/packages/sdp-adapters/src/sdp/adapters/settings.py).
