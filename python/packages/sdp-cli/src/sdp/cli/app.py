@@ -19,9 +19,9 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
+from sdp.cli.companions import companions_app
 from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.cli.einstein1921 import einstein1921_app
-from sdp.cli.companions import companions_app
 from sdp.cli.oort1927 import oort1927_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel

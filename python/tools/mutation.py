@@ -84,6 +84,7 @@ STELLAR_SHARDS = (
     ("protocol", "features", "quality", "ranking"),
     ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
     ("oort1927",),
+    ("companions",),
 )
 
 #: The Gaia DataLink adapters (INT-022): the shared DR3 facts, the gateway and inventory, the VOTable
