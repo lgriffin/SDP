@@ -13,8 +13,9 @@ against BP-RP, so no published transformation coefficients are typed in and the 
 reddening and zero point are absorbed.
 
 **The uncertainty budget.** Each comparison's expected uncertainty is the quadrature sum of the
-errors the rows report (each row's own when it carries them; Gaia's proper-motion error grown over
-the baseline) and a calibration term ``s`` the field sets: the extra scatter that makes the median
+errors the rows report (each row's own when it carries them: 2MASS ``*_msigcom`` and its error
+ellipse, Pan-STARRS PSF magnitude and mean position errors, INV-027; Gaia's proper-motion error grown
+over the baseline) and a calibration term ``s`` the field sets: the extra scatter that makes the median
 normalised squared residual equal its expected value under the null (the chi-square median: 0.455
 for one dimension, 1.386 for two). ``s`` is solved separately in G-magnitude bins, because faint
 stars scatter more, after the field's median offset (frame tie, photometric zero point) is removed.
@@ -71,6 +72,9 @@ TOO_FEW = "too few stars to calibrate"
 #: neighbours are first looked for this much wider than a survey's resolution, then judged where both
 #: stars were at the survey's epoch: 2 arcsec covers 100 mas/yr over 20 years
 BLEND_MARGIN_ARCSEC = 2.0
+#: a reported error at or above these is no measurement of the error (a sentinel or a failed fit)
+MAX_MAG_ERROR = 5.0
+MAX_POSITION_ERROR_MAS = 10_000.0
 #: a magnitude outside this range is a sentinel (Pan-STARRS writes -999), not a measurement
 MAG_RANGE = (-2.0, 30.0)
 
@@ -84,6 +88,8 @@ class Band:
     """The archive's own column name, read from ``quality_flags`` when the canonical one is absent."""
     quality_index: int | None = None
     """The band's letter in the survey's quality string (2MASS ``ph_qual`` is J, H, Ks)."""
+    error: str | None = None
+    """The archive's own magnitude error, read from ``quality_flags`` when ``<column>_err`` is absent."""
 
 
 @dataclass(frozen=True)
@@ -101,6 +107,9 @@ class Survey:
     single_epoch: bool = False
     """Positions are measured at one date, so they carry the star's parallax shift on that date
     (2MASS); a mean over many dates (Pan-STARRS) averages most of it away."""
+    position_error: tuple[str, str] | None = None
+    """The archive's two 1-sigma position errors in arcsec (2MASS: the error ellipse's axes;
+    Pan-STARRS: RA and Dec), read from ``quality_flags`` when ``pos_err_mas`` is absent."""
 
 
 SURVEYS: dict[str, Survey] = {
@@ -108,25 +117,27 @@ SURVEYS: dict[str, Survey] = {
         "2mass",
         2.5,
         (
-            Band("J", "j_mag", "j_m", 0),
-            Band("H", "h_mag", "h_m", 1),
-            Band("Ks", "k_mag", "k_m", 2),
+            Band("J", "j_mag", "j_m", 0, "j_msigcom"),
+            Band("H", "h_mag", "h_m", 1, "h_msigcom"),
+            Band("Ks", "k_mag", "k_m", 2, "k_msigcom"),
         ),
         quality_flag="ph_qual",
         good_quality="AB",
         single_epoch=True,
+        position_error=("err_maj", "err_min"),
     ),
     "ps1": Survey(
         "ps1",
         1.5,
         (
-            Band("g", "ps_g_mag", "gMeanPSFMag"),
-            Band("r", "ps_r_mag", "rMeanPSFMag"),
-            Band("i", "ps_i_mag", "iMeanPSFMag"),
-            Band("z", "ps_z_mag", "zMeanPSFMag"),
-            Band("y", "ps_y_mag", "yMeanPSFMag"),
+            Band("g", "ps_g_mag", "gMeanPSFMag", error="gMeanPSFMagErr"),
+            Band("r", "ps_r_mag", "rMeanPSFMag", error="rMeanPSFMagErr"),
+            Band("i", "ps_i_mag", "iMeanPSFMag", error="iMeanPSFMagErr"),
+            Band("z", "ps_z_mag", "zMeanPSFMag", error="zMeanPSFMagErr"),
+            Band("y", "ps_y_mag", "yMeanPSFMag", error="yMeanPSFMagErr"),
         ),
         row_quality=True,
+        position_error=("raMeanErr", "decMeanErr"),
     ),
 }
 
@@ -339,6 +350,7 @@ class CrossSurveyContradiction(FieldTest):
     """Do the surveys' measurements of the same star disagree beyond their expected uncertainties?"""
 
     name = "cross-survey-contradiction"
+    version = "1.1.0"
     question = "Do 2MASS and Pan-STARRS measure this star where and as bright as Gaia predicts?"
     null_model = "every residual redrawn from its own uncertainty budget about the field's offset, then recalibrated"
     inputs = ("catalogue:gaia", "catalogue:2mass", "catalogue:ps1")
@@ -382,7 +394,18 @@ class CrossSurveyContradiction(FieldTest):
                 )
                 bp_rp = float(gaia["bp_rp"]) if finite(gaia.get("bp_rp")) else math.nan
                 poor = survey.row_quality and row.get("quality_class") == "poor"
-                _position(builders[POSITION], i, gaia, row, g[i], bp_rp, blended, poor, survey.single_epoch)
+                _position(
+                    builders[POSITION],
+                    i,
+                    gaia,
+                    row,
+                    g[i],
+                    bp_rp,
+                    blended,
+                    poor,
+                    survey.single_epoch,
+                    survey.position_error,
+                )
                 for band in survey.bands:
                     if math.isnan(bp_rp):
                         continue
@@ -565,6 +588,35 @@ def _number(row: Mapping[str, Any], *names: str) -> float | None:
     return None
 
 
+def _error(row: Mapping[str, Any], canonical: str, archive: str | None, largest: float) -> float:
+    """A reported 1-sigma error: the canonical column, else the archive's own in ``quality_flags``.
+
+    Zero when the row has none, or when the value is no error at all (Pan-STARRS writes -999,
+    and a zero or an implausibly large error says nothing): the field's calibration term then
+    carries the whole budget.
+    """
+    for name in (canonical, archive):
+        value = _number(row, name) if name else None
+        if value is not None:
+            return value if 0.0 < value < largest else 0.0
+    return 0.0
+
+
+def position_error(row: Mapping[str, Any], archive: tuple[str, str] | None) -> float:
+    """The survey position's 1-sigma error per axis, in mas.
+
+    ``pos_err_mas`` when the row has it; otherwise the root mean square of the archive's two
+    errors (2MASS ellipse axes, Pan-STARRS RA and Dec), in arcsec. Zero when either is missing.
+    """
+    own = _error(row, "pos_err_mas", None, MAX_POSITION_ERROR_MAS)
+    if own or archive is None:
+        return own
+    a, b = (_error(row, name, None, MAX_POSITION_ERROR_MAS / 1000.0) for name in archive)
+    if not (a and b):
+        return 0.0
+    return 1000.0 * math.sqrt((a * a + b * b) / 2.0)
+
+
 def _position(
     builder: _Builder,
     i: int,
@@ -575,6 +627,7 @@ def _position(
     blended: bool,
     poor: bool = False,
     single_epoch: bool = False,
+    survey_error: tuple[str, str] | None = None,
 ) -> None:
     epoch = _number(row, "epoch_jyear")
     ra, dec = _number(row, "ra_deg"), _number(row, "dec_deg")
@@ -594,7 +647,7 @@ def _position(
     pm_err = math.hypot(
         float(gaia.get("pm_ra_cosdec_masyr_err") or 0.0), float(gaia.get("pm_dec_masyr_err") or 0.0)
     ) / math.sqrt(2.0)
-    sigma = math.hypot(_number(row, "pos_err_mas") or 0.0, pm_err * abs(dt))
+    sigma = math.hypot(position_error(row, survey_error), pm_err * abs(dt))
     builder.add(i, g, bp_rp, (dra, ddec), sigma, dt, BLENDED if blended else POOR_QUALITY if poor else None)
 
 
@@ -621,7 +674,7 @@ def _band(
             reason = POOR_QUALITY
     epoch = _number(row, "epoch_jyear")
     gap = epoch - float(gaia["epoch_jyear"]) if epoch is not None and finite(gaia.get("epoch_jyear")) else math.nan
-    builder.add(i, g, bp_rp, mag, _number(row, f"{band.column}_err") or 0.0, gap, reason)
+    builder.add(i, g, bp_rp, mag, _error(row, f"{band.column}_err", band.error, MAX_MAG_ERROR), gap, reason)
 
 
 def _magnitude(channel: Channel, cal: Calibration, e: int) -> float:

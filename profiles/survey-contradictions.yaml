@@ -11,7 +11,7 @@
 # Changing anything here makes a new profile: raise `version` (the run records this file's hash).
 schema_version: "1.0.0"
 profile_id: survey-contradictions
-version: 1.0.0
+version: 1.1.0
 description: >-
   Gaia against 2MASS and Pan-STARRS. Flags stars whose position or brightness in another survey
   disagrees with Gaia by more than the field's own measurements allow. Exploratory: a flag is a lead.
@@ -36,17 +36,20 @@ archives:
   - source_id: 2mass
     role: catalogue
     release_label: 2mass:psc
-    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual]
+    # the *_msigcom and err_* columns are 2MASS's own errors: the budget starts from them
+    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual, j_msigcom, h_msigcom, k_msigcom, err_maj, err_min]
     match_radius_arcsec: 1.5           # wider than 2MASS's ~0.1" errors, so a real position disagreement is still matched
   - source_id: ps1
     role: catalogue
     release_label: ps1:DR2
-    columns: [objID, raMean, decMean, epochMean, gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, nDetections]
+    columns: [objID, raMean, decMean, epochMean, nDetections,
+              gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, zMeanPSFMag, yMeanPSFMag,
+              gMeanPSFMagErr, rMeanPSFMagErr, iMeanPSFMagErr, zMeanPSFMagErr, yMeanPSFMagErr, raMeanErr, decMeanErr]
     match_radius_arcsec: 1.0           # Pan-STARRS positions are good to a few hundredths of an arcsecond
 
 tests:
   - name: cross-survey-contradiction
-    version: 1.0.0
+    version: 1.1.0
     thresholds:
       source_id: gaia
       surveys: {2mass: 2mass, ps1: ps1}  # which archive in this profile holds each survey
