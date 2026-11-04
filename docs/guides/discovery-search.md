@@ -174,6 +174,43 @@ Stop any step with Ctrl+C and run it again to carry on. **Success:** `report` pr
 Every sweep result is EXPLORATORY, because the sweep was not predeclared region by region. A
 potentially new candidate is a lead to write into a predeclaration and confirm in Part 5, never a result.
 
+## Part 4b: audit clusters only one catalogue lists
+
+Published catalogues disagree: many clusters appear in one catalogue and nowhere else. The claim
+audit (STL-020) asks whether those survive SDP's own tests. It reads three catalogues, Hunt & Reffert
+2023 (`hr23`), Cantat-Gaudin et al. 2020 (`cga20`) and He et al. 2023's 1,656 new CWNU clusters
+(`cwnu23`), and finds which of them list each object (centres within 0.1°, or 5 pc for a nearby
+cluster, and proper motions within 1 mas/yr). Every object only one catalogue lists is then searched
+on a field centred on it, with the sweep's cuts, clustering, pass marks and significance test and the
+distance shell its parallax falls in, and three null fields of the same field. So are 300 objects two
+or more catalogues agree on, chosen at random with a fixed seed: they say how often SDP finds a cluster
+everyone accepts, so the single-claim rate is read against that rather than against 100%.
+
+```bat
+sdp benchmark fetch --catalogue hr23 --catalogue cga20 --catalogue cwnu23
+sdp discover audit --limit 20
+sdp discover audit
+sdp discover audit-report
+```
+
+Or run all of it with `harness\run-claim-audit.ps1`. It needs the prepared catalogue from Part 4
+(the sweep itself need not have run). Each claim comes out as one of:
+
+| Verdict | Meaning |
+| --- | --- |
+| survives | a candidate matching the claim passed every check and is more significant than every false candidate its field's null fields produced |
+| below_null | found and passed, but a null field produced a false candidate at least as significant |
+| untestable | found and passed, but too few members or field stars for the significance or CMD check |
+| fails_checks | found, but rejected (too few members, unstable, no CMD sequence, or under 3 sigma) |
+| not_recovered | nothing in the field matches the claimed centre and proper motion |
+| unassessable | the catalogue gives no parallax, or the field has too few stars |
+
+**Success:** `audit-report` prints the share of single claims and of the control that survive, with a
+95% interval, and writes `%SDP_DATA%\audit\claims\audit.csv` (single claims first) beside
+`catalogue-agreement.csv`, every catalogued object with the catalogues that list it. Like the sweep,
+every result is EXPLORATORY: a claim that does not survive is a reason to look at it again, not proof
+that it is not there.
+
 ## Part 5: the predeclared experiment (UC-01)
 
 This is the run that can issue a verdict. Its regions, quality cuts, search settings and pass marks are

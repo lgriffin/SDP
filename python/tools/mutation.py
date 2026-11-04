@@ -81,7 +81,7 @@ RELATIVITY_SHARDS = (
 ANALYSIS_TIMEOUT = 2
 STELLAR_SHARDS = (
     ("analysis", "benchmark", "cmd", "significance"),
-    ("protocol", "features", "quality", "ranking"),
+    ("protocol", "features", "quality", "ranking", "audit"),
     ("synthetic", "inject", "search", "membership", "dossier", "null", "sweep"),
     ("oort1927",),
 )

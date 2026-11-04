@@ -514,6 +514,217 @@ def discover_report(
     _emit({**summary, "csv": str(path), "top": rows[:10]})
 
 
+# --- audit: do single-catalogue clusters survive? (STL-020) -----------------------------------------
+
+
+def audit_dir(name: str) -> Path:
+    from sdp.adapters.local.sources import data_dir
+
+    return data_dir() / "audit" / name
+
+
+def _claim_file(claim_id: str) -> str:
+    """A claim's result file: its id made safe for any file system, with a short hash so two ids that
+    differ only in unsafe characters never share a file."""
+    import re
+
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", claim_id).strip("_")[:80]
+    return f"{safe}-{hashlib.sha256(claim_id.encode()).hexdigest()[:8]}.json"
+
+
+def run_claim(table: Any, claim: Any, group: str, settings: dict[str, Any], out: str) -> dict[str, Any]:
+    """One claim in a worker process; writes ``claims/<file>.json`` and returns its verdict."""
+    from sdp.adapters.bootstrap import clusterers
+    from sdp_stellar.audit import audit_claim
+
+    started = time.monotonic()
+    result = audit_claim(table, claim, group, settings, clusterers(), int(settings["audit"]["seed"]))
+    result["seconds"] = round(time.monotonic() - started, 2)
+    path = Path(out) / _claim_file(claim.claim_id)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(result, sort_keys=True, default=_jsonable), "utf-8")
+    tmp.replace(path)
+    return {"claim_id": claim.claim_id, "verdict": result["verdict"], "seconds": result["seconds"]}
+
+
+@discover_app.command("audit")
+def discover_audit(
+    name: Annotated[str, typer.Option(help="The audit's folder under <SDP data>/audit")] = "claims",
+    sweep: Annotated[str, typer.Option(help="The sweep folder whose prepared catalogue is searched")] = "gaia-dr3",
+    workers: Annotated[int, typer.Option(min=1, max=64, help="Claims searched at once")] = 4,
+    limit: Annotated[int | None, typer.Option(min=1, help="Audit at most this many claims now (try 20 first)")] = None,
+    catalogue: Annotated[
+        list[str] | None, typer.Option("--catalogue", help="Only claims from this catalogue; repeat")
+    ] = None,
+) -> None:
+    """Search the Gaia stars around every cluster only one catalogue claims, and a control sample of
+    clusters two or more agree on, with the sweep's own tests and null fields (STL-020). EXPLORATORY.
+
+    Needs the prepared catalogue (`sdp discover prepare`) and the stored hr23, cga20 and cwnu23
+    catalogues (`sdp benchmark fetch --catalogue hr23 --catalogue cga20 --catalogue cwnu23`). Claims
+    already done are skipped, so stop it any time and run it again to carry on. Then `sdp discover
+    audit-report`.
+    """
+    import csv as csvlib
+
+    import numpy as np
+    import pyarrow as pa
+
+    from sdp.adapters.archives.benchmarks import CATALOGUES
+    from sdp.adapters.bootstrap import artifact_store
+    from sdp_stellar.audit import chosen, claims, field_radius_deg, in_field, load_settings, scale_for
+    from sdp_stellar.sweep import band_of, scales
+
+    settings = load_settings()
+    doc = settings["audit"]
+    folder = audit_dir(name)
+    prepared = sweep_dir(sweep) / "catalogue"
+    if not (prepared / "_settings.json").exists():
+        raise DomainError(f"no prepared catalogue in {prepared}; run `sdp discover prepare` first")
+    if json.loads((prepared / "_settings.json").read_text("utf-8")) != {
+        "quality_cuts": settings["quality_cuts"],
+        "tile_deg": float(settings["tile_deg"]),
+    }:
+        raise DomainError("the prepared catalogue used other cuts or tiles than this SDP version; prepare it again")
+    labels = [CATALOGUES[c].release_label for c in doc["catalogues"]]
+    benchmarks, missing, used = _load_benchmarks(artifact_store(_artifact_root()), labels)
+    if missing:
+        raise DomainError(
+            "no stored "
+            + ", ".join(missing)
+            + "; run `sdp benchmark fetch "
+            + " ".join(f"--catalogue {m}" for m in missing)
+            + "` first"
+        )
+    every = claims(benchmarks, doc)
+    picked = chosen(every, doc, int(doc["seed"]))
+    done_files = sorted(p.stem for p in (prepared / "_done").glob("*.json")) if (prepared / "_done").is_dir() else []
+    _settings_guard(
+        folder / "_settings.json",
+        {
+            **settings,
+            "benchmarks_used": used,
+            "prepared_files": hashlib.sha256("\n".join(done_files).encode()).hexdigest(),
+            "claims_audited": hashlib.sha256("\n".join(f"{g} {c.claim_id}" for c, g in picked).encode()).hexdigest(),
+        },
+        "audit",
+    )
+    # every claim with the catalogues that list it, so the agreement can be checked by hand
+    with (folder / "catalogue-agreement.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csvlib.writer(handle)
+        writer.writerow(["claim_id", "catalogue", "claimed_by", "ra_deg", "dec_deg", "parallax_mas"])
+        for c in every:
+            writer.writerow([c.claim_id, c.catalogue, " ".join(c.claimed_by), c.ra_deg, c.dec_deg, c.parallax_mas])
+    out = folder / "claims"
+    out.mkdir(parents=True, exist_ok=True)
+    todo = [(c, g) for c, g in picked if not (out / _claim_file(c.claim_id)).exists()]
+    if catalogue:
+        todo = [(c, g) for c, g in todo if c.catalogue in catalogue]
+    if limit is not None:
+        todo = todo[:limit]
+    singles = sum(1 for _, g in picked if g == "single")
+    _say(
+        f"{len(every):,} catalogued clusters; {singles:,} claimed by one catalogue only and "
+        f"{len(picked) - singles:,} control clusters to audit; {len(todo):,} to do now."
+    )
+    tile_deg = float(settings["tile_deg"])
+    # claims grouped by distance shell and prepared band, so each band's stars are read once
+    batches: dict[tuple[str, int], list[tuple[Any, str]]] = {}
+    unplaced: list[tuple[Any, str]] = []
+    for c, g in todo:
+        scale = scale_for(c, settings)
+        if scale is None:
+            unplaced.append((c, g))
+            continue
+        band = int(band_of(np.array([c.dec_deg]), tile_deg)[0])
+        batches.setdefault((scale.name, band), []).append((c, g))
+    verdicts: dict[str, int] = {}
+    failed: list[str] = []
+    started = time.monotonic()
+    finished = 0
+
+    def drain(futures: dict[Future[Any], str]) -> None:
+        nonlocal finished
+        for future in _as_done(futures):
+            finished += 1
+            try:
+                r = future.result()
+            except Exception as exc:  # one bad claim never stops the audit; it is retried next run
+                failed.append(futures[future])
+                _say(f"{futures[future]} failed: {exc}")
+                continue
+            verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
+            _say(f"{finished}/{len(todo)} {r['claim_id']}: {r['verdict'].replace('_', ' ')}, {r['seconds']:.1f} s")
+
+    with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
+        # no parallax, so no shell and no stars: judged unassessable without reading any
+        drain({pool.submit(run_claim, pa.table({}), c, g, settings, str(out)): c.claim_id for c, g in unplaced})
+        shells = {s.name: s for s in scales(settings)}
+        for (scale_name, band), group in sorted(batches.items()):
+            scale = shells[scale_name]
+            reach = field_radius_deg(scale)
+            lo = -90.0 + band * tile_deg - reach
+            hi = -90.0 + (band + 1) * tile_deg + reach
+            span = band_of(np.array([lo, hi]), tile_deg)
+            table = _band_table(prepared, list(range(int(span[0]), int(span[1]) + 1)), scale.window)
+            if table is None:
+                _say(f"{scale_name} band {band:03d}: no prepared stars")
+                continue
+            # one band's claims at a time, so only their fields are held in memory
+            drain(
+                {
+                    pool.submit(
+                        run_claim, table.filter(pa.array(in_field(table, c, scale))), c, g, settings, str(out)
+                    ): (c.claim_id)
+                    for c, g in group
+                }
+            )
+    _emit(
+        {
+            "label": "EXPLORATORY",
+            "folder": str(folder),
+            "claims_this_run": sum(verdicts.values()),
+            "verdicts_this_run": dict(sorted(verdicts.items())),
+            "failed": failed,
+            "seconds": round(time.monotonic() - started, 1),
+            "next": "run the audit again to retry the failed claims" if failed else "sdp discover audit-report",
+        }
+    )
+    if failed:
+        raise typer.Exit(1)
+
+
+@discover_app.command("audit-report")
+def discover_audit_report(
+    name: Annotated[str, typer.Option(help="The audit's folder under <SDP data>/audit")] = "claims",
+) -> None:
+    """Gather every audited claim into audit.csv and the survival share per group and catalogue. EXPLORATORY."""
+    from sdp_stellar.audit import claim_rows, summarise
+
+    folder = audit_dir(name)
+    files = sorted((folder / "claims").glob("*.json")) if (folder / "claims").is_dir() else []
+    if not files:
+        raise DomainError(f"no audited claims in {folder / 'claims'}; run `sdp discover audit` first")
+    results = [json.loads(p.read_text("utf-8")) for p in files]
+    rows = claim_rows(results)
+    path = folder / "audit.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    summary = summarise(results)
+    for group in ("single", "control"):
+        whole = summary["groups"].get(group, {}).get("all")
+        if whole and whole["survival"] is not None:
+            low, high = whole["survival_95"]
+            _say(
+                f"{group}: {whole['verdicts']['survives']} of {whole['assessed']} assessed claims survive "
+                f"({whole['survival']:.0%}, 95% {low:.0%}-{high:.0%})."
+            )
+    _say(f"Every row is EXPLORATORY: a claim that does not survive is a reason to look again. Open {path}.")
+    _emit({**summary, "csv": str(path)})
+
+
 # --- run: the predeclared experiment -------------------------------------------------------------
 
 
