@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import math
 import string
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -116,6 +116,9 @@ class Dialect:
     zero_point_corrected: bool
     #: Native proper motion in RA without the cos(dec) factor; the dialect multiplies it in.
     pm_ra_needs_cos_dec: bool = False
+    #: Native columns kept in ``quality_flags`` when the fetch asked for them, never required: a
+    #: profile written before they were added still curates, to the same rows as before.
+    optional_quality_flags: tuple[str, ...] = ()
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Dialect:
@@ -144,7 +147,13 @@ class Dialect:
             quality_class=dict(doc.get("quality_class", {})),
             zero_point_corrected=bool(doc.get("zero_point_corrected", False)),
             pm_ra_needs_cos_dec=bool(doc.get("pm_ra_needs_cos_dec", False)),
+            optional_quality_flags=tuple(doc.get("optional_quality_flags", ())),
         )
+
+    def kept_flags(self, available: Iterable[str]) -> tuple[str, ...]:
+        """The native columns ``quality_flags`` keeps: every required one, and the optional ones present."""
+        present = set(available)
+        return self.quality_flags + tuple(f for f in self.optional_quality_flags if f in present)
 
     def native_columns(self) -> set[str]:
         needed = {spec["column"] for spec in self.columns.values()}
@@ -210,7 +219,7 @@ class Dialect:
         if self.correlations is not None:
             corr = [_number(native.get(c)) for c in self.correlations]
             out["astrometric_corr"] = None if all(c is None for c in corr) else corr
-        out["quality_flags"] = canonical_json({f: native.get(f) for f in self.quality_flags})
+        out["quality_flags"] = canonical_json({f: native.get(f) for f in self.kept_flags(native)})
         out["quality_class"] = self._quality(native)
         out["zero_point_corrected"] = self.zero_point_corrected
         out["source_release"] = self.source_release
@@ -307,7 +316,8 @@ def curate_columnar(dialect: Dialect, native: pa.Table) -> pa.Table:
         correlations = pa.array(lists, pa.list_(pa.float64()))
     else:
         correlations = pa.nulls(n, pa.list_(pa.float64()))
-    flags = {f: native.column(f).to_pylist() for f in dialect.quality_flags}
+    kept = dialect.kept_flags(native.column_names)
+    flags = {f: native.column(f).to_pylist() for f in kept}
     for name in CANONICAL_COLUMNS:
         if name == "source_key":
             continue
@@ -320,9 +330,7 @@ def curate_columnar(dialect: Dialect, native: pa.Table) -> pa.Table:
         elif name == "astrometric_corr":
             out[name] = correlations
         elif name == "quality_flags":
-            out[name] = pa.array(
-                [canonical_json({f: flags[f][i] for f in dialect.quality_flags}) for i in range(n)], pa.string()
-            )
+            out[name] = pa.array([canonical_json({f: flags[f][i] for f in kept}) for i in range(n)], pa.string())
         elif name == "quality_class":
             out[name] = pa.array(_quality_classes(dialect, native), pa.string())
         elif name == "zero_point_corrected":

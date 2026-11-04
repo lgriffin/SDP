@@ -22,3 +22,8 @@ columns:
   - {name: h_m, datatype: double, unit: mag}
   - {name: k_m, datatype: double, unit: mag}
   - {name: ph_qual, datatype: char}
+  - {name: j_msigcom, datatype: double, unit: mag, description: "J total photometric uncertainty"}
+  - {name: h_msigcom, datatype: double, unit: mag, description: "H total photometric uncertainty"}
+  - {name: k_msigcom, datatype: double, unit: mag, description: "Ks total photometric uncertainty"}
+  - {name: err_maj, datatype: double, unit: arcsec, description: "semi-major axis of the 1-sigma position error ellipse"}
+  - {name: err_min, datatype: double, unit: arcsec, description: "semi-minor axis of the 1-sigma position error ellipse"}

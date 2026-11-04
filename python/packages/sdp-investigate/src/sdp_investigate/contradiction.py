@@ -13,8 +13,9 @@ against BP-RP, so no published transformation coefficients are typed in and the 
 reddening and zero point are absorbed.
 
 **The uncertainty budget.** Each comparison's expected uncertainty is the quadrature sum of the
-errors the rows report (each row's own when it carries them; Gaia's proper-motion error grown over
-the baseline) and a calibration term ``s`` the field sets: the extra scatter that makes the median
+errors the rows report (each row's own when it carries them: 2MASS ``*_msigcom`` and its error
+ellipse, Pan-STARRS PSF magnitude and mean position errors, INV-027; Gaia's proper-motion error grown
+over the baseline) and a calibration term ``s`` the field sets: the extra scatter that makes the median
 normalised squared residual equal its expected value under the null (the chi-square median: 0.455
 for one dimension, 1.386 for two). ``s`` is solved separately in G-magnitude bins, because faint
 stars scatter more, after the field's median offset (frame tie, photometric zero point) is removed.
@@ -49,11 +50,15 @@ import numpy as np
 from scipy import stats
 from scipy.spatial import cKDTree
 
+from sdp.kernel.domain.association import Detection
 from sdp.kernel.domain.errors import PlanInvalid
 from sdp.kernel.domain.investigation import EvidenceBundle, Subject
+from sdp.kernel.ports.investigate import MEASURED, OFF_IMAGE, ForcedPhotometer, SkyPoint
 from sdp.kernel.science.plan import TaskContext
 from sdp_investigate.astrometry import MAS_PER_DEG, ra_offset_deg
 from sdp_investigate.base import Features, FieldTest, Scored, catalogue_row, finite
+from sdp_investigate.changes import Frame, _photometer_params, _points, aperture, enclosed, prepare_frame
+from sdp_investigate.imaging import IMAGE, anchor, detection_records
 from sdp_investigate.photometry import robust_polyfit
 
 POSITION = "position"
@@ -68,9 +73,14 @@ CLIPPED_MEAN = {d: d * float(stats.chi2.cdf(CLIP[d], d + 2) / stats.chi2.cdf(CLI
 BLENDED = "blended"
 POOR_QUALITY = "poor quality"
 TOO_FEW = "too few stars to calibrate"
+CONTAMINATED = "contaminated (a diffraction spike, a halo, a ghost or persistence)"
+SATURATED_ON_IMAGE = "saturated or masked on the image"
 #: neighbours are first looked for this much wider than a survey's resolution, then judged where both
 #: stars were at the survey's epoch: 2 arcsec covers 100 mas/yr over 20 years
 BLEND_MARGIN_ARCSEC = 2.0
+#: a reported error at or above these is no measurement of the error (a sentinel or a failed fit)
+MAX_MAG_ERROR = 5.0
+MAX_POSITION_ERROR_MAS = 10_000.0
 #: a magnitude outside this range is a sentinel (Pan-STARRS writes -999), not a measurement
 MAG_RANGE = (-2.0, 30.0)
 
@@ -84,6 +94,8 @@ class Band:
     """The archive's own column name, read from ``quality_flags`` when the canonical one is absent."""
     quality_index: int | None = None
     """The band's letter in the survey's quality string (2MASS ``ph_qual`` is J, H, Ks)."""
+    error: str | None = None
+    """The archive's own magnitude error, read from ``quality_flags`` when ``<column>_err`` is absent."""
 
 
 @dataclass(frozen=True)
@@ -97,10 +109,16 @@ class Survey:
     good_quality: str = ""
     row_quality: bool = False
     """Set aside every comparison of a row whose canonical ``quality_class`` is ``poor`` (Pan-STARRS:
-    fewer than three detections)."""
+    fewer than three detections; AllWISE: fitted as an extended source)."""
     single_epoch: bool = False
     """Positions are measured at one date, so they carry the star's parallax shift on that date
     (2MASS); a mean over many dates (Pan-STARRS) averages most of it away."""
+    position_error: tuple[str, str] | None = None
+    """The archive's two 1-sigma position errors in arcsec (2MASS: the error ellipse's axes;
+    Pan-STARRS: RA and Dec), read from ``quality_flags`` when ``pos_err_mas`` is absent."""
+    clean_flag: str | None = None
+    """The survey's per-band contamination string (AllWISE ``cc_flags``): a band counts only when its
+    letter is ``0``, and a position only when every band's is."""
 
 
 SURVEYS: dict[str, Survey] = {
@@ -108,25 +126,41 @@ SURVEYS: dict[str, Survey] = {
         "2mass",
         2.5,
         (
-            Band("J", "j_mag", "j_m", 0),
-            Band("H", "h_mag", "h_m", 1),
-            Band("Ks", "k_mag", "k_m", 2),
+            Band("J", "j_mag", "j_m", 0, "j_msigcom"),
+            Band("H", "h_mag", "h_m", 1, "h_msigcom"),
+            Band("Ks", "k_mag", "k_m", 2, "k_msigcom"),
         ),
         quality_flag="ph_qual",
         good_quality="AB",
         single_epoch=True,
+        position_error=("err_maj", "err_min"),
     ),
     "ps1": Survey(
         "ps1",
         1.5,
         (
-            Band("g", "ps_g_mag", "gMeanPSFMag"),
-            Band("r", "ps_r_mag", "rMeanPSFMag"),
-            Band("i", "ps_i_mag", "iMeanPSFMag"),
-            Band("z", "ps_z_mag", "zMeanPSFMag"),
-            Band("y", "ps_y_mag", "yMeanPSFMag"),
+            Band("g", "ps_g_mag", "gMeanPSFMag", error="gMeanPSFMagErr"),
+            Band("r", "ps_r_mag", "rMeanPSFMag", error="rMeanPSFMagErr"),
+            Band("i", "ps_i_mag", "iMeanPSFMag", error="iMeanPSFMagErr"),
+            Band("z", "ps_z_mag", "zMeanPSFMag", error="zMeanPSFMagErr"),
+            Band("y", "ps_y_mag", "yMeanPSFMag", error="yMeanPSFMagErr"),
         ),
         row_quality=True,
+        position_error=("raMeanErr", "decMeanErr"),
+    ),
+    # W3 and W4 see few stars above their noise and through 6 to 12 arcsec beams, so only W1 and W2
+    "allwise": Survey(
+        "allwise",
+        6.0,
+        (
+            Band("W1", "w1_mag", "w1mpro", 0, "w1sigmpro"),
+            Band("W2", "w2_mag", "w2mpro", 1, "w2sigmpro"),
+        ),
+        quality_flag="ph_qual",
+        good_quality="AB",
+        row_quality=True,
+        position_error=("sigra", "sigdec"),
+        clean_flag="cc_flags",
     ),
 }
 
@@ -138,6 +172,15 @@ DEFAULTS: dict[str, Any] = {
     "min_per_bin": 15,
     "degree": 2,
     "flag_z": 3.0,
+    # Hubble and Webb images, when the profile fetches them (as image-changes does)
+    "images": True,
+    "align_wcs": True,
+    "fwhm_px": 2.5,
+    "nsigma": 5.0,
+    "anchor_sigma_arcsec": 0.002,
+    "min_sigma_arcsec": 0.005,
+    "aperture_fwhm": 1.0,
+    "image_search_arcsec": 1.0,
 }
 
 
@@ -186,7 +229,7 @@ class Calibration:
 def settings(thresholds: Mapping[str, Any]) -> dict[str, Any]:
     merged = {**DEFAULTS, **thresholds}
     surveys = merged["surveys"]
-    if not isinstance(surveys, Mapping) or not surveys:
+    if not isinstance(surveys, Mapping):
         raise PlanInvalid("cross-survey-contradiction names its surveys as {survey: source_id}")
     unknown = sorted(set(surveys) - set(SURVEYS))
     if unknown:
@@ -339,9 +382,13 @@ class CrossSurveyContradiction(FieldTest):
     """Do the surveys' measurements of the same star disagree beyond their expected uncertainties?"""
 
     name = "cross-survey-contradiction"
-    question = "Do 2MASS and Pan-STARRS measure this star where and as bright as Gaia predicts?"
+    version = "1.2.0"
+    question = "Do 2MASS, Pan-STARRS, AllWISE and Hubble or Webb images measure this star where and as bright as Gaia predicts?"
     null_model = "every residual redrawn from its own uncertainty budget about the field's offset, then recalibrated"
-    inputs = ("catalogue:gaia", "catalogue:2mass", "catalogue:ps1")
+    inputs = ("catalogue:gaia", "catalogue:2mass", "catalogue:ps1", "catalogue:allwise", "product:image")
+    needs_products = (IMAGE,)
+    #: images are a channel when the profile fetches them; a profile of catalogues alone runs too
+    products_optional = True
 
     def features(
         self, bundles: Sequence[EvidenceBundle], thresholds: Mapping[str, Any], context: TaskContext
@@ -382,7 +429,20 @@ class CrossSurveyContradiction(FieldTest):
                 )
                 bp_rp = float(gaia["bp_rp"]) if finite(gaia.get("bp_rp")) else math.nan
                 poor = survey.row_quality and row.get("quality_class") == "poor"
-                _position(builders[POSITION], i, gaia, row, g[i], bp_rp, blended, poor, survey.single_epoch)
+                contaminated = not all(_clean_band(row, survey, b.quality_index) for b in survey.bands)
+                _position(
+                    builders[POSITION],
+                    i,
+                    gaia,
+                    row,
+                    g[i],
+                    bp_rp,
+                    blended,
+                    poor,
+                    survey.single_epoch,
+                    survey.position_error,
+                    CONTAMINATED if contaminated else None,
+                )
                 for band in survey.bands:
                     if math.isnan(bp_rp):
                         continue
@@ -391,7 +451,17 @@ class CrossSurveyContradiction(FieldTest):
                 if builder.index:
                     kind = POSITION if name == POSITION else BAND
                     channels.append(builder.build(f"{survey_id}:{name}", survey_id, kind))
-        return Features(keys, {"channels": channels})
+        images = {
+            p.artifact_id.value: p.product.product_id
+            for b, _ in gaia_rows
+            for p in b.products
+            if p.product_type == IMAGE
+        }
+        left_out: dict[str, str] = {}
+        if images and cfg["images"]:
+            field = _Field(gaia_rows, ra, dec, g, pm, epochs, tree, delta)
+            channels.extend(_image_channels(sorted(images.items()), field, cfg, context, left_out))
+        return Features(keys, {"channels": channels, "images_left_out": left_out})
 
     def evaluate(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> list[Scored]:
         cfg = settings(thresholds)
@@ -402,6 +472,9 @@ class CrossSurveyContradiction(FieldTest):
             for e, i in enumerate(channel.index):
                 per_object.setdefault(int(i), []).append((channel, cal, e))
         out: list[Scored] = []
+        # images the field could not use, and why: said on every result, so a missing image is seen
+        left_out = dict(features.arrays.get("images_left_out") or {})
+        extra = {"images_left_out": left_out} if left_out else {}
         for i in sorted(per_object):
             entries = per_object[i]
             counted = [(c, cal, e) for c, cal, e in entries if cal.counted[e]]
@@ -421,6 +494,7 @@ class CrossSurveyContradiction(FieldTest):
                             "pattern": "not-assessable",
                             "pattern_reading": PATTERNS["not-assessable"],
                             "comparisons": records,
+                            **extra,
                         },
                     )
                 )
@@ -447,6 +521,7 @@ class CrossSurveyContradiction(FieldTest):
                         "pattern": kind,
                         "pattern_reading": PATTERNS[kind],
                         "comparisons": records,
+                        **extra,
                     },
                 )
             )
@@ -467,7 +542,167 @@ class CrossSurveyContradiction(FieldTest):
             else:
                 drawn = np.asarray(cal.offset) + rng.normal(0.0, 1.0, (len(total), 2)) * total[:, None]
             channels.append(channel.with_observed(drawn))
-        return Features(features.keys, {"channels": channels})
+        return Features(
+            features.keys, {"channels": channels, "images_left_out": features.arrays.get("images_left_out", {})}
+        )
+
+
+@dataclass(frozen=True)
+class _Field:
+    """The examined Gaia stars, as the image channels need them."""
+
+    rows: Sequence[tuple[EvidenceBundle, Mapping[str, Any]]]
+    ra: np.ndarray
+    dec: np.ndarray
+    g: np.ndarray
+    pm: np.ndarray
+    epochs: np.ndarray
+    tree: Any
+    delta_mag: float
+
+    def blended(self, i: int, reach_arcsec: float, when: float) -> bool:
+        """Whether an examined Gaia star no more than ``delta_mag`` fainter sat within ``reach_arcsec``
+        of star ``i`` at ``when``."""
+        chord = 2.0 * math.sin(math.radians((reach_arcsec + BLEND_MARGIN_ARCSEC) / 3600.0) / 2.0)
+        near = self.tree.query_ball_point(_unit(self.ra[i : i + 1], self.dec[i : i + 1])[0], chord)
+        return any(
+            j != i
+            and self.g[j] - self.g[i] < self.delta_mag
+            and _separation_then(self.ra, self.dec, self.pm, self.epochs, i, j, when) < reach_arcsec
+            for j in near
+        )
+
+
+def _image_channels(
+    images: Sequence[tuple[str, str]],
+    stars: _Field,
+    cfg: Mapping[str, Any],
+    context: TaskContext,
+    left_out: dict[str, str],
+) -> list[Channel]:
+    """Two channels per Hubble or Webb image: each Gaia star's brightness by forced photometry in one
+    aperture at its counterpart, and its position from that counterpart: the detection nearest where
+    Gaia puts it, within ``image_search_arcsec``.
+
+    Each image is aligned to Gaia at its own date and described by the ``photometer`` (band, FWHM), as
+    epoch-change does. The magnitude is instrumental, -2.5 log10 of the aperture flux corrected to a
+    whole star; the field's colour relation absorbs the image's zero point and filter, as it does a
+    survey band. A star is blended when an examined Gaia neighbour no more than ``blend_delta_mag``
+    fainter puts light in its aperture (within the aperture radius plus one FWHM), or when its
+    counterpart is ambiguous: a second detection less than one FWHM further away, or a detection
+    another star also calls its nearest (two stars the detector did not split). Saturated or
+    masked stars are set aside. A star with no counterpart has no comparison on that image: forced
+    photometry where Gaia puts it reads the background, and a missing star is image-counterpart's
+    question.
+    """
+    photometer: ForcedPhotometer = context.service("photometer")
+    anchors = {b.object_key: anchor(b, row, float(cfg["anchor_sigma_arcsec"])) for b, row in stars.rows}
+    channels: list[Channel] = []
+    for artifact_id, product_id in images:
+        frame = prepare_frame(artifact_id, product_id, anchors, cfg, context, photometer, left_out)
+        if frame is None:
+            continue
+        radius, annulus = aperture(frame.fwhm_arcsec, float(cfg["aperture_fwhm"]))
+        reach = radius + frame.fwhm_arcsec
+        whole = enclosed(radius, frame.fwhm_arcsec)
+        found = _detections(frame, product_id, cfg)
+        search = float(cfg["image_search_arcsec"])
+        # each star's counterpart: the nearest detection, unless a second is about as near
+        hits: dict[str, tuple[Detection, bool]] = {}
+        placed = _points(anchors, frame.epoch_jyear)
+        for point in placed:
+            near = found.near(point, search) if found is not None else []
+            if near:
+                hits[point.key] = (near[0][1], len(near) > 1 and near[1][0] < near[0][0] + frame.fwhm_arcsec)
+        # a detection two stars both call their nearest is the light of both: ambiguous for each
+        claims: dict[str, int] = {}
+        for hit, _ in hits.values():
+            claims[hit.record_id] = claims.get(hit.record_id, 0) + 1
+        hits = {k: (hit, ambiguous or claims[hit.record_id] > 1) for k, (hit, ambiguous) in hits.items()}
+        # a star is measured at its own counterpart, so a moved star's brightness is still its own
+        points = [
+            SkyPoint(p.key, hits[p.key][0].ra_deg, hits[p.key][0].dec_deg)
+            if p.key in hits and not hits[p.key][1]
+            else p
+            for p in placed
+        ]
+        measured = {
+            m.key: m
+            for m in photometer.measure(frame.frame, points, radius, annulus, _photometer_params(cfg)).measurements
+        }
+        instrument = frame.description.instrument or "unknown"
+        bands, positions = _Builder(), _Builder()
+        for i, (b, gaia) in enumerate(stars.rows):
+            m = measured.get(b.object_key)
+            if m is None or m.status == OFF_IMAGE:
+                continue
+            shared = b.object_key in hits and hits[b.object_key][1]
+            blended = shared or stars.blended(i, reach, frame.epoch_jyear)
+            bp_rp = float(gaia["bp_rp"]) if finite(gaia.get("bp_rp")) else math.nan
+            gap = frame.epoch_jyear - float(gaia["epoch_jyear"])
+            if not math.isnan(bp_rp):
+                if m.status != MEASURED:
+                    bands.add(i, stars.g[i], bp_rp, math.nan, 0.0, gap, SATURATED_ON_IMAGE)
+                elif b.object_key in hits and m.flux > 0 and m.flux_err > 0:
+                    mag = -2.5 * math.log10(m.flux / whole)
+                    sigma = 2.5 / math.log(10.0) * m.flux_err / m.flux
+                    bands.add(i, stars.g[i], bp_rp, mag, sigma, gap, BLENDED if blended else None)
+            if b.object_key in hits:
+                hit, _ = hits[b.object_key]
+                # the detector's centroid error is a rough guess, so the field sets the whole budget
+                row = {"ra_deg": hit.ra_deg, "dec_deg": hit.dec_deg, "epoch_jyear": frame.epoch_jyear}
+                _position(
+                    positions,
+                    i,
+                    gaia,
+                    row,
+                    stars.g[i],
+                    bp_rp,
+                    blended,
+                    m.status != MEASURED,
+                    single_epoch=True,
+                    other=None,
+                )
+        survey = f"image:{instrument}"
+        if bands.index:
+            channels.append(bands.build(f"image:{product_id}:{frame.band}", survey, BAND))
+        if positions.index:
+            channels.append(positions.build(f"image:{product_id}:{POSITION}", survey, POSITION))
+    return channels
+
+
+@dataclass(frozen=True)
+class _Detections:
+    """An aligned image's detections, searchable by sky position."""
+
+    records: Sequence[Detection]
+    tree: Any
+
+    def near(self, point: SkyPoint, radius_arcsec: float) -> list[tuple[float, Detection]]:
+        """The detections within ``radius_arcsec`` of ``point`` with their distance in arcsec, nearest first."""
+        chord = 2.0 * math.sin(math.radians(radius_arcsec / 3600.0) / 2.0)
+        here = _unit(np.array([point.ra_deg]), np.array([point.dec_deg]))[0]
+        out = []
+        for j in self.tree.query_ball_point(here, chord):
+            there = _unit(np.array([self.records[j].ra_deg]), np.array([self.records[j].dec_deg]))[0]
+            out.append((math.degrees(2.0 * math.asin(float(np.linalg.norm(there - here)) / 2.0)) * 3600.0, j))
+        return [(d, self.records[j]) for d, j in sorted(out)]
+
+
+def _detections(frame: Frame, product_id: str, cfg: Mapping[str, Any]) -> _Detections | None:
+    if frame.detections is None or not frame.detections.detections:
+        return None
+    records, _, _, _ = detection_records(
+        frame.detections,
+        product_id,
+        frame.epoch_jyear,
+        frame.description.instrument or "unknown",
+        float(cfg["fwhm_px"]),
+        float(cfg["min_sigma_arcsec"]),
+    )
+    ra = np.array([r.ra_deg for r in records])
+    dec = np.array([r.dec_deg for r in records])
+    return _Detections(records, cKDTree(_unit(ra, dec)))
 
 
 class _Builder:
@@ -565,6 +800,35 @@ def _number(row: Mapping[str, Any], *names: str) -> float | None:
     return None
 
 
+def _error(row: Mapping[str, Any], canonical: str, archive: str | None, largest: float) -> float:
+    """A reported 1-sigma error: the canonical column, else the archive's own in ``quality_flags``.
+
+    Zero when the row has none, or when the value is no error at all (Pan-STARRS writes -999,
+    and a zero or an implausibly large error says nothing): the field's calibration term then
+    carries the whole budget.
+    """
+    for name in (canonical, archive):
+        value = _number(row, name) if name else None
+        if value is not None:
+            return value if 0.0 < value < largest else 0.0
+    return 0.0
+
+
+def position_error(row: Mapping[str, Any], archive: tuple[str, str] | None) -> float:
+    """The survey position's 1-sigma error per axis, in mas.
+
+    ``pos_err_mas`` when the row has it; otherwise the root mean square of the archive's two
+    errors (2MASS ellipse axes, Pan-STARRS RA and Dec), in arcsec. Zero when either is missing.
+    """
+    own = _error(row, "pos_err_mas", None, MAX_POSITION_ERROR_MAS)
+    if own or archive is None:
+        return own
+    a, b = (_error(row, name, None, MAX_POSITION_ERROR_MAS / 1000.0) for name in archive)
+    if not (a and b):
+        return 0.0
+    return 1000.0 * math.sqrt((a * a + b * b) / 2.0)
+
+
 def _position(
     builder: _Builder,
     i: int,
@@ -575,7 +839,10 @@ def _position(
     blended: bool,
     poor: bool = False,
     single_epoch: bool = False,
+    survey_error: tuple[str, str] | None = None,
+    other: str | None = None,
 ) -> None:
+    """One position comparison; ``other`` is a reason to set it aside besides a blend or a poor row."""
     epoch = _number(row, "epoch_jyear")
     ra, dec = _number(row, "ra_deg"), _number(row, "dec_deg")
     motion = (gaia.get("pm_ra_cosdec_masyr"), gaia.get("pm_dec_masyr"), gaia.get("epoch_jyear"))
@@ -594,8 +861,8 @@ def _position(
     pm_err = math.hypot(
         float(gaia.get("pm_ra_cosdec_masyr_err") or 0.0), float(gaia.get("pm_dec_masyr_err") or 0.0)
     ) / math.sqrt(2.0)
-    sigma = math.hypot(_number(row, "pos_err_mas") or 0.0, pm_err * abs(dt))
-    builder.add(i, g, bp_rp, (dra, ddec), sigma, dt, BLENDED if blended else POOR_QUALITY if poor else None)
+    sigma = math.hypot(position_error(row, survey_error), pm_err * abs(dt))
+    builder.add(i, g, bp_rp, (dra, ddec), sigma, dt, BLENDED if blended else POOR_QUALITY if poor else other)
 
 
 def _band(
@@ -619,9 +886,20 @@ def _band(
         quality = str(_flags(row).get(survey.quality_flag) or "")
         if len(quality) <= band.quality_index or quality[band.quality_index] not in survey.good_quality:
             reason = POOR_QUALITY
+    if reason is None and not _clean_band(row, survey, band.quality_index):
+        reason = CONTAMINATED
     epoch = _number(row, "epoch_jyear")
     gap = epoch - float(gaia["epoch_jyear"]) if epoch is not None and finite(gaia.get("epoch_jyear")) else math.nan
-    builder.add(i, g, bp_rp, mag, _number(row, f"{band.column}_err") or 0.0, gap, reason)
+    builder.add(i, g, bp_rp, mag, _error(row, f"{band.column}_err", band.error, MAX_MAG_ERROR), gap, reason)
+
+
+def _clean_band(row: Mapping[str, Any], survey: Survey, index: int | None) -> bool:
+    """Whether the survey's contamination string clears this band: its letter is ``0``. A survey
+    without one clears every band; a missing or short string clears none."""
+    if survey.clean_flag is None or index is None:
+        return True
+    flags = str(_flags(row).get(survey.clean_flag) or "")
+    return len(flags) > index and flags[index] == "0"
 
 
 def _magnitude(channel: Channel, cal: Calibration, e: int) -> float:
