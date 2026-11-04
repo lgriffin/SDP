@@ -384,7 +384,8 @@ def benchmark_table(
     """The benchmark table: typed columns, rows without a position dropped, sorted by name, and the
     metadata STL-G-02 checks."""
     names = pc.utf8_trim_whitespace(pc.cast(raw.column("name"), pa.string()))
-    if catalogue.name_prefix:
+    if catalogue.name_prefix and _norm(columns.get("name")) == _norm(dict(catalogue.columns).get("name")):
+        # only the catalogue's own identifier is written as one: another column a caller names is left bare
         names = pc.binary_join_element_wise(catalogue.name_prefix, names, "")
     data = {"name": names}
     for want in WANTED[1:]:

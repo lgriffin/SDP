@@ -468,8 +468,16 @@ def test_cwnu23_names_its_cluster_number_column_and_writes_names_as_cwnu_n() -> 
     fake.table(source.rows_request(catalogue, chosen), {**rows, "pm_dec_masyr": [0.1, 0.2], "parallax_mas": [0.4, 0.6]})
     table = source.fetch("cwnu23")
     assert table.column("name").to_pylist() == ["CWNU 12", "CWNU 3"]
-    # a --column the caller names still wins over the catalogue's own choice
+    # a --column the caller names still wins over the catalogue's own choice, and is not written as a CWNU number
     assert bm.with_defaults(catalogue, {"name": "recno"})["name"] == "recno"
+    recno = {**chosen, "name": "recno"}
+    other = bm.benchmark_table(catalogue, pa.table({"name": [7], **{k: [1.0] for k in list(recno)[1:]}}), recno)
+    assert other.column("name").to_pylist() == ["7"]
+    # the identifier spelt as the registry spells it is still the catalogue's own
+    lower = bm.benchmark_table(
+        catalogue, pa.table({"name": [7], **{k: [1.0] for k in list(recno)[1:]}}), {**chosen, "name": "cwnu"}
+    )
+    assert lower.column("name").to_pylist() == ["CWNU 7"]
 
 
 def test_an_override_matches_a_column_whatever_its_case_when_only_one_does() -> None:
