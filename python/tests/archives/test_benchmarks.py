@@ -73,7 +73,7 @@ def test_the_two_predeclared_catalogues_are_registered_with_their_release_labels
     assert {k: (c.vizier_table, c.release_label, c.audit_only) for k, c in CATALOGUES.items()} == {
         "hr23": ("J/A+A/673/A114/clusters", "hr23:v1.0", False),
         "cga20": ("J/A+A/640/A1/table1", "cga20:v1", False),
-        # the claim audit's third catalogue (STL-020), never a UC-01 benchmark
+        # the claim audit's third catalogue (STL-024), never a UC-01 benchmark
         "cwnu23": ("J/ApJS/264/8/clusters", "cwnu23:v1", True),
     }
     assert TAPVIZIER == "https://tapvizier.cds.unistra.fr/TAPVizieR/tap"

@@ -1,4 +1,4 @@
-"""ClaimAudit: do clusters that only one catalogue lists survive SDP's own tests? (STL-020)
+"""ClaimAudit: do clusters that only one catalogue lists survive SDP's own tests? (STL-024)
 
 Published cluster catalogues disagree: many objects appear in one catalogue and in no other. This
 audit takes every catalogue SDP has stored (``hr23``, ``cga20``, ``cwnu23``), finds which of them

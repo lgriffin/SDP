@@ -1,4 +1,4 @@
-# SDP claim audit (STL-020): do clusters only one catalogue lists survive SDP's own tests? Everything
+# SDP claim audit (STL-024): do clusters only one catalogue lists survive SDP's own tests? Everything
 # logged (see harness/README.md).
 #
 #   powershell -ExecutionPolicy Bypass -File harness\run-claim-audit.ps1

@@ -258,7 +258,7 @@ def labellings_at(
     seed: int,
 ) -> tuple[np.ndarray, list[dict[str, Any]]]:
     """``_labellings`` about any centre: the feature matrix projected about (ra_deg, dec_deg), and one
-    capped labelling per grid point. The claim audit (STL-020) searches fields centred on a claim."""
+    capped labelling per grid point. The claim audit (STL-024) searches fields centred on a claim."""
     fm = apply_policy(settings["feature_space_policy"], table, ra_deg, dec_deg)
     cap = field_sized(settings, table.num_rows)
     out = []

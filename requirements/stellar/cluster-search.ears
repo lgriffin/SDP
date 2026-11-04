@@ -182,7 +182,7 @@ requirements:
       - "python/tests.stellar.test_clustering::test_a_cap_the_whole_tile_fits_under_changes_nothing"
       - "python/tests.stellar.test_clustering::test_a_cap_that_leaves_one_cluster_below_the_root_labels_it"
       - "python/tests.stellar.test_clustering::test_a_cap_with_leaf_selection_is_refused"
-  - id: STL-020
+  - id: STL-024
     pattern: optional
     text: "Where a claim audit is run, the stellar module shall search a field centred on every cluster that only one stored catalogue lists, and on a seeded control sample of clusters two or more catalogues list, with the sweep's cuts, grid, pass marks and significance test, and call a claim surviving only when a candidate matching it passes every check and is more significant than every false candidate its field's null fields produced."
     rationale: "Published cluster catalogues disagree, and objects only one catalogue lists are where false clusters hide. Testing each claim with the same predeclared pipeline and its own null fields gives a survival rate per catalogue; the control says how often SDP recovers a cluster several catalogues accept, so a low single-claim rate cannot just be SDP's own blindness."

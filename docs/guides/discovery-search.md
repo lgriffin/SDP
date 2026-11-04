@@ -177,7 +177,7 @@ potentially new candidate is a lead to write into a predeclaration and confirm i
 ## Part 4b: audit clusters only one catalogue lists
 
 Published catalogues disagree: many clusters appear in one catalogue and nowhere else. The claim
-audit (STL-020) asks whether those survive SDP's own tests. It reads three catalogues, Hunt & Reffert
+audit (STL-024) asks whether those survive SDP's own tests. It reads three catalogues, Hunt & Reffert
 2023 (`hr23`), Cantat-Gaudin et al. 2020 (`cga20`) and He et al. 2023's 1,656 new CWNU clusters
 (`cwnu23`), and finds which of them list each object (centres within 0.1°, or 5 pc for a nearby
 cluster, and proper motions within 1 mas/yr). Every object only one catalogue lists is then searched

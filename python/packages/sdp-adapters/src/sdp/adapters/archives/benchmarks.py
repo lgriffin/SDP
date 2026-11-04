@@ -63,7 +63,7 @@ class KnownClusterCatalogue:
     citation: str
     description: str
     licence: str = LICENCE
-    #: not a UC-01 benchmark: fetched only when named, for the claim audit (STL-020)
+    #: not a UC-01 benchmark: fetched only when named, for the claim audit (STL-024)
     audit_only: bool = False
 
 
@@ -87,7 +87,7 @@ CATALOGUES: dict[str, KnownClusterCatalogue] = {
         "J/ApJS/264/8/clusters",
         "cwnu23:v1",
         "He et al. 2023, ApJS 264, 8 (VizieR J/ApJS/264/8)",
-        "1,656 new CWNU clusters found in Gaia EDR3; only for the claim audit (STL-020)",
+        "1,656 new CWNU clusters found in Gaia EDR3; only for the claim audit (STL-024)",
         audit_only=True,
     ),
 }

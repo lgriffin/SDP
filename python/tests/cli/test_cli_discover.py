@@ -359,7 +359,7 @@ def test_the_predeclared_run_reads_gaia_and_issues_a_verdict(k: InMemoryKernel) 
     assert len([e for e in k.ledger.entries() if e.kind == "predeclaration"]) == 1
 
 
-# --- the claim audit (STL-020) ---------------------------------------------------------------------
+# --- the claim audit (STL-024) ---------------------------------------------------------------------
 
 
 def store_cwnu(store: Any) -> None:
@@ -381,7 +381,7 @@ def store_cwnu(store: Any) -> None:
     store.link(discover._benchmark_path("cwnu23", "cwnu23:v1"), store.put(parquet(table), PARQUET))
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_audit_and_report_say_which_single_catalogue_claims_survive(bulk: Path) -> None:
     invoke("discover", "prepare", "--workers", "1")
     result = runner.invoke(cli.app, ["discover", "audit"])

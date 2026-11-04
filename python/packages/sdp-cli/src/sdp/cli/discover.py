@@ -514,7 +514,7 @@ def discover_report(
     _emit({**summary, "csv": str(path), "top": rows[:10]})
 
 
-# --- audit: do single-catalogue clusters survive? (STL-020) -----------------------------------------
+# --- audit: do single-catalogue clusters survive? (STL-024) -----------------------------------------
 
 
 def audit_dir(name: str) -> Path:
@@ -565,7 +565,7 @@ def discover_audit(
     ] = False,
 ) -> None:
     """Search the Gaia stars around every cluster only one catalogue claims, and a control sample of
-    clusters two or more agree on, with the sweep's own tests and null fields (STL-020). EXPLORATORY.
+    clusters two or more agree on, with the sweep's own tests and null fields (STL-024). EXPLORATORY.
 
     Needs the prepared catalogue (`sdp discover prepare`) and the stored hr23, cga20 and cwnu23
     catalogues (`sdp benchmark fetch --catalogue hr23 --catalogue cga20 --catalogue cwnu23`). Claims

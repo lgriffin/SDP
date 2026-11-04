@@ -1,4 +1,4 @@
-"""T1/T8: the claim audit (STL-020): which catalogues list each object, which claims are audited, and
+"""T1/T8: the claim audit (STL-024): which catalogues list each object, which claims are audited, and
 whether a claim survives the sweep's own tests on a field centred on it. The fields are synthetic
 with planted clusters; they are not Gaia data."""
 
@@ -48,7 +48,7 @@ def claim(
 # --- which catalogues list an object --------------------------------------------------------------
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_an_object_is_listed_by_every_catalogue_with_a_cluster_at_its_place_and_motion() -> None:
     a = catalogue(
         "a", [("A1", 10.0, 5.0, 1.0, 2.0, 0.5), ("A2", 50.0, -20.0, 3.0, 3.0, 0.4), ("A3", 80, 0, 0, 0, None)]
@@ -63,7 +63,7 @@ def test_an_object_is_listed_by_every_catalogue_with_a_cluster_at_its_place_and_
     assert by_id["a:A3"].parallax_mas is None and by_id["a:A3"].agreement == 1
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_a_nearby_clusters_centres_may_differ_by_what_five_parsecs_subtend() -> None:
     near = 10.0  # mas: 100 pc, where 5 pc is 2.9 degrees
     a = catalogue("a", [("A", 60.0, 20.0, 5.0, -5.0, near), ("F", 60.0, -40.0, 5.0, -5.0, 0.2)])
@@ -76,7 +76,7 @@ def test_a_nearby_clusters_centres_may_differ_by_what_five_parsecs_subtend() -> 
     assert audit.match_radius_deg(0.2, doc()) == 0.1 and audit.match_radius_deg(None, doc()) == 0.1
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_two_catalogues_agree_whichever_side_the_match_is_seen_from() -> None:
     # one row has no parallax (0.1 deg), the other is 100 pc away (2.9 deg): 1 degree apart is a match both ways
     a = catalogue("a", [("A", 60.0, 20.0, 5.0, -5.0, None)])
@@ -86,7 +86,7 @@ def test_two_catalogues_agree_whichever_side_the_match_is_seen_from() -> None:
     assert by_id["a:A"].partners == ("b:B",) and by_id["b:B"].partners == ("a:A",)
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_a_row_without_a_position_or_proper_motion_is_kept_and_cannot_be_assessed() -> None:
     a = catalogue("a", [("A", 60.0, 20.0, math.nan, -5.0, 1.0), ("B", 61.0, 20.0, 5.0, -5.0, 1.0)])
     by_id = {x.claim_id: x for x in audit.claims([a, catalogue("b", [])], doc())}
@@ -96,7 +96,7 @@ def test_a_row_without_a_position_or_proper_motion_is_kept_and_cannot_be_assesse
     assert r["verdict"] == "unassessable" and "no position or proper motion" in r["reasons"][0]
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_two_rows_of_one_catalogue_matching_the_same_object_enter_the_control_once() -> None:
     a = catalogue("a", [("A1", 10.0, 0.0, 0.0, 0.0, 1.0), ("A2", 10.02, 0.0, 0.2, 0.0, 1.0)])
     b = catalogue("b", [("B", 10.01, 0.0, 0.1, 0.0, 1.0)])
@@ -107,7 +107,7 @@ def test_two_rows_of_one_catalogue_matching_the_same_object_enter_the_control_on
         assert len(control) == 1 and control[0].catalogue == "a"
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_every_single_claim_and_a_seeded_control_sample_with_no_object_twice_are_audited() -> None:
     rows = [(f"K{i}", float(i), 0.0, 0.0, 0.0, 1.0) for i in range(40)]
     a = catalogue("a", [*rows, ("SOLO", 300.0, 60.0, 1.0, 1.0, 1.0)])
@@ -156,7 +156,7 @@ def audited(name: str) -> dict[str, Any]:
     return audit.audit_claim(stars(), claims[name], "single", audit.load_settings(), clusterers(), 2026)
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 @pytest.mark.tier("T8")
 def test_a_real_cluster_one_catalogue_claims_survives_with_its_null_fields_run() -> None:
     r = audited("SYN-B")
@@ -168,14 +168,14 @@ def test_a_real_cluster_one_catalogue_claims_survives_with_its_null_fields_run()
     assert r["reasons"][0].startswith("recovered at ")
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 @pytest.mark.tier("T8")
 def test_a_claim_with_nothing_at_its_place_and_motion_is_not_recovered() -> None:
     r = audited("EMPTY")
     assert r["verdict"] == "not_recovered" and r["match"] is None and r["stars"] > 100
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_a_claim_without_a_parallax_cannot_be_assessed() -> None:
     assert audit.audit_claim(
         pa.table({}), claim("E", 1.0, 2.0, (0.0, 0.0), 1.0), "single", audit.load_settings(), {}, 1
@@ -185,7 +185,7 @@ def test_a_claim_without_a_parallax_cannot_be_assessed() -> None:
     assert "no parallax" in r["reasons"][0]
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_a_field_with_too_few_stars_cannot_be_assessed() -> None:
     ra, dec, pmra, pmdec, plx = SYN_B
     r = audit.audit_claim(
@@ -221,7 +221,7 @@ def candidate(status: str = "inconclusive", sigma: float | None = 8.0, coh: floa
     }
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_a_claim_survives_only_above_every_false_candidate_of_its_field() -> None:
     assert audit.judge(None, [], 3)[0] == "not_recovered"
     assert audit.judge(candidate("rejected"), [], 3) == ("fails_checks", ["unstable across the grid"])
@@ -264,7 +264,7 @@ def result(group: str, cat: str, verdict: str, i: int) -> dict[str, Any]:
     }
 
 
-@pytest.mark.req("STL-020")
+@pytest.mark.req("STL-024")
 def test_the_summary_gives_survival_per_group_and_catalogue_of_the_claims_assessed() -> None:
     rows = (
         [result("single", "cwnu23", "survives", i) for i in range(3)]
