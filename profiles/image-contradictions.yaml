@@ -1,0 +1,101 @@
+# Image contradictions: do Hubble, Webb and the infrared surveys measure each star the way Gaia does?
+#
+# For every Gaia star in the field, this profile measures the star on each archived HST and JWST image
+# (its brightness, and where the image puts it) and asks 2MASS, Pan-STARRS and AllWISE what they measured, then
+# compares each measurement with what Gaia predicts for it:
+#   cross-survey-contradiction -> a position or a brightness that disagrees beyond what the field's
+#                                 own measurements allow
+# Each image is shifted onto Gaia first (archival astrometry can be off by an arcsecond), so a star
+# out of place is a star, not the camera. Each image's brightness is calibrated against Gaia on the
+# field itself, as a survey band is, so no zero point or filter conversion is typed in.
+# A flag is a lead: a wrong Gaia motion, an unresolved companion, a variable star, warm dust, or two
+# different stars matched as one. The result says which comparison disagreed and why.
+#
+# Good fields are crowded with Gaia stars fainter than 16: over the Pillars of Creation (M16), WFC3
+# (programme 13926, 2014) and NIRCam (programme 2739, 2022).
+# Read profiles/README.md for what each setting means and why these values were chosen.
+# Changing anything here makes a new profile: raise `version` (the run records this file's hash).
+schema_version: "1.0.0"
+profile_id: image-contradictions
+version: 1.0.0
+description: >-
+  Gaia against Hubble and Webb images, 2MASS, Pan-STARRS and AllWISE. Flags stars whose brightness or position on
+  an image or in a survey disagrees with Gaia by more than the field's own measurements allow.
+  Exploratory: a flag is a lead, never a claim.
+
+identify:
+  route: catalogue
+  source_id: gaia
+  release_label: gaia:DR3
+  columns: [source_id, ref_epoch, ra, ra_error, dec, dec_error, parallax, parallax_error, pmra, pmra_error,
+            pmdec, pmdec_error, ra_dec_corr, ra_parallax_corr, ra_pmra_corr, ra_pmdec_corr, dec_parallax_corr,
+            dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
+            phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
+  quality_cuts:
+    - {column: ruwe, op: "<", value: 1.4}               # well-behaved single-star astrometry (Lindegren et al. 2021)
+    - {column: phot_g_mean_mag, op: ">", value: 16.0}   # brighter stars saturate HST and JWST mosaics
+    - {column: phot_g_mean_mag, op: "<", value: 20.5}   # Gaia's proper motions grow too uncertain to place fainter stars decades away
+  match_radius_arcsec: 1.0
+  row_cap: 2000
+  resolve: false                       # SIMBAD costs a request per star and adds little to a crowded field
+  resolver_radius_arcsec: 2.0
+
+archives:
+  - source_id: 2mass
+    role: catalogue
+    release_label: 2mass:psc
+    columns: [designation, ra, dec, jdate, j_m, h_m, k_m, ph_qual, j_msigcom, h_msigcom, k_msigcom, err_maj, err_min]
+    match_radius_arcsec: 1.5
+  - source_id: ps1
+    role: catalogue
+    release_label: ps1:DR2
+    columns: [objID, raMean, decMean, epochMean, nDetections,
+              gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, zMeanPSFMag, yMeanPSFMag,
+              gMeanPSFMagErr, rMeanPSFMagErr, iMeanPSFMagErr, zMeanPSFMagErr, yMeanPSFMagErr, raMeanErr, decMeanErr]
+    match_radius_arcsec: 1.0           # Pan-STARRS covers the sky north of -30 degrees, M16 included
+  - source_id: allwise
+    role: catalogue
+    release_label: allwise:psd
+    columns: [designation, ra, dec, sigra, sigdec, w1mpro, w1sigmpro, w2mpro, w2sigmpro, ph_qual, cc_flags, ext_flg]
+    match_radius_arcsec: 2.0
+  - source_id: mast
+    role: observations
+    release_label: mast:caom
+    columns: []
+    match_radius_arcsec: 180.0         # mosaics whose centre lies within 3 arcmin of the field
+    missions: [HST, JWST]
+    product_types: [image]
+    min_calibration_level: 3           # combined mosaics only, not every single exposure
+    cutout_arcsec: 60.0                # a one-arcminute square of each mosaic
+
+tests:
+  - name: cross-survey-contradiction
+    version: 1.2.0
+    thresholds:
+      source_id: gaia
+      surveys: {2mass: 2mass, ps1: ps1, allwise: allwise}  # which archive in this profile holds each survey
+      blend_delta_mag: 2.5             # a neighbour within 2.5 mag in G that a survey or an image cannot separate spoils the comparison
+      magnitude_bins: 3                # the field sets the budget separately for bright, middle and faint stars
+      min_per_bin: 15                  # fewer stars than this cannot set a budget, so their comparisons are set aside
+      degree: 2                        # the colour relation that predicts each band from Gaia's G and BP-RP
+      flag_z: 3.0                      # a comparison this many sigma off is named in the result's pattern
+      fwhm_px: 2.5                     # the stars' width on a drizzled HST or JWST mosaic, as a first guess
+      nsigma: 5.0                      # a detection is 5 times its noise
+      exclude_percentile: 25.0         # a crowded field fills more than a tenth of each background box
+      align_wcs: true                  # shift each image onto Gaia first: archived astrometry can be off by an arcsecond
+      align_search_arcsec: 3.0
+      align_separation_arcsec: 0.5     # stars closer than this are set aside by the alignment matcher
+      align_tolerance_arcsec: 0.3
+      anchor_sigma_arcsec: 0.01
+      aperture_fwhm: 1.0               # aperture radius: one FWHM of the image's stars
+      image_search_arcsec: 1.0         # a star's counterpart on an image is the nearest detection within 1 arcsec
+    needs_products: [image]            # the test reads the images, so the plan must fetch some
+
+ranking:
+  policy_id: significance
+  version: 1.0.0
+  alpha: 0.01
+  threshold: 1.0                       # one test, so a star is a candidate only when it is significant
+
+null_fields:
+  trials: 20

@@ -37,8 +37,9 @@ from sdp_investigate.contradiction import (
 pytestmark = [pytest.mark.tier("T4"), pytest.mark.req("INV-026")]
 
 DIALECTS = load_dialects()
-TWOMASS, PS1 = DIALECTS["2mass-psc"], DIALECTS["ps1-dr2"]
-GAIA_ART, IR_ART, PS_ART = (ArtifactId("sha256:" + c * 64) for c in "abc")
+TWOMASS, PS1, ALLWISE = DIALECTS["2mass-psc"], DIALECTS["ps1-dr2"], DIALECTS["allwise-psd"]
+GAIA_ART, IR_ART, PS_ART, WISE_ART = (ArtifactId("sha256:" + c * 64) for c in "abcd")
+WISE_EPOCH = 2010.5558
 THRESHOLDS: dict[str, Any] = {"source_id": "gaia", "surveys": {"2mass": "2mass", "ps1": "ps1"}}
 GAIA_EPOCH, TWOMASS_JD, PS1_MJD = 2016.0, 2451180.5, 56000.0  # 2MASS 1999.0, PS1 2012.2
 TWOMASS_EPOCH = 1999.0 + (TWOMASS_JD - 2451179.5) / 365.25
@@ -50,6 +51,9 @@ KS_EXCESS = 5  # 0.5 mag brighter in Ks than its colour predicts
 FADED = 7  # 0.4 mag fainter in every 2MASS and PS1 band: a variable or a wrong match
 PAIR = (10, 11)  # 1.2 arcsec apart, equal brightness: 2MASS cannot split them
 POOR = 13  # Ks flagged U (upper limit) by 2MASS and far off
+WISE_EXCESS = 17  # 0.8 mag brighter in W1 and W2 than its colour predicts (only in an AllWISE field)
+WISE_CONTAMINATED = 19  # W1 1.5 mag off under a flagged diffraction spike (only in an AllWISE field)
+WISE_EXTENDED = 23  # a galaxy behind it: AllWISE fits it as extended and both bands come out 1 mag bright
 PLANTED = {MOVED, KS_EXCESS, FADED, *PAIR, POOR}
 
 
@@ -62,6 +66,8 @@ def predicted(band: str, g: float, bp_rp: float) -> float:
         "g": (-0.05, -0.30, -0.10),
         "r": (0.05, 0.25, 0.02),
         "i": (0.10, 0.55, 0.05),
+        "w1": (0.30, 1.50, 0.16),
+        "w2": (0.32, 1.55, 0.17),
     }[band]
     return g - (terms[0] + terms[1] * bp_rp + terms[2] * bp_rp**2)
 
@@ -70,10 +76,12 @@ def sigma_mag(g: float) -> float:
     return 0.015 + 0.012 * (g - 11.0)
 
 
-def field(n: int = 120, seed: int = 26, reported: bool = False) -> list[EvidenceBundle]:
-    """The synthetic field; ``reported`` gives every 2MASS and PS1 row the archive's own errors."""
+def field(n: int = 120, seed: int = 26, reported: bool = False, allwise: bool = False) -> list[EvidenceBundle]:
+    """The synthetic field; ``reported`` gives every 2MASS and PS1 row the archive's own errors, and
+    ``allwise`` adds an AllWISE row for every star (drawn after the others, so they are unchanged)."""
     rng = np.random.default_rng(seed)
     bundles: list[EvidenceBundle] = []
+    later: list[tuple[Any, ...]] = []
     ra0, dec0 = 150.0, 20.0
     cosd = math.cos(math.radians(dec0))
     for i in range(n):
@@ -147,9 +155,50 @@ def field(n: int = 120, seed: int = 26, reported: bool = False) -> list[Evidence
                 ps |= {f"{b}MeanPSFMagErr": s for b in "gri"} | {"raMeanErr": 0.015, "decMeanErr": 0.015}
             rows["ps1"] = (PS1.row(ps),)
             arts["ps1"] = PS_ART
+        if allwise:
+            later.append((i, rows, arts, ra, dec, pmra, pmdec, g, bp_rp))
         obj = IdentifiedObject(key, IdentificationMethod.CATALOGUE, ra, dec, (GAIA_ART,), gaia_source_key=key)
         bundles.append(EvidenceBundle(object=obj, catalogue_rows=rows, catalogue_artifacts=arts))
+    for i, rows, arts, ra, dec, pmra, pmdec, g, bp_rp in later:
+        rows["allwise"] = (ALLWISE.row(wise_native(rng, i, ra, dec, pmra, pmdec, g, bp_rp, cosd)),)
+        arts["allwise"] = WISE_ART
     return bundles
+
+
+def wise_native(
+    rng: np.random.Generator,
+    i: int,
+    ra: float,
+    dec: float,
+    pmra: float,
+    pmdec: float,
+    g: float,
+    bp_rp: float,
+    cosd: float,
+) -> dict[str, Any]:
+    """An AllWISE row: the star at 2010.56, 150 mas and 0.03 mag of noise, the archive's own errors."""
+    dt = WISE_EPOCH - GAIA_EPOCH
+    w = {b: predicted(b, g, bp_rp) + float(rng.normal(0, 0.03)) for b in ("w1", "w2")}
+    if i == WISE_EXCESS:
+        w = {b: m - 0.8 for b, m in w.items()}  # warm dust: brighter in both bands than its colour predicts
+    if i == WISE_CONTAMINATED:
+        w["w1"] -= 1.5  # a diffraction spike across it, which AllWISE flags
+    if i == WISE_EXTENDED:
+        w = {b: m - 1.0 for b, m in w.items()}
+    return {
+        "designation": f"J{i:06d}",
+        "ra": (ra + (pmra * dt + float(rng.normal(0, 150))) / 3.6e6 / cosd) % 360.0,
+        "dec": dec + (pmdec * dt + float(rng.normal(0, 150))) / 3.6e6,
+        "sigra": 0.15,
+        "sigdec": 0.15,
+        "w1mpro": w["w1"],
+        "w1sigmpro": 0.03,
+        "w2mpro": w["w2"],
+        "w2sigmpro": 0.03,
+        "ph_qual": "AAUU",
+        "cc_flags": "d000" if i == WISE_CONTAMINATED else "0000",
+        "ext_flg": 1 if i == WISE_EXTENDED else 0,
+    }
 
 
 def context(seed: int = 5) -> TaskContext:
@@ -170,7 +219,7 @@ def test_it_is_registered_with_a_question_and_a_null_model() -> None:
     names = {t.name for t in registered_tests()}
     assert "cross-survey-contradiction" in names
     test = CrossSurveyContradiction()
-    assert test.question and test.null_model and test.version == "1.1.0"
+    assert test.question and test.null_model and test.version == "1.2.0"
 
 
 @pytest.mark.scientific
@@ -343,9 +392,8 @@ def test_a_survey_missing_from_the_field_simply_adds_no_channel() -> None:
 
 def test_settings_say_what_they_refuse_and_accept_the_smallest_valid_values() -> None:
     with pytest.raises(PlanInvalid, match=r"names its surveys as \{survey: source_id\}"):
-        settings({"surveys": {}})
-    with pytest.raises(PlanInvalid, match="names its surveys"):
         settings({"surveys": ["2mass"]})
+    assert settings({"surveys": {}})["surveys"] == {}, "a profile of images alone names no survey"
     with pytest.raises(PlanInvalid, match="needs min_per_bin >= 5 and magnitude_bins >= 1"):
         settings({"magnitude_bins": 0})
     assert settings({"min_per_bin": 5, "magnitude_bins": 1})["min_per_bin"] == 5

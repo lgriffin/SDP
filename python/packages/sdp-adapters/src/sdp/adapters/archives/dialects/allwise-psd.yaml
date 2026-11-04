@@ -1,0 +1,21 @@
+# AllWISE Source Catalog to canonical astrometry (INV-028).
+# AllWISE combines every WISE exposure from 2010 into one position per source at the mean epoch of its
+# observations, MJD 55400 (2010.56) to within half a year for most of the sky. The catalogue does not
+# carry that epoch in its basic columns, so the dialect uses MJD 55400 for every row: for a star moving
+# 100 mas/yr the half-year spread is 50 mas, inside AllWISE's own position errors.
+# W1 and W2 magnitudes and their errors, the per-band ph_qual and cc_flags strings and the position
+# errors sigra/sigdec (arcsec) are kept in quality_flags; cross-survey-contradiction reads them.
+dialect_id: allwise-psd
+dialect_version: 1.0.0
+source_id: allwise
+source_release: allwise:psd
+source_key: "allwise:{designation}"
+epoch: {constant: 2010.5558}
+columns:
+  ra_deg: {column: ra, unit: deg}
+  dec_deg: {column: dec, unit: deg}
+astrometric_corr: null
+quality_flags: [w1mpro, w1sigmpro, w2mpro, w2sigmpro, ph_qual, cc_flags, sigra, sigdec, ext_flg]
+# a resolved galaxy (ext_flg above 0) is no point source to compare with Gaia
+quality_class: {column: ext_flg, map: {"0": good}, default: poor}
+zero_point_corrected: false
