@@ -440,6 +440,48 @@ def reproduce_dossier(
     return result
 
 
+CONTRADICTION_TEST = "cross-survey-contradiction"
+
+
+def contradiction_lines(
+    investigations: Sequence[Investigation], files: Mapping[str, tuple[bytes, str, str]]
+) -> list[str]:
+    """One line per candidate the cross-survey-contradiction test judged, and one per comparison it
+    flagged: the survey, the difference, z and the reading (INV-029)."""
+    lines: list[str] = []
+    for i in investigations:
+        entry = files.get(f"dossiers/{i.investigation_id}.json")
+        if entry is None:
+            continue
+        doc = json.loads(entry[0])
+        for r in doc.get("test_results", []):
+            if r.get("test_name") != CONTRADICTION_TEST or r.get("subject", {}).get("object_key") != i.candidate.key:
+                continue
+            d = r.get("details", {})
+            flagged = set(d.get("flagged", []))
+            p = r.get("p_value")
+            lines.append(
+                f"- `{i.candidate.key}`: {d.get('pattern', '?')}, p = {p:.3g}; {d.get('pattern_reading', '')}"
+                if p is not None
+                else f"- `{i.candidate.key}`: not assessable; {d.get('pattern_reading', '')}"
+            )
+            for c in d.get("comparisons", []):
+                if c.get("channel") in flagged:
+                    lines.append(f"  - {c['channel']}: {_difference(c)}, z = {c.get('z') or 0:+.1f}")
+    return lines
+
+
+def _difference(c: Mapping[str, Any]) -> str:
+    if c.get("kind") == "band" and c.get("residual_mag") is not None:
+        mag = float(c["residual_mag"])
+        return f"{abs(mag):.2f} mag {'brighter' if mag < 0 else 'fainter'} than Gaia predicts"
+    offset, field_offset = c.get("offset_mas") or [None, None], c.get("field_offset_mas") or [0.0, 0.0]
+    if None in offset:
+        return "no measurement"
+    east, north = (float(o) - float(f or 0.0) for o, f in zip(offset, field_offset, strict=True))
+    return f"{math.hypot(east, north):.0f} mas from where Gaia's motion puts it ({east:+.0f} east, {north:+.0f} north)"
+
+
 def readme(
     s: InvestigationSet,
     investigations: Sequence[Investigation],
@@ -467,6 +509,16 @@ def readme(
             f"- `{i.candidate.key}` ({i.investigation_id}, {i.state.value}): score "
             f"{i.rank.score:.3g}, dossier `dossiers/{i.investigation_id}.json`"
         )
+    contradictions = contradiction_lines(investigations, files)
+    if contradictions:
+        lines += [
+            "",
+            "## Where the surveys disagree with Gaia",
+            "",
+            "The cross-survey-contradiction comparisons each candidate's dossier holds, the ones that disagree:",
+            "",
+            *contradictions,
+        ]
     if images:
         lines += ["", "## Images", ""]
         for image in images:
