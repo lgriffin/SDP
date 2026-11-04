@@ -18,8 +18,10 @@ from sdp_investigate.base import Features, Scored
 from sdp_investigate.century import (
     CenturyTrend,
     blend_fractions,
+    curve_owners,
     exposure_groups,
     fit_trend,
+    group_medians,
     jyear,
     peer_model,
 )
@@ -239,3 +241,58 @@ def test_peers_absorb_a_colour_dependent_slope() -> None:
     assert sigma_sys == pytest.approx(0.04, abs=0.012)
     _, none = peer_model(np.zeros(50), np.full(50, 0.1), colour[:50], mag[:50])
     assert none == 0.0
+
+
+def test_group_medians_take_the_middle_of_each_group() -> None:
+    index = np.array([0, 1, 0, 0, 1, 2])
+    values = np.array([3.0, 10.0, 1.0, 2.0, 20.0, 7.0])
+    assert list(group_medians(index, values, 3)) == [2.0, 15.0, 7.0]
+
+
+def test_a_field_across_zero_hours_keeps_its_neighbours(field: Field) -> None:
+    """Moved so the field straddles RA 0: the stars' plate corrections, and so their trends, are the
+    same as where it was."""
+    shift = 360.0 - RA0 - 0.4
+    stars = [(s[0], (s[1] + shift) % 360.0, *s[2:]) for s in field.stars]
+    listed = [((r + shift) % 360.0, d, g) for r, d, g in field.listed]
+    assert min(s[1] for s in stars) < 1.0 and max(s[1] for s in stars) > 359.0
+    moved = CenturyTrend().evaluate(Field(stars, field.curves, listed).features(), {}, np.random.default_rng(0))
+    here = CenturyTrend().evaluate(field.features(), {}, np.random.default_rng(0))
+    assert [s.statistic for s in moved] == pytest.approx([s.statistic for s in here], rel=1e-9)
+
+
+def test_a_star_measured_twice_on_a_plate_counts_once_in_its_neighbours_correction(field: Field) -> None:
+    """Star 2 appears twice on every exposure (two plate solutions), once 0.5 mag off: as one
+    reference star it moves its neighbours' corrections no more than any other star does."""
+    curves = list(field.curves)
+    t, mag, err = curves[2]
+    curves[2] = (np.r_[t, t + 0.00001], np.r_[mag, mag + 0.5], np.r_[err, err])
+    doubled = CenturyTrend().evaluate(Field(field.stars, curves, field.listed).features(), {}, np.random.default_rng(0))
+    assert len(doubled) == len(field.stars)
+    fade = next(s for s in doubled if s.subject.key == "s0")
+    assert pv(fade) < 1e-6
+
+
+def test_a_blended_star_is_corrected_on_an_exposure_with_exactly_k_clean_stars() -> None:
+    """Eleven stars, one of them blended, on one exposure: the blended star still gets the median of
+    the ten clean ones with ensemble_k 10; a clean star, which needs ten others, gets nothing."""
+    test = CenturyTrend()
+    n = 11
+    arrays = {
+        "ra": np.full(n, RA0) + np.arange(n) * 0.01,
+        "dec": np.full(n, DEC0),
+        "colour": np.full(n, 0.9),
+        "blend": np.r_[0.5, np.zeros(n - 1)],
+    }
+    star = np.arange(n)
+    residual = np.r_[0.0, np.arange(1.0, n)]
+    correction = test._ensemble(
+        arrays, star, np.full(n, 50000.0), residual, np.full(n, 12.0), arrays["blend"] <= 0.1, {"ensemble_k": 10}
+    )
+    assert correction[0] == pytest.approx(5.5)
+    assert np.all(np.isnan(correction[1:]))
+
+
+def test_a_light_curve_two_targets_matched_belongs_to_the_brighter() -> None:
+    owners = curve_owners([("lc1", 12.0, "a"), ("lc1", 11.0, "b"), ("lc2", 13.0, "c"), ("lc1", 11.0, "a")])
+    assert owners == {"lc1": "a", "lc2": "c"}

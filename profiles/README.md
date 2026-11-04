@@ -105,7 +105,7 @@ constant stars near M67 seem to trend, so every setting here is about measuring 
   and their spread beyond their own errors (`sigma_sys`, about 0.03 magnitudes a century near M67) is
   added to every star's error.
 - **`alpha: 0.001`.** The null run calibrates on half the field and tests the other half, so it measures
-  how often the field's own clean stars pass: about 1.5% at this alpha near M67, not the 0.1% the alpha
+  how often the field's own clean stars pass: about 1.5 to 1.7% at this alpha near M67, not the 0.1% the alpha
   promises. Expect a few false candidates in a field of a few hundred stars.
 
 ### image-changes: the same field at different dates

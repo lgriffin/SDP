@@ -93,6 +93,27 @@ def exposure_groups(mjd: np.ndarray, tolerance_days: float) -> np.ndarray:
     return groups
 
 
+def curve_owners(claims: Sequence[tuple[str, float, str]]) -> dict[str, str]:
+    """Which target each light curve belongs to, from (curve, G magnitude, target) claims: a plate
+    light curve two targets both matched goes to the brighter (the archive's catalogue star most
+    likely is), so the fainter is left out rather than fitted twice."""
+    best: dict[str, tuple[float, str]] = {}
+    for curve, g, target in claims:
+        if curve not in best or (g, target) < best[curve]:
+            best[curve] = (g, target)
+    return {curve: target for curve, (_, target) in best.items()}
+
+
+def group_medians(index: np.ndarray, values: np.ndarray, groups: int) -> np.ndarray:
+    """The median of ``values`` in each of ``groups`` groups numbered by ``index`` (each group non-empty)."""
+    order = np.lexsort((values, index))
+    counts = np.bincount(index, minlength=groups)
+    start = np.r_[0, np.cumsum(counts)[:-1]]
+    ordered = values[order]
+    low, high = start + (counts - 1) // 2, start + counts // 2
+    return np.asarray((ordered[low] + ordered[high]) / 2.0)
+
+
 def blend_fractions(ra: np.ndarray, dec: np.ndarray, g_mag: np.ndarray, radius_arcsec: float) -> np.ndarray:
     """For each star, the summed G-band flux of the other listed stars within the radius, as a fraction
     of its own."""
@@ -131,7 +152,7 @@ def fit_trend(year: np.ndarray, mag: np.ndarray, err: np.ndarray, clip: float, b
     design = np.c_[np.ones(len(t)), t]
     weight = 1.0 / err**2
     keep = np.ones(len(t), dtype=bool)
-    for _ in range(5):
+    for attempt in range(6):
         if keep.sum() < 3 or np.ptp(t[keep]) == 0:
             return None
         a = design[keep]
@@ -141,7 +162,8 @@ def fit_trend(year: np.ndarray, mag: np.ndarray, err: np.ndarray, clip: float, b
         reduced = float(np.sum(normalised[keep] ** 2) / (keep.sum() - 2)) if keep.sum() > 2 else math.inf
         scale = max(1.0, math.sqrt(reduced))
         new = np.abs(normalised) < clip * scale
-        if np.array_equal(new, keep):
+        # the last pass only refits: what is returned always belongs to the points kept
+        if attempt == 5 or np.array_equal(new, keep):
             break
         keep = new
     slope_err = math.sqrt(cov[1, 1]) * scale
@@ -207,13 +229,23 @@ class CenturyTrend(FieldTest):
         stars: list[tuple[str, float, float, float, float, float, int]] = []
         curves = []
         listed: list[tuple[float, float, float]] = []
+        claims = []
         for b in bundles:
-            row = catalogue_row(b, thresholds.get("source_id"), "bp_rp")
-            if not row or not finite(row.get("ra_deg"), row.get("dec_deg"), row.get("g_mag"), row.get("bp_rp")):
+            row = catalogue_row(b, thresholds.get("source_id"), "g_mag")
+            products = [p for p in b.products if p.product_type == LIGHTCURVE]
+            if row and products and finite(row.get("g_mag")):
+                claims.append((products[0].artifact_id.value, float(row["g_mag"]), b.object_key))
+        owner = curve_owners(claims)
+        for b in bundles:
+            row = catalogue_row(b, thresholds.get("source_id"), "g_mag")
+            if not row or not finite(row.get("ra_deg"), row.get("dec_deg"), row.get("g_mag")):
                 continue
+            # every listed star can blend, with or without a colour
             listed.append((float(row["ra_deg"]), float(row["dec_deg"]), float(row["g_mag"])))
             products = [p for p in b.products if p.product_type == LIGHTCURVE]
-            if not products:
+            if not products or not finite(row.get("bp_rp")):
+                continue
+            if owner.get(products[0].artifact_id.value) != b.object_key:
                 continue
             lc = parse_lightcurve(product_bytes(context, products[0].artifact_id.value))
             good = lc.mag_err > 0
@@ -362,30 +394,45 @@ class CenturyTrend(FieldTest):
         stars nearest it in (position, magnitude, colour), never itself. NaN where the exposure has
         fewer than k other reference stars."""
         k = int(setting(thresholds, "ensemble_k"))
+        scale_arcmin = float(setting(thresholds, "ensemble_arcmin"))
+        # offsets from the field's centre, right ascension taken the short way round (a field across 0h)
+        ra0 = math.degrees(
+            math.atan2(np.mean(np.sin(np.radians(arrays["ra"]))), np.mean(np.cos(np.radians(arrays["ra"]))))
+        )
         dec0 = math.radians(float(np.median(arrays["dec"])))
-        space = np.c_[
-            arrays["ra"] * math.cos(dec0) * 60.0 / float(setting(thresholds, "ensemble_arcmin")),
-            arrays["dec"] * 60.0 / float(setting(thresholds, "ensemble_arcmin")),
-            median_mag / float(setting(thresholds, "ensemble_mag")),
-            arrays["colour"] / float(setting(thresholds, "ensemble_colour")),
-        ]
+        east = ((arrays["ra"] - ra0 + 180.0) % 360.0 - 180.0) * math.cos(dec0)
+        space = np.column_stack(
+            [
+                east * 60.0 / scale_arcmin,
+                arrays["dec"] * 60.0 / scale_arcmin,
+                median_mag / float(setting(thresholds, "ensemble_mag")),
+                arrays["colour"] / float(setting(thresholds, "ensemble_colour")),
+            ]
+        )
         groups = exposure_groups(mjd, float(setting(thresholds, "same_exposure_days")))
         correction = np.full(len(mjd), math.nan)
         order = np.argsort(groups, kind="stable")
         bounds = np.flatnonzero(np.r_[True, np.diff(groups[order]) != 0, True])
         for lo, hi in itertools.pairwise(bounds):
             points = order[lo:hi]
-            refs = points[reference[star[points]]]
-            if len(refs) < k + 1:
+            # one residual per reference star on the exposure, however often it was measured there
+            ref_points = points[reference[star[points]]]
+            ref_stars, index = np.unique(star[ref_points], return_inverse=True)
+            if len(ref_stars) < k:
                 continue
-            tree = cKDTree(space[star[refs]])
-            _, nearest = tree.query(space[star[points]], k=k + 1)
-            values = residual[refs][nearest]
-            own = star[refs][nearest] == star[points][:, None]
-            # k + 1 neighbours: the star itself is dropped when it is among them, else the farthest
+            ref_residual = group_medians(index, residual[ref_points], len(ref_stars))
+            tree = cKDTree(space[ref_stars])
+            wanted = min(k + 1, len(ref_stars))
+            _, nearest = tree.query(space[star[points]], k=wanted)
+            nearest = nearest.reshape(len(points), wanted)
+            values = ref_residual[nearest]
+            own = ref_stars[nearest] == star[points][:, None]
+            # the star itself is dropped when it is among them, else the farthest beyond k
             values = np.where(own, np.nan, values)
-            values[~own.any(axis=1), k] = np.nan
-            correction[points] = np.nanmedian(values, axis=1)
+            if wanted > k:
+                values[~own.any(axis=1), k] = np.nan
+            enough = np.sum(np.isfinite(values), axis=1) >= k
+            correction[points[enough]] = np.nanmedian(values[enough], axis=1)
         return correction
 
     def null_features(self, features: Features, thresholds: Mapping[str, Any], rng: np.random.Generator) -> Features:

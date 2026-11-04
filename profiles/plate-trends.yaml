@@ -7,7 +7,8 @@
 # The test is only as good as its field: it calibrates on the field's own stars, so it needs a few
 # hundred stars with plates on both sides of the 1953-1969 gap. Around M67 (1.1 degrees, B < 15) that
 # was 1,100 stars and 520 with enough plates; the field's own null flagged 1.5% of them at alpha 0.001.
-# Blends are judged from the stars the profile lists, so the G cut also decides which neighbours count.
+# Blends are judged from the stars the profile lists, so the G cut also decides which neighbours count
+# (tools/century_scan.py lists neighbours to G 17 without fetching their plates).
 #
 # Read profiles/README.md for what each setting means and why these values were chosen.
 # Changing anything here makes a new profile: raise `version` (the run records this file's hash).
@@ -27,7 +28,10 @@ identify:
             dec_pmra_corr, dec_pmdec_corr, parallax_pmra_corr, parallax_pmdec_corr, pmra_pmdec_corr,
             phot_g_mean_mag, bp_rp, ruwe, astrometric_params_solved, duplicated_source]
   quality_cuts:
-    - {column: phot_g_mean_mag, op: "<", value: 15.0}  # the plates' useful depth (B about 15)
+    # The plates reach about B 15 (G 14.5), but the listed stars are also every neighbour the blend
+    # check sees: down to G 16, a 10% blend is caught for every star brighter than G 13.5, where
+    # nearly all stars with 100 plates are. Fainter stars cost a DASCH search and are rarely tested.
+    - {column: phot_g_mean_mag, op: "<", value: 16.0}
   match_radius_arcsec: 1.0
   row_cap: 2000
   resolve: true
@@ -56,7 +60,7 @@ tests:
 ranking:
   policy_id: significance
   version: 1.0.0
-  alpha: 0.001                         # the field's own null runs at about 1.5% at this alpha near M67
+  alpha: 0.001                         # the field's own null runs at about 1.5 to 1.7% at this alpha near M67
   threshold: 1.0
 
 null_fields:

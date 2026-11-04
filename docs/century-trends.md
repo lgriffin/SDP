@@ -53,7 +53,7 @@ The test as written (`century-trend`, all defaults) reproduces this. On the same
 with 280 reference stars and sigma_sys 0.031 mag/century, and its null (calibrate on half, score the
 other half) ran at **4.4% at nominal 1% and 1.5% at nominal 0.1%**. `tools/century_scan.py`, whose
 default field tiles the same 1.1 degrees slightly differently (1,110 stars), gives 525 scored, 284
-reference stars, sigma_sys 0.034 and a null rate of **1.8% at nominal 0.1%**. The tail is still
+reference stars, sigma_sys 0.032 and a null rate of **1.7% at nominal 0.1%**. The tail is still
 heavier than a normal one, so a field of a few hundred clean stars should expect three or four false
 candidates at alpha 0.001.
 
@@ -83,18 +83,18 @@ of the plates and of their APASS calibration. A real trend should reach 2016 at 
 jump on the post-gap plates tilts the line to a 2016 magnitude Gaia does not see. The test reports the
 line's 2016 magnitude minus the anchor, in units of the reference stars' spread (`anchor_z`).
 
-On M67 (the scan tool's run), 42 stars are significant at alpha 0.001. 40 of them are blends, and
-Gaia contradicts every blend's trend (|anchor_z| of 3 or more). Of the two unblended ones, one is
-contradicted by Gaia too; one agrees.
+On M67 (the scan tool's run), 40 stars are significant at alpha 0.001. 38 of them are blends, and
+Gaia contradicts the trend of 37 of those (|anchor_z| of 3 or more). Of the two unblended ones, one
+is contradicted by Gaia too; one agrees.
 
 ## Result
 
 No discovery in this field. One unblended star is significant at alpha 0.001 and agrees with Gaia,
-which is no more than chance alone gives (the null passes 1.8% of clean stars, about 4 of 240):
+which is no more than chance alone gives (the null passes 1.7% of clean stars, about 4 of 240):
 
 | Gaia DR3 | G | BP-RP | Trend (mag/century) | Peer-relative | z | Gaia anchor z | Notes |
 |---|---|---|---|---|---|---|---|
-| 608052027767556224 | 9.97 | 0.58 | +0.20 (fading) | +0.16 | 3.5 | 2.3 | RUWE 6.0, `non_single_star` 3 (astrometric and spectroscopic binary), 77 mas/yr, 210 pc. Fades 0.15 mag/century on the pre-1953 plates alone. APASS's B for it is a magnitude off (11.41 against Gaia's 10.47). |
+| 608052027767556224 | 9.97 | 0.58 | +0.20 (fading) | +0.16 | 3.6 | 2.3 | RUWE 6.0, `non_single_star` 3 (astrometric and spectroscopic binary), 77 mas/yr, 210 pc. Fades 0.15 mag/century on the pre-1953 plates alone. APASS's B for it is a magnitude off (11.41 against Gaia's 10.47). |
 
 The unblended star Gaia contradicts is Gaia DR3 607997288408680064 (G 9.61): flat until 1952, then
 0.19 mag brighter on the post-gap plates and 0.27 mag brighter at 2016 than Gaia measured, the same

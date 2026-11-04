@@ -185,6 +185,13 @@ def main(argv: list[str] | None = None) -> int:
 
     folder = args.out / args.label
     (folder / "lc").mkdir(parents=True, exist_ok=True)
+    # the cache belongs to one field: a label reused for another field would read the wrong stars
+    field = {"ra": args.ra, "dec": args.dec, "radius_deg": args.radius_deg, "b_max": args.b_max,
+             "min_matches": args.min_matches, "g_max": args.g_max}  # fmt: skip
+    recorded = cached(folder / "field.json", lambda: field)
+    if recorded != field:
+        print(f"{folder} holds the cache of another field ({recorded}); use another --label", file=sys.stderr)
+        return 2
     stars: dict[str, dict[str, str]] = {}
     for i, (ra, dec) in enumerate(cones(args.ra, args.dec, args.radius_deg)):
         payload = {"refcat": "apass", "ra_deg": ra, "dec_deg": dec, "radius_arcsec": CONE_ARCSEC}
