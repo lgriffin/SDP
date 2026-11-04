@@ -19,6 +19,7 @@ from typing import Annotated, Any, Protocol
 
 import typer
 
+from sdp.cli.companions import companions_app
 from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.cli.einstein1921 import einstein1921_app
 from sdp.cli.oort1927 import oort1927_app
@@ -166,6 +167,7 @@ for name, sub in (
     ("discover", discover_app),
     ("einstein1921", einstein1921_app),
     ("oort1927", oort1927_app),
+    ("companions", companions_app),
 ):
     app.add_typer(sub, name=name)
 

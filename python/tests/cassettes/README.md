@@ -15,3 +15,7 @@ uv run sdp archive smoke --baseline tests/cassettes --record tests/cassettes
 AllWISE and Pan-STARRS DR2, recorded live from the cloud sandbox on 2026-10-31 with `CassetteTransport` in
 record mode around one field star near Barnard's star (RA 269.4487909, Dec +4.6685359, 10″). SIMBAD and
 VizieR (VSX) were unreachable from the sandbox, so their adapters are tested against primed fakes only.
+
+`gaia-nss/` holds one Gaia TAP answer (DSI-023): the orbits joined to `gaia_source` and `binary_masses`
+of seven named stars (Gaia BH1, two AMRF class III orbits and four others), recorded live from the cloud
+sandbox on 2026-11-04 with `CassetteTransport` in record mode around `gaia_nss.fetch_targets`.
