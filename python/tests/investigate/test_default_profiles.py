@@ -8,6 +8,7 @@ ranking policy and null-field plan as written, so a threshold a test cannot use 
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -128,6 +129,18 @@ def test_a_default_profile_names_only_what_exists(path: Path) -> None:
         if ":catalogue:" in r.requirement_id
     }
     assert needed <= served, f"the plan would have a gap: {sorted(needed - served)}"
+
+
+@pytest.mark.req("INV-028")
+def test_the_image_contradictions_profile_keeps_mast_under_its_request_cap() -> None:
+    # M16 lists about 400 level-3 mosaics within 3 arcmin; a plan may ask one source 200 times at most,
+    # so the profile keeps one mosaic per camera and filter, and caps the rest
+    profile = load(PROFILES[0].parent / "image-contradictions.yaml")
+    (mast,) = [a for a in profile.archives if a.source_id == "mast"]
+    assert mast.select is not None
+    assert set(mast.select.one_per) == {"mission", "instrument", "band"}
+    assert mast.select.combined_only
+    assert mast.select.max_products is not None and mast.select.max_products <= 50
 
 
 @pytest.mark.req("INV-001")
@@ -260,3 +273,7 @@ def test_a_default_profile_runs_end_to_end(path: Path, tmp_path: Path) -> None:
         "exposure-counterpart",
         "century-trend",
     }
+    if profile.profile_id == "image-contradictions":
+        # the stars are compared on the synthetic NIRCam mosaic, not only in the catalogues
+        compared = [r for r in results if r["test_name"] == "cross-survey-contradiction"]
+        assert '"image:' in json.dumps(compared)

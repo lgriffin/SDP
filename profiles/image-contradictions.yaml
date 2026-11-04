@@ -17,7 +17,7 @@
 # Changing anything here makes a new profile: raise `version` (the run records this file's hash).
 schema_version: "1.0.0"
 profile_id: image-contradictions
-version: 1.0.0
+version: 1.1.0
 description: >-
   Gaia against Hubble and Webb images, 2MASS, Pan-STARRS and AllWISE. Flags stars whose brightness or position on
   an image or in a survey disagrees with Gaia by more than the field's own measurements allow.
@@ -62,11 +62,17 @@ archives:
     role: observations
     release_label: mast:caom
     columns: []
-    match_radius_arcsec: 180.0         # mosaics whose centre lies within 3 arcmin of the field
-    missions: [HST, JWST]
+    match_radius_arcsec: 180.0         # mosaics whose centre lies within 3 arcmin of the field; the probe drops those that miss it
+    missions: [JWST, HST]              # JWST first: when the budget runs short, Hubble's filters give way
     product_types: [image]
     min_calibration_level: 3           # combined mosaics only, not every single exposure
     cutout_arcsec: 60.0                # a one-arcminute square of each mosaic
+    select:                            # M16 has about 400 level-3 mosaics within 3 arcmin; a plan may ask a source 200 times
+      one_per: [mission, instrument, band]   # one mosaic per camera and filter: each is a separate comparison with Gaia
+      combined_only: true                    # MAST lists each exposure's mosaic beside the visit's; keep the visit's
+      measure_reads: true                    # cost each cutout at the full-width rows it reads, not the square it keeps
+      min_coverage: 0.5                      # leave out a mosaic that holds less than half of the square
+      max_products: 24
 
 tests:
   - name: cross-survey-contradiction
