@@ -410,6 +410,21 @@ def test_audit_and_report_say_which_single_catalogue_claims_survive(bulk: Path) 
     assert rows[0]["claim_id"] == "cwnu23:CWNU SYN-B" and rows[0]["verdict"] == "survives"
 
 
+@pytest.mark.req("STL-024")
+def test_an_audit_refuses_a_stored_catalogue_without_parallaxes(bulk: Path) -> None:
+    # hr23 stored before SDP read its pos.parallax;stat.mean column: every claim of it would be unassessable
+    store = artifact_store(bulk / "artifacts")
+    store_cwnu(store)
+    hr23 = benchmark_tables()["hr23"]
+    blind = hr23.drop_columns(["parallax_mas"]).replace_schema_metadata(hr23.schema.metadata)
+    store.link(discover._benchmark_path("hr23", "hr23:v1.0"), store.put(parquet(blind), PARQUET))
+    invoke("discover", "prepare", "--workers", "1")
+    result = runner.invoke(cli.app, ["discover", "audit", "--allow-partial"])
+    assert result.exit_code != 0
+    assert "the stored hr23 has no parallax column" in str(result.exception)
+    assert "run `sdp benchmark fetch --catalogue hr23` again" in str(result.exception)
+
+
 def test_an_audit_report_needs_audited_claims(bulk: Path) -> None:
     result = runner.invoke(cli.app, ["discover", "audit-report"])
     assert result.exit_code != 0 and "run `sdp discover audit` first" in str(result.exception)

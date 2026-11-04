@@ -112,6 +112,19 @@ def test_a_missing_parallax_is_left_out_but_a_missing_proper_motion_is_refused()
 
 
 @pytest.mark.req("DSI-015")
+def test_hr23s_mean_cluster_parallax_is_read_and_its_spread_and_error_are_not() -> None:
+    # hr23's own UCDs (IVOA registry): plx is pos.parallax;stat.mean, beside s_plx and e_plx
+    hr23 = [r for r in SCHEMA if r["column_name"] != "Plx"] + [
+        {"column_name": "s_plx", "ucd": "stat.stdev;pos.parallax", "unit": "mas"},
+        {"column_name": "plx", "ucd": "pos.parallax;stat.mean", "unit": "mas"},
+        {"column_name": "e_plx", "ucd": "stat.error;pos.parallax", "unit": "mas"},
+    ]
+    assert choose_columns(hr23)["parallax_mas"] == "plx"
+    # a trigonometric parallax is still preferred where a table has both
+    assert choose_columns([*hr23, SCHEMA[-1]])["parallax_mas"] == "Plx"
+
+
+@pytest.mark.req("DSI-015")
 def test_a_column_in_another_unit_is_refused_by_name() -> None:
     schema = [{**r, "unit": "arcsec/yr"} if r["column_name"] == "pmDE" else r for r in SCHEMA]
     with pytest.raises(CatalogueSchemaError) as caught:

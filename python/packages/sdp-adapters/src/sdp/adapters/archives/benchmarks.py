@@ -116,7 +116,13 @@ WANTED: tuple[Wanted, ...] = (
     Wanted("dec_deg", ("pos.eq.dec;meta.main", "pos.eq.dec"), ("deg",)),
     Wanted("pm_ra_cosdec_masyr", ("pos.pm;pos.eq.ra;meta.main", "pos.pm;pos.eq.ra"), ("mas/yr", "mas/a")),
     Wanted("pm_dec_masyr", ("pos.pm;pos.eq.dec;meta.main", "pos.pm;pos.eq.dec"), ("mas/yr", "mas/a")),
-    Wanted("parallax_mas", ("pos.parallax.trig;meta.main", "pos.parallax.trig", "pos.parallax"), ("mas",), False),
+    Wanted(
+        "parallax_mas",
+        # hr23 marks its mean cluster parallax pos.parallax;stat.mean
+        ("pos.parallax.trig;meta.main", "pos.parallax.trig", "pos.parallax", "pos.parallax;stat.mean"),
+        ("mas",),
+        False,
+    ),
 )
 
 
