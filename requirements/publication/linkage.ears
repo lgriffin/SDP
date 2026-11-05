@@ -1,0 +1,32 @@
+# requirements/publication/linkage.ears
+capability: Publication linkage (Discovery Roadmap C3)
+owner: investigate
+requirements:
+  - id: PUB-001
+    pattern: ubiquitous
+    text: "The system shall ask NASA ADS through the archive Transport with a token read only from the environment or the checkout's gitignored .env file, send that token only in the Authorization header, and never write it to a cassette, a log, an error message or an output file."
+    rationale: "Leigh's ADS key (2026-11-05) is a personal credential (NFR-009). The cassette key is the URL, so a recording replays whatever token recorded it; write_cassette drops credential headers for every archive, not only ADS. A variable already set in the shell wins over the .env file."
+    verification: test
+    tiers: [T1]
+    status: approved
+  - id: PUB-002
+    pattern: ubiquitous
+    text: "The system shall list every program of a MAST mission with its number, PI, title, category, count of level-3 products and the first and last date one of them is public, and refuse a program number that is not digits."
+    rationale: "Two small CAOM TAP queries (DISTINCT program rows; level-3 planes grouped by program) answer in seconds at MAST, where GROUP BY on the title text times out (2026-11-05). On 2026-11-05 MAST listed 2,080 JWST programs, 1,626 with level-3 products. The number goes into an ADS query, so it must be digits."
+    verification: test
+    tiers: [T1]
+    status: approved
+  - id: PUB-003
+    pattern: ubiquitous
+    text: "The investigate module shall call a science program unpublished only when its data have been public for at least min_public_days and no record in ADS names the mission and the program in its full text from the mission's first year, keeping the ADS query and the earliest refereed bibcodes for every program it asked about."
+    rationale: "Roadmap C3: the underused-data register. Naming is how papers credit a program (GO 1324, PID 1324, program 1324, jw01324...). A paper that uses data without naming the program is missed, so an unpublished program is a candidate to check by hand; a paper naming an unrelated program with the same number makes a count an upper bound, so every bibcode is kept to be read. ADS's full text lags publication, hence min_public_days (365). Calibration, commissioning and engineering programs are not science and are not asked about."
+    verification: test
+    tiers: [T1]
+    status: approved
+  - id: PUB-004
+    pattern: event
+    text: "When `sdp publication programs` is invoked, the system shall write programs.csv, unpublished.csv and a summary marked EXPLORATORY with the settings hash, keep each ADS answer in ads-answers.jsonl so a rerun asks only about programs not yet asked, and stop before fewer than the reserve of the day's ADS searches are left."
+    rationale: "ADS allows 5,000 searches a day per token; a JWST register needs about 1,400. A run stopped by the allowance or by --limit marks the rest not-asked-yet and the same command carries on the next day. `sdp publication search` is the prior-art check the roadmap asks for before every submission."
+    verification: test
+    tiers: [T4]
+    status: approved

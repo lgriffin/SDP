@@ -217,6 +217,8 @@ def _decode(doc: Mapping[str, str]) -> bytes:
 
 
 _KEPT_HEADERS = ("Content-Type",)
+#: request headers that carry a credential: never written to a cassette, which is committed to Git (NFR-009)
+_SECRET_HEADERS = frozenset({"authorization", "proxy-authorization", "x-api-key", "cookie"})
 
 
 def write_cassette(
@@ -227,7 +229,7 @@ def write_cassette(
         "request": {
             "method": request.method,
             "url": request.url,
-            "headers": dict(request.headers),
+            "headers": {k: v for k, v in request.headers.items() if k.lower() not in _SECRET_HEADERS},
             "body": _encode(request.body),
         },
         "response": {
