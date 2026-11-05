@@ -23,6 +23,7 @@ from sdp.cli.companions import companions_app
 from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.cli.einstein1921 import einstein1921_app
 from sdp.cli.oort1927 import oort1927_app
+from sdp.cli.oort1932 import oort1932_app
 from sdp.cli.publication import publication_app
 from sdp.kernel.application.investigate import ROW_CAP_REACHED, STORED_BYTES, QueryInvestigationsUseCase
 from sdp.kernel.application.kernel import Kernel
@@ -168,6 +169,7 @@ for name, sub in (
     ("discover", discover_app),
     ("einstein1921", einstein1921_app),
     ("oort1927", oort1927_app),
+    ("oort1932", oort1932_app),
     ("companions", companions_app),
     ("publication", publication_app),
 ):
