@@ -328,3 +328,26 @@ def test_the_cli_copies_allwise_from_a_given_folder_and_refuses_what_it_cannot_c
     assert unknown.exit_code != 0 and "no bulk files SDP reads for 'ps1'" in unknown.output
     subset = runner.invoke(cli.app, ["archive", "bulk", "--source", "2mass", "--subset", "rvs"])
     assert subset.exit_code != 0 and "only the Gaia copy has subsets" in subset.output
+
+
+@pytest.mark.req("DSI-024")
+def test_a_list_short_of_the_releases_files_is_refused_and_not_stored(tmp_path: Path) -> None:
+    sweep = twomass_sweep(tmp_path, PSC)
+    sweep.publisher = Publisher("2mass-psc", sweep.publisher.mirrors, file_count=3)  # type: ignore[union-attr]
+    with pytest.raises(ValueError, match="names 2 files, not the 3 of the release"):
+        sweep.files()
+    assert sweep.store.resolve(f"{sweep.prefix}/_FILES.txt") is None
+    assert BulkCatalogueGateway(sweep.store, TWOMASS).complete() is False
+
+
+@pytest.mark.req("DSI-024")
+def test_a_file_the_publisher_replaced_is_copied_again(tmp_path: Path) -> None:
+    sweep = wise_sweep(tmp_path, Mirrors({IRSA: wise_mirror(WISE_FILES)}))
+    sweep.run(sweep.files())
+    name = next(iter(WISE))
+    grown = {**WISE_FILES, name: wise_file([*WISE[name], ("J000002.00+000002.0", 0.0006, 0.0006)])}
+    again = wise_sweep(tmp_path, Mirrors({IRSA: wise_mirror(grown, rows={name: 2})}))
+    results = {r.name: r for r in again.run(again.files())}
+    assert (results[name].status, results[name].rows) == ("stored", 2)
+    assert sum(r.status == "reused" for r in results.values()) == 1
+    assert stored(again, again.files()[0].stem).num_rows == 2

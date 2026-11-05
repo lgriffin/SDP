@@ -93,12 +93,19 @@ if ($Only -ne "2mass") {
 }
 
 Write-Host "`n=== How much is stored ==="
+# the status reads the list the last sweep stored, so it needs no answer from IRSA
 foreach ($source in @("2mass", "allwise")) {
-    $doc = (& uv run sdp archive bulk --source $source --status 2>$null | Out-String | ConvertFrom-Json)
-    if ($doc) {
-        $state = if ($doc.done -eq $doc.files) { "complete: runs read it instead of IRSA" } else { "not complete: runs still ask IRSA; run this script again" }
-        Write-Host ("{0,-8} {1,6} of {2,6} files, {3:N0} rows, {4:N1} GB, {5}" -f $source, $doc.done, $doc.files, $doc.rows, ($doc.parquet_bytes / 1e9), $state)
+    if ($Only -ne "both" -and $Only -ne $source) { continue }
+    $text = (& uv run sdp archive bulk --source $source --status | Out-String)  # its errors print as they come
+    $doc = $null
+    if ($LASTEXITCODE -eq 0) { try { $doc = $text | ConvertFrom-Json } catch { $doc = $null } }
+    if (-not $doc) {
+        Write-Host "FAILED: no status for ${source}:`n$text"
+        $Failed = $true
+        continue
     }
+    $state = if ($doc.files -gt 0 -and $doc.done -eq $doc.files) { "complete: runs read it instead of IRSA" } else { "not complete: runs still ask IRSA; run this script again" }
+    Write-Host ("{0,-8} {1,6} of {2,6} files, {3:N0} rows, {4:N1} GB, {5}" -f $source, $doc.done, $doc.files, $doc.rows, ($doc.parquet_bytes / 1e9), $state)
 }
 
 Write-Host "`n=== Summary ==="

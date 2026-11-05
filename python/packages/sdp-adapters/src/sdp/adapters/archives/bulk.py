@@ -357,6 +357,8 @@ class Publisher:
     mirrors: tuple[str, ...]
     md5sums: str = ""
     row_counts: str = ""
+    #: how many data files the release has: a list with any other number (a cut-off reply) is refused
+    file_count: int | None = None
 
     def __post_init__(self) -> None:
         if self.format not in {"gaia-ecsv", "2mass-psc", "healpix-parquet"}:
@@ -373,12 +375,14 @@ class Publisher:
 #: The bulk files SDP can copy, by source id (``sdp archive bulk --source``)
 PUBLISHERS: dict[str, Publisher] = {
     "gaia": Publisher("gaia-ecsv", (GAIA_DR3_BULK,)),
-    "2mass": Publisher("2mass-psc", (TWOMASS_PSC_BULK,)),
+    #: psc_aaa ... psc_ace (north) and psc_baa ... psc_bbi (south): 470,992,970 sources, frozen since 2003
+    "2mass": Publisher("2mass-psc", (TWOMASS_PSC_BULK,), file_count=92),
     "allwise": Publisher(
         "healpix-parquet",
         ALLWISE_PARQUET_MIRRORS,
         md5sums="wise-allwise-md5sums.txt",
         row_counts="wise-allwise-row-counts-per-file.csv",
+        file_count=12_288,
     ),
 }
 
@@ -541,6 +545,12 @@ class BulkSweep:
             )
         if not files:
             raise ValueError(f"{publisher.mirrors[0]} lists no {self.descriptor.source_id} files")
+        if publisher.file_count is not None and len(files) != publisher.file_count:
+            # kept out of the store: a short list would let a partial copy pass for a complete one
+            raise ValueError(
+                f"{self.descriptor.source_id}: the publisher's list names {len(files)} files, not the "
+                f"{publisher.file_count} of the release; the reply may have been cut off, so try again later"
+            )
         self.store.put(format_files(files).encode(), "text/plain", logical_path=f"{self.prefix}/{FILES}")
         return files
 
@@ -606,8 +616,22 @@ class BulkSweep:
             raise exhausted
         return results
 
+    def stored_matches(self, f: BulkFile) -> bool:
+        """Whether a stored file is the one listed: the same MD5 and row count as when it was copied. A file
+        the publisher has replaced under the same name is copied again."""
+        if self.store.resolve(self.parquet_path(f)) is None:
+            return False
+        record = self.store.resolve(self.record_path(f))
+        if record is None:
+            return True  # a copy from before records were kept: nothing to compare
+        doc = json.loads(self.store.get(record))
+        if f.md5 and doc.get("md5") and doc["md5"] != f.md5:
+            return False
+        rows = doc.get("file_rows", doc.get("rows"))
+        return f.rows is None or rows is None or int(rows) == f.rows
+
     def store_file(self, f: BulkFile) -> FileResult:
-        if self.store.resolve(self.parquet_path(f)) is not None:
+        if self.stored_matches(f):
             return FileResult(f.name, "reused")
         free = self.store.free_bytes()
         if free is not None and free < self.min_free_bytes:
@@ -818,6 +842,7 @@ class BulkCatalogueGateway:
     key_column: str = "source_id"
     #: read a subset's copy instead (DSI-021): ``descriptor`` is the parent's, and gains the subset's columns
     subset: BulkSubset | None = None
+    _bounds_cache: dict[BulkFile, tuple[bool, dict[str, float] | None]] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.subset is not None:
@@ -865,6 +890,17 @@ class BulkCatalogueGateway:
         )
         return AcquisitionHandle(q, rendered, idempotency_key(rendered, q.release_label, q.columns), self.descriptor)
 
+    def _bounds(self) -> dict[BulkFile, tuple[bool, dict[str, float] | None]]:
+        """Each file's sky box, read from its record once per gateway: 12,288 small reads for AllWISE
+        would otherwise be repeated for every field."""
+        if self._bounds_cache is None:
+            cache: dict[BulkFile, tuple[bool, dict[str, float] | None]] = {}
+            for f in self.files():
+                record = self.store.resolve(f"{self.prefix}/{f.stem}.json")
+                cache[f] = (record is not None, json.loads(self.store.get(record)).get("bounds") if record else None)
+            self._bounds_cache = cache
+        return self._bounds_cache
+
     def _read(self, q: CatalogueQuery) -> pa.Table:
         missing = self.missing()
         label = f" ({self.subset.name} subset)" if self.subset is not None else ""
@@ -880,10 +916,8 @@ class BulkCatalogueGateway:
             | {f.column for f in q.filters}
         )
         parts: list[pa.Table] = []
-        for f in self.files():
-            record = self.store.resolve(f"{self.prefix}/{f.stem}.json")
-            bounds = json.loads(self.store.get(record)).get("bounds") if record is not None else None
-            if record is not None and (bounds is None or not _overlaps(bounds, box)):
+        for f, (has_record, bounds) in self._bounds().items():
+            if has_record and (bounds is None or not _overlaps(bounds, box)):
                 continue  # an empty file, or one wholly outside the region
             artifact = self.store.resolve(f"{self.prefix}/{f.stem}.parquet")
             assert artifact is not None

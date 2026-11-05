@@ -1634,7 +1634,8 @@ def archive_bulk(
     descriptor = load_sources()[source].descriptor
     publisher = PUBLISHERS[source]
     if base_url is not None:
-        publisher = replace(publisher, mirrors=(base_url,))
+        # a folder the person names (a copy of their own) holds what it holds: the release's count is not asked
+        publisher = replace(publisher, mirrors=(base_url,), file_count=None)
     subsets = load_subsets()
     if subset is not None and subset not in subsets:
         raise typer.BadParameter(f"unknown subset {subset!r}; known: {sorted(subsets)}", param_hint="--subset")
@@ -1647,10 +1648,14 @@ def archive_bulk(
         min_free_bytes=int(os.environ.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
         subset=subsets[subset] if subset is not None else None,
     )
-    files = sweep.files()
     if status:
-        emit(sweep.status(files))
+        # the list stored by the last sweep: a status needs no answer from the publisher
+        from sdp.adapters.archives.bulk import BulkCatalogueGateway
+
+        stored = BulkCatalogueGateway(sweep.store, descriptor, subset=sweep.subset).files()
+        emit(sweep.status(stored or sweep.files()))
         return
+    files = sweep.files()
     chosen = select_files(files, first, count)
     started, done = time.monotonic(), [0]
 
