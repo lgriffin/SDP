@@ -160,3 +160,63 @@ def test_search_is_the_prior_art_check(ads: FakeAds) -> None:
     assert result.exit_code == 0, result.output
     assert ads.asked == ['("program 1001") AND property:refereed']
     assert '"num_found": 3' in result.output and TOKEN not in result.output
+
+
+@pytest.mark.req("PUB-004")
+def test_an_answer_older_than_max_age_is_asked_again_and_the_summary_dates_its_answers(
+    ads: FakeAds, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cmd, "today", lambda: date(2026, 9, 1))
+    assert runner.invoke(cli.app, ["publication", "programs", "--out", str(tmp_path)]).exit_code == 0
+    monkeypatch.setattr(cmd, "today", lambda: date(2026, 9, 20))
+    assert runner.invoke(cli.app, ["publication", "programs", "--out", str(tmp_path)]).exit_code == 0
+    assert len(ads.asked) == 3
+    monkeypatch.setattr(cmd, "today", lambda: date(2026, 11, 5))
+    assert runner.invoke(cli.app, ["publication", "programs", "--out", str(tmp_path)]).exit_code == 0
+    assert len(ads.asked) == 6
+    summary = json.loads((tmp_path / "summary.json").read_text("utf-8"))
+    assert summary["ads_asked_from"] == summary["ads_asked_to"] == "2026-11-05"
+
+
+@pytest.mark.req("PUB-004")
+def test_a_title_a_spreadsheet_would_run_as_a_formula_is_written_as_text(
+    ads: FakeAds, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def with_formula(transport: object, collection: str = "JWST") -> list[dict[str, Any]]:
+        found = programs(transport, collection)
+        found[0] = {**found[0], "title": '=HYPERLINK("http://x")', "pi": " +1 Someone"}
+        return found
+
+    monkeypatch.setattr(mast_programs, "fetch_programs", with_formula)
+    assert runner.invoke(cli.app, ["publication", "programs", "--out", str(tmp_path)]).exit_code == 0
+    row = read(tmp_path / "programs.csv")[0]
+    assert row["title"] == '\'=HYPERLINK("http://x")' and row["pi"] == "' +1 Someone"
+
+
+@pytest.mark.req("PUB-004")
+def test_refereed_papers_past_the_first_page_are_fetched_with_one_more_search(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class PreprintsFirst(FakeAds):
+        def send(self, request: HttpRequest) -> HttpResponse:
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(request.url).query)["q"][0]
+            self.asked.append(q)
+            if q.endswith("AND property:refereed"):
+                docs = [{"bibcode": "2025ApJ...9....9Z", "property": ["REFEREED"]}]
+                return HttpResponse(200, json.dumps({"response": {"numFound": 1, "docs": docs}}).encode())
+            docs = [{"bibcode": f"2024arXiv{i}", "property": ["NOT REFEREED"]} for i in range(20)]
+            body = {
+                "response": {"numFound": 21, "docs": docs},
+                "facet_counts": {"facet_fields": {"property": ["refereed", 1]}},
+            }
+            return HttpResponse(200, json.dumps(body).encode())
+
+    fake = PreprintsFirst()
+    monkeypatch.setenv("ADS_API_TOKEN", TOKEN)
+    monkeypatch.setattr(mast_programs, "fetch_programs", lambda t, c="JWST": programs(t, c)[:1])
+    monkeypatch.setattr(cmd, "mast_transport", lambda: None)
+    monkeypatch.setattr(cmd, "ads_transport", lambda: fake)
+    monkeypatch.setattr(cmd, "today", lambda: date(2026, 11, 5))
+    assert runner.invoke(cli.app, ["publication", "programs", "--out", str(tmp_path)]).exit_code == 0
+    assert len(fake.asked) == 2
+    assert read(tmp_path / "programs.csv")[0]["first_refereed_bibcodes"] == "2025ApJ...9....9Z"

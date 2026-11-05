@@ -45,7 +45,8 @@ records match, and the newest few with their citation counts. For example
 Outputs, in `<SDP data>/publication/<mission>` unless `--out` says otherwise: `programs.csv` (every
 program, with the ADS query and the first refereed bibcodes), `unpublished.csv` (oldest first),
 `summary.json` (counts, marked EXPLORATORY, with the settings hash) and `ads-answers.jsonl` (every
-ADS answer as it came, so a rerun asks only about programs not yet asked). A run stops when 200 of
+ADS answer as it came, so a rerun asks only about programs not yet asked, or whose answer is older
+than `--max-age-days`, 30 by default; `summary.json` gives the range of dates the answers were asked on). A run stops when 200 of
 the day's searches are left (`--reserve`); the same command carries on the next day.
 
 ADS answers a full-text query in one to ten seconds, so a JWST register (about 850 programs on

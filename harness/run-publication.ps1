@@ -31,7 +31,8 @@ if (Test-Path -LiteralPath $EnvFile) {
 } else {
     Write-Host "No $EnvFile; using SDP_DATA from the shell or $Data"
 }
-if (-not $env:SDP_DATA) { $env:SDP_DATA = $Data }
+# an explicit -Data wins over the env file and the shell
+if ($PSBoundParameters.ContainsKey("Data") -or -not $env:SDP_DATA) { $env:SDP_DATA = $Data }
 $Data = $env:SDP_DATA
 New-Item -ItemType Directory -Force -Path $Data | Out-Null
 $Reports = Join-Path $Data "reports\publication"

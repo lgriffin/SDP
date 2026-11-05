@@ -26,7 +26,7 @@ requirements:
   - id: PUB-004
     pattern: event
     text: "When `sdp publication programs` is invoked, the system shall write programs.csv, unpublished.csv and a summary marked EXPLORATORY with the settings hash, keep each ADS answer in ads-answers.jsonl so a rerun asks only about programs not yet asked, and stop before fewer than the reserve of the day's ADS searches are left."
-    rationale: "ADS allows 5,000 searches a day per token; a JWST register needs about 1,400. A run stopped by the allowance or by --limit marks the rest not-asked-yet and the same command carries on the next day. `sdp publication search` is the prior-art check the roadmap asks for before every submission."
+    rationale: "ADS allows 5,000 searches a day per token; a JWST register needs about 1,400. A run stopped by the allowance or by --limit marks the rest not-asked-yet and the same command carries on the next day. `sdp publication search` is the prior-art check the roadmap asks for before every submission. A kept answer older than --max-age-days (30) is asked again, the summary names the range of ADS dates its answers come from, a program whose refereed papers fall past the first page costs one more search for their bibcodes, and text cells a spreadsheet would run as formulas are written with a leading quote (review of PR 187)."
     verification: test
     tiers: [T4]
     status: approved

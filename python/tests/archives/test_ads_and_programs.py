@@ -168,3 +168,21 @@ def test_a_release_date_that_cannot_be_read_is_refused() -> None:
     )
     with pytest.raises(UntrustedInput, match="release date"):
         fetch_programs(service)
+
+
+@pytest.mark.req("PUB-002")
+def test_an_answer_that_reaches_the_row_cap_is_refused_not_used(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sdp.adapters.archives import mast_programs as mp
+
+    monkeypatch.setattr(mp, "MAX_PROGRAMS", 2)
+    service = PrimedService()
+    service.table(
+        sync_request(MAST_OBSCORE, programs_query("JWST"), 2),
+        {"prpid": ["1", "2"], "prppi": ["a", "b"], "prptitle": ["x", "y"], "prpproject": ["GO", "GO"]},
+    )
+    service.table(
+        sync_request(MAST_OBSCORE, releases_query("JWST"), 2),
+        {"prpid": ["1"], "level3_products": [1], "public_from": ["2023-01-01"], "public_to": ["2023-01-01"]},
+    )
+    with pytest.raises(UntrustedInput, match="cap"):
+        mp.fetch_programs(service)

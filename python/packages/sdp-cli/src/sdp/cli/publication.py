@@ -84,6 +84,17 @@ def _read_answers(path: Path) -> dict[str, dict[str, Any]]:
     return answers
 
 
+#: a cell starting with one of these is read as a formula by spreadsheets; MAST titles and PIs are not ours
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _cell(value: Any) -> Any:
+    """A text cell a spreadsheet will show as text: a leading formula character gets a quote before it."""
+    if isinstance(value, str) and value.lstrip(" ").startswith(_FORMULA_START):
+        return "'" + value
+    return value
+
+
 def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]], empty: Sequence[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".csv.tmp")
@@ -91,7 +102,7 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]], empty: Sequence[st
         names = list(dict.fromkeys(k for r in rows for k in r)) or list(empty)
         writer = csv.DictWriter(handle, fieldnames=names, restval="")
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows({k: _cell(v) for k, v in r.items()} for r in rows)
     tmp.replace(path)
 
 
@@ -110,14 +121,28 @@ def _ask(
         facet_fields=("property",),
     )
     refereed = [str(d["bibcode"]) for d in answer.docs if "REFEREED" in (d.get("property") or [])]
+    counted = refereed_count(answer.facets)
+    remaining = answer.remaining
+    if counted and not refereed:
+        # the first page held only preprints; ask once more for the refereed papers themselves
+        again = search(
+            transport,
+            f"({query}) AND property:refereed",
+            token=token,
+            fields=("bibcode", "year", "property"),
+            rows=KEEP_BIBCODES,
+            sort="date asc",
+        )
+        refereed = [str(d["bibcode"]) for d in again.docs]
+        remaining = again.remaining if again.remaining is not None else remaining
     record = {
         "query": query,
         "total": answer.num_found,
-        "refereed": refereed_count(answer.facets),
+        "refereed": counted,
         "bibcodes": refereed[:KEEP_BIBCODES],
         "asked_on": asked_on.isoformat(),
     }
-    return record, answer.remaining
+    return record, remaining
 
 
 @publication_app.command("search")
@@ -163,6 +188,9 @@ def publication_programs(
     ] = None,
     reserve: Annotated[int, typer.Option(help="Stop asking ADS when fewer searches than this are left today")] = 200,
     limit: Annotated[int | None, typer.Option(help="Ask ADS about at most this many programs this run")] = None,
+    max_age_days: Annotated[
+        int, typer.Option(help="Ask ADS again about a program whose kept answer is older than this")
+    ] = 30,
 ) -> None:
     """Every public science program of the mission, joined to the ADS papers that name it. Writes
     programs.csv (every program), unpublished.csv (public a year or more, no paper or preprint names it)
@@ -176,7 +204,11 @@ def publication_programs(
     target = out or folder(mission)
     target.mkdir(parents=True, exist_ok=True)
     answers_path = target / ANSWERS_FILE
-    answers = _read_answers(answers_path)
+    answers = {
+        q: a
+        for q, a in _read_answers(answers_path).items()
+        if (asof - date.fromisoformat(str(a["asked_on"]))).days <= max_age_days
+    }
     token = ads_token()
 
     collection = mission.upper()
@@ -243,7 +275,16 @@ def publication_programs(
     )
     _write_csv(target / "unpublished.csv", unpublished, ["program_id", "status"])
     result = linkage.summary(rows, collection, asof)
-    result |= {"asked_this_run": asked, "stopped": stopped or None, "folder": str(target)}
+    in_register = {row["ads_query"] for row in rows}
+    used = sorted(str(r["asked_on"]) for r in answers.values() if r["query"] in in_register)
+    result |= {
+        "asked_this_run": asked,
+        "stopped": stopped or None,
+        "folder": str(target),
+        # the register is as of these ADS dates, not only the day it was written
+        "ads_asked_from": used[0] if used else None,
+        "ads_asked_to": used[-1] if used else None,
+    }
     (target / "summary.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", "utf-8")
 
     counts = result["counts"]

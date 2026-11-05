@@ -69,6 +69,9 @@ def fetch_programs(transport: Transport, collection: str = "JWST") -> list[dict[
     released = run_sync(
         transport, sync_request(MAST_OBSCORE, releases_query(collection), MAX_PROGRAMS), "MAST program releases"
     ).to_pylist()
+    for rows, what in ((described, "programs"), (released, "program releases")):
+        if len(rows) >= MAX_PROGRAMS:
+            raise UntrustedInput(f"MAST {what}: {len(rows)} rows reached the {MAX_PROGRAMS} cap, so some are missing")
     programs: dict[str, dict[str, Any]] = {}
     for r in sorted(described, key=lambda r: tuple(_text(r.get(k)) for k in ("prpid", "prppi", "prptitle"))):
         pid = _text(r.get("prpid"))
