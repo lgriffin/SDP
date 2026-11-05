@@ -183,17 +183,27 @@ def reference_catalogues(settings: Settings) -> dict[str, ReferenceCatalogue]:
 
 def archive_gateways(settings: Settings, store: ArtifactStore | None = None) -> dict[str, ArchiveGateway]:
     """One TAP gateway per packaged source, each with its own rate limit (§8). Gaia is read from the
-    store's bulk copy instead when ``SDP_GAIA_SOURCE`` is bulk, or auto and the copy is complete (#72)."""
+    store's bulk copy instead when ``SDP_GAIA_SOURCE`` is bulk, or auto and the copy is complete (#72);
+    2MASS and AllWISE likewise by ``SDP_SURVEY_SOURCE``, so a field reads them when IRSA is down (DSI-024)."""
     gateways: dict[str, ArchiveGateway] = {}
-    for source_id, source in load_sources().items():
+    sources = load_sources()
+    for source_id, source in sources.items():
         transport = archive_transport(settings, source_id, source.descriptor.min_seconds_between_calls)
         gateways[source_id] = TapArchiveAdapter({source_id: source}, transport, parser=IsolatedVotableParser())
-    if store is not None and settings.gaia_source != "tap":
-        gaia = load_sources()["gaia"]
-        bulk = BulkCatalogueGateway(store, gaia.descriptor, gaia.ra_column, gaia.dec_column, gaia.key_column)
-        if settings.gaia_source == "bulk" or bulk.complete():
-            gateways["gaia"] = bulk
+    if store is None:
+        return gateways
+    for source_id, where in (("gaia", settings.gaia_source), *((s, settings.survey_source) for s in SURVEY_COPIES)):
+        copied = sources.get(source_id)
+        if copied is None or where == "tap":
+            continue
+        bulk = BulkCatalogueGateway(store, copied.descriptor, copied.ra_column, copied.dec_column, copied.key_column)
+        if where == "bulk" or bulk.complete():
+            gateways[source_id] = bulk
     return gateways
+
+
+#: the surveys besides Gaia that ``sdp archive bulk`` copies whole (DSI-024)
+SURVEY_COPIES = ("2mass", "allwise")
 
 
 def cds_cross_match(settings: Settings) -> CdsXMatchAdapter:

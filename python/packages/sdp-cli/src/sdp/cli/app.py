@@ -13,7 +13,7 @@ import mimetypes
 import sys
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Annotated, Any, Protocol
 
@@ -1589,14 +1589,18 @@ def archive_acquire(
 
 @archive_app.command("bulk")
 def archive_bulk(
-    source: Annotated[str, typer.Option(help="Source id; gaia is the only one with publisher bulk files")] = "gaia",
+    source: Annotated[
+        str, typer.Option(help="gaia (ESA's files), 2mass or allwise (IRSA's files; AllWISE also from AWS)")
+    ] = "gaia",
     first: Annotated[int | None, typer.Option(help="Start at this file (0-based, in name order)")] = None,
     count: Annotated[int | None, typer.Option(help="Do at most this many files (try 1 first)")] = None,
     workers: Annotated[int, typer.Option(min=1, max=16, help="Files downloaded at once")] = 2,
     work_dir: Annotated[
         Path | None, typer.Option(help="Where downloads wait while being read; default beside the artifact store")
     ] = None,
-    base_url: Annotated[str | None, typer.Option(help="The publisher's folder, ending in /")] = None,
+    base_url: Annotated[
+        str | None, typer.Option(help="The publisher's folder, ending in /, instead of its own mirrors")
+    ] = None,
     status: Annotated[bool, typer.Option("--status", help="Only report how much is stored")] = False,
     subset: Annotated[
         str | None,
@@ -1607,19 +1611,31 @@ def archive_bulk(
     per file, skipping files already stored (#72). Stop it any time; run it again to resume.
 
     With --subset rvs it reads the same files again and keeps only the about 33.8 million stars with a
-    radial velocity, with the radial-velocity columns added (DSI-021). The full copy is left as it is."""
+    radial velocity, with the radial-velocity columns added (DSI-021). The full copy is left as it is.
+
+    --source 2mass or allwise copies only the columns SDP reads (DSI-024): 2MASS from IRSA's 92 gzipped
+    files (about 45 GB downloaded, 14 GB kept), AllWISE from IRSA's Parquet files by byte range (about
+    28 GB read, 23 GB kept), from AWS when IRSA does not answer. Fields then read them with no call to IRSA."""
     import os
 
-    from sdp.adapters.archives.bulk import GAIA_DR3_BULK, BulkSweep, load_subsets, select_files
+    from sdp.adapters.archives.bulk import PUBLISHERS, BulkSweep, load_subsets, select_files
     from sdp.adapters.archives.tap import load_sources
     from sdp.adapters.bootstrap import artifact_store
 
-    if source != "gaia":
-        raise typer.BadParameter("only gaia publishes bulk files SDP reads", param_hint="--source")
+    if source not in PUBLISHERS:
+        raise typer.BadParameter(
+            f"no bulk files SDP reads for {source!r}; known: {sorted(PUBLISHERS)}", param_hint="--source"
+        )
+    if subset is not None and source != "gaia":
+        raise typer.BadParameter("only the Gaia copy has subsets", param_hint="--subset")
     root = os.environ.get("SDP_ARTIFACT_ROOT")
     if not root:
         raise DomainError("SDP_ARTIFACT_ROOT is not set: it names the artifact store the sweep fills")
-    descriptor = load_sources()["gaia"].descriptor
+    descriptor = load_sources()[source].descriptor
+    publisher = PUBLISHERS[source]
+    if base_url is not None:
+        # a folder the person names (a copy of their own) holds what it holds: the release's count is not asked
+        publisher = replace(publisher, mirrors=(base_url,), file_count=None)
     subsets = load_subsets()
     if subset is not None and subset not in subsets:
         raise typer.BadParameter(f"unknown subset {subset!r}; known: {sorted(subsets)}", param_hint="--subset")
@@ -1628,14 +1644,18 @@ def archive_bulk(
         descriptor=descriptor,
         work_dir=work_dir or Path(root).parent / "downloads",
         columns=descriptor.column_names(),
-        base_url=base_url or GAIA_DR3_BULK,
+        publisher=publisher,
         min_free_bytes=int(os.environ.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
         subset=subsets[subset] if subset is not None else None,
     )
-    files = sweep.files()
     if status:
-        emit(sweep.status(files))
+        # the list stored by the last sweep: a status needs no answer from the publisher
+        from sdp.adapters.archives.bulk import BulkCatalogueGateway
+
+        stored = BulkCatalogueGateway(sweep.store, descriptor, subset=sweep.subset).files()
+        emit(sweep.status(stored or sweep.files()))
         return
+    files = sweep.files()
     chosen = select_files(files, first, count)
     started, done = time.monotonic(), [0]
 

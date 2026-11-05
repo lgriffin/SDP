@@ -39,6 +39,8 @@ class Settings:
     cassette_dir: Path | None = None
     #: where Gaia fields are read: auto (the bulk copy once complete, else the archive), tap or bulk (#72)
     gaia_source: str = "auto"
+    #: where 2MASS and AllWISE rows are read: auto (each one's bulk copy once complete, else IRSA), tap or bulk
+    survey_source: str = "auto"
     #: fail over to an archive's official mirror (SIMBAD and Sesame at Harvard, VizieR's mirrors) when it gives no answer
     archive_mirrors: bool = True
     #: where two frames are cross-matched: local (this machine, the CPU reference), cds (CDS X-Match) or
@@ -90,6 +92,7 @@ class Settings:
             archive_mode=archive_mode(env.get("SDP_ARCHIVE_MODE", "live")),
             cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
             gaia_source=gaia_source(env.get("SDP_GAIA_SOURCE", "auto")),
+            survey_source=gaia_source(env.get("SDP_SURVEY_SOURCE", "auto"), "SDP_SURVEY_SOURCE"),
             archive_mirrors=_flag(env.get("SDP_ARCHIVE_MIRRORS", "1")),
             cross_match=cross_match_where(env.get("SDP_CROSS_MATCH", "local")),
             zenodo_token=secret(env, "SDP_ZENODO_TOKEN"),
@@ -131,9 +134,9 @@ def archive_mode(value: str) -> str:
 GAIA_SOURCES = ("auto", "tap", "bulk")
 
 
-def gaia_source(value: str) -> str:
+def gaia_source(value: str, name: str = "SDP_GAIA_SOURCE") -> str:
     if value not in GAIA_SOURCES:
-        raise SettingsError(f"SDP_GAIA_SOURCE must be one of {', '.join(GAIA_SOURCES)}, got {value!r}")
+        raise SettingsError(f"{name} must be one of {', '.join(GAIA_SOURCES)}, got {value!r}")
     return value
 
 
