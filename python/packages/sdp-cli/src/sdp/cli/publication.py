@@ -107,7 +107,12 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]], empty: Sequence[st
 
 
 def _ask(
-    transport: Transport, token: str, query: str, search: Callable[..., Any], asked_on: date
+    transport: Transport,
+    token: str,
+    query: str,
+    search: Callable[..., Any],
+    asked_on: date,
+    reserve: int = 0,
 ) -> tuple[dict[str, Any], int | None]:
     from sdp_investigate.linkage import refereed_count
 
@@ -123,8 +128,10 @@ def _ask(
     refereed = [str(d["bibcode"]) for d in answer.docs if "REFEREED" in (d.get("property") or [])]
     counted = refereed_count(answer.facets)
     remaining = answer.remaining
-    if counted and not refereed:
-        # the first page held only preprints; ask once more for the refereed papers themselves
+    over_reserve = remaining is None or remaining > reserve
+    if counted and not refereed and over_reserve:
+        # the first page held only preprints; ask once more for the refereed papers themselves,
+        # unless that would spend a search the reserve keeps back
         again = search(
             transport,
             f"({query}) AND property:refereed",
@@ -240,7 +247,7 @@ def publication_programs(
             if limit is not None and asked >= limit:
                 stopped = f"--limit {limit} reached"
                 break
-            record, remaining = _ask(transport, token, query, ads.search, asof)
+            record, remaining = _ask(transport, token, query, ads.search, asof, reserve)
             answers[query] = record
             log.write(json.dumps(record, sort_keys=True) + "\n")
             log.flush()

@@ -35,6 +35,9 @@ if (Test-Path -LiteralPath $EnvFile) {
 if ($PSBoundParameters.ContainsKey("Data") -or -not $env:SDP_DATA) { $env:SDP_DATA = $Data }
 $Data = $env:SDP_DATA
 New-Item -ItemType Directory -Force -Path $Data | Out-Null
+# an absolute path, so the folders below do not move when the script changes directory
+$Data = (Resolve-Path -LiteralPath $Data).Path
+$env:SDP_DATA = $Data
 $Reports = Join-Path $Data "reports\publication"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Out = Join-Path $Data ("publication\" + $Mission.ToLower())

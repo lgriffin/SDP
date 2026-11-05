@@ -220,3 +220,25 @@ def test_refereed_papers_past_the_first_page_are_fetched_with_one_more_search(
     assert runner.invoke(cli.app, ["publication", "programs", "--out", str(tmp_path)]).exit_code == 0
     assert len(fake.asked) == 2
     assert read(tmp_path / "programs.csv")[0]["first_refereed_bibcodes"] == "2025ApJ...9....9Z"
+
+
+@pytest.mark.req("PUB-004")
+@pytest.mark.parametrize(("left", "searches"), [(200, 1), (201, 2)])
+def test_the_second_search_is_not_spent_from_the_reserve(left: int, searches: int) -> None:
+    class Answer:
+        def __init__(self, docs: list[dict[str, Any]], remaining: int) -> None:
+            self.num_found, self.docs, self.remaining = 21, docs, remaining
+            self.facets = {"property": {"refereed": 1}}
+
+    calls: list[str] = []
+
+    def search(transport: object, q: str, **_: object) -> Answer:
+        calls.append(q)
+        if len(calls) == 1:
+            return Answer([{"bibcode": "2024arXiv1", "property": ["NOT REFEREED"]}], left)
+        return Answer([{"bibcode": "2025ApJ...9....9Z", "property": ["REFEREED"]}], left - 1)
+
+    record, remaining = cmd._ask(FakeAds(), TOKEN, '"program 1"', search, date(2026, 11, 5), reserve=200)
+    assert len(calls) == searches
+    assert record["refereed"] == 1
+    assert remaining == left - (searches - 1)
