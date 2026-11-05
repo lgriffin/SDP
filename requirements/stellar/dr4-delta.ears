@@ -5,7 +5,7 @@ requirements:
   - id: STL-030
     pattern: ubiquitous
     text: "The stellar module shall select each seed cluster's members in every Gaia release with one predeclared rule built from Hunt and Reffert 2023's centre, tidal radius, mean parallax and proper motion and their spreads, so that a change between releases is the release's and not the selection's."
-    rationale: "Roadmap C5 and the 24-cluster seed set accepted on 5 Nov 2026. A member lies within rt, has G <= 18, parallax_over_error >= 5, a parallax within 3 sigma (own error and cluster spread in quadrature) and a proper-motion chi-squared <= 11.83 (3 sigma, 2 dof). The settings (dr4_delta.json) are a DRAFT until Leigh confirms them; they must be frozen before Gaia DR4 on 2 December 2026."
+    rationale: "Roadmap C5 and the 24-cluster seed set accepted on 5 Nov 2026. A member lies within rt, has G <= 18, parallax_over_error >= 5, a parallax within 3 sigma (own error and cluster spread in quadrature) and a proper-motion chi-squared <= 11.83 (3 sigma, 2 dof). Leigh confirmed the seed set, selection and questions on 5 Nov 2026 after the DR2 to DR3 dry run; they are frozen (FROZEN_SHA256, checked by a test), and a DR4 comparison runs only under them. NGC 2264 is kept with a caveat (45% of its DR3 selection in HR23)."
     verification: test
     tiers: [T1]
     status: approved

@@ -108,6 +108,7 @@ def test_compare_writes_the_deltas_and_a_dry_run_summary(fakes: dict[str, list[s
     summary = json.loads((tmp_path / "summary-dr2-dr3.json").read_text("utf-8"))
     assert summary["status"].startswith("EXPLORATORY") and summary["clusters"] == 1
     assert len(summary["skipped_not_fetched"]) == 23 and summary["settings_sha256"] == d.settings_sha256()
+    assert summary["selection_matches_frozen"] is True and only["caveat"] == ""
     assert (tmp_path / "matches" / "dr2-dr3" / "NGC_2682.json").exists()
 
 
@@ -229,3 +230,14 @@ def test_compare_writes_what_it_can_when_a_match_fails_and_names_a_missing_hr23_
     assert runner.invoke(cli.app, compare).exit_code == 0
     summary = json.loads((tmp_path / "summary-dr2-dr3.json").read_text("utf-8"))
     assert summary["clusters"] == 2 and summary["hr23_check_missing"] == ["NGC_2682"]
+
+
+@pytest.mark.req("STL-032")
+def test_a_dr4_comparison_runs_only_under_the_frozen_selection(
+    fakes: dict[str, list[str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    changed = d.load_settings()
+    changed = {**changed, "selection": {**changed["selection"], "parallax_sigma": 2.0}}
+    monkeypatch.setattr(d, "load_settings", lambda: changed)
+    result = runner.invoke(cli.app, ["delta", "compare", "--from", "dr3", "--to", "dr4", "--out", str(tmp_path)])
+    assert result.exit_code != 0 and "frozen" in str(result.exception)

@@ -19,7 +19,7 @@ The 24 clusters accepted on 5 November 2026 (roadmap section 9), named as Hunt &
 3. mean proper motion;
 4. earlier members kept, lost (matched but no longer selected), unmatched (no counterpart), and new.
 
-## The selection (DRAFT until frozen)
+## The selection (frozen 5 November 2026)
 
 A star is a member when it lies within HR23's tidal radius `rt` of HR23's centre, has G <= 18,
 parallax_over_error >= 5, a parallax within 3 sigma of HR23's cluster parallax (its error and the
@@ -31,7 +31,14 @@ Each release's cone is fetched with a parallax window that provably holds every 
 pass (a member has error at most parallax/5, so its parallax solves a quadratic bound), never
 narrower than 1 mas or five spreads either side. The local cut alone decides membership.
 
-These values are a draft. They are frozen, with their hash, before 2 December 2026.
+Leigh confirmed the seed set, this selection and the questions on 5 November 2026, after the DR2 to DR3
+dry run. They are frozen: `sdp_stellar.dr4_delta.FROZEN_SHA256` is their hash, a test checks it, and
+`sdp delta compare` refuses a DR4 comparison under anything else. The release tables and matching
+rules stay outside the freeze, so DR4's table names can be filled in on release day.
+
+NGC 2264 stays in the seed set with a caveat, which the CSV carries in its `caveat` column. In the dry
+run only 45% of the stars the rule selected in DR3 were HR23 members (93 to 99.5% for the others): the
+cluster is young and spread out, so its deltas include field stars.
 
 ## Matching stars across releases
 
@@ -62,6 +69,13 @@ Outputs in `<SDP data>/delta`: `seeds.json` (HR23 rows), `<release>/<cluster>.pa
 `hr23-members/`, `matches/dr2-dr3/`, `deltas-dr2-dr3.csv` and `summary-dr2-dr3.json` (EXPLORATORY,
 with the settings hash). HR23's tables come from VizieR's classic interface at CDS or the first
 official mirror that answers.
+
+## The DR2 to DR3 dry run (5 November 2026)
+
+18 of the 24 clusters were compared; Gaia's archive timed out on the rest. Every cluster's mean
+parallax rose, by +0.018 to +0.063 mas, and the nearby clusters rose most. Faint and distant
+clusters gained the most members because DR3's errors are smaller (NGC 7789 2,454 to 2,957; Berkeley 39
+30 to 97). Nearby clusters changed by a few percent.
 
 ## Known effects a DR2 to DR3 dry run shows
 
