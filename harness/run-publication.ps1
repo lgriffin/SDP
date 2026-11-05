@@ -13,6 +13,8 @@
 param(
     [string]$Code = (Split-Path -Parent $PSScriptRoot),
     [string]$EnvFile = "D:\SDP\sdp-env.cmd",
+    # where results go when neither the env file nor the shell sets SDP_DATA
+    [string]$Data = "D:\SDP",
     [string]$Branch = "main",
     [string]$Mission = "JWST"
 )
@@ -20,12 +22,18 @@ $ErrorActionPreference = "Continue"
 # PowerShell has read this file before the pull below can change it, so a changed copy is run afresh
 $Before = (Get-FileHash -LiteralPath $PSCommandPath).Hash
 
-cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
-    if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
+# SDP_DATA comes from the env file when there is one, else the shell, else -Data (D:\SDP); nothing else
+# this script runs needs the database or the other variables that file sets
+if (Test-Path -LiteralPath $EnvFile) {
+    cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
+        if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
+    }
+} else {
+    Write-Host "No $EnvFile; using SDP_DATA from the shell or $Data"
 }
+if (-not $env:SDP_DATA) { $env:SDP_DATA = $Data }
 $Data = $env:SDP_DATA
-if (-not $Data) { Write-Error "SDP_DATA is not set by $EnvFile"; exit 1 }
-
+New-Item -ItemType Directory -Force -Path $Data | Out-Null
 $Reports = Join-Path $Data "reports\publication"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Out = Join-Path $Data ("publication\" + $Mission.ToLower())
