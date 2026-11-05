@@ -1,7 +1,8 @@
 """``sdp delta``: what a new Gaia release changes for the 24 seed clusters (Discovery Roadmap C5).
 
 The science is sdp_stellar.dr4_delta; the data come through sdp.adapters.archives.gaia_delta. Until the
-predeclaration is frozen (before Gaia DR4, 2 December 2026) every run is a dry run: DR2 to DR3.
+selection was frozen on 5 November 2026 (sdp_stellar.dr4_delta.FROZEN_SHA256); DR2 to DR3 is the dry
+run, DR3 to DR4 the predeclared comparison from 2 December 2026.
 """
 
 from __future__ import annotations
@@ -211,7 +212,8 @@ def delta_compare(
     out: Annotated[Path | None, typer.Option(help="Folder (default <SDP data>/delta)")] = None,
 ) -> None:
     """The predeclared deltas for every seed cluster fetched in both releases: deltas-<from>-<to>.csv and
-    a summary. Before the predeclaration is frozen this is a dry run. EXPLORATORY. Only cones fetched
+    a summary. DR2 to DR3 is the dry run (EXPLORATORY); a DR4 comparison runs only under the frozen
+    selection. Only cones fetched
     with the current settings are compared; the summary names every cluster left out and why, and the
     command exits 1 when an archive failed on one."""
     from sdp_stellar import dr4_delta as d
@@ -220,10 +222,14 @@ def delta_compare(
     for release in (earlier, later):
         if release not in settings["releases"]:
             raise DomainError(f"unknown release {release!r}; known: {', '.join(settings['releases'])}")
+    frozen = d.frozen_sha256(settings) == d.FROZEN_SHA256
+    if "dr4" in (earlier, later) and not frozen:
+        raise DomainError("the seed set, selection or questions differ from the ones frozen on 2026-11-05")
     base = out or folder()
     t = transport()
     names = _clusters(settings, cluster or [])
     seeds = _seeds(base, t, settings, names)
+    caveats = {c["hr23"]: c["caveat"] for c in settings["clusters"] if c.get("caveat")}
     pair = f"{earlier}->{later}"
     rows: list[dict[str, Any]] = []
     skipped: list[str] = []
@@ -247,7 +253,7 @@ def delta_compare(
             _say(f"{name}: not compared ({exc})")
             failed.append(name)
             continue
-        result = d.flat(d.compare(c, a, b, counterpart, settings))
+        result = d.flat(d.compare(c, a, b, counterpart, settings)) | {"caveat": caveats.get(name, "")}
         for release, stars in ((earlier, a), (later, b)):
             if release != "dr3":
                 continue
@@ -273,7 +279,11 @@ def delta_compare(
         writer.writeheader()
         writer.writerows(rows)
     summary = {
-        "status": "EXPLORATORY (dry run)" if later != "dr4" else "EXPLORATORY until the predeclaration is frozen",
+        "status": (
+            "PREDECLARED: selection frozen 2026-11-05" if "dr4" in (earlier, later) else "EXPLORATORY (dry run)"
+        ),
+        "selection_frozen_sha256": d.frozen_sha256(settings),
+        "selection_matches_frozen": frozen,
         "pair": pair,
         "clusters": len(rows),
         "skipped_not_fetched": skipped,

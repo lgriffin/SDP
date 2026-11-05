@@ -125,12 +125,21 @@ def test_a_cluster_row_needs_every_parameter() -> None:
 
 
 @pytest.mark.req("STL-030")
-def test_the_seed_set_is_the_24_clusters_and_the_settings_are_a_draft_until_frozen() -> None:
+def test_the_seed_set_is_the_24_clusters_and_the_selection_is_frozen() -> None:
     names = [c["hr23"] for c in SETTINGS["clusters"]]
     assert len(names) == 24 == len(set(names))
     assert {"Melotte_25", "NGC_2682", "Ruprecht_147", "Collinder_261"} <= set(names)
-    assert SETTINGS["status"].startswith("DRAFT") and SETTINGS["freeze_before"] == "2026-12-02"
+    assert SETTINGS["status"].startswith("FROZEN") and SETTINGS["frozen_on"] == "2026-11-05"
+    # the seed set, selection and questions confirmed on 2026-11-05 may never change
+    assert d.frozen_sha256(SETTINGS) == d.FROZEN_SHA256
     assert len(d.settings_sha256()) == 64
+    tweaked = {**SETTINGS, "selection": {**SETTINGS["selection"], "g_max": 18.5}}
+    assert d.frozen_sha256(tweaked) != d.FROZEN_SHA256
+    # the release tables stay open for DR4's names on release day
+    renamed = {**SETTINGS, "releases": {**SETTINGS["releases"], "dr4": {"table": "gaiadr4.other"}}}
+    assert d.frozen_sha256(renamed) == d.FROZEN_SHA256
+    (young,) = [c for c in SETTINGS["clusters"] if c.get("caveat")]
+    assert young["hr23"] == "NGC_2264"
 
 
 @pytest.mark.req("STL-031")

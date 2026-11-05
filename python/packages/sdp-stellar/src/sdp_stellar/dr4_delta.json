@@ -1,7 +1,7 @@
 {
   "protocol": "dr4-delta-seed-clusters",
-  "status": "DRAFT: predeclared questions and selection for the Gaia DR4 delta note (Discovery Roadmap C5). Leigh confirms the selection before it is frozen, which must be before 2 December 2026, the day Gaia DR4 is released. Every run before then is a dry run.",
-  "freeze_before": "2026-12-02",
+  "status": "FROZEN: the seed set, selection and questions for the Gaia DR4 delta note (Discovery Roadmap C5), confirmed by Leigh on 5 November 2026 after the DR2 to DR3 dry run, before Gaia DR4 (2 December 2026). They may not change; sdp_stellar.dr4_delta.FROZEN_SHA256 is their hash. The releases and matches below may still be completed on release day.",
+  "frozen_on": "2026-11-05",
   "seed_catalogue": "Hunt & Reffert 2023, A&A 673, A114 (VizieR J/A+A/673/A114): cluster parameters and Gaia DR3 members",
   "clusters": [
     {"hr23": "Melotte_25", "label": "Melotte 25 (Hyades)", "group": "Nearby benchmark"},
@@ -26,7 +26,7 @@
     {"hr23": "NGC_7789", "label": "NGC 7789", "group": "Old benchmark"},
     {"hr23": "Berkeley_39", "label": "Berkeley 39", "group": "Gaia-ESO"},
     {"hr23": "NGC_2420", "label": "NGC 2420", "group": "Gaia-ESO / APOGEE"},
-    {"hr23": "NGC_2264", "label": "NGC 2264", "group": "Gaia-ESO"},
+    {"hr23": "NGC_2264", "label": "NGC 2264", "group": "Gaia-ESO", "caveat": "Young and spread out: in the DR2 to DR3 dry run only 45% of the stars the rule selected in DR3 were HR23 members (93 to 99.5% elsewhere), so its deltas include field stars. Kept in the seed set with this caveat (Leigh, 5 November 2026)."},
     {"hr23": "Collinder_261", "label": "Collinder 261", "group": "Gaia-ESO"}
   ],
   "selection": {

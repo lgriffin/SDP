@@ -85,7 +85,8 @@ if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: uv sync"; Stop-Transcript | Out-N
 # 2. The register
 Write-Host "`n=== Publication register ($Mission): started $(Get-Date -Format HH:mm:ss) ==="
 $t = [Diagnostics.Stopwatch]::StartNew()
-uv run sdp publication programs --mission $Mission --out $Out
+# through Write-Host, because PowerShell 5.1's transcript does not record what a native program prints
+& uv run sdp publication programs --mission $Mission --out $Out 2>&1 | ForEach-Object { Write-Host "$_" }
 $code = $LASTEXITCODE
 $t.Stop()
 Write-Host "=== $(if ($code -eq 0) { 'ok' } else { 'FAILED' }) after $($t.Elapsed.ToString('hh\:mm\:ss')) ==="

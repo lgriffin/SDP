@@ -22,7 +22,11 @@ An earlier member with no counterpart is counted as unmatched, not lost.
 **Sanity check.** In DR3 the selection is compared with HR23's own members: the share of HR23 members
 the selection finds, and the share of the selection HR23 lists.
 
-Every result before the predeclaration is frozen is a dry run (DR2 to DR3), EXPLORATORY.
+**Frozen.** Leigh confirmed the seed set, the selection and the questions on 5 November 2026, after the
+DR2 to DR3 dry run and before Gaia DR4 (2 December 2026). ``frozen_part`` is that part of the settings
+and ``FROZEN_SHA256`` its hash, which a test checks, so a change to them cannot pass silently. The
+release tables and matching rules stay outside it: DR4's table names are confirmed on release day.
+DR2 to DR3 results stay a dry run, EXPLORATORY.
 """
 
 from __future__ import annotations
@@ -65,6 +69,20 @@ def load_settings() -> dict[str, Any]:
 
 def settings_sha256() -> str:
     return hashlib.sha256(settings_text().encode("utf-8")).hexdigest()
+
+
+#: The hash of frozen_part() as confirmed on 5 November 2026. It never changes.
+FROZEN_SHA256 = "33e49e9b80ddc3e5d703452cc66a1086c90bbaa6c1b7e6877104d1ba4e04840b"
+
+
+def frozen_part(settings: Mapping[str, Any]) -> dict[str, Any]:
+    """The predeclared part: the seed set, the selection and the questions."""
+    return {k: settings[k] for k in ("protocol", "seed_catalogue", "clusters", "selection", "questions")}
+
+
+def frozen_sha256(settings: Mapping[str, Any]) -> str:
+    text = json.dumps(frozen_part(settings), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
