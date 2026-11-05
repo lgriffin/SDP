@@ -1,0 +1,56 @@
+{
+  "protocol": "dr4-delta-seed-clusters",
+  "status": "DRAFT: predeclared questions and selection for the Gaia DR4 delta note (Discovery Roadmap C5). Leigh confirms the selection before it is frozen, which must be before 2 December 2026, the day Gaia DR4 is released. Every run before then is a dry run.",
+  "freeze_before": "2026-12-02",
+  "seed_catalogue": "Hunt & Reffert 2023, A&A 673, A114 (VizieR J/A+A/673/A114): cluster parameters and Gaia DR3 members",
+  "clusters": [
+    {"hr23": "Melotte_25", "label": "Melotte 25 (Hyades)", "group": "Nearby benchmark"},
+    {"hr23": "Melotte_22", "label": "Melotte 22 (Pleiades)", "group": "Nearby benchmark"},
+    {"hr23": "NGC_2632", "label": "NGC 2632 (Praesepe)", "group": "Nearby benchmark"},
+    {"hr23": "Melotte_111", "label": "Melotte 111 (Coma Ber)", "group": "Nearby benchmark"},
+    {"hr23": "Melotte_20", "label": "Melotte 20 (Alpha Per)", "group": "Nearby benchmark"},
+    {"hr23": "Blanco_1", "label": "Blanco 1", "group": "Nearby benchmark"},
+    {"hr23": "IC_2602", "label": "IC 2602", "group": "Gaia-ESO"},
+    {"hr23": "IC_2391", "label": "IC 2391", "group": "Gaia-ESO"},
+    {"hr23": "NGC_2516", "label": "NGC 2516", "group": "Gaia-ESO"},
+    {"hr23": "NGC_3532", "label": "NGC 3532", "group": "Gaia-ESO"},
+    {"hr23": "NGC_6475", "label": "NGC 6475 (M7)", "group": "Nearby benchmark"},
+    {"hr23": "NGC_2422", "label": "NGC 2422 (M47)", "group": "Nearby benchmark"},
+    {"hr23": "NGC_2682", "label": "NGC 2682 (M67)", "group": "Old benchmark"},
+    {"hr23": "NGC_188", "label": "NGC 188", "group": "Old benchmark"},
+    {"hr23": "NGC_6791", "label": "NGC 6791", "group": "Old benchmark"},
+    {"hr23": "NGC_6819", "label": "NGC 6819", "group": "Old benchmark"},
+    {"hr23": "NGC_6811", "label": "NGC 6811", "group": "Old benchmark"},
+    {"hr23": "Ruprecht_147", "label": "Ruprecht 147", "group": "Old benchmark"},
+    {"hr23": "NGC_752", "label": "NGC 752", "group": "Old benchmark"},
+    {"hr23": "NGC_7789", "label": "NGC 7789", "group": "Old benchmark"},
+    {"hr23": "Berkeley_39", "label": "Berkeley 39", "group": "Gaia-ESO"},
+    {"hr23": "NGC_2420", "label": "NGC 2420", "group": "Gaia-ESO / APOGEE"},
+    {"hr23": "NGC_2264", "label": "NGC 2264", "group": "Gaia-ESO"},
+    {"hr23": "Collinder_261", "label": "Collinder 261", "group": "Gaia-ESO"}
+  ],
+  "selection": {
+    "radius": "rt",
+    "g_max": 18.0,
+    "parallax_over_error_min": 5.0,
+    "parallax_sigma": 3.0,
+    "pm_chi2_max": 11.829,
+    "fetch_parallax_halfwidth_min_mas": 1.0,
+    "fetch_parallax_halfwidth_spreads": 5.0
+  },
+  "releases": {
+    "dr2": {"table": "gaiadr2.gaia_source", "label": "gaia:DR2"},
+    "dr3": {"table": "gaiadr3.gaia_source", "label": "gaia:DR3"},
+    "dr4": {"table": "gaiadr4.gaia_source", "label": "gaia:DR4", "note": "table name to confirm on 2 December 2026"}
+  },
+  "matches": {
+    "dr2->dr3": {"table": "gaiadr3.dr2_neighbourhood", "from_column": "dr2_source_id", "to_column": "dr3_source_id", "order_by": "angular_distance"},
+    "dr3->dr4": {"identity": true, "note": "DR4's DR3 neighbourhood table, if Gaia publishes one, replaces identity on release day"}
+  },
+  "questions": [
+    "membership count change under the same selection",
+    "mean parallax and distance change",
+    "mean proper-motion change",
+    "number of earlier members that lose membership (and later members that are new)"
+  ]
+}
