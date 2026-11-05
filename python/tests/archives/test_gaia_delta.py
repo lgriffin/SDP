@@ -59,3 +59,17 @@ def test_the_nearest_neighbour_wins_and_ids_go_in_chunks(monkeypatch: pytest.Mon
 def test_a_cluster_name_is_matched_exactly_and_must_be_a_catalogue_name() -> None:
     with pytest.raises(ValueError):
         g.hr23_cluster(PrimedService(), "NGC 2682&-out=*")
+
+
+@pytest.mark.req("STL-032")
+def test_a_neighbourhood_answer_that_reaches_the_row_cap_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(g, "CHUNK", 1)
+    service = PrimedService()
+    q = "SELECT dr2_source_id, dr3_source_id, angular_distance FROM gaiadr3.dr2_neighbourhood WHERE dr2_source_id IN (1)"
+    rows = 20
+    service.table(
+        sync_request(g.GAIA_TAP, q, rows),
+        {"dr2_source_id": [1] * rows, "dr3_source_id": list(range(rows)), "angular_distance": [1.0] * rows},
+    )
+    with pytest.raises(UntrustedInput, match="cap"):
+        g.neighbourhood(service, MATCH, [1])

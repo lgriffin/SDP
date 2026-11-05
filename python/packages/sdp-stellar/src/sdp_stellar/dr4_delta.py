@@ -104,12 +104,22 @@ class Cluster:
 
 
 def fetch_parallax_window(cluster: Cluster, settings: Mapping[str, Any]) -> tuple[float, float]:
-    """The parallax range a release's cone is asked for: wide enough that the local cut decides."""
+    """The parallax range a release's cone is asked for. It holds every parallax that can pass the local
+    cut, so the local cut alone decides membership. A member has e <= plx / q (q the minimum
+    parallax_over_error) and |plx - c| <= k sqrt(e^2 + s^2); with e at its largest that is
+    (plx - c)^2 <= (k / q)^2 plx^2 + k^2 s^2, a quadratic in plx whose roots bound the window. The
+    window is never narrower than the configured minimum half-width."""
     s = settings["selection"]
-    half = max(
-        float(s["fetch_parallax_halfwidth_min_mas"]), float(s["fetch_parallax_halfwidth_spreads"]) * cluster.s_plx
-    )
-    return cluster.plx - half, cluster.plx + half
+    c, spread = cluster.plx, cluster.s_plx
+    k, q = float(s["parallax_sigma"]), float(s["parallax_over_error_min"])
+    half = max(float(s["fetch_parallax_halfwidth_min_mas"]), float(s["fetch_parallax_halfwidth_spreads"]) * spread)
+    lo, hi = c - half, c + half
+    a = 1.0 - (k / q) ** 2
+    if a <= 0:
+        raise ValueError("parallax_sigma must be below parallax_over_error_min, or no window bounds the cut")
+    disc = c * c - a * (c * c - (k * spread) ** 2)
+    root = math.sqrt(max(disc, 0.0))
+    return min(lo, (c - root) / a), max(hi, (c + root) / a)
 
 
 def angular_distance_deg(ra0: float, dec0: float, ra: Array, dec: Array) -> Array:
@@ -196,7 +206,9 @@ def compare(
     mapped = {i: (i if counterpart is None else counterpart.get(i)) for i in a_ids}
     unmatched = sum(v is None for v in mapped.values())
     lost = sum(v is not None and v not in b_ids for v in mapped.values())
-    kept = {v for v in mapped.values() if v is not None and v in b_ids}
+    # each earlier member counts once, even when two of them match the same later star
+    kept = sum(v is not None and v in b_ids for v in mapped.values())
+    reached = {v for v in mapped.values() if v is not None and v in b_ids}
     return {
         "cluster": cluster.name,
         "earlier": da,
@@ -207,10 +219,10 @@ def compare(
         "delta_distance_pc": db["distance_pc"] - da["distance_pc"],
         "delta_pmra_masyr": db["pmra_masyr"] - da["pmra_masyr"],
         "delta_pmdec_masyr": db["pmdec_masyr"] - da["pmdec_masyr"],
-        "kept": len(kept),
+        "kept": kept,
         "lost": lost,
         "unmatched": unmatched,
-        "new": len(b_ids - kept),
+        "new": len(b_ids - reached),
     }
 
 

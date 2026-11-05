@@ -27,6 +27,10 @@ cluster's spread `s_Plx` in quadrature), and a proper-motion chi-squared from HR
 11.83 (errors and spreads in quadrature, 3 sigma for two degrees of freedom). The cluster parameters
 stay HR23's in every release, so a change is the release's and not the selection's.
 
+Each release's cone is fetched with a parallax window that provably holds every parallax the cut can
+pass (a member has error at most parallax/5, so its parallax solves a quadratic bound), never
+narrower than 1 mas or five spreads either side. The local cut alone decides membership.
+
 These values are a draft. They are frozen, with their hash, before 2 December 2026.
 
 ## Matching stars across releases
@@ -47,6 +51,12 @@ sdp delta fetch --release dr2      # one cone per cluster, kept as Parquet; reru
 sdp delta fetch --release dr3      # also keeps HR23's DR3 member lists
 sdp delta compare --from dr2 --to dr3
 ```
+
+Each kept cone carries the query that fetched it. A cone fetched under other settings is fetched again,
+and `compare` never uses one (the summary lists it). A cluster an archive fails on (an error, a
+refused answer, an unknown name) is named, the rest carry on, and the command exits 1; running it
+again fetches only what is missing. The summary also lists any DR3 cluster compared without HR23's
+member list.
 
 Outputs in `<SDP data>/delta`: `seeds.json` (HR23 rows), `<release>/<cluster>.parquet`,
 `hr23-members/`, `matches/dr2-dr3/`, `deltas-dr2-dr3.csv` and `summary-dr2-dr3.json` (EXPLORATORY,

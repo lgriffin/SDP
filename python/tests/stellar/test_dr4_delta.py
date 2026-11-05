@@ -75,11 +75,34 @@ def test_the_distance_on_the_sky_is_right_near_the_pole_and_across_ra_zero() -> 
 
 
 @pytest.mark.req("STL-030")
-def test_the_fetch_window_is_wide_enough_that_the_local_cut_decides() -> None:
-    lo, hi = d.fetch_parallax_window(CLUSTER, SETTINGS)
-    assert (lo, hi) == pytest.approx((1.0, 3.0))
-    wide = d.Cluster("Hyades", 66.7, 16.1, 10.35, 21.2, 1.55, 104.1, 14.8, -28.7, 10.8)
-    assert d.fetch_parallax_window(wide, SETTINGS) == pytest.approx((21.2 - 7.75, 21.2 + 7.75))
+@pytest.mark.parametrize(
+    "cluster",
+    [CLUSTER, d.Cluster("Hyades", 66.7, 16.1, 10.35, 21.2, 1.55, 104.1, 14.8, -28.7, 10.8)],
+    ids=["distant", "hyades"],
+)
+def test_the_fetch_window_holds_every_parallax_the_local_cut_can_pass(cluster: d.Cluster) -> None:
+    lo, hi = d.fetch_parallax_window(cluster, SETTINGS)
+    assert lo <= cluster.plx - 1.0 and hi >= cluster.plx + 1.0
+    # stars at the cluster's position and motion, with every parallax and every error the cut allows
+    plx, e = (g.ravel() for g in np.meshgrid(np.linspace(0.01, 5 * hi, 4000), np.geomspace(1e-3, 50, 400)))
+    n = plx.size
+    s = {
+        "source_id": np.arange(n),
+        "ra": np.full(n, cluster.ra),
+        "dec": np.full(n, cluster.dec),
+        "parallax": plx,
+        "parallax_error": e,
+        "pmra": np.full(n, cluster.pmra),
+        "pmra_error": np.full(n, 0.05),
+        "pmdec": np.full(n, cluster.pmdec),
+        "pmdec_error": np.full(n, 0.05),
+        "phot_g_mean_mag": np.full(n, 12.0),
+    }
+    passed = plx[d.members(s, cluster, SETTINGS)]
+    assert passed.size > 0
+    assert passed.min() >= lo and passed.max() <= hi
+    # nor needlessly wide: members reach close to its far end (the near end may be the minimum half-width)
+    assert hi - passed.max() < 0.05 * (hi - lo)
 
 
 @pytest.mark.req("STL-030")
@@ -139,6 +162,15 @@ def test_members_are_counted_kept_lost_unmatched_and_new_through_the_match() -> 
     # star 10's later twin (1010) and the extra star are members no earlier member maps to;
     # star 1's twin (1001) moves away, so it is not a member at all
     assert row["new"] == 2
+
+
+@pytest.mark.req("STL-031")
+def test_two_earlier_members_matched_to_one_later_star_are_both_kept() -> None:
+    a = stars(n_members=3, n_field=0)
+    b = {k: v[:2].copy() for k, v in a.items()}
+    b["source_id"] = np.array([501, 502])
+    row = d.compare(CLUSTER, a, b, {1: 501, 2: 501, 3: 502}, SETTINGS)
+    assert row["kept"] == 3 and row["lost"] == 0 and row["new"] == 0
 
 
 @pytest.mark.req("STL-031")

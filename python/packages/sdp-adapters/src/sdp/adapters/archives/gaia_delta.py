@@ -118,7 +118,11 @@ def neighbourhood(transport: Transport, match: Mapping[str, Any], source_ids: It
             f"SELECT {match['from_column']}, {match['to_column']}, {match['order_by']} FROM {match['table']} "
             f"WHERE {match['from_column']} IN ({', '.join(str(i) for i in part)})"
         )
-        for r in run_sync(transport, sync_request(GAIA_TAP, query, CHUNK * 20), "Gaia neighbourhood").to_pylist():
+        table = run_sync(transport, sync_request(GAIA_TAP, query, CHUNK * 20), "Gaia neighbourhood")
+        if table.num_rows >= CHUNK * 20:
+            # a cut-off answer could lack a source's nearest neighbour, and the match is kept
+            raise UntrustedInput(f"Gaia neighbourhood: {table.num_rows} rows reached the {CHUNK * 20} cap")
+        for r in table.to_pylist():
             a, b, d = int(r[match["from_column"]]), int(r[match["to_column"]]), float(r[match["order_by"]])
             if a not in best or d < best[a][0]:
                 best[a] = (d, b)

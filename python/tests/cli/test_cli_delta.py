@@ -86,9 +86,9 @@ def test_fetch_keeps_each_cone_and_skips_what_it_has(fakes: dict[str, list[str]]
     ]
     assert runner.invoke(cli.app, args).exit_code == 0
     assert (tmp_path / "dr3" / "NGC_2682.parquet").exists() and (tmp_path / "hr23-members" / "NGC_188.json").exists()
-    assert len(fakes["cluster"]) == 24 and len(fakes["cone"]) == 2
+    assert len(fakes["cluster"]) == 2 and len(fakes["cone"]) == 2
     assert runner.invoke(cli.app, args).exit_code == 0
-    assert len(fakes["cluster"]) == 24 and len(fakes["cone"]) == 2 and len(fakes["members"]) == 2
+    assert len(fakes["cluster"]) == 2 and len(fakes["cone"]) == 2 and len(fakes["members"]) == 2
 
 
 @pytest.mark.req("STL-032")
@@ -140,3 +140,92 @@ def test_an_archive_error_costs_one_cluster_and_the_next_run_fetches_it(
     monkeypatch.setattr(gaia_delta, "cone", good)
     assert runner.invoke(cli.app, [*args, "--out", str(tmp_path)]).exit_code == 0
     assert (tmp_path / "dr2" / "NGC_188.parquet").exists()
+
+
+@pytest.mark.req("STL-032")
+def test_a_refused_cone_or_a_missing_hr23_row_costs_one_cluster(
+    fakes: dict[str, list[str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sdp.adapters.archives.untrusted import UntrustedInput
+
+    good_cone: Any = gaia_delta.cone
+    good_row: Any = gaia_delta.hr23_cluster
+
+    def capped(t: object, query: str, what: str) -> pa.Table:
+        if what.endswith("NGC_188"):
+            raise UntrustedInput(f"{what}: rows reached the cap")
+        return good_cone(t, query, what)
+
+    def unknown(v: object, name: str) -> dict[str, Any]:
+        if name == "NGC_752":
+            raise LookupError("HR23 lists 0 clusters named 'NGC_752', not one")
+        return dict(good_row(v, name))
+
+    monkeypatch.setattr(gaia_delta, "cone", capped)
+    monkeypatch.setattr(gaia_delta, "hr23_cluster", unknown)
+    args = ["delta", "fetch", "--release", "dr2", "--out", str(tmp_path)]
+    for name in ("NGC_752", "NGC_188", "NGC_2682"):
+        args += ["--cluster", name]
+    result = runner.invoke(cli.app, args)
+    assert result.exit_code == 1
+    assert json.loads(result.stdout[result.stdout.index("{") :])["failed"] == ["NGC_752", "NGC_188"]
+    assert (tmp_path / "dr2" / "NGC_2682.parquet").exists()
+    assert set(json.loads((tmp_path / "seeds.json").read_text("utf-8"))) == {"NGC_188", "NGC_2682"}
+
+
+@pytest.mark.req("STL-032")
+def test_a_cone_fetched_with_other_settings_is_fetched_again_and_never_compared(
+    fakes: dict[str, list[str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch = ["delta", "fetch", "--cluster", "NGC_2682", "--out", str(tmp_path)]
+    for release in ("dr2", "dr3"):
+        assert runner.invoke(cli.app, [*fetch, "--release", release]).exit_code == 0
+    changed = d.load_settings()
+    changed = {**changed, "selection": {**changed["selection"], "g_max": 17.0}}
+    monkeypatch.setattr(d, "load_settings", lambda: changed)
+    compare = ["delta", "compare", "--cluster", "NGC_2682", "--out", str(tmp_path)]
+    assert runner.invoke(cli.app, compare).exit_code == 0
+    summary = json.loads((tmp_path / "summary-dr2-dr3.json").read_text("utf-8"))
+    assert summary["clusters"] == 0 and summary["skipped_fetched_with_other_settings"] == ["NGC_2682"]
+    assert runner.invoke(cli.app, [*fetch, "--release", "dr2"]).exit_code == 0
+    assert len(fakes["cone"]) == 3
+
+
+@pytest.mark.req("STL-032")
+def test_a_cone_cut_short_by_an_interrupted_write_is_fetched_again(fakes: dict[str, list[str]], tmp_path: Path) -> None:
+    (tmp_path / "dr2").mkdir()
+    (tmp_path / "dr2" / "NGC_2682.parquet").write_bytes(b"PAR1 half a file")
+    args = ["delta", "fetch", "--release", "dr2", "--cluster", "NGC_2682", "--out", str(tmp_path)]
+    assert runner.invoke(cli.app, args).exit_code == 0
+    assert len(fakes["cone"]) == 1 and not list((tmp_path / "dr2").glob("*.tmp"))
+
+
+@pytest.mark.req("STL-032")
+def test_compare_writes_what_it_can_when_a_match_fails_and_names_a_missing_hr23_list(
+    fakes: dict[str, list[str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sdp.adapters.archives.transport import TransportError
+
+    for release in ("dr2", "dr3"):
+        args = ["delta", "fetch", "--release", release, "--cluster", "NGC_2682", "--cluster", "NGC_188"]
+        assert runner.invoke(cli.app, [*args, "--out", str(tmp_path)]).exit_code == 0
+    (tmp_path / "hr23-members" / "NGC_2682.json").unlink()
+    good: Any = gaia_delta.neighbourhood
+    calls = {"n": 0}
+
+    def flaky(t: object, match: Any, ids: Any) -> dict[int, int]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TransportError("Gaia neighbourhood: HTTP 503")
+        return dict(good(t, match, ids))
+
+    monkeypatch.setattr(gaia_delta, "neighbourhood", flaky)
+    compare = ["delta", "compare", "--cluster", "NGC_2682", "--cluster", "NGC_188", "--out", str(tmp_path)]
+    result = runner.invoke(cli.app, compare)
+    assert result.exit_code == 1
+    summary = json.loads((tmp_path / "summary-dr2-dr3.json").read_text("utf-8"))
+    assert summary["clusters"] == 1 and summary["failed_archive"] == ["NGC_2682"]
+    assert summary["hr23_check_missing"] == []
+    assert runner.invoke(cli.app, compare).exit_code == 0
+    summary = json.loads((tmp_path / "summary-dr2-dr3.json").read_text("utf-8"))
+    assert summary["clusters"] == 2 and summary["hr23_check_missing"] == ["NGC_2682"]
