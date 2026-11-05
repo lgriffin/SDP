@@ -25,7 +25,7 @@ def mentions(total: int, refereed: int) -> linkage.Mentions:
 @pytest.mark.req("PUB-003")
 def test_the_query_names_the_mission_and_the_program_the_ways_papers_write_it() -> None:
     q = linkage.mention_query("JWST", "1324")
-    assert q.startswith('full:("JWST" OR "James Webb Space Telescope") AND full:(')
+    assert q.startswith('full:("JWST") AND full:(')
     for phrase in ('"program 1324"', '"PID 1324"', '"GO 1324"', '"ERS 1324"', '"proposal ID 1324"', '"jw01324"'):
         assert phrase in q
     assert q.endswith("AND year:2022-")

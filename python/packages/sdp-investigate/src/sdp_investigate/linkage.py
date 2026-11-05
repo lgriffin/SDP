@@ -33,7 +33,8 @@ from typing import Any
 SETTINGS: dict[str, Any] = {
     "missions": {
         "JWST": {
-            "names": ["JWST", "James Webb Space Telescope"],
+            #: every JWST paper names "JWST"; adding the long name doubled ADS's answer time (2026-11-05)
+            "names": ["JWST"],
             "first_year": 2022,
             "file_prefix": "jw",
             "science_categories": ["DD", "ERS", "GO", "GTO", "SURVEY"],
