@@ -190,3 +190,21 @@ requirements:
       - "python/tests.archives.test_gaia_nss::test_an_answer_without_a_declared_column_is_refused"
       - "python/tests.archives.test_gaia_nss::test_no_targets_is_a_named_failure"
       - "python/tests.archives.test_gaia_nss::test_the_recorded_orbits_flag_gaia_bh1_as_a_neutron_star_or_black_hole"
+  - id: DSI-024
+    pattern: event
+    text: "When a bulk sweep of 2MASS or AllWISE stores a publisher file, the system shall keep only the source's declared columns with their declared types, check the file by its gzip trailer (2MASS) or its published row count (AllWISE, read by byte range), try each of the publisher's mirrors in turn, and answer that source's catalogue queries from the copy once it is complete."
+    rationale: "On 2026-11-04 IRSA returned HTTP 503 for hours and stopped Leigh's cross-survey run, since 2MASS and AllWISE come only from IRSA. IRSA publishes the 2MASS PSC as 92 gzipped pipe-separated files (no MD5s; 45 GB downloaded, about 14 GB kept: one 490 MB file, 5,144,500 rows, made 150 MB of Parquet in 87 s from the cloud sandbox) and AllWISE as 12,288 HEALPix Parquet files on IRSA and on AWS S3 with MD5s and row counts; reading our 12 of 298 columns by byte range reads about 9 percent of each file (2.3 of 24.8 MB), so the MD5 cannot be checked and the row count is. A 0.05 degree cone from the copy matched IRSA TAP row for row (AllWISE exactly; 2MASS msigcom differed by 0.001 mag on 11 of 288 values, the files' last printed digit). SDP_SURVEY_SOURCE (auto, tap or bulk) chooses as SDP_GAIA_SOURCE does for Gaia. A list naming other than the release's file count (92, 12,288) is refused, since a cut-off reply would let a partial copy pass for complete, and a stored file whose MD5 or row count no longer matches the list is copied again."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_bulk_surveys::test_the_2mass_files_keep_our_columns_typed_with_the_padding_trimmed_and_nulls_kept"
+      - "python/tests.archives.test_bulk_surveys::test_a_cut_off_2mass_file_fails_its_gzip_check_and_only_that_file"
+      - "python/tests.archives.test_bulk_surveys::test_allwise_reads_only_our_columns_by_byte_range_and_checks_each_row_count"
+      - "python/tests.archives.test_bulk_surveys::test_an_allwise_file_short_of_its_published_rows_is_refused"
+      - "python/tests.archives.test_bulk_surveys::test_when_irsa_is_down_the_list_and_every_file_come_from_aws"
+      - "python/tests.archives.test_bulk_surveys::test_a_complete_copy_answers_fields_with_no_call_to_irsa_and_an_incomplete_one_is_not_read"
+      - "python/tests.archives.test_bulk_surveys::test_a_range_read_of_a_local_file_matches_its_bytes"
+      - "python/tests.archives.test_bulk_surveys::test_the_cli_copies_allwise_from_a_given_folder_and_refuses_what_it_cannot_copy"
+      - "python/tests.archives.test_bulk_surveys::test_a_list_short_of_the_releases_files_is_refused_and_not_stored"
+      - "python/tests.archives.test_bulk_surveys::test_a_file_the_publisher_replaced_is_copied_again"

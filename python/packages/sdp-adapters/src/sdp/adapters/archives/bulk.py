@@ -13,22 +13,32 @@ refuses acquisitions (DSI-010). Nothing is ever written outside the store and it
 A subset (``subsets/*.yaml``) is a second copy from the same files: the parent's columns plus a few more,
 kept only for rows where one of them has a value. ``rvs`` is the Gaia DR3 stars with a radial velocity
 (DSI-021); it lives under ``bulk/<source>/<release>/<subset>/`` and is read with its own gateway.
+
+2MASS and AllWISE are copied the same way (DSI-024), so a field reads them when IRSA is down. IRSA
+publishes the 2MASS Point Source Catalog as 92 gzipped, pipe-separated files (``psc_aaa.gz`` ...), with
+no checksums: the gzip trailer's CRC is checked instead. It publishes AllWISE as 12,288 HEALPix Parquet
+files, on its own servers and on AWS S3, with MD5s and row counts: only the declared columns are read,
+by byte range (about a tenth of each file), so the row count is checked, not the MD5, and a file
+either mirror cannot serve is read from the other.
 """
 
 from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import logging
 import re
 import threading
 import time
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from functools import partial
 from importlib.resources import files as package_files
 from pathlib import Path
 from typing import IO, Any
@@ -57,7 +67,79 @@ from sdp.kernel.ports.storage import ArtifactStore
 log = logging.getLogger("sdp.adapters.bulk")
 
 GAIA_DR3_BULK = "https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/"
+TWOMASS_PSC_BULK = "https://irsa.ipac.caltech.edu/2MASS/download/allsky/"
+#: IRSA's own copy first, then the same files in AWS Open Data (``s3://nasa-irsa-wise``)
+ALLWISE_PARQUET_MIRRORS = (
+    "https://irsa.ipac.caltech.edu/data/download/wise-allwise-parquet/",
+    "https://nasa-irsa-wise.s3.us-west-2.amazonaws.com/wise/allwise/catalogs/p3as_psd/healpix_k5/",
+)
 MD5SUM = "_MD5SUM.txt"
+#: the file list SDP writes for a publisher with no ``_MD5SUM.txt``: ``<md5 or ->  <name>  <rows or ->``
+FILES = "_FILES.txt"
+
+#: The columns of IRSA's 2MASS PSC files, in order (``twomass_psc_schema``; ``decl`` is TAP's ``dec``)
+TWOMASS_PSC_COLUMNS = (
+    "ra",
+    "dec",
+    "err_maj",
+    "err_min",
+    "err_ang",
+    "designation",
+    "j_m",
+    "j_cmsig",
+    "j_msigcom",
+    "j_snr",
+    "h_m",
+    "h_cmsig",
+    "h_msigcom",
+    "h_snr",
+    "k_m",
+    "k_cmsig",
+    "k_msigcom",
+    "k_snr",
+    "ph_qual",
+    "rd_flg",
+    "bl_flg",
+    "cc_flg",
+    "ndet",
+    "prox",
+    "pxpa",
+    "pxcntr",
+    "gal_contam",
+    "mp_flg",
+    "pts_key",
+    "hemis",
+    "date",
+    "scan",
+    "glon",
+    "glat",
+    "x_scan",
+    "jdate",
+    "j_psfchi",
+    "h_psfchi",
+    "k_psfchi",
+    "j_m_stdap",
+    "j_msig_stdap",
+    "h_m_stdap",
+    "h_msig_stdap",
+    "k_m_stdap",
+    "k_msig_stdap",
+    "dist_edge_ns",
+    "dist_edge_ew",
+    "dist_edge_flg",
+    "dup_src",
+    "use_src",
+    "a",
+    "dist_opt",
+    "phi_opt",
+    "b_m_opt",
+    "vr_m_opt",
+    "nopt_mchs",
+    "ext_key",
+    "scan_key",
+    "coadd_key",
+    "coadd",
+)
 PARQUET = "application/vnd.apache.parquet"
 JSON = "application/json"
 
@@ -83,11 +165,18 @@ def _urlopen(url: str) -> IO[bytes]:
 @dataclass(frozen=True)
 class BulkFile:
     name: str
+    #: the publisher's MD5, or "" when it publishes none
     md5: str
+    #: the publisher's row count, when it publishes one
+    rows: int | None = None
 
     @property
     def stem(self) -> str:
-        return self.name.removesuffix(".gz").removesuffix(".csv")
+        """The file's name in the store: its suffixes off, and any folder or ``=`` made an underscore."""
+        base = self.name
+        for suffix in (".gz", ".csv", ".parquet", ".snappy"):
+            base = base.removesuffix(suffix)
+        return re.sub(r"[^A-Za-z0-9_.-]+", "_", base)
 
 
 @dataclass(frozen=True)
@@ -112,6 +201,190 @@ def parse_md5sum(text: str) -> list[BulkFile]:
         if len(parts) == 2 and parts[1].endswith(".csv.gz"):
             files.append(BulkFile(parts[1].lstrip("*"), parts[0].lower()))
     return sorted(files, key=lambda f: f.name)
+
+
+def format_files(files: Sequence[BulkFile]) -> str:
+    return "".join(f"{f.md5 or '-'}  {f.name}  {'-' if f.rows is None else f.rows}\n" for f in files)
+
+
+def parse_files(text: str) -> list[BulkFile]:
+    """The list :func:`format_files` wrote, in name order."""
+    files = []
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 3:
+            md5, name, rows = parts
+            files.append(BulkFile(name, "" if md5 == "-" else md5, None if rows == "-" else int(rows)))
+    return sorted(files, key=lambda f: f.name)
+
+
+def parse_twomass_index(html: str) -> list[BulkFile]:
+    """The PSC files an IRSA folder listing links to (``psc_aaa.gz`` ...); IRSA publishes no MD5s for them."""
+    names = sorted(set(re.findall(r'href="(psc_[a-z]{3}\.gz)"', html)))
+    return [BulkFile(n, "") for n in names]
+
+
+def parse_parquet_listing(md5sums: str, row_counts: str) -> list[BulkFile]:
+    """IRSA's ``*-md5sums.txt`` and ``*-row-counts-per-file.csv`` for a HEALPix Parquet catalogue: its data
+    files (``part*.parquet``), each with its MD5 and row count."""
+    rows: dict[str, int] = {}
+    for line in row_counts.splitlines()[1:]:
+        path, _, count = line.rpartition(",")
+        if path:
+            rows[path.strip()] = int(count)
+    files = [
+        BulkFile(f.name, f.md5, rows.get(f.name))
+        for f in (
+            BulkFile(p[1].lstrip("*"), p[0].lower()) for p in (ln.split() for ln in md5sums.splitlines()) if len(p) == 2
+        )
+        if f.name.endswith(".parquet")
+    ]
+    missing = [f.name for f in files if f.rows is None]
+    if missing:
+        raise ValueError(f"the row counts list no count for {len(missing)} files, e.g. {missing[0]}")
+    return sorted(files, key=lambda f: f.name)
+
+
+def typed(table: pa.Table, descriptor: SourceDescriptor, columns: Sequence[str]) -> pa.Table:
+    """The declared columns, in order, cast to their declared types (a publisher's int64 becomes int32...)."""
+    types = {c.name: ARROW_TYPES.get(c.datatype, pa.string()) for c in descriptor.columns}
+    return pa.table({c: table.column(c).cast(types[c]) for c in columns})
+
+
+def twomass_psc_to_table(path: Path, descriptor: SourceDescriptor, columns: Sequence[str]) -> pa.Table:
+    """The declared columns of one of IRSA's 2MASS PSC files: gzipped, pipe-separated, no header, ``\\N`` for
+    null. The whole file is decompressed by Python's gzip first, which checks the trailer's CRC and length,
+    since IRSA publishes no MD5 for these files."""
+    plain = path.with_suffix(".txt")
+    try:
+        with gzip.open(path, "rb") as packed, plain.open("wb") as out:
+            while chunk := packed.read(16 << 20):
+                out.write(chunk)
+        types = {c.name: ARROW_TYPES.get(c.datatype, pa.string()) for c in descriptor.columns if c.name in columns}
+        table = pacsv.read_csv(
+            plain,
+            read_options=pacsv.ReadOptions(column_names=list(TWOMASS_PSC_COLUMNS), block_size=64 << 20),
+            parse_options=pacsv.ParseOptions(delimiter="|", quote_char=False),
+            convert_options=pacsv.ConvertOptions(
+                include_columns=list(columns), column_types=types, null_values=["\\N", ""], strings_can_be_null=True
+            ),
+        )
+    finally:
+        plain.unlink(missing_ok=True)
+    if "designation" in table.column_names:  # the files pad it to 17 characters; TAP does not
+        i = table.column_names.index("designation")
+        table = table.set_column(i, "designation", pc.utf8_rtrim_whitespace(table.column("designation")))
+    return table.select(list(columns))
+
+
+def _read_range(url: str, start: int, length: int) -> bytes:
+    """``length`` bytes of ``url`` from ``start``: an HTTP Range request, or a plain read of a file: URL."""
+    if url.startswith("file:"):
+        with Path(urllib.request.url2pathname(urllib.parse.urlparse(url).path)).open("rb") as f:
+            f.seek(start)
+            return f.read(length)
+    request = urllib.request.Request(url, headers={"Range": f"bytes={start}-{start + length - 1}"})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        data: bytes = response.read()
+    if len(data) != length:
+        raise OSError(f"{url}: asked for {length} bytes from {start}, got {len(data)}")
+    return data
+
+
+def _size(url: str) -> int:
+    if url.startswith("file:"):
+        return Path(urllib.request.url2pathname(urllib.parse.urlparse(url).path)).stat().st_size
+    with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=120) as response:
+        return int(response.headers["Content-Length"])
+
+
+class RangeFile(io.RawIOBase):
+    """A remote file read by byte range, so Parquet reads its footer and the chosen columns only."""
+
+    def __init__(self, url: str, size: int, read_range: Callable[[str, int, int], bytes]) -> None:
+        self.url, self.size, self._read_range = url, size, read_range
+        self.position = 0
+        self.bytes_read = 0
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def tell(self) -> int:
+        return self.position
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        base = {io.SEEK_SET: 0, io.SEEK_CUR: self.position, io.SEEK_END: self.size}[whence]
+        self.position = base + offset
+        return self.position
+
+    def read(self, n: int | None = -1) -> bytes:
+        n = self.size - self.position if n is None or n < 0 else min(n, self.size - self.position)
+        if n <= 0:
+            return b""
+        data = self._read_range(self.url, self.position, n)
+        self.position += len(data)
+        self.bytes_read += len(data)
+        return data
+
+    def readinto(self, buffer: Any) -> int:
+        data = self.read(len(buffer))
+        buffer[: len(data)] = data
+        return len(data)
+
+
+def parquet_columns(
+    url: str,
+    columns: Sequence[str],
+    read_range: Callable[[str, int, int], bytes] = _read_range,
+    size: Callable[[str], int] = _size,
+) -> tuple[pa.Table, int]:
+    """The chosen columns of a remote Parquet file, and the bytes read to get them."""
+    remote = RangeFile(url, size(url), read_range)
+    table = pq.ParquetFile(remote).read(columns=list(columns))
+    return table, remote.bytes_read
+
+
+@dataclass(frozen=True)
+class Publisher:
+    """Where a release's bulk files are, and how one becomes a table: ``gaia-ecsv`` (ESA's gzipped ECSV,
+    listed in ``_MD5SUM.txt``), ``2mass-psc`` (IRSA's pipe-separated files) or ``healpix-parquet``
+    (IRSA's Parquet catalogues, read by byte range). Mirrors are tried in order, file by file."""
+
+    format: str
+    mirrors: tuple[str, ...]
+    md5sums: str = ""
+    row_counts: str = ""
+    #: how many data files the release has: a list with any other number (a cut-off reply) is refused
+    file_count: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.format not in {"gaia-ecsv", "2mass-psc", "healpix-parquet"}:
+            raise ValueError(f"unknown bulk format {self.format!r}")
+        if not self.mirrors or not all(m.endswith("/") for m in self.mirrors):
+            raise ValueError("a publisher has at least one mirror, each a folder ending in /")
+
+    @property
+    def listing(self) -> str:
+        """The store name of the file list a reader goes by."""
+        return MD5SUM if self.format == "gaia-ecsv" else FILES
+
+
+#: The bulk files SDP can copy, by source id (``sdp archive bulk --source``)
+PUBLISHERS: dict[str, Publisher] = {
+    "gaia": Publisher("gaia-ecsv", (GAIA_DR3_BULK,)),
+    #: psc_aaa ... psc_ace (north) and psc_baa ... psc_bbi (south): 470,992,970 sources, frozen since 2003
+    "2mass": Publisher("2mass-psc", (TWOMASS_PSC_BULK,), file_count=92),
+    "allwise": Publisher(
+        "healpix-parquet",
+        ALLWISE_PARQUET_MIRRORS,
+        md5sums="wise-allwise-md5sums.txt",
+        row_counts="wise-allwise-row-counts-per-file.csv",
+        file_count=12_288,
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -207,9 +480,17 @@ class BulkSweep:
     sleep: Callable[[float], None] = time.sleep
     #: a subset sweep: ``descriptor`` is the parent's, the subset's columns are added and rows filtered
     subset: BulkSubset | None = None
+    #: where the files are and their format; by default ESA's Gaia ECSV files at ``base_url``
+    publisher: Publisher | None = None
+    read_range: Callable[[str, int, int], bytes] = _read_range
+    size: Callable[[str], int] = _size
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
+        if self.publisher is None:
+            self.publisher = Publisher("gaia-ecsv", (self.base_url,))
+        if self.subset is not None and self.publisher.format != "gaia-ecsv":
+            raise ValueError("only the Gaia files have subsets")
         if self.subset is not None:
             self.descriptor = self.subset.descriptor(self.descriptor)
             self.columns = tuple(dict.fromkeys((*self.columns, *(c.name for c in self.subset.columns))))
@@ -231,12 +512,47 @@ class BulkSweep:
 
     # -- the sweep ----------------------------------------------------------------------------
 
+    @property
+    def _publisher(self) -> Publisher:
+        assert self.publisher is not None
+        return self.publisher
+
+    def _get(self, name: str) -> bytes:
+        """A listing file from the first mirror that serves it."""
+        last: Exception | None = None
+        for mirror in self._publisher.mirrors:
+            try:
+                with self.opener(mirror + name) as response:
+                    data: bytes = response.read()
+                return data
+            except OSError as exc:
+                last = exc
+        assert last is not None
+        raise last
+
     def files(self) -> list[BulkFile]:
         """The publisher's file list, kept in the store too: a reader can then tell a complete copy."""
-        with self.opener(self.base_url + MD5SUM) as response:
-            text = response.read()
-        self.store.put(text, "text/plain", logical_path=f"{self.prefix}/{MD5SUM}")
-        return parse_md5sum(text.decode("utf-8"))
+        publisher = self._publisher
+        if publisher.format == "gaia-ecsv":
+            text = self._get(MD5SUM)
+            self.store.put(text, "text/plain", logical_path=f"{self.prefix}/{MD5SUM}")
+            return parse_md5sum(text.decode("utf-8"))
+        if publisher.format == "2mass-psc":
+            files = parse_twomass_index(self._get("").decode("utf-8", "replace"))
+        else:
+            files = parse_parquet_listing(
+                self._get(publisher.md5sums).decode("utf-8"), self._get(publisher.row_counts).decode("utf-8")
+            )
+        if not files:
+            raise ValueError(f"{publisher.mirrors[0]} lists no {self.descriptor.source_id} files")
+        if publisher.file_count is not None and len(files) != publisher.file_count:
+            # kept out of the store: a short list would let a partial copy pass for a complete one
+            raise ValueError(
+                f"{self.descriptor.source_id}: the publisher's list names {len(files)} files, not the "
+                f"{publisher.file_count} of the release; the reply may have been cut off, so try again later"
+            )
+        self.store.put(format_files(files).encode(), "text/plain", logical_path=f"{self.prefix}/{FILES}")
+        return files
 
     def status(self, files: Sequence[BulkFile]) -> dict[str, Any]:
         done = [f for f in files if self.store.resolve(self.parquet_path(f)) is not None]
@@ -300,8 +616,22 @@ class BulkSweep:
             raise exhausted
         return results
 
+    def stored_matches(self, f: BulkFile) -> bool:
+        """Whether a stored file is the one listed: the same MD5 and row count as when it was copied. A file
+        the publisher has replaced under the same name is copied again."""
+        if self.store.resolve(self.parquet_path(f)) is None:
+            return False
+        record = self.store.resolve(self.record_path(f))
+        if record is None:
+            return True  # a copy from before records were kept: nothing to compare
+        doc = json.loads(self.store.get(record))
+        if f.md5 and doc.get("md5") and doc["md5"] != f.md5:
+            return False
+        rows = doc.get("file_rows", doc.get("rows"))
+        return f.rows is None or rows is None or int(rows) == f.rows
+
     def store_file(self, f: BulkFile) -> FileResult:
-        if self.store.resolve(self.parquet_path(f)) is not None:
+        if self.stored_matches(f):
             return FileResult(f.name, "reused")
         free = self.store.free_bytes()
         if free is not None and free < self.min_free_bytes:
@@ -310,10 +640,9 @@ class BulkSweep:
                 f"before {f.name}. Free some space or point SDP at a bigger drive, then run it again to resume."
             )
         started = time.monotonic()
-        download = self.work_dir / f.name
+        download = self.work_dir / f.stem
         try:
-            size = self._download(f, download)
-            table = ecsv_to_table(download, self.descriptor, self.columns)
+            table, size, url, checked = self._fetch(f, download)
             read_rows = table.num_rows
             if self.subset is not None:
                 table = table.filter(pc.is_valid(table.column(self.subset.keep_rows_with)))
@@ -323,8 +652,9 @@ class BulkSweep:
             artifact = self.store.put(data, PARQUET)
             record = {
                 "file": f.name,
-                "url": self.base_url + f.name,
+                "url": url,
                 "md5": f.md5,
+                "checked": checked,
                 "source": self.descriptor.source_id,
                 "release": self.descriptor.release_label,
                 "licence": self.descriptor.licence,
@@ -356,16 +686,49 @@ class BulkSweep:
             download.unlink(missing_ok=True)
         return FileResult(f.name, "stored", table.num_rows, len(data), size, time.monotonic() - started)
 
-    def _download(self, f: BulkFile, target: Path) -> int:
+    def _fetch(self, f: BulkFile, download: Path) -> tuple[pa.Table, int, str, str]:
+        """The file's declared columns, the bytes moved, the URL they came from and how they were checked.
+        Each mirror is tried in turn, each with its retries."""
+        failures: list[str] = []
+        for mirror in self._publisher.mirrors:
+            url = mirror + f.name
+            try:
+                if self._publisher.format == "healpix-parquet":
+                    table, size = self._retried(partial(parquet_columns, url, self.columns, self.read_range, self.size))
+                    if f.rows is not None and table.num_rows != f.rows:
+                        raise OSError(f"{f.name}: read {table.num_rows} rows, the publisher lists {f.rows}")
+                    return typed(table, self.descriptor, self.columns), size, url, "rows"
+                size = self._download(url, f, download)
+                if self._publisher.format == "2mass-psc":
+                    table = twomass_psc_to_table(download, self.descriptor, self.columns)
+                    return typed(table, self.descriptor, self.columns), size, url, "gzip-crc"
+                return ecsv_to_table(download, self.descriptor, self.columns), size, url, "md5"
+            except (OSError, EOFError, pa.ArrowInvalid) as exc:  # a bad copy on one mirror: try the next
+                failures.append(f"{url}: {exc}")
+                download.unlink(missing_ok=True)
+                log.warning("bulk mirror failed", extra={"file": f.name, "url": url, "error": str(exc)})
+        raise OSError("; ".join(failures))
+
+    def _retried(self, call: Callable[[], Any]) -> Any:
+        for attempt in range(1, self.attempts + 1):
+            try:
+                return call()
+            except OSError:
+                if attempt == self.attempts:
+                    raise
+                self.sleep(2.0 * 2 ** (attempt - 1))
+        raise AssertionError("unreachable")
+
+    def _download(self, url: str, f: BulkFile, target: Path) -> int:
         last: Exception | None = None
         for attempt in range(1, self.attempts + 1):
             digest = hashlib.md5(usedforsecurity=False)
             try:
-                with self.opener(self.base_url + f.name) as response, target.open("wb") as out:
+                with self.opener(url) as response, target.open("wb") as out:
                     while chunk := response.read(1 << 20):
                         digest.update(chunk)
                         out.write(chunk)
-                if digest.hexdigest() != f.md5:
+                if f.md5 and digest.hexdigest() != f.md5:
                     raise OSError(f"{f.name}: MD5 {digest.hexdigest()} does not match the published {f.md5}")
                 return target.stat().st_size
             except OSError as exc:
@@ -479,6 +842,7 @@ class BulkCatalogueGateway:
     key_column: str = "source_id"
     #: read a subset's copy instead (DSI-021): ``descriptor`` is the parent's, and gains the subset's columns
     subset: BulkSubset | None = None
+    _bounds_cache: dict[BulkFile, tuple[bool, dict[str, float] | None]] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.subset is not None:
@@ -489,6 +853,9 @@ class BulkCatalogueGateway:
         return bulk_prefix(self.descriptor, self.subset)
 
     def files(self) -> list[BulkFile]:
+        listing = self.store.resolve(f"{self.prefix}/{FILES}")
+        if listing is not None:
+            return parse_files(self.store.get(listing).decode("utf-8"))
         listing = self.store.resolve(f"{self.prefix}/{MD5SUM}")
         return parse_md5sum(self.store.get(listing).decode("utf-8")) if listing is not None else []
 
@@ -523,6 +890,17 @@ class BulkCatalogueGateway:
         )
         return AcquisitionHandle(q, rendered, idempotency_key(rendered, q.release_label, q.columns), self.descriptor)
 
+    def _bounds(self) -> dict[BulkFile, tuple[bool, dict[str, float] | None]]:
+        """Each file's sky box, read from its record once per gateway: 12,288 small reads for AllWISE
+        would otherwise be repeated for every field."""
+        if self._bounds_cache is None:
+            cache: dict[BulkFile, tuple[bool, dict[str, float] | None]] = {}
+            for f in self.files():
+                record = self.store.resolve(f"{self.prefix}/{f.stem}.json")
+                cache[f] = (record is not None, json.loads(self.store.get(record)).get("bounds") if record else None)
+            self._bounds_cache = cache
+        return self._bounds_cache
+
     def _read(self, q: CatalogueQuery) -> pa.Table:
         missing = self.missing()
         label = f" ({self.subset.name} subset)" if self.subset is not None else ""
@@ -538,10 +916,8 @@ class BulkCatalogueGateway:
             | {f.column for f in q.filters}
         )
         parts: list[pa.Table] = []
-        for f in self.files():
-            record = self.store.resolve(f"{self.prefix}/{f.stem}.json")
-            bounds = json.loads(self.store.get(record)).get("bounds") if record is not None else None
-            if record is not None and (bounds is None or not _overlaps(bounds, box)):
+        for f, (has_record, bounds) in self._bounds().items():
+            if has_record and (bounds is None or not _overlaps(bounds, box)):
                 continue  # an empty file, or one wholly outside the region
             artifact = self.store.resolve(f"{self.prefix}/{f.stem}.parquet")
             assert artifact is not None

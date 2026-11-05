@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -39,6 +39,8 @@ class Settings:
     cassette_dir: Path | None = None
     #: where Gaia fields are read: auto (the bulk copy once complete, else the archive), tap or bulk (#72)
     gaia_source: str = "auto"
+    #: where 2MASS and AllWISE rows are read: auto (each one's bulk copy once complete, else IRSA), tap or bulk
+    survey_source: str = "auto"
     #: fail over to an archive's official mirror (SIMBAD and Sesame at Harvard, VizieR's mirrors) when it gives no answer
     archive_mirrors: bool = True
     #: where two frames are cross-matched: local (this machine, the CPU reference), cds (CDS X-Match) or
@@ -90,6 +92,7 @@ class Settings:
             archive_mode=archive_mode(env.get("SDP_ARCHIVE_MODE", "live")),
             cassette_dir=path("SDP_CASSETTE_DIR") or repo / "python" / "tests" / "cassettes",
             gaia_source=gaia_source(env.get("SDP_GAIA_SOURCE", "auto")),
+            survey_source=gaia_source(env.get("SDP_SURVEY_SOURCE", "auto"), "SDP_SURVEY_SOURCE"),
             archive_mirrors=_flag(env.get("SDP_ARCHIVE_MIRRORS", "1")),
             cross_match=cross_match_where(env.get("SDP_CROSS_MATCH", "local")),
             zenodo_token=secret(env, "SDP_ZENODO_TOKEN"),
@@ -131,9 +134,9 @@ def archive_mode(value: str) -> str:
 GAIA_SOURCES = ("auto", "tap", "bulk")
 
 
-def gaia_source(value: str) -> str:
+def gaia_source(value: str, name: str = "SDP_GAIA_SOURCE") -> str:
     if value not in GAIA_SOURCES:
-        raise SettingsError(f"SDP_GAIA_SOURCE must be one of {', '.join(GAIA_SOURCES)}, got {value!r}")
+        raise SettingsError(f"{name} must be one of {', '.join(GAIA_SOURCES)}, got {value!r}")
     return value
 
 
@@ -144,3 +147,52 @@ def cross_match_where(value: str) -> str:
     if value not in CROSS_MATCHES:
         raise SettingsError(f"SDP_CROSS_MATCH must be one of {', '.join(CROSS_MATCHES)}, got {value!r}")
     return value
+
+
+DOTENV = ".env"
+
+
+def _dotenv_pairs(text: str) -> dict[str, str]:
+    """``KEY=value`` lines; blank lines, ``#`` comments and an ``export`` prefix are allowed, and a value
+    in matching single or double quotes is unquoted. Anything else is ignored rather than guessed at."""
+    pairs: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        if key.replace("_", "").isalnum() and not key[0].isdigit():
+            pairs[key] = value
+    return pairs
+
+
+def find_dotenv(start: Path | None = None) -> Path | None:
+    """The nearest ``.env`` from ``start`` (the working directory) up to the checkout's top (the folder
+    holding ``.git``), so a command run anywhere inside the checkout finds the one at its top."""
+    here = (start or Path.cwd()).resolve()
+    for folder in (here, *here.parents):
+        candidate = folder / DOTENV
+        if candidate.is_file():
+            return candidate
+        if (folder / ".git").exists():
+            return None
+    return None
+
+
+def load_dotenv(path: Path | None = None, environ: MutableMapping[str, str] | None = None) -> list[str]:
+    """Copy the ``.env`` file's variables into the environment, never over one already set, so a
+    variable set in the shell wins. Returns the names it set (never the values: they are credentials)."""
+    env: MutableMapping[str, str] = os.environ if environ is None else environ
+    path = path or find_dotenv()
+    if path is None:
+        return []
+    added = []
+    for key, value in _dotenv_pairs(path.read_text("utf-8-sig")).items():
+        if key not in env:
+            env[key] = value
+            added.append(key)
+    return added
