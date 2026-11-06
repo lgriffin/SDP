@@ -42,11 +42,11 @@ def unspecified(source: str) -> list[int]:
             continue
         func = node.func
         if isinstance(func, ast.Attribute):
-            if func.attr == "read_text" and not node.args:
-                lines.append(node.lineno)
-            elif func.attr == "write_text" and len(node.args) < 2:
-                lines.append(node.lineno)
-            elif func.attr == "open" and _path_open_in_text_mode(node):
+            if (
+                (func.attr == "read_text" and not node.args)
+                or (func.attr == "write_text" and len(node.args) < 2)
+                or (func.attr == "open" and _path_open_in_text_mode(node))
+            ):
                 lines.append(node.lineno)
         elif isinstance(func, ast.Name) and func.id == "open" and len(node.args) < 4 and _text_mode(node, 1):
             lines.append(node.lineno)

@@ -229,7 +229,8 @@ def test_the_shipped_image_contradictions_selection_drafts_under_the_request_cap
     assert k.kernel.plan_investigation is not None
     plan = k.kernel.plan_investigation.execute(PlanInvestigationCommand(jwst_field(), selecting, deployment, seed=1))
     kept = sum(1 for i in plan.items if i.source_id == MAST)
-    assert 0 < kept <= mast.select.max_products <= deployment.max_requests_per_source
+    cap = mast.select.max_products
+    assert cap is not None and 0 < kept <= cap <= deployment.max_requests_per_source
     # the same listing without the selection is what failed on 2026-11-04
     plain = replace(base, archives=tuple(replace(a, select=None) for a in base.archives))
     with pytest.raises(IntegrationRefused, match="cannot exceed 200 requests per source: " + MAST):

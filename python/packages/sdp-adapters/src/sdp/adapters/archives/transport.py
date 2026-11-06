@@ -202,7 +202,7 @@ class PoliteTransport:
         if asked is not None:
             wait = max(wait, asked)
         wait = min(wait, self.max_backoff_s)
-        return wait * (1.0 + self.jitter * self.random())
+        return float(wait * (1.0 + self.jitter * self.random()))
 
     def send(self, request: HttpRequest) -> HttpResponse:
         attempt = 0

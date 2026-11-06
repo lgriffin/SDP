@@ -75,8 +75,20 @@ It asks for the password and then prints nothing, which means it worked. Your da
 PostgreSQL 16 the desktop app uses, under
 `typescript\apps\sdp-desktop\node_modules\@embedded-postgres\windows-x64\native\bin`. Issue
 [#62](https://github.com/lgriffin/SDP/issues/62#issuecomment-6505224629) records that route on port 5544
-(that build has no `createdb.exe`, so the database is created with `psql` or psycopg). You start it
-yourself with `pg_ctl` each time.
+(that build has no `createdb.exe`, so the database is created with `psql` or psycopg). Keep its data
+folder at `D:\SDP\postgres` (or set `SDP_PGDATA` in the settings file below) and start it with
+
+```bat
+uv run sdp db start
+```
+
+which finds that PostgreSQL in your checkout (or `SDP_PG_BIN`, the folder holding `pg_ctl.exe`), takes
+the port from `SDP_DATABASE_URL`, listens on 127.0.0.1 only, and waits for it to be ready.
+`uv run sdp db stop` stops it cleanly and `uv run sdp db status` says whether it runs and answers. After
+the PC or a run stopped without shutting it down, `sdp db start` is still the way back: it moves the
+stale `postmaster.pid` aside (only when no server holds it) and waits through PostgreSQL's crash
+recovery, which takes about a minute (#198). A PostgreSQL Windows service on port 5432 is a different
+server and does not matter here, unless it is on the same port.
 
 **Linux (Debian or Ubuntu).**
 ```sh
@@ -114,6 +126,11 @@ call D:\SDP\sdp-env.cmd
 cd /d D:\code\SDP\python
 ```
 
+`uv run sdp` must be typed in the `python` folder of the checkout: that is where uv finds SDP's
+environment. From anywhere else (the data folder, say) it fails with `Failed to spawn: sdp ... program
+not found`; name the folder instead with `uv run --project D:\code\SDP\python sdp ...`. Either way the
+settings file must have been loaded in that window first.
+
 **Linux and macOS.** Create `~/sdp-env.sh` with the same settings as `export NAME=value` lines (for
 example `export SDP_DATA=$HOME/sdp-data`), and run `source ~/sdp-env.sh` in each new terminal.
 
@@ -127,6 +144,7 @@ What each setting means:
 | `SDP_LEDGER_DIR` | Where the ledger (who froze and approved what) is kept. |
 | `SDP_REPO_ROOT` | The code folder. SDP records which code version ran, and finds the shipped profiles here. |
 | `SDP_PROFILES_DIR` | The test profiles. Point it at a copy if you want to edit them. |
+| `SDP_PGDATA` | Only with the portable PostgreSQL: its data folder, for `sdp db start` (default `<SDP_DATA>\postgres`). `SDP_PG_BIN` names the folder holding its `pg_ctl` if the checkout's copy is not used. |
 | `SDP_ALLOW_UNSIGNED=1` | Lets runs be recorded without your signature, as the desktop app does. Fine for learning. |
 | `SDP_MIN_FREE_BYTES` | SDP refuses to download when free space would drop below this. The default is 50 GB, meant for a server; 2 GB (2147483648) suits a PC. |
 | `PYTHONUTF8=1` | Windows only: makes Python read and write files as UTF-8, as SDP expects. |
@@ -218,8 +236,11 @@ signature and the chain; it exits with code 1 and names the entry if anything is
 
 - **`missing environment variables: SDP_DATABASE_URL`.** This window has not loaded the settings: run
   `call D:\SDP\sdp-env.cmd`.
-- **`connection refused` or `could not connect to server`.** PostgreSQL is not running. On Windows,
-  open **Services** and start `postgresql-x64-16`.
+- **`the database at 127.0.0.1:PORT is not reachable` (or `connection refused`).** PostgreSQL is not
+  running. The installed service: open **Services** and start `postgresql-x64-16`. The portable one:
+  `uv run sdp db start` (`uv run sdp db status` first, to see what it finds).
+- **`Failed to spawn: sdp`.** `uv run` was typed outside the checkout's `python` folder: `cd /d
+  D:\code\SDP\python` first.
 - **`password authentication failed`.** The password in `SDP_DATABASE_URL` does not match the one you
   chose at install.
 - **A plan says "No archive offers …".** Run `uv run sdp integration register`.
