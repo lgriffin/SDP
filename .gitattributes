@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings on every OS. With core.autocrlf=true (Git for Windows' default)
+# they would otherwise be checked out with CRLF, and bash stops at `set -o pipefail` (#193).
+*.sh   text eol=lf
+*.bash text eol=lf
+# Windows command scripts are the other way round (see also typescript/apps/sdp-desktop/.gitattributes).
+*.cmd  text eol=crlf
