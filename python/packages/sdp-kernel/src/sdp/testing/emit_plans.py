@@ -96,7 +96,7 @@ def emit(out: Path) -> list[Path]:
     written = []
     for name, plan in plans.items():
         path = out / f"{name}.json"
-        path.write_text(canonical_json(plan.to_document()) + "\n")
+        path.write_text(canonical_json(plan.to_document()) + "\n", "utf-8")
         written.append(path)
     return written
 

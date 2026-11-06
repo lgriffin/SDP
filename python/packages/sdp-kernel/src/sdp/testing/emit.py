@@ -62,11 +62,11 @@ def emit(out: Path) -> list[Path]:
         assert manifest is not None
         path = out / "experiments" / "synthetic-linear" / name / "manifest.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", "utf-8")
         written.append(path)
         ledger = out / "ledger" / f"{name}.jsonl"
         ledger.parent.mkdir(parents=True, exist_ok=True)
-        ledger.write_text("".join(canonical_json(e.to_document()) + "\n" for e in k.ledger.entries()))
+        ledger.write_text("".join(canonical_json(e.to_document()) + "\n" for e in k.ledger.entries()), "utf-8")
     return written
 
 
@@ -92,7 +92,7 @@ def emit_protocol(
     assert manifest is not None
     path = out / "experiments" / protocol_name / experiment.experiment_id / "manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", "utf-8")
     return path, verdict
 
 

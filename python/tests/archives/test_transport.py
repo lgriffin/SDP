@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from sdp.adapters.archives.transport import (
+    ARCHIVE_RETRY,
     CassetteMissing,
     CassetteTransport,
     HttpRequest,
@@ -112,6 +113,36 @@ def test_retries_stop_at_the_bound() -> None:
     )
     assert polite.send(REQUEST).status == 503
     assert inner.calls == 4 and t.slept == [1.0, 2.0, 4.0]
+
+
+@pytest.mark.req("DSI-025")
+def test_a_servers_retry_after_is_honoured_up_to_the_cap() -> None:
+    t = FakeTime()
+    inner = Scripted(
+        [
+            HttpResponse(503, b"", {"Retry-After": "30"}),
+            HttpResponse(429, b"", {"retry-after": "900"}),
+            HttpResponse(200, b"ok"),
+        ]
+    )
+    polite = PoliteTransport(
+        inner, min_seconds_between_calls=0.0, backoff_s=2.0, max_backoff_s=120.0, sleep=t.sleep, monotonic=t.monotonic
+    )
+    assert polite.send(REQUEST).body == b"ok"
+    assert t.slept == [30.0, 120.0]
+
+
+@pytest.mark.req("DSI-025")
+def test_the_archive_policy_waits_minutes_not_seconds_with_jitter() -> None:
+    # #200: one 2MASS 503 ended a run; the shared policy now rides out about five minutes of outage
+    t = FakeTime()
+    inner = Scripted([HttpResponse(503, b"")])
+    polite = PoliteTransport.with_policy(inner, ARCHIVE_RETRY, min_seconds_between_calls=0.0)
+    polite.sleep, polite.monotonic, polite.random = t.sleep, t.monotonic, lambda: 1.0
+    assert polite.send(REQUEST).status == 503
+    assert inner.calls == ARCHIVE_RETRY.retries + 1
+    assert t.slept == [6.25, 12.5, 25.0, 50.0, 100.0, 150.0]
+    assert 240 < sum(t.slept) / 1.25 < 300
 
 
 def test_client_errors_are_not_retried() -> None:

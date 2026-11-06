@@ -121,7 +121,9 @@ predeclaration_app = typer.Typer(help="Freeze predeclarations into the ledger.",
 experiment_app = typer.Typer(help="Define, run, validate and inspect experiments.", no_args_is_help=True)
 dossier_app = typer.Typer(help="Assemble dossiers for review.", no_args_is_help=True)
 ledger_app = typer.Typer(help="Inspect and verify the signed ledger.", no_args_is_help=True)
-db_app = typer.Typer(help="Database schema migrations (NFR-007).", no_args_is_help=True)
+db_app = typer.Typer(
+    help="Database schema migrations (NFR-007), and starting SDP's own local PostgreSQL.", no_args_is_help=True
+)
 artifact_app = typer.Typer(help="Put and fetch content-addressed artifacts.", no_args_is_help=True)
 telemetry_app = typer.Typer(help="Prometheus textfile telemetry (NFR-010).", no_args_is_help=True)
 archive_app = typer.Typer(help="Archive sources, acquisition and the live schema smoke (§8).", no_args_is_help=True)
@@ -430,7 +432,7 @@ def load_profile(path: Path) -> TestProfile:
     """A profile is a versioned YAML (or JSON) document; its hash is recorded before anything runs."""
     import yaml
 
-    document = yaml.safe_load(path.read_text())
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise ValueError(f"{path} is not a profile document")
     return TestProfile.from_document(document)
@@ -820,6 +822,47 @@ def db_rollback(steps: Annotated[int, typer.Option(min=1)] = 1) -> None:
     from sdp.adapters.postgres import migrate
 
     emit({"reverted": migrate.downgrade(_database_url(), steps)})
+
+
+def _local_postgres(pgdata: Path | None, bin_dir: Path | None) -> Any:
+    from sdp.adapters.postgres.local import local_postgres
+
+    return local_postgres(_database_url(), pgdata=pgdata, bin_dir=bin_dir)
+
+
+PgdataOption = Annotated[
+    Path | None,
+    typer.Option("--pgdata", help="The PostgreSQL data folder (default SDP_PGDATA, else <SDP data>/postgres)"),
+]
+BinOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--bin", help="The folder holding pg_ctl (default SDP_PG_BIN, else the checkout's pnpm copy, else PATH)"
+    ),
+]
+
+
+@db_app.command("status")
+def db_status(pgdata: PgdataOption = None, bin_dir: BinOption = None) -> None:
+    """Whether the local PostgreSQL for SDP_DATABASE_URL runs and answers, and whether a stale pid file is left."""
+    emit(_local_postgres(pgdata, bin_dir).status())
+
+
+@db_app.command("start")
+def db_start(
+    pgdata: PgdataOption = None,
+    bin_dir: BinOption = None,
+    timeout: Annotated[int, typer.Option(help="Seconds to wait, crash recovery included")] = 600,
+) -> None:
+    """Start the local PostgreSQL on SDP_DATABASE_URL's port (#198), after an unclean exit too: a stale
+    postmaster.pid is moved aside when no server holds it."""
+    emit(_local_postgres(pgdata, bin_dir).start(timeout))
+
+
+@db_app.command("stop")
+def db_stop(pgdata: PgdataOption = None, bin_dir: BinOption = None) -> None:
+    """Stop the local PostgreSQL cleanly, so the next start needs no crash recovery."""
+    emit(_local_postgres(pgdata, bin_dir).stop())
 
 
 @telemetry_app.command("gpu")
@@ -2020,9 +2063,26 @@ def benchmark_list() -> None:
     emit(out)
 
 
+def _unreachable_database(exc: BaseException) -> bool:
+    """psycopg's OperationalError: the server could not be reached or refused the login."""
+    kind = type(exc)
+    return kind.__name__ == "OperationalError" and kind.__module__.startswith("psycopg")
+
+
 def main() -> None:
     try:
         app()
     except (DomainError, KeyError, ValueError) as exc:
         typer.echo(f"error: {exc}", err=True)
+        raise SystemExit(1) from exc
+    except Exception as exc:
+        if not _unreachable_database(exc):
+            raise
+        from sdp.adapters.postgres.local import unreachable_message
+
+        try:
+            url = _database_url()
+        except Exception:
+            url = ""
+        typer.echo(f"error: {unreachable_message(url, exc)}", err=True)
         raise SystemExit(1) from exc

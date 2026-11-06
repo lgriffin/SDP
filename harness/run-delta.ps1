@@ -16,8 +16,10 @@ param(
     [int]$Tries = 3
 )
 $ErrorActionPreference = "Continue"
-# PowerShell has read this file before the pull below can change it, so a changed copy is run afresh
-$Before = (Get-FileHash -LiteralPath $PSCommandPath).Hash
+. (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
+# runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
+Enter-RunCheckout -Code $Code -Branch $Branch -Script $PSCommandPath -Bound $PSBoundParameters
+$Code = $RunCheckout.Path
 
 if (Test-Path -LiteralPath $EnvFile) {
     cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
@@ -34,21 +36,9 @@ $Reports = Join-Path $Data "reports\delta"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") -Append | Out-Null
+Use-RunCheckout
 
 Push-Location $Code
-foreach ($step in @(@("fetch", "origin"), @("checkout", $Branch), @("pull", "origin", $Branch))) {
-    git @step
-    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: git $($step -join ' ')"; Stop-Transcript | Out-Null; Pop-Location; exit 1 }
-}
-if ((Get-FileHash -LiteralPath $PSCommandPath).Hash -ne $Before) {
-    Write-Host "The pull changed this script, so the new version runs now"
-    Pop-Location
-    Stop-Transcript | Out-Null
-    $Again = @()
-    foreach ($k in $PSBoundParameters.Keys) { $Again += "-$k"; $Again += "$($PSBoundParameters[$k])" }
-    & powershell -ExecutionPolicy Bypass -File $PSCommandPath @Again
-    exit $LASTEXITCODE
-}
 Set-Location (Join-Path $Code "python")
 uv sync --frozen
 if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: uv sync"; Stop-Transcript | Out-Null; Pop-Location; exit 1 }

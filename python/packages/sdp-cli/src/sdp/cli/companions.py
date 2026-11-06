@@ -55,10 +55,11 @@ def folder() -> Path:
 
 
 def transport() -> Transport:
-    """The live Gaia TAP service, politely, waiting up to ten minutes for a busy server; tests replace this."""
-    from sdp.adapters.archives.transport import PoliteTransport, UrllibTransport
+    """The live Gaia TAP service, politely, with the shared archive retry policy; tests replace this. The
+    orbits come from async jobs (#199), so no one request has to stay open while the server works."""
+    from sdp.adapters.archives.transport import ARCHIVE_RETRY, PoliteTransport, UrllibTransport
 
-    return PoliteTransport(UrllibTransport(timeout_s=600.0), min_seconds_between_calls=1.0)
+    return PoliteTransport.with_policy(UrllibTransport(timeout_s=180.0), ARCHIVE_RETRY)
 
 
 def _orbits(path: Path | None) -> dict[str, Any]:

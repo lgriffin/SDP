@@ -118,7 +118,7 @@ def describe_mast(transport: Transport, out: Path, today: Callable[[], date] | N
         discovery.today = today
     doc = discovery.describe("mast").to_document()
     out.mkdir(parents=True, exist_ok=True)
-    (out / "mast.descriptor.json").write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n")
+    (out / "mast.descriptor.json").write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", "utf-8")
     return doc
 
 
@@ -231,9 +231,11 @@ def record_product(
     seconds = time.monotonic() - started
     inventory = {**rows.inventory_row, "productFilename": filename, "rendered_query": rows.rendered_query}
     inventory.setdefault("dataURL", url)
-    (out / "inventory.json").write_text(json.dumps(inventory, indent=2, sort_keys=True, default=str) + "\n")
-    (out / "obscore.json").write_text(json.dumps(dict(rows.obscore_row), indent=2, sort_keys=True, default=str) + "\n")
+    (out / "inventory.json").write_text(json.dumps(inventory, indent=2, sort_keys=True, default=str) + "\n", "utf-8")
+    (out / "obscore.json").write_text(
+        json.dumps(dict(rows.obscore_row), indent=2, sort_keys=True, default=str) + "\n", "utf-8"
+    )
     template: dict[str, Any] = dict.fromkeys(REFERENCE_FIELDS)
     template.update({"product_id": filename, "status": "to_verify", "verified_by": [], "documentation": ""})
-    (out / "reference.template.json").write_text(json.dumps(template, indent=2) + "\n")
+    (out / "reference.template.json").write_text(json.dumps(template, indent=2) + "\n", "utf-8")
     return Recorded(out, url, size, round(seconds, 3), large, sha256)

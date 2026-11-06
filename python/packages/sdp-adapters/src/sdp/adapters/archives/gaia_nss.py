@@ -3,20 +3,23 @@
 ``gaiadr3.nss_two_body_orbit`` holds the orbits Gaia fitted to stars that wobble; the rows with
 Thiele-Innes elements (about 169,000) are orbits on the sky. ``gaiadr3.binary_masses`` gives the visible
 star's mass range for most of them, and ``gaiadr3.gaia_source`` its magnitude and RUWE. The three are
-joined on the server and fetched in source_id ranges, so no answer is large enough for the synchronous
-service to cut off. Every request travels through a Transport, so CI replays recordings (ADR-015).
+joined on the server and fetched in source_id ranges, each as a TAP async job (#199): the synchronous
+service timed out on the join while the archive was busy. Every request travels through a Transport,
+so CI replays recordings (ADR-015).
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Literal
 
 import pyarrow as pa
 
 from sdp.adapters.archives.transport import Transport
-from sdp.adapters.archives.vo import run_sync, sync_request
+from sdp.adapters.archives.vo import run_async, run_sync, sync_request
 
 log = logging.getLogger("sdp.adapters.gaia_nss")
 
@@ -145,11 +148,14 @@ def fetch_orbits(
     service_url: str = GAIA_TAP,
     progress: Callable[[int, int], None] | None = None,
     parts_dir: Path | None = None,
+    mode: Literal["async", "sync"] = "async",
+    sleep: Callable[[float], None] = time.sleep,
 ) -> pa.Table:
     """Every Gaia DR3 orbit on the sky with its star's G, RUWE and Gaia's mass range, one table.
 
     With ``parts_dir`` each source_id range is saved there as it arrives, and a range already saved is
-    read back instead of asked for again, so a download that stops part way resumes where it stopped."""
+    read back instead of asked for again, so a download that stops part way resumes where it stopped.
+    Each range is an async job unless ``mode`` is ``"sync"``."""
     import pyarrow.parquet as pq
 
     tables = []
@@ -159,7 +165,11 @@ def fetch_orbits(
         if saved is not None and saved.exists():
             table = pq.read_table(saved)
         else:
-            table = run_sync(transport, sync_request(service_url, orbit_query(lo, hi), MAXREC), "Gaia DR3 orbits")
+            what = f"Gaia DR3 orbits part {i + 1}/{len(spans)}"
+            if mode == "async":
+                table = run_async(transport, service_url, orbit_query(lo, hi), MAXREC, what, sleep=sleep)
+            else:
+                table = run_sync(transport, sync_request(service_url, orbit_query(lo, hi), MAXREC), what)
             table = _checked(table, f"Gaia DR3 orbits {lo}..{hi}")
             if saved is not None:
                 saved.parent.mkdir(parents=True, exist_ok=True)

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
+from sdp.cli.reports import write_markdown
 from sdp.kernel.domain.errors import DomainError
 
 if TYPE_CHECKING:
@@ -215,7 +216,7 @@ def oort1932_run(
     report = run(density, velocities, baseline_only=baseline_only)
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True), "utf-8")
-    (out / "report.md").write_text(markdown(report), "utf-8")
+    write_markdown(out / "report.md", markdown(report))
     _say(f"verdict {report['verdict']['status']}; Oort's density {report['comparison']['status']}; wrote {out}")
 
 

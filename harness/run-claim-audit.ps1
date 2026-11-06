@@ -22,8 +22,10 @@ param(
     [string]$Name = "claims2"
 )
 $ErrorActionPreference = "Continue"
-# PowerShell has read this file before the pull below can change it, so a changed copy is run afresh
-$Before = (Get-FileHash -LiteralPath $PSCommandPath).Hash
+. (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
+# runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
+Enter-RunCheckout -Code $Code -Branch $Branch -Script $PSCommandPath -Bound $PSBoundParameters
+$Code = $RunCheckout.Path
 
 cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
     if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
@@ -36,6 +38,7 @@ New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 # -Append: a rerun after the pull may start within the same minute and must not erase this record
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") -Append | Out-Null
+Use-RunCheckout
 $Summary = @()
 
 function Step($Name, [scriptblock]$Body) {
@@ -66,18 +69,6 @@ function Setup($What, [scriptblock]$Body) {
 }
 
 Push-Location $Code
-Setup "git fetch" { git fetch origin }
-Setup "git checkout $Branch" { git checkout $Branch }
-Setup "git pull" { git pull origin $Branch }
-if ((Get-FileHash -LiteralPath $PSCommandPath).Hash -ne $Before) {
-    Write-Host "The pull changed this script, so the new version runs now"
-    Pop-Location
-    Stop-Transcript | Out-Null
-    $Again = @()
-    foreach ($k in $PSBoundParameters.Keys) { $Again += "-$k"; $Again += "$($PSBoundParameters[$k])" }
-    & powershell -ExecutionPolicy Bypass -File $PSCommandPath @Again
-    exit $LASTEXITCODE
-}
 Set-Location (Join-Path $Code "python")
 Setup "uv sync" { uv sync --frozen }
 

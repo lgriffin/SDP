@@ -330,7 +330,7 @@ def test_the_verify_and_manifest_commands(tmp_path: Path) -> None:
     assert json.loads(result.stdout)["new"] == 2
     manifest = runner.invoke(cli.app, ["local", "manifest", "astro"], env=env)
     out = Path(json.loads(manifest.stdout)["manifest"])
-    lines = list(csv.DictReader(out.open()))
+    lines = list(csv.DictReader(out.open(encoding="utf-8")))
     assert [r["path"] for r in lines] == ["M31/night1/img-0001.fits", "M31/night1/img-0002.fits"]
     assert lines[0]["sha256"] == hashlib.sha256((n.root / lines[0]["path"]).read_bytes()).hexdigest()
     flip_a_byte(n.root / lines[1]["path"], keep_date=True)

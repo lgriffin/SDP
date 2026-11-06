@@ -498,3 +498,39 @@ def test_an_override_matches_a_column_whatever_its_case_when_only_one_does() -> 
     twice = [*SCHEMA, {"column_name": "SEQ", "ucd": "meta.record", "unit": ""}]
     with pytest.raises(CatalogueSchemaError, match="no column 'seq'"):
         choose_columns(twice, {"name": "seq"})
+
+
+def test_a_mirror_table_lacking_a_column_is_refused_from_one_row_before_the_whole_download() -> None:
+    # #195: cwnu23's column problem surfaced only after a ~16 minute download
+    fake = PrimedService()
+    source = mirrored(fake)
+    schema = [f for f in SCHEMA if f["column_name"] != "pmDE"]
+    probe = source.probe_request(CATALOGUES["hr23"], MIRRORS[0])
+    assert "-out.max=1&" in probe.url
+    fake.raw(probe, asu_votable(schema, [["1", "Fixture_A", "130.1", "19.67", "0.1", "-36.0", "5.37"]]))
+    with pytest.raises(CatalogueSchemaError, match=r"^pm_dec_masyr: no column with UCD"):
+        source.fetch("hr23")
+    assert source.mirror_request(CATALOGUES["hr23"], MIRRORS[0]).key() not in fake.sent
+
+
+def test_a_probe_that_passes_lets_the_whole_table_through() -> None:
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    fake.raw(
+        source.probe_request(hr23, MIRRORS[0]),
+        asu_votable(rows=[["1", "Fixture_B", "56.75", "24.12", "0.1", "19.9", "-45.4", "7.36"]]),
+    )
+    fake.raw(source.mirror_request(hr23, MIRRORS[0]), asu_votable(), content_type="application/x-votable+xml")
+    assert source.fetch("hr23").num_rows == 2
+
+
+def test_a_mirror_down_for_the_probe_is_left_for_the_next_without_the_whole_download() -> None:
+    # Qodo on #203: a dead mirror must not spend the retry budget twice
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    fake.raw(source.probe_request(hr23, MIRRORS[0]), b"busy", status=503)
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), asu_votable(), content_type="application/x-votable+xml")
+    assert source.fetch("hr23").num_rows == 2
+    assert source.mirror_request(hr23, MIRRORS[0]).key() not in fake.sent
