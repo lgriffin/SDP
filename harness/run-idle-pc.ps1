@@ -12,9 +12,14 @@ param(
     # the checkout this script sits in, unless given
     [string]$Code = (Split-Path -Parent $PSScriptRoot),
     # the settings the SDP Command Prompt loads (install-dev-tools guide)
-    [string]$EnvFile = "D:\SDP\sdp-env.cmd"
+    [string]$EnvFile = "D:\SDP\sdp-env.cmd",
+    [string]$Branch = "main"
 )
 $ErrorActionPreference = "Continue"
+. (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
+# runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
+Enter-RunCheckout -Code $Code -Branch $Branch -Script $PSCommandPath -Bound $PSBoundParameters
+$Code = $RunCheckout.Path
 
 # The SDP Command Prompt's settings (database, data folder) into this PowerShell session
 cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
@@ -27,6 +32,7 @@ $Reports = Join-Path $Data "reports\idle-pc"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") | Out-Null
+Use-RunCheckout
 $Summary = @()
 
 function Step($Name, [scriptblock]$Body) {
@@ -59,10 +65,8 @@ function Investigate($Region, $ProfilePath, $Label) {
     Sdp plan execute $id --actor leigh | Out-Null
 }
 
-# Update the code
+# The tools for this checkout
 Push-Location $Code
-git checkout main
-git pull
 Set-Location (Join-Path $Code "python")
 uv sync --frozen
 

@@ -3,9 +3,11 @@
 #
 #   powershell -ExecutionPolicy Bypass -File harness\run-publication.ps1
 #
-# 1. Makes sure the gitignored .env at the top of the checkout holds ADS_API_TOKEN: if it does not, asks
-#    for the token without showing it and writes it there, readable only by you. The token is never
-#    printed or logged. To replace a token, delete the ADS_API_TOKEN line from .env and run this again.
+# 1. Finds the NASA ADS token, before anything else, in this order: -AdsToken (a SecureString, from a
+#    PowerShell session), ADS_API_TOKEN in the environment, then the gitignored .env at the top of your
+#    checkout. With none of them it stops at once and says which line to add to .env (#197), so it can run
+#    unattended. -AskToken asks for it instead, without showing it, and saves it in .env readable only by
+#    you. The token is never printed or logged.
 # 2. `sdp publication programs`: every JWST program at MAST, each public science program asked about in
 #    ADS once. Resumable: answers are kept, and a run stopped by ADS's daily allowance carries on when the
 #    script is run again (the next day).
@@ -16,11 +18,54 @@ param(
     # where results go when neither the env file nor the shell sets SDP_DATA
     [string]$Data = "D:\SDP",
     [string]$Branch = "main",
-    [string]$Mission = "JWST"
+    [string]$Mission = "JWST",
+    # the ADS token, when it is in neither the environment nor .env
+    [System.Security.SecureString]$AdsToken,
+    # ask for the token (hidden) when none is found, and save it in .env; without this the script stops
+    [switch]$AskToken
 )
 $ErrorActionPreference = "Continue"
-# PowerShell has read this file before the pull below can change it, so a changed copy is run afresh
-$Before = (Get-FileHash -LiteralPath $PSCommandPath).Hash
+
+# 1. The token, before git, the worktree or the transcript, so a run that cannot work stops at once and
+# nothing about the token reaches the log. It reaches sdp through the environment (ADS_API_TOKEN), which
+# the worktree's copy of this script inherits; the worktree has no .env of its own.
+function Plain([System.Security.SecureString]$Secure) {
+    $Ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
+    try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Ptr).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Ptr) }
+}
+$DotEnv = Join-Path $Code ".env"
+if ($AdsToken) {
+    $env:ADS_API_TOKEN = Plain $AdsToken
+    Write-Host "ADS token from -AdsToken"
+} elseif ($env:ADS_API_TOKEN -or $env:ADS_DEV_KEY) {
+    Write-Host "ADS token from the environment"
+} else {
+    $line = if (Test-Path -LiteralPath $DotEnv) { Select-String -LiteralPath $DotEnv -Pattern '^\s*ADS_API_TOKEN\s*=\s*(\S.*)$' | Select-Object -First 1 } else { $null }
+    if ($line) {
+        $env:ADS_API_TOKEN = $line.Matches[0].Groups[1].Value.Trim().Trim('"', "'")
+        Write-Host "ADS token found in $DotEnv"
+    } elseif ($AskToken) {
+        git -C $Code check-ignore -q .env
+        if ($LASTEXITCODE -ne 0) { Write-Host "STOP: .env is not gitignored in $Code, so no token is written"; exit 1 }
+        $Given = Plain (Read-Host "Paste your NASA ADS token (it will not show)" -AsSecureString)
+        if (-not $Given) { Write-Host "No token given; nothing written"; exit 1 }
+        Add-Content -LiteralPath $DotEnv -Value "ADS_API_TOKEN=$Given" -Encoding ascii
+        icacls $DotEnv /inheritance:r /grant:r "$($env:USERNAME):F" | Out-Null
+        $env:ADS_API_TOKEN = $Given
+        Remove-Variable Given
+        Write-Host "Token saved in $DotEnv (gitignored, readable only by $($env:USERNAME))"
+    } else {
+        Write-Host "STOP: no NASA ADS token. Add this line to $DotEnv (gitignored):"
+        Write-Host "    ADS_API_TOKEN=<your token from https://ui.adsabs.harvard.edu/user/settings/token>"
+        Write-Host "or set ADS_API_TOKEN in the environment, or run again with -AskToken to be asked for it."
+        exit 1
+    }
+}
+
+. (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
+# runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
+Enter-RunCheckout -Code $Code -Branch $Branch -Script $PSCommandPath -Bound $PSBoundParameters -Drop @("AdsToken", "AskToken")
+$Code = $RunCheckout.Path
 
 # SDP_DATA comes from the env file when there is one, else the shell, else -Data (D:\SDP); nothing else
 # this script runs needs the database or the other variables that file sets
@@ -44,40 +89,8 @@ $Out = Join-Path $Data ("publication\" + $Mission.ToLower())
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 
 Push-Location $Code
-git fetch origin
-if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: git fetch"; Pop-Location; exit 1 }
-git checkout $Branch
-if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: git checkout $Branch"; Pop-Location; exit 1 }
-git pull origin $Branch
-if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: git pull"; Pop-Location; exit 1 }
-if ((Get-FileHash -LiteralPath $PSCommandPath).Hash -ne $Before) {
-    Write-Host "The pull changed this script, so the new version runs now"
-    Pop-Location
-    $Again = @()
-    foreach ($k in $PSBoundParameters.Keys) { $Again += "-$k"; $Again += "$($PSBoundParameters[$k])" }
-    & powershell -ExecutionPolicy Bypass -File $PSCommandPath @Again
-    exit $LASTEXITCODE
-}
-
-# 1. The token, before the transcript starts, so nothing about it can reach the log
-$DotEnv = Join-Path $Code ".env"
-git check-ignore -q .env
-if ($LASTEXITCODE -ne 0) { Write-Host "STOP: .env is not gitignored in $Code, so no token is written"; Pop-Location; exit 1 }
-$HasToken = (Test-Path $DotEnv) -and (Select-String -Path $DotEnv -Pattern '^\s*ADS_API_TOKEN\s*=\s*\S' -Quiet)
-if (-not $HasToken) {
-    $Secure = Read-Host "Paste your NASA ADS token (it will not show)" -AsSecureString
-    $Ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
-    try { $Plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Ptr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Ptr) }
-    if (-not $Plain.Trim()) { Write-Host "No token given; nothing written"; Pop-Location; exit 1 }
-    Add-Content -Path $DotEnv -Value "ADS_API_TOKEN=$($Plain.Trim())" -Encoding ascii
-    Remove-Variable Plain, Secure
-    icacls $DotEnv /inheritance:r /grant:r "$($env:USERNAME):F" | Out-Null
-    Write-Host "Token saved in $DotEnv (gitignored, readable only by $($env:USERNAME))"
-} else {
-    Write-Host "ADS token found in $DotEnv"
-}
-
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") -Append | Out-Null
+Use-RunCheckout
 Set-Location (Join-Path $Code "python")
 uv sync --frozen
 if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: uv sync"; Stop-Transcript | Out-Null; Pop-Location; exit 1 }

@@ -25,6 +25,10 @@ param(
     [switch]$SkipImages
 )
 $ErrorActionPreference = "Continue"
+. (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
+# runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
+Enter-RunCheckout -Code $Code -Branch $Branch -Script $PSCommandPath -Bound $PSBoundParameters
+$Code = $RunCheckout.Path
 
 cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
     if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
@@ -36,6 +40,7 @@ $Reports = Join-Path $Data "reports\contradictions"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") | Out-Null
+Use-RunCheckout
 $Summary = @()
 $Failed = $false
 $Sets = @()
@@ -120,10 +125,7 @@ function Native([string]$What, [scriptblock]$Body) {
 
 Push-Location $Code
 # nothing runs on a checkout or an environment that failed to update
-$ready = Step "0 Update checkout and tools" {
-    Native "git fetch" { git fetch origin }
-    Native "git checkout" { git checkout $script:Branch }
-    Native "git pull" { git pull origin $script:Branch }
+$ready = Step "0 Tools for this checkout" {
     Set-Location (Join-Path $script:Code "python")
     Native "uv sync" { uv sync --frozen }
 }

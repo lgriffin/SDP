@@ -21,6 +21,10 @@ param(
     [switch]$Refetch
 )
 $ErrorActionPreference = "Continue"
+. (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
+# runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
+Enter-RunCheckout -Code $Code -Branch $Branch -Script $PSCommandPath -Bound $PSBoundParameters
+$Code = $RunCheckout.Path
 
 cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
     if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
@@ -32,6 +36,7 @@ $Reports = Join-Path $Data "reports\companions"
 New-Item -ItemType Directory -Force -Path $Reports | Out-Null
 $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") | Out-Null
+Use-RunCheckout
 $Summary = @()
 
 function Step($Name, [scriptblock]$Body) {
@@ -63,9 +68,6 @@ function Must($What, [scriptblock]$Body) {
 }
 
 Push-Location $Code
-Must "git fetch" { git fetch origin }
-Must "git checkout $Branch" { git checkout $Branch }
-Must "git pull" { git pull origin $Branch }
 Set-Location (Join-Path $Code "python")
 Must "uv sync" { uv sync --frozen }
 
