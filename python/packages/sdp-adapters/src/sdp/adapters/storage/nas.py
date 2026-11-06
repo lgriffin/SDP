@@ -152,13 +152,13 @@ class NasArtifactStore:
     def media_type(self, artifact_id: ArtifactId) -> str:
         target = self._object(artifact_id)
         try:
-            return target.with_name(target.name + ".media").read_text()
+            return target.with_name(target.name + ".media").read_text("utf-8")
         except FileNotFoundError:
             raise KeyError(f"no artifact {artifact_id}") from None
 
     def resolve(self, logical_path: str) -> ArtifactId | None:
         try:
-            value = self._logical(logical_path).read_text().strip()
+            value = self._logical(logical_path).read_text("utf-8").strip()
         except (FileNotFoundError, IsADirectoryError):
             return None
         return ArtifactId(value)
@@ -187,7 +187,7 @@ class NasArtifactStore:
                 if entry.name.endswith(".media") or entry.name.startswith(".tmp-"):
                     continue
                 media = entry.with_name(entry.name + ".media")
-                kind = media.read_text() if media.exists() else "unknown"
+                kind = media.read_text("utf-8") if media.exists() else "unknown"
                 counts = by_media.setdefault(kind, {"objects": 0, "bytes": 0})
                 counts["objects"] += 1
                 counts["bytes"] += entry.stat().st_size

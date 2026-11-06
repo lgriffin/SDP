@@ -66,7 +66,12 @@ src = ["packages/*/src", "tests"]
 extend-exclude = ["packages/sdp-contracts/src/sdp/contracts/v1"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "TID", "PT", "C4", "PIE", "RET"]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "TID", "PT", "C4", "PIE", "RET", "PLW1514"]
+# PLW1514 (a text file opened without an encoding) is a preview rule: on Windows the default is the ANSI
+# code page, which garbles ± and other non-ASCII text (#201). explicit-preview-rules keeps every other
+# preview rule off.
+preview = true
+explicit-preview-rules = true
 # E501: the formatter owns line length; PT018: compound asserts read better in scientific checks
 ignore = ["RUF001", "RUF002", "RUF003", "N818", "PT011", "PT018", "E501"]
 

@@ -99,7 +99,7 @@ def test_a_run_reads_the_density_from_the_bulk_copy_and_the_velocities_from_its_
     base = report["baseline"]
     assert base["n_density"] > 0 and base["n_velocity"] > 0
     assert base["flattening"]["value"] < 0.5
-    md = (out / "report.md").read_text("utf-8")
+    md = (out / "report.md").read_text("utf-8-sig")
     assert "quick look" in md and "| 200 |" in md
 
 
@@ -149,4 +149,4 @@ def test_a_column_with_no_star_passing_the_cuts_reports_a_failed_baseline(
     report = json.loads((out / "report.json").read_text("utf-8"))
     assert "0 density" in report["baseline"]["failed"]
     assert report["verdict"]["status"] == "inconclusive"
-    assert "failed" in (out / "report.md").read_text("utf-8")
+    assert "failed" in (out / "report.md").read_text("utf-8-sig")

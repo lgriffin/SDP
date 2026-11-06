@@ -11,6 +11,7 @@ from typing import Annotated, Any
 
 import typer
 
+from sdp.cli.reports import write_markdown
 from sdp.kernel.domain.errors import DomainError
 
 einstein1921_app = typer.Typer(
@@ -156,7 +157,7 @@ def einstein1921_run(
     report["quick_look"] = baseline_only or (resamples is not None and resamples < 100)
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=_jsonable), "utf-8")
-    (out / "report.md").write_text(markdown(report), "utf-8")
+    write_markdown(out / "report.md", markdown(report))
     _say(f"Verdict {report['verdict']['status']}. Wrote {out / 'report.json'} and {out / 'report.md'}.")
 
 
@@ -255,7 +256,7 @@ def einstein1921_corrections(
     report["quick_look"] = resamples is not None and resamples < 100
     out.mkdir(parents=True, exist_ok=True)
     (out / "corrections.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=_jsonable), "utf-8")
-    (out / "corrections.md").write_text(corrections_markdown(report), "utf-8")
+    write_markdown(out / "corrections.md", corrections_markdown(report))
     _say(f"Reading {report['reading']['status']}. Wrote {out / 'corrections.json'} and {out / 'corrections.md'}.")
 
 

@@ -79,7 +79,7 @@ def test_a_run_reads_the_predeclared_cone_from_the_bulk_copy_and_writes_both_rep
     assert report["selection"]["stars_in"] == native_cone().num_rows
     # planted 2.0; the baseline subtracts a -0.017 mas zero-point the synthetic parallaxes lack, so it reads closer
     assert 1.2 < report["baseline"]["physical"]["mass_to_light"] < 2.4
-    summary = (out / "report.md").read_text("utf-8")
+    summary = (out / "report.md").read_text("utf-8-sig")
     assert summary.startswith("# UC-03: Einstein (1921) rerun with Gaia\n")
     assert "| As printed | 1,2 | 6.5e+17 cm = 0.65 ly | 65 ly |" in summary
     assert "A quick look (fewer resamples or no scenarios): this is not the protocol's verdict." in summary
@@ -125,7 +125,7 @@ def test_the_corrections_command_writes_an_exploratory_report_beside_uc03s(bulk:
     assert report["reading"]["status"] == "mixed"  # one refit of the declared 100 decides nothing
     assert len(report["corrections"]) == 108
     assert report["baseline"]["corrected"]["distance_pc"] == 7420.0
-    summary = (out / "corrections.md").read_text("utf-8")
+    summary = (out / "corrections.md").read_text("utf-8-sig")
     assert summary.startswith("# UC-03b: corrections to the Einstein (1921) rerun (exploratory)\n")
     assert "UC-03's own verdict is unchanged." in summary
     assert "| 6' | 17 |" in summary

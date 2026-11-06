@@ -430,7 +430,7 @@ def load_profile(path: Path) -> TestProfile:
     """A profile is a versioned YAML (or JSON) document; its hash is recorded before anything runs."""
     import yaml
 
-    document = yaml.safe_load(path.read_text())
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise ValueError(f"{path} is not a profile document")
     return TestProfile.from_document(document)

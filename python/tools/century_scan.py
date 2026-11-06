@@ -72,9 +72,9 @@ def dasch(endpoint: str, payload: dict[str, Any]) -> list[str]:
 
 def cached(path: Path, fetch: Any) -> Any:
     if path.exists():
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     value = fetch()
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     return value
 
 
@@ -255,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     null_rate = positives / examined if examined else math.nan
 
     by_ref = {r[0]: r for r in rows}
-    with open(folder / "results.csv", "w", newline="") as fh:
+    with open(folder / "results.csv", "w", encoding="utf-8", newline="") as fh:
         out = csv.writer(fh)
         out.writerow(
             ["dasch_ref", "gaia_source_id", "g_mag", "bp_rp", "slope_mag_per_century", "peer_relative_slope", "error",

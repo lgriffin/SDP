@@ -186,9 +186,9 @@ def write_outputs(result: Reproduction, out: Path) -> Path:
     """``reproduction.json`` and the reproduced manifest, laid out as the harness reads manifests."""
     out.mkdir(parents=True, exist_ok=True)
     report = out / "reproduction.json"
-    report.write_text(json.dumps(result.to_document(), indent=2, sort_keys=True) + "\n")
+    report.write_text(json.dumps(result.to_document(), indent=2, sort_keys=True) + "\n", "utf-8")
     if result.manifest is not None:
         path = out / "experiments" / result.protocol.split("@")[0] / result.experiment_id / "manifest.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(result.manifest, indent=2, sort_keys=True) + "\n")
+        path.write_text(json.dumps(result.manifest, indent=2, sort_keys=True) + "\n", "utf-8")
     return report
