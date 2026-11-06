@@ -21,17 +21,50 @@ The person's data stays in `%LOCALAPPDATA%\SDP` (`postgres`, `artifacts`, `ledge
 - `SDP_MIN_FREE_BYTES` is 2 GiB, not 50 GiB, so that a laptop can still acquire data.
 - There are no metrics (Prometheus or Grafana) and no Zenodo token unless the person sets one in the Command Prompt.
 
-## Building
+## Running from source (Windows)
+
+To run the app from a checkout without building the installer. Use **PowerShell** in the checkout's top folder
+(for example `D:\code\SDP`). You need Git for Windows (it brings Git Bash), Node.js 22 with pnpm, and uv.
+
+```powershell
+pnpm install
+pnpm --filter @sdp/desktop compile
+pnpm --filter @sdp/desktop stage      # UI build, Python + SDP packages, PostgreSQL, contracts/experiments (10 to 20 minutes)
+pnpm --filter @sdp/desktop start      # opens the app window; data goes to %LOCALAPPDATA%\SDP
+```
+
+`pnpm stage` runs `scripts/stage.sh` with **Git Bash** (it looks next to `git.exe`, then in `Program Files\Git`;
+set `SDP_BASH` to the full path of `bash.exe` if yours is elsewhere). Do not type `bash scripts/stage.sh` in
+PowerShell: there, `bash` is usually WSL's, which fails with `node: not found` or would stage the Linux build.
+`stage.sh` now stops with this advice if it finds itself under WSL. If you want to call it directly, name Git
+Bash in full:
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" typescript/apps/sdp-desktop/scripts/stage.sh
+```
+
+After a change to the Python packages or the UI, run `stage` again (`$env:SKIP_PYTHON=1` first skips the slow
+Python step when only the UI changed). After a change to `src/`, `pnpm start` compiles it again by itself.
+
+**`set: pipefail` / `invalid option name`.** The `.sh` files were checked out with Windows line endings, which
+the repository has prevented since #193. A checkout made before that keeps the old copies until they are
+written again:
+
+```powershell
+git ls-files '*.sh' | ForEach-Object { Remove-Item $_; git checkout -- $_ }
+```
+
+## Building the installer
 
 ```bash
 pnpm install
 pnpm --filter @sdp/desktop compile
-bash typescript/apps/sdp-desktop/scripts/stage.sh   # UI build, Python + SDP packages, PostgreSQL, contracts/experiments
+pnpm --filter @sdp/desktop stage                   # UI build, Python + SDP packages, PostgreSQL, contracts/experiments
 pnpm --filter @sdp/desktop smoke                    # fresh data folder, whole start-up, home page, clean stop
 cd typescript/apps/sdp-desktop && pnpm exec electron-builder --config electron-builder.yml --win nsis
 ```
 
-Staging runs on the OS you are building for: Windows (Git Bash) for the installer, or Linux for development (`--linux dir`). The `desktop-windows` CI job does all of this on `windows-latest` and uploads `SDP-Setup-<version>.exe`. A release attaches it.
+Staging runs on the OS you are building for: Windows (Git Bash, which `pnpm stage` finds for you) for the installer, or Linux for development (`--linux dir`). The `desktop-windows` CI job does all of this on `windows-latest` and uploads `SDP-Setup-<version>.exe`. A release attaches it.
 
 Code signing: set the repository secrets `WINDOWS_SIGNING_CERT` (a base64 .pfx) and `WINDOWS_SIGNING_PASSWORD`. Without them the installer is unsigned, and Windows SmartScreen warns on first install ("More info", then "Run anyway").
 
