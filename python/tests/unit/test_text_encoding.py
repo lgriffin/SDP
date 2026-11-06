@@ -58,12 +58,14 @@ def test_the_scan_finds_a_platform_default_read() -> None:
     assert unspecified("p.read_text()\np.read_text('utf-8')\np.open('rb')\nopen(x, 'w', encoding='utf-8')\n") == [1]
 
 
+@pytest.mark.req("NFR-012")
 @pytest.mark.parametrize("path", SOURCES, ids=lambda p: p.relative_to(ROOT).as_posix())
 def test_text_io_names_its_encoding(path: Path) -> None:
     found = unspecified(path.read_text("utf-8"))
     assert not found, f"{path.relative_to(ROOT)}: lines {found} read or write text without an encoding"
 
 
+@pytest.mark.req("NFR-012")
 def test_a_markdown_report_round_trips_plus_minus(tmp_path: Path) -> None:
     from sdp.cli.reports import write_markdown
 

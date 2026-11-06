@@ -115,7 +115,7 @@ def test_retries_stop_at_the_bound() -> None:
     assert inner.calls == 4 and t.slept == [1.0, 2.0, 4.0]
 
 
-@pytest.mark.req("DSI-003")
+@pytest.mark.req("DSI-025")
 def test_a_servers_retry_after_is_honoured_up_to_the_cap() -> None:
     t = FakeTime()
     inner = Scripted(
@@ -132,7 +132,7 @@ def test_a_servers_retry_after_is_honoured_up_to_the_cap() -> None:
     assert t.slept == [30.0, 120.0]
 
 
-@pytest.mark.req("DSI-003")
+@pytest.mark.req("DSI-025")
 def test_the_archive_policy_waits_minutes_not_seconds_with_jitter() -> None:
     # #200: one 2MASS 503 ended a run; the shared policy now rides out about five minutes of outage
     t = FakeTime()

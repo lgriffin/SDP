@@ -126,7 +126,7 @@ def test_a_download_that_stops_part_way_resumes_from_the_saved_parts(tmp_path: P
 # --- async jobs (#199): the synchronous service timed out on the three-table join ---------------------
 
 
-@pytest.mark.req("DSI-023")
+@pytest.mark.req("DSI-026")
 def test_by_default_each_range_is_an_async_job_polled_until_it_completes() -> None:
     service = AsyncTapService(nss.GAIA_TAP)
     spans = nss.ranges(2)
@@ -147,7 +147,7 @@ def test_by_default_each_range_is_an_async_job_polled_until_it_completes() -> No
     assert not any("/sync" in s for s in service.sent)
 
 
-@pytest.mark.req("DSI-023")
+@pytest.mark.req("DSI-026")
 def test_a_job_the_service_fails_is_a_refusal_with_its_message() -> None:
     service = AsyncTapService(nss.GAIA_TAP)
     service.prime(
@@ -162,7 +162,7 @@ def test_a_job_the_service_fails_is_a_refusal_with_its_message() -> None:
     assert caught.value.status == 400
 
 
-@pytest.mark.req("DSI-023")
+@pytest.mark.req("DSI-026")
 def test_a_job_that_never_finishes_is_aborted_and_reported_as_a_timeout() -> None:
     from sdp.adapters.archives.vo import run_async
 

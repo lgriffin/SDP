@@ -208,3 +208,24 @@ requirements:
       - "python/tests.archives.test_bulk_surveys::test_the_cli_copies_allwise_from_a_given_folder_and_refuses_what_it_cannot_copy"
       - "python/tests.archives.test_bulk_surveys::test_a_list_short_of_the_releases_files_is_refused_and_not_stored"
       - "python/tests.archives.test_bulk_surveys::test_a_file_the_publisher_replaced_is_copied_again"
+  - id: DSI-025
+    pattern: unwanted
+    text: "If an archive answers a request with HTTP 408, 429 or a server error, or does not answer, then the system shall retry the request under one shared bounded policy whose waits grow exponentially with jitter and honour the archive's Retry-After."
+    rationale: "On 2026-11-04 one 2MASS 503 ended a contradictions run and a Gaia read timeout ended the companions download (#199, #200). ARCHIVE_RETRY rides out about five minutes of outage (6 retries, 5 s doubling to a 120 s cap, up to 25 percent jitter); a refusal (any other 4xx) still fails at once."
+    verification: test
+    tiers: [T5]
+    status: approved
+    traces:
+      - "python/tests.archives.test_transport::test_a_servers_retry_after_is_honoured_up_to_the_cap"
+      - "python/tests.archives.test_transport::test_the_archive_policy_waits_minutes_not_seconds_with_jitter"
+  - id: DSI-026
+    pattern: event
+    text: "When the system runs a TAP query as an async job, the system shall poll the job until it completes, report a job that ends in ERROR as a refusal with the service's message, and abort a job that outlasts its wait and report it as a timeout."
+    rationale: "Gaia's synchronous service timed out on the three-table orbit join while the archive was busy (#199); an async job holds no request open while the server works."
+    verification: test
+    tiers: [T3]
+    status: approved
+    traces:
+      - "python/tests.archives.test_gaia_nss::test_by_default_each_range_is_an_async_job_polled_until_it_completes"
+      - "python/tests.archives.test_gaia_nss::test_a_job_the_service_fails_is_a_refusal_with_its_message"
+      - "python/tests.archives.test_gaia_nss::test_a_job_that_never_finishes_is_aborted_and_reported_as_a_timeout"

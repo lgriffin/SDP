@@ -59,6 +59,7 @@ def test_the_data_folder_and_port_come_from_sdp_data_and_the_database_url(pgdata
     assert pg.log_file == pgdata.parent / "logs" / "postgres-server.log"
 
 
+@pytest.mark.req("NFR-011")
 def test_a_stale_pid_file_is_moved_aside_and_the_server_started_on_the_urls_port(pgdata: Path, free_port: int) -> None:
     (pgdata / "postmaster.pid").write_text("12345\n", "utf-8")
     fake = FakePgCtl(running=False)
@@ -72,6 +73,7 @@ def test_a_stale_pid_file_is_moved_aside_and_the_server_started_on_the_urls_port
     assert start[start.index("-t") + 1] == "600", "crash recovery after an unclean exit takes about a minute"
 
 
+@pytest.mark.req("NFR-011")
 def test_a_running_server_is_left_alone(pgdata: Path, free_port: int) -> None:
     fake = FakePgCtl(running=True)
     out = server(pgdata, free_port, fake).start()
@@ -79,6 +81,7 @@ def test_a_running_server_is_left_alone(pgdata: Path, free_port: int) -> None:
     assert [c[1] for c in fake.calls if c[1] == "start"] == []
 
 
+@pytest.mark.req("NFR-011")
 def test_a_pid_file_is_kept_when_another_server_holds_the_port(pgdata: Path) -> None:
     (pgdata / "postmaster.pid").write_text("12345\n", "utf-8")
     with socket.socket() as listener:
@@ -129,6 +132,7 @@ def test_pg_ctl_is_found_in_the_checkouts_pnpm_store(tmp_path: Path) -> None:
     assert local.find_bin({"SDP_PG_BIN": "/opt/pg"}, tmp_path) == Path("/opt/pg")
 
 
+@pytest.mark.req("NFR-011")
 def test_an_unreachable_database_message_names_the_address_and_the_command() -> None:
     message = unreachable_message("postgresql://sdp:x@127.0.0.1:5544/sdp", OSError("connection refused\nmore"))
     assert message.startswith("the database at 127.0.0.1:5544 is not reachable (connection refused)")
