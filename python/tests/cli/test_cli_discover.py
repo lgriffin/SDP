@@ -399,6 +399,12 @@ def test_audit_and_report_say_which_single_catalogue_claims_survive(bulk: Path) 
     assert agreement["cwnu23:CWNU SYN-B"] == "cwnu23" and agreement["hr23:SYN-A"] == "cga20 hr23"
     again = invoke("discover", "audit", "--workers", "1", "--catalogue", "cwnu23", "--allow-partial")
     assert again["claims_this_run"] == 0
+    # #195: an unassessable verdict is not a finished claim; a resumed audit tries it again
+    stored = folder / "claims" / discover._claim_file("cwnu23:CWNU SYN-B")
+    doc = json.loads(stored.read_text("utf-8"))
+    stored.write_text(json.dumps({**doc, "verdict": "unassessable"}), "utf-8")
+    retried = invoke("discover", "audit", "--workers", "1", "--catalogue", "cwnu23", "--allow-partial")
+    assert retried["verdicts_this_run"] == {"survives": 1} and "warning" not in retried
 
     report = invoke("discover", "audit-report")
     # the cwnu23 claims are done, the hr23 single claim and the control are not
@@ -433,3 +439,12 @@ def test_an_audit_report_needs_audited_claims(bulk: Path) -> None:
 def test_claim_files_are_safe_names_and_never_shared() -> None:
     a, b = discover._claim_file("cwnu23:CWNU 1/2"), discover._claim_file("cwnu23:CWNU 1_2")
     assert a != b and re.fullmatch(r"[A-Za-z0-9_.-]+\.json", a)
+
+
+@pytest.mark.req("STL-024")
+def test_an_audit_that_could_assess_almost_nothing_says_so() -> None:
+    # #195: 4,525 unassessable hr23 claims read as a finished audit
+    warning = discover.mostly_unassessable({"unassessable": 4525, "not_recovered": 3})
+    assert warning is not None and "4,525 of 4,528 claims (100%) are unassessable" in warning
+    assert discover.mostly_unassessable({"unassessable": 1, "survives": 1}) is None
+    assert discover.mostly_unassessable({}) is None

@@ -265,6 +265,30 @@ class VizierKnownClusters:
         )
         return HttpRequest("GET", f"{base}/viz-bin/votable?{query}")
 
+    def probe_request(self, catalogue: KnownClusterCatalogue, base: str) -> HttpRequest:
+        """The mirror query for one row: the table's FIELDs, to check its columns before the whole download."""
+        whole = self.mirror_request(catalogue, base)
+        return HttpRequest("GET", whole.url.replace(f"-out.max={MAXREC}", "-out.max=1"))
+
+    def _check_mirror_columns(
+        self, catalogue: KnownClusterCatalogue, base: str, overrides: Mapping[str, str] | None
+    ) -> None:
+        """Refuse a table that lacks a needed column from its one-row reply, before the whole table is
+        downloaded (#195: cwnu23 failed only after about 16 minutes). A probe with no usable answer
+        proves nothing, so the whole download goes ahead and is checked as before."""
+        try:
+            response = self.transport.send(self.probe_request(catalogue, base))
+        except TransportError:
+            return
+        if response.status != 200:
+            return
+        try:
+            described = first_table(response.body)
+        except (UntrustedInput, ET.ParseError, TapQueryError):
+            return
+        if described.columns:
+            choose_columns(described.columns, with_defaults(catalogue, overrides))
+
     def fetch(self, benchmark_id: str, overrides: Mapping[str, str] | None = None) -> pa.Table:
         catalogue = _catalogue(benchmark_id)
         try:
@@ -277,6 +301,7 @@ class VizierKnownClusters:
         # it describes without a needed column, is refused, as it would be everywhere.
         for base in self.mirrors:
             try:
+                self._check_mirror_columns(catalogue, base, overrides)
                 response = self.transport.send(self.mirror_request(catalogue, base))
                 if response.status != 200:
                     raise TransportError(f"HTTP {response.status}", response.status)
