@@ -9,11 +9,11 @@ import pyarrow as pa
 import pytest
 
 from sdp.adapters.archives import gaia_nss as nss
-from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport
+from sdp.adapters.archives.transport import CassetteMissing, CassetteTransport, TransportError
 from sdp.adapters.archives.vo import sync_request
 from sdp_stellar import companions as c
 
-from .vo_fakes import PrimedService
+from .vo_fakes import AsyncTapService, PrimedService
 
 pytestmark = pytest.mark.tier("T3")
 CASSETTES = Path(__file__).resolve().parents[1] / "cassettes" / "gaia-nss"
@@ -61,7 +61,7 @@ def test_every_range_is_asked_for_and_one_mass_row_is_kept_per_orbit() -> None:
         sync_request(nss.GAIA_TAP, nss.orbit_query(*spans[1]), nss.MAXREC),
         rows([2**62 + 1], ["Orbital"], ["Orbital+M1"], [1.1]),
     )
-    table = nss.fetch_orbits(service, parts=2)
+    table = nss.fetch_orbits(service, parts=2, mode="sync")
     assert service.calls == 2
     assert table.column("source_id").to_pylist() == [5, 6, 2**62 + 1]
     assert table.column("combination_method").to_pylist() == ["Orbital+M1", "", "Orbital+M1"]
@@ -110,7 +110,7 @@ def test_a_download_that_stops_part_way_resumes_from_the_saved_parts(tmp_path: P
         rows([5], ["Orbital"], ["Orbital+M1"], [0.8]),
     )
     with pytest.raises(CassetteMissing):  # the second range is not primed, as if the server stopped answering
-        nss.fetch_orbits(first, parts=2, parts_dir=tmp_path)
+        nss.fetch_orbits(first, parts=2, parts_dir=tmp_path, mode="sync")
     assert first.calls == 2 and len(list(tmp_path.glob("part-*.parquet"))) == 1
 
     second = PrimedService()
@@ -118,6 +118,68 @@ def test_a_download_that_stops_part_way_resumes_from_the_saved_parts(tmp_path: P
         sync_request(nss.GAIA_TAP, nss.orbit_query(*spans[1]), nss.MAXREC),
         rows([2**62 + 1], ["Orbital"], ["Orbital+M1"], [1.1]),
     )
-    table = nss.fetch_orbits(second, parts=2, parts_dir=tmp_path)
+    table = nss.fetch_orbits(second, parts=2, parts_dir=tmp_path, mode="sync")
     assert second.calls == 1  # only the range that was missing
     assert table.column("source_id").to_pylist() == [5, 2**62 + 1]
+
+
+# --- async jobs (#199): the synchronous service timed out on the three-table join ---------------------
+
+
+@pytest.mark.req("DSI-023")
+def test_by_default_each_range_is_an_async_job_polled_until_it_completes() -> None:
+    service = AsyncTapService(nss.GAIA_TAP)
+    spans = nss.ranges(2)
+    service.prime(
+        nss.orbit_query(*spans[0]),
+        nss.MAXREC,
+        rows([5], ["Orbital"], ["Orbital+M1"], [0.8]),
+        phases=("QUEUED", "EXECUTING", "COMPLETED"),
+        redirect=True,
+    )
+    service.prime(nss.orbit_query(*spans[1]), nss.MAXREC, rows([2**62 + 1], ["Orbital"], ["Orbital+M1"], [1.1]))
+    table = nss.fetch_orbits(service, parts=2, sleep=service.sleep)
+    assert table.column("source_id").to_pylist() == [5, 2**62 + 1]
+    # the first job (a 303 to its Location) waited twice, the second (the job document's jobId) once
+    assert service.sleeps == [5.0, 7.5, 5.0]
+    assert f"GET {nss.GAIA_TAP}/async/job1/results/result" in service.sent
+    assert f"GET {nss.GAIA_TAP}/async/job2/results/result" in service.sent
+    assert not any("/sync" in s for s in service.sent)
+
+
+@pytest.mark.req("DSI-023")
+def test_a_job_the_service_fails_is_a_refusal_with_its_message() -> None:
+    service = AsyncTapService(nss.GAIA_TAP)
+    service.prime(
+        nss.orbit_query(*nss.ranges(1)[0]),
+        nss.MAXREC,
+        rows([5], ["Orbital"], ["Orbital+M1"], [0.8]),
+        phases=("ERROR",),
+        error="Cannot parse query",
+    )
+    with pytest.raises(TransportError, match="ended ERROR: Cannot parse query") as caught:
+        nss.fetch_orbits(service, parts=1, sleep=service.sleep)
+    assert caught.value.status == 400
+
+
+@pytest.mark.req("DSI-023")
+def test_a_job_that_never_finishes_is_aborted_and_reported_as_a_timeout() -> None:
+    from sdp.adapters.archives.vo import run_async
+
+    service = AsyncTapService(nss.GAIA_TAP)
+    query = nss.orbit_query(*nss.ranges(1)[0])
+    service.prime(query, nss.MAXREC, rows([5], ["Orbital"], ["Orbital+M1"], [0.8]), phases=("EXECUTING",))
+    clock = iter(range(0, 10_000, 100))
+    with pytest.raises(TransportError, match="no result after 300 s") as caught:
+        run_async(
+            service,
+            nss.GAIA_TAP,
+            query,
+            nss.MAXREC,
+            "orbits",
+            max_wait_s=300.0,
+            sleep=service.sleep,
+            monotonic=lambda: float(next(clock)),
+        )
+    assert caught.value.status == 408
+    assert f"POST {nss.GAIA_TAP}/async/job1/phase" in service.sent

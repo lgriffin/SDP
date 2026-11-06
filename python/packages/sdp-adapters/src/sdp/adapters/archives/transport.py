@@ -16,6 +16,7 @@ import base64
 import hashlib
 import json
 import logging
+import random as _random
 import time
 import urllib.error
 import urllib.request
@@ -135,18 +136,73 @@ class MirrorTransport:
         raise failure
 
 
+@dataclass(frozen=True)
+class RetryPolicy:
+    """How long a transport keeps trying an archive that is busy or down."""
+
+    retries: int
+    backoff_s: float
+    #: no single wait is longer than this, whatever the attempt or the server's Retry-After
+    max_backoff_s: float
+    #: each wait is stretched by up to this fraction at random, so clients that failed together do not
+    #: all come back at the same moment
+    jitter: float
+
+
+#: The policy for long archive downloads (Gaia, 2MASS, AllWISE, MAST, ADS): about five minutes of
+#: patience for a 503 or 408 before giving up (#199, #200). One outage no longer ends a run that took
+#: hours to get there; a refusal (any other 4xx) still fails at once.
+ARCHIVE_RETRY = RetryPolicy(retries=6, backoff_s=5.0, max_backoff_s=120.0, jitter=0.25)
+
+
+def _retry_after(response: HttpResponse) -> float | None:
+    """The server's Retry-After in seconds, when it gives one as a number."""
+    for key, value in response.headers.items():
+        if key.lower() == "retry-after":
+            try:
+                return max(0.0, float(value))
+            except ValueError:
+                return None
+    return None
+
+
 @dataclass
 class PoliteTransport:
     """Honours the archive's minimum interval between calls and retries transient failures with
-    bounded exponential backoff; it never retries a 4xx other than 408 and 429."""
+    bounded exponential backoff (and the server's Retry-After, when it gives one); it never retries a
+    4xx other than 408 and 429."""
 
     inner: Transport
     min_seconds_between_calls: float = 1.0
     retries: int = 4
     backoff_s: float = 2.0
+    max_backoff_s: float = 600.0
+    jitter: float = 0.0
     sleep: Callable[[float], None] = time.sleep
     monotonic: Callable[[], float] = time.monotonic
+    random: Callable[[], float] = _random.random
     _last: float | None = field(default=None, init=False)
+
+    @classmethod
+    def with_policy(
+        cls, inner: Transport, policy: RetryPolicy = ARCHIVE_RETRY, min_seconds_between_calls: float = 1.0
+    ) -> PoliteTransport:
+        return cls(
+            inner,
+            min_seconds_between_calls=min_seconds_between_calls,
+            retries=policy.retries,
+            backoff_s=policy.backoff_s,
+            max_backoff_s=policy.max_backoff_s,
+            jitter=policy.jitter,
+        )
+
+    def _wait(self, attempt: int, response: HttpResponse | None) -> float:
+        wait = self.backoff_s * 2**attempt
+        asked = _retry_after(response) if response is not None else None
+        if asked is not None:
+            wait = max(wait, asked)
+        wait = min(wait, self.max_backoff_s)
+        return wait * (1.0 + self.jitter * self.random())
 
     def send(self, request: HttpRequest) -> HttpResponse:
         attempt = 0
@@ -156,17 +212,30 @@ class PoliteTransport:
                 if wait > 0:
                     self.sleep(wait)
             self._last = self.monotonic()
+            failed: HttpResponse | None = None
             try:
                 response = self.inner.send(request)
             except CassetteMissing:
                 raise
-            except TransportError:
+            except TransportError as exc:
                 if attempt >= self.retries:
                     raise
+                log.warning(
+                    "%s %s: %s; trying again (%d of %d)", request.method, request.url, exc, attempt + 1, self.retries
+                )
             else:
                 if response.status not in RETRYABLE or attempt >= self.retries:
                     return response
-            self.sleep(self.backoff_s * 2**attempt)
+                failed = response
+                log.warning(
+                    "%s %s: HTTP %d; trying again (%d of %d)",
+                    request.method,
+                    request.url,
+                    response.status,
+                    attempt + 1,
+                    self.retries,
+                )
+            self.sleep(self._wait(attempt, failed))
             attempt += 1
 
 

@@ -25,6 +25,7 @@ from sdp.adapters.archives.references import TAP_CATALOGUES, VIZIER, TapConeCata
 from sdp.adapters.archives.simbad import SimbadResolver
 from sdp.adapters.archives.tap import TapArchiveAdapter, load_sources
 from sdp.adapters.archives.transport import (
+    ARCHIVE_RETRY,
     CassetteTransport,
     MirrorTransport,
     PoliteTransport,
@@ -133,7 +134,7 @@ def build_ledger(settings: Settings) -> GitSignedLedger:
 
 def archive_transport(settings: Settings, name: str, min_seconds_between_calls: float) -> Transport:
     """The transport one archive adapter gets: live and polite, or cassettes under ``<cassette_dir>/<name>``."""
-    live = PoliteTransport(UrllibTransport(), min_seconds_between_calls=min_seconds_between_calls)
+    live = PoliteTransport.with_policy(UrllibTransport(), ARCHIVE_RETRY, min_seconds_between_calls)
     if settings.archive_mode == "live":
         return live
     if settings.cassette_dir is None:
