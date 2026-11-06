@@ -39,6 +39,7 @@ git add -A; git -c user.name=t -c user.email=t@t commit -q -m probe 2>&1 | Out-N
 git checkout -q -b feature/x 2>&1 | Out-Null
 Set-Content marker.txt "x"; git add marker.txt; git -c user.name=t -c user.email=t@t commit -q -m marker 2>&1 | Out-Null
 git checkout -q main 2>&1 | Out-Null
+git branch SDP 2>&1 | Out-Null
 git checkout -q --orphan bare 2>&1 | Out-Null
 git rm -rq --cached . 2>&1 | Out-Null
 git -c user.name=t -c user.email=t@t commit -q --allow-empty -m empty 2>&1 | Out-Null
@@ -52,7 +53,7 @@ $env:PROBE_OUT = Join-Path $Tmp "probe.json"
 $code = $LASTEXITCODE
 Check ($code -eq 3) "the worktree copy's exit code comes back (got $code)"
 $r = Get-Content -Raw $env:PROBE_OUT | ConvertFrom-Json
-Check ($r.code -eq (Join-Path "$Src-runs" "feature-x")) "runs in <checkout>-runs\feature-x (got $($r.code))"
+Check ($r.code -like (Join-Path "$Src-runs" "feature-x-*")) "runs in <checkout>-runs\feature-x-<hash> (got $($r.code))"
 Check ([bool]$r.marker) "the worktree holds the branch's files"
 Check ([bool]$r.flag) "a switch reaches the worktree copy"
 Check ($r.word -eq "two words") "a value with a space reaches the worktree copy (got '$($r.word)')"
@@ -62,6 +63,18 @@ Remove-Item $env:PROBE_OUT
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Src "harness\run-probe.ps1") -Branch bare
 Check ($LASTEXITCODE -eq 1) "a branch without the script stops with exit 1"
 Check (-not (Test-Path $env:PROBE_OUT)) "and nothing ran"
+
+# a worktree root that would make the run folder the checkout itself is refused, and nothing is changed
+Set-Content (Join-Path $Src "local-edit.txt") "mine"
+$env:SDP_RUN_WORKTREES = $Tmp
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Src "harness\run-probe.ps1") -Branch SDP
+Check ($LASTEXITCODE -eq 1) "a run folder that is the checkout itself stops with exit 1"
+Check ((git -C $Src rev-parse --abbrev-ref HEAD) -eq "main" -and (Test-Path (Join-Path $Src "local-edit.txt"))) "and the checkout is untouched"
+# a folder in the way that is not a run worktree is left alone
+New-Item -ItemType Directory -Force -Path (Join-Path $Tmp "main\.git") | Out-Null
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Src "harness\run-probe.ps1") -Branch main
+Check ($LASTEXITCODE -eq 1) "a folder that is not a run worktree stops with exit 1"
+Remove-Item Env:\SDP_RUN_WORKTREES
 
 # a second run of the same branch reuses the worktree after the branch moves on
 Push-Location $Src

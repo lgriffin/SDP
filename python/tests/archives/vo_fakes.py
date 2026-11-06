@@ -117,6 +117,9 @@ class AsyncTapService:
         job = self._job(job_id)
         phases = job["phases"]
         assert isinstance(phases, list)
+        if rest == "" and request.method == "POST" and b"ACTION=DELETE" in request.body:
+            job["deleted"] = True
+            return HttpResponse(303, b"", {"Location": base})
         if rest == "phase" and request.method == "GET":
             phase = phases.pop(0) if len(phases) > 1 else phases[0]
             return HttpResponse(200, str(phase).encode(), {"Content-Type": "text/plain"})

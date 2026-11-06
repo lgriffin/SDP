@@ -145,6 +145,7 @@ def test_by_default_each_range_is_an_async_job_polled_until_it_completes() -> No
     assert f"GET {nss.GAIA_TAP}/async/job1/results/result" in service.sent
     assert f"GET {nss.GAIA_TAP}/async/job2/results/result" in service.sent
     assert not any("/sync" in s for s in service.sent)
+    assert all(job.get("deleted") for job in service.jobs.values()), "each job is removed from the service once read"
 
 
 @pytest.mark.req("DSI-026")
@@ -160,6 +161,7 @@ def test_a_job_the_service_fails_is_a_refusal_with_its_message() -> None:
     with pytest.raises(TransportError, match="ended ERROR: Cannot parse query") as caught:
         nss.fetch_orbits(service, parts=1, sleep=service.sleep)
     assert caught.value.status == 400
+    assert all(job.get("deleted") for job in service.jobs.values())
 
 
 @pytest.mark.req("DSI-026")

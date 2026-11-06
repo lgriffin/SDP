@@ -523,3 +523,14 @@ def test_a_probe_that_passes_lets_the_whole_table_through() -> None:
     )
     fake.raw(source.mirror_request(hr23, MIRRORS[0]), asu_votable(), content_type="application/x-votable+xml")
     assert source.fetch("hr23").num_rows == 2
+
+
+def test_a_mirror_down_for_the_probe_is_left_for_the_next_without_the_whole_download() -> None:
+    # Qodo on #203: a dead mirror must not spend the retry budget twice
+    fake = PrimedService()
+    source = mirrored(fake)
+    hr23 = CATALOGUES["hr23"]
+    fake.raw(source.probe_request(hr23, MIRRORS[0]), b"busy", status=503)
+    fake.raw(source.mirror_request(hr23, MIRRORS[1]), asu_votable(), content_type="application/x-votable+xml")
+    assert source.fetch("hr23").num_rows == 2
+    assert source.mirror_request(hr23, MIRRORS[0]).key() not in fake.sent

@@ -54,6 +54,7 @@ def async_request(service_url: str, adql: str, maxrec: int) -> HttpRequest:
 _JOB_ID = re.compile(rb"jobId>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)")
 _RUN = urllib.parse.urlencode({"PHASE": "RUN"}).encode()
 _ABORT = urllib.parse.urlencode({"PHASE": "ABORT"}).encode()
+_DELETE = urllib.parse.urlencode({"ACTION": "DELETE"}).encode()
 _FORM = {"Content-Type": "application/x-www-form-urlencoded"}
 
 
@@ -100,6 +101,7 @@ def run_async(
             detail = transport.send(HttpRequest("GET", f"{job}/error"))
             text = detail.body.decode("utf-8", "replace").strip() if detail.status == 200 else ""
             # an ERROR is the service refusing the query (as a 400 would); an abort may be the service shedding load
+            _delete(transport, job)
             raise TransportError(
                 f"{what}: the async job ended {phase}: {text[:500]}", 400 if phase == "ERROR" else None
             )
@@ -109,14 +111,25 @@ def run_async(
         if monotonic() - started > max_wait_s:
             with contextlib.suppress(TransportError):
                 transport.send(HttpRequest("POST", f"{job}/phase", _ABORT, _FORM))
+            _delete(transport, job)
             raise TransportError(f"{what}: no result after {max_wait_s:.0f} s (job {job})", 408)
         sleep(wait)
         wait = min(wait * 1.5, 60.0)
-    response = transport.send(HttpRequest("GET", f"{job}/results/result"))
-    if response.status != 200:
-        raise TransportError(f"{what}: result HTTP {response.status}", response.status)
-    validate_votable(response.body)
-    return votable.parse(response.body)
+    try:
+        response = transport.send(HttpRequest("GET", f"{job}/results/result"))
+        if response.status != 200:
+            raise TransportError(f"{what}: result HTTP {response.status}", response.status)
+        validate_votable(response.body)
+        return votable.parse(response.body)
+    finally:
+        _delete(transport, job)
+
+
+def _delete(transport: Transport, job: str) -> None:
+    """Remove the job and its stored result from the service (UWS ACTION=DELETE), so repeated runs leave
+    nothing behind under the archive's job quota. Best effort: a job left there expires by itself."""
+    with contextlib.suppress(TransportError):
+        transport.send(HttpRequest("POST", job, _DELETE, _FORM))
 
 
 def literal(value: str) -> str:

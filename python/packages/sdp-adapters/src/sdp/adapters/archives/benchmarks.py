@@ -30,7 +30,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from sdp.adapters.archives import votable
-from sdp.adapters.archives.transport import HttpRequest, Transport, TransportError
+from sdp.adapters.archives.transport import CassetteMissing, HttpRequest, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput, validate_votable
 from sdp.adapters.archives.vo import literal, run_sync, sync_request
 from sdp.adapters.archives.votable import TapQueryError
@@ -274,13 +274,21 @@ class VizierKnownClusters:
         self, catalogue: KnownClusterCatalogue, base: str, overrides: Mapping[str, str] | None
     ) -> None:
         """Refuse a table that lacks a needed column from its one-row reply, before the whole table is
-        downloaded (#195: cwnu23 failed only after about 16 minutes). A probe with no usable answer
-        proves nothing, so the whole download goes ahead and is checked as before."""
+        downloaded (#195: cwnu23 failed only after about 16 minutes). A mirror that is down for the probe
+        is down: the error moves the fetch on to the next mirror rather than spend the retries again on the
+        whole table. Any other probe without a usable answer (a recording without one, a refusal, an
+        error page) proves nothing, so the whole download goes ahead and is checked as before."""
         try:
             response = self.transport.send(self.probe_request(catalogue, base))
-        except TransportError:
+        except CassetteMissing:
+            return
+        except TransportError as exc:
+            if _down(exc.status):
+                raise
             return
         if response.status != 200:
+            if _down(response.status):
+                raise TransportError(f"HTTP {response.status}", response.status)
             return
         try:
             described = first_table(response.body)

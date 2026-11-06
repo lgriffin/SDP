@@ -448,3 +448,15 @@ def test_an_audit_that_could_assess_almost_nothing_says_so() -> None:
     assert warning is not None and "4,525 of 4,528 claims (100%) are unassessable" in warning
     assert discover.mostly_unassessable({"unassessable": 1, "survives": 1}) is None
     assert discover.mostly_unassessable({}) is None
+
+
+@pytest.mark.req("STL-024")
+def test_the_warning_reads_every_stored_claim_not_only_a_resumes_retries(tmp_path: Path) -> None:
+    # Qodo on #203: a resume retries only unassessable claims, so this run's share alone would always warn
+    for i, verdict in enumerate(["survives", "not_recovered", "fails_checks", "unassessable"]):
+        (tmp_path / f"c{i}.json").write_text(json.dumps({"verdict": verdict}), "utf-8")
+    (tmp_path / "half-written.json").write_text("{", "utf-8")
+    assert discover.folder_warning(tmp_path) is None
+    for i in range(4, 9):
+        (tmp_path / f"c{i}.json").write_text(json.dumps({"verdict": "unassessable"}), "utf-8")
+    assert "6 of 9 claims" in str(discover.folder_warning(tmp_path))

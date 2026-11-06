@@ -24,7 +24,25 @@ $script:RunCheckout = $null
 
 function Get-RunWorktreePath([string]$Code, [string]$Branch) {
     $root = if ($env:SDP_RUN_WORKTREES) { $env:SDP_RUN_WORKTREES } else { "$($Code.TrimEnd('\', '/'))-runs" }
-    return (Join-Path $root ($Branch -replace '[\\/:*?"<>| ]', '-'))
+    $safe = $Branch -replace '[\\/:*?"<>| ]', '-'
+    if ($safe -ne $Branch) {
+        # feature/x and feature-x must not share a folder: a short hash of the real name keeps them apart
+        $sha = [System.Security.Cryptography.SHA1]::Create()
+        $hash = -join ($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Branch))[0..2] | ForEach-Object { $_.ToString("x2") })
+        $safe = "$safe-$hash"
+    }
+    return (Join-Path $root $safe)
+}
+
+# Whether $Tree is a linked worktree of $Code's repository (never the main checkout, whose git dir is
+# the common one): only such a folder is ever force-checked-out, so a misconfigured SDP_RUN_WORKTREES
+# can never point the run at your own checkout. git answers both paths, so they compare alike.
+function Test-RunWorktree([string]$Code, [string]$Tree) {
+    if (-not (Test-Path -LiteralPath (Join-Path $Tree ".git") -PathType Leaf)) { return $false }
+    $common = git -C $Code rev-parse --path-format=absolute --git-common-dir 2>$null
+    $theirs = git -C $Tree rev-parse --path-format=absolute --git-common-dir 2>$null
+    $own = git -C $Tree rev-parse --path-format=absolute --git-dir 2>$null
+    return ($common -and $theirs -and ($theirs -ieq $common) -and ($own -ine $common))
 }
 
 function Get-RunArguments($Bound, [string[]]$Drop) {
@@ -75,9 +93,14 @@ function Enter-RunCheckout {
     if ($LASTEXITCODE -ne 0) { Stop-Run "no origin/$Branch in $Code" }
 
     $tree = Get-RunWorktreePath $Code $Branch
-    if (Test-Path -LiteralPath (Join-Path $tree ".git")) {
+    if ([System.IO.Path]::GetFullPath($tree).TrimEnd('\', '/') -ieq $Code.TrimEnd('\', '/')) {
+        Stop-Run "the run worktree for $Branch would be your checkout $Code; set SDP_RUN_WORKTREES to another folder"
+    }
+    if (Test-RunWorktree $Code $tree) {
         git -C $tree checkout --quiet --force --detach $commit
         if ($LASTEXITCODE -ne 0) { Stop-Run "could not move the run worktree $tree to $commit" }
+    } elseif (Test-Path -LiteralPath $tree) {
+        Stop-Run "$tree exists but is not a run worktree of $Code, so nothing there is touched; move it or set SDP_RUN_WORKTREES"
     } else {
         git -C $Code worktree prune
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $tree) | Out-Null

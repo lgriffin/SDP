@@ -748,7 +748,9 @@ def discover_audit(
 
     with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
         run_all(pool, jobs())
-    warning = mostly_unassessable(verdicts)
+    # judged over every claim the folder holds, not this run's alone: a resume retries only the
+    # unassessable ones, so this run's share says nothing about the audit
+    warning = folder_warning(out)
     if warning:
         _say(f"WARNING: {warning}")
     _emit(
@@ -776,6 +778,12 @@ def _verdict(path: Path) -> str | None:
         return str(json.loads(path.read_text("utf-8")).get("verdict"))
     except (OSError, ValueError):
         return None  # a half-written file is not a verdict: the claim runs again
+
+
+def folder_warning(claims_folder: Path) -> str | None:
+    """``mostly_unassessable`` over every verdict stored in an audit's claims folder."""
+    stored = (_verdict(p) for p in claims_folder.glob("*.json"))
+    return mostly_unassessable(dict(Counter(v for v in stored if v is not None)))
 
 
 def mostly_unassessable(verdicts: dict[str, int]) -> str | None:

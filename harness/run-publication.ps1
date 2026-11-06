@@ -40,7 +40,7 @@ if ($AdsToken) {
 } elseif ($env:ADS_API_TOKEN -or $env:ADS_DEV_KEY) {
     Write-Host "ADS token from the environment"
 } else {
-    $line = if (Test-Path -LiteralPath $DotEnv) { Select-String -LiteralPath $DotEnv -Pattern '^\s*ADS_API_TOKEN\s*=\s*(\S.*)$' | Select-Object -First 1 } else { $null }
+    $line = if (Test-Path -LiteralPath $DotEnv) { Select-String -LiteralPath $DotEnv -Pattern '^\s*(?:export\s+)?ADS_API_TOKEN\s*=\s*(\S.*)$' | Select-Object -First 1 } else { $null }
     if ($line) {
         $env:ADS_API_TOKEN = $line.Matches[0].Groups[1].Value.Trim().Trim('"', "'")
         Write-Host "ADS token found in $DotEnv"
@@ -69,6 +69,8 @@ $Code = $RunCheckout.Path
 
 # SDP_DATA comes from the env file when there is one, else the shell, else -Data (D:\SDP); nothing else
 # this script runs needs the database or the other variables that file sets
+# the token chosen above wins over one the env file may also set
+$Chosen = $env:ADS_API_TOKEN
 if (Test-Path -LiteralPath $EnvFile) {
     cmd /c "call `"$EnvFile`" >nul && set" | ForEach-Object {
         if ($_ -match "^([^=]+)=(.*)$") { [Environment]::SetEnvironmentVariable($matches[1], $matches[2]) }
@@ -76,6 +78,8 @@ if (Test-Path -LiteralPath $EnvFile) {
 } else {
     Write-Host "No $EnvFile; using SDP_DATA from the shell or $Data"
 }
+if ($Chosen) { $env:ADS_API_TOKEN = $Chosen }
+Remove-Variable Chosen
 # an explicit -Data wins over the env file and the shell
 if ($PSBoundParameters.ContainsKey("Data") -or -not $env:SDP_DATA) { $env:SDP_DATA = $Data }
 $Data = $env:SDP_DATA
