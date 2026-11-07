@@ -21,10 +21,44 @@ The person's data stays in `%LOCALAPPDATA%\SDP` (`postgres`, `artifacts`, `ledge
 - `SDP_MIN_FREE_BYTES` is 2 GiB, not 50 GiB, so that a laptop can still acquire data.
 - There are no metrics (Prometheus or Grafana) and no Zenodo token unless the person sets one in the Command Prompt.
 
-## Running from source (Windows)
+## Developer mode (running from a checkout)
 
-To run the app from a checkout without building the installer. Use **PowerShell** in the checkout's top folder
-(for example `D:\code\SDP`). You need Git for Windows (it brings Git Bash), Node.js 22 with pnpm, and uv.
+`--sdp-dev` runs the app from the checkout it sits in, with nothing staged: the Python is `python/.venv`
+(from `uv sync --frozen`), PostgreSQL is pnpm's copy in this package's `node_modules/@embedded-postgres`,
+the UI is `typescript/packages/evidence-ui/build`, and contracts, experiments and `profiles/` are the
+checkout's own. A Python change takes effect on the next start; a UI change needs the UI build again.
+
+On Windows, `setup-dev.ps1` at the top of the repository does the whole setup (tools via winget,
+`uv sync`, `pnpm install`, Electron, the UI build, `desktop-dev.json`, an optional signing key) and adds
+an **SDP (dev)** shortcut. See the [developer tools guide](../../../docs/guides/install-dev-tools.md). By hand,
+on Windows x64 or Linux x64 (the platforms the portable PostgreSQL exists for; elsewhere the app says so):
+
+```bash
+(cd python && uv sync --frozen)
+pnpm install
+pnpm --filter @sdp/evidence-ui build
+pnpm --filter @sdp/desktop dev              # electron . --sdp-dev
+pnpm --filter @sdp/desktop smoke -- --sdp-dev   # the same start-up without a window (CI runs it on Windows)
+```
+
+How developer mode differs from the installed app:
+
+| | Installed app | Developer mode |
+|---|---|---|
+| Data folder | `%LOCALAPPDATA%\SDP` | `--sdp-data=<folder>`, else `%LOCALAPPDATA%\SDP-dev` (`~/.local/share/sdp-dev`) |
+| Settings | Fixed | `<data>/desktop-dev.json`, `{ "env": { ... } }`, layered over the defaults |
+| Database | Its own, made on first start | Its own, unless `desktop-dev.json` names `SDP_DATABASE_URL`. Then the app runs `sdp db start` (which leaves a running or remote server alone) and does not stop that database on exit |
+| Profiles | Seeded copies in the data folder | The checkout's `profiles/` |
+| Archives | Not registered by the app | `sdp integration register` behind the open app on the first start for each data folder (marker `runtime/archives-registered`; a failure is shown and retried next start), and from the menu |
+| Command prompt | Start menu **SDP Command Prompt** | **Developer > Open the developer prompt**: `runtime/sdp-dev-prompt.cmd`, with the venv first on `PATH` and `SDP_API_URL`/`SDP_API_TOKEN` set for the UI's dev server |
+| Menu | Hidden | File, Edit, View (reload, devtools), **Developer** |
+
+It has its own name and Electron profile, so it runs beside the installed app.
+
+## Staging from source (Windows)
+
+To build and try the *installed* app's resources from a checkout. Use **PowerShell** in the checkout's top
+folder (for example `D:\code\SDP`). For day-to-day development, use developer mode instead: it needs no staging.
 
 ```powershell
 pnpm install
@@ -36,19 +70,10 @@ pnpm --filter @sdp/desktop start      # opens the app window; data goes to %LOCA
 `pnpm stage` runs `scripts/stage.sh` with **Git Bash** (it looks next to `git.exe`, then in `Program Files\Git`;
 set `SDP_BASH` to the full path of `bash.exe` if yours is elsewhere). Do not type `bash scripts/stage.sh` in
 PowerShell: there, `bash` is usually WSL's, which fails with `node: not found` or would stage the Linux build.
-`stage.sh` now stops with this advice if it finds itself under WSL. If you want to call it directly, name Git
-Bash in full:
-
-```powershell
-& "C:\Program Files\Git\bin\bash.exe" typescript/apps/sdp-desktop/scripts/stage.sh
-```
-
-After a change to the Python packages or the UI, run `stage` again (`$env:SKIP_PYTHON=1` first skips the slow
-Python step when only the UI changed). After a change to `src/`, `pnpm start` compiles it again by itself.
 
 **`set: pipefail` / `invalid option name`.** The `.sh` files were checked out with Windows line endings, which
 the repository has prevented since #193. A checkout made before that keeps the old copies until they are
-written again:
+written again (`setup-dev.ps1` does this repair itself):
 
 ```powershell
 git ls-files '*.sh' | ForEach-Object { Remove-Item $_; git checkout -- $_ }

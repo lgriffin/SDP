@@ -279,7 +279,7 @@ jobs:
   desktop-windows:
     name: package · Windows desktop installer (smoke-tested)
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -296,6 +296,18 @@ jobs:
       - name: Harness scripts parse, and each run gets its own worktree (#196)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File harness\tests\run-checkout.tests.ps1
+      - name: Developer setup (setup-dev.ps1), then the app's developer mode from this checkout
+        # The script a developer runs on a new PC: here the tools are present, so it only syncs, builds,
+        # writes desktop-dev.json and makes a signing key. The smoke then starts everything from the checkout.
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File setup-dev.ps1 -Checkout $PWD -Data "$env:RUNNER_TEMP\sdp-dev" -Signer ci -NoShortcuts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$env:RUNNER_TEMP\sdp-dev\keys\sdp_ledger")) { throw "no signing key" }
+          Get-Content "$env:RUNNER_TEMP\sdp-dev\desktop-dev.json"
+          Push-Location typescript\apps\sdp-desktop
+          node dist/smoke.js --sdp-dev
+          exit $LASTEXITCODE
       - name: Stage the UI, Python with the SDP packages, PostgreSQL 16 and the repository data
         # the same command a person types in PowerShell; it finds Git Bash itself (#194)
         run: pnpm --filter @sdp/desktop stage

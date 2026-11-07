@@ -13,7 +13,7 @@ Pick **one** of these. If you are not sure, take the first.
 | Guide | Pick it when | You get |
 |---|---|---|
 | [Windows desktop app](install-desktop.md) | You use Windows and want to click, not type | The app, its own database, and the SDP Command Prompt |
-| [Developer tools](install-dev-tools.md) | You want the newest code, big data on another drive (such as `D:\SDP`), or Linux or macOS | The `sdp` command from a copy of the repository, with your own PostgreSQL |
+| [Developer tools](install-dev-tools.md) | You want the newest code, big data on another drive (such as `D:\SDP`), or Linux or macOS | The `sdp` command from a copy of the repository. On Windows, one script (`setup-dev.ps1`) sets it all up and gives you an SDP (dev) app |
 | [Containers](install-containers.md) | You already use Podman or Docker | The whole stack (database, API, app in the browser) in containers |
 | [pip, into a Python environment](install-pip.md) | You live in Python and only want the `sdp` command | The command line only; you bring the database |
 
