@@ -77,6 +77,14 @@ function status(layout: Layout): Promise<number | null> {
 export async function startDatabase(layout: Layout): Promise<Database> {
   await mkdir(logs(layout), { recursive: true });
   if (!existsSync(join(pgdata(layout), "PG_VERSION"))) await create(layout);
+  if (!existsSync(join(secrets(layout), "database-password"))) {
+    // A cluster made some other way (by hand, or for `sdp db start`): never re-create it, say how to use it.
+    throw new Error(
+      `${pgdata(layout)} holds a PostgreSQL database that SDP did not create, so it has no password for it. ` +
+        "To use it, put its address in desktop-dev.json in the data folder as SDP_DATABASE_URL " +
+        "(setup-dev.ps1 -ImportEnv <your sdp-env.cmd> does this), or choose another data folder.",
+    );
+  }
   const secret = await password(layout);
   if ((await status(layout)) === 0) {
     const port = portFromPid(await readFile(join(pgdata(layout), "postmaster.pid"), "utf8"));

@@ -2,11 +2,13 @@
 // evidence UI's Node server. The Electron main process and the smoke test both call startBackend.
 import type { ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { bundledProfiles, type Layout, logs, profiles, python, repoRoot, runtime, ui } from "./layout.ts";
+import { devPromptScript, type DevConfig } from "./dev.ts";
+import { bundledProfiles, type Layout, logs, profiles, python, repoRoot, runtime, ui, venvBin } from "./layout.ts";
 import { type Database, startDatabase, stopDatabase } from "./postgres.ts";
 import { choosePort, openLog, run, start, waitForHttp } from "./process.ts";
 
@@ -16,9 +18,11 @@ export const CLI = "import sys; sys.argv[0] = 'sdp'; from sdp.cli.app import mai
 /** Disk headroom sdp-api requires before acquiring (DSI-010); the server default of 50 GiB is too much for a laptop. */
 export const DESKTOP_MIN_FREE_BYTES = 2 * 1024 ** 3;
 
-/** The environment sdp-api and the SDP Command Prompt share (compare x-kernel in compose.yaml). */
-export function sdpEnvironment(layout: Layout, database: Database): Record<string, string> {
+/** The environment sdp-api and the SDP Command Prompt share (compare x-kernel in compose.yaml). In
+ * developer mode the settings in desktop-dev.json come last, so they override these defaults. */
+export function sdpEnvironment(layout: Layout, database: Database, overrides: Record<string, string> = {}): Record<string, string> {
   return {
+    ...(layout.checkout ? { SDP_DATA: layout.data } : {}),
     SDP_DATABASE_URL: database.url,
     SDP_ARTIFACT_ROOT: join(layout.data, "artifacts"),
     SDP_LEDGER_DIR: join(layout.data, "ledger"),
@@ -31,15 +35,30 @@ export function sdpEnvironment(layout: Layout, database: Database): Record<strin
     SDP_MIN_FREE_BYTES: String(DESKTOP_MIN_FREE_BYTES),
     PYTHONUTF8: "1",
     PYTHONDONTWRITEBYTECODE: "1",
+    // The database is always the one the app started or checked (externalDatabase reads the override).
+    ...Object.fromEntries(Object.entries(overrides).filter(([k]) => k !== "SDP_DATABASE_URL")),
   };
 }
 
+/** The database a developer named in desktop-dev.json, which the app uses instead of its own. */
+export function externalDatabase(overrides: Record<string, string>): Database | undefined {
+  const url = overrides.SDP_DATABASE_URL;
+  if (!url) return undefined;
+  const parsed = new URL(url);
+  return { url, port: parsed.port ? Number(parsed.port) : 5432 };
+}
+
 /** sdp-env.cmd, which the SDP Command Prompt calls to reach the running app's database and folders. */
-export function commandPromptEnvironment(env: Record<string, string>): string {
+export function commandPromptEnvironment(env: Record<string, string>, pathFirst?: string): string {
   // cmd's `set "K=V"` takes everything up to the closing quote; % would expand, so it is doubled.
   const lines = Object.entries(env).map(([k, v]) => `set "${k}=${v.replaceAll("%", "%%")}"`);
+  // Developer mode puts the venv's folder first, so `sdp` is the checkout's command (%PATH% expands here).
+  if (pathFirst) lines.push(`set "PATH=${pathFirst.replaceAll("%", "%%")};%PATH%"`);
   return ["@echo off", "rem Written by SDP Desktop on each start. Do not edit.", ...lines, ""].join("\r\n");
 }
+
+/** Marks that `sdp integration register` succeeded against this data folder's database. */
+export const REGISTERED = "archives-registered";
 
 /** Where seedProfiles records the hash of each default it last shipped. */
 export const SHIPPED = ".shipped.json";
@@ -92,19 +111,29 @@ export interface Backend {
   apiUrl: string;
   /** Required by sdp-api on everything but /health, so other pages in the person's browser cannot drive it. */
   apiToken: string;
+  /** The SDP settings the services run with. */
+  env: Record<string, string>;
+  /** Run `sdp integration register` (what each archive offers, so plans can be drafted). */
+  registerArchives(): Promise<void>;
   stop(): Promise<void>;
 }
 
 export type Progress = (step: string) => void;
 
-export async function startBackend(layout: Layout, progress: Progress = () => {}): Promise<Backend> {
+/** `sdp integration register` reads MAST's description live; it normally takes about 3 minutes. */
+const REGISTER_TIMEOUT_MS = 15 * 60_000;
+
+export async function startBackend(layout: Layout, progress: Progress = () => {}, config: DevConfig = { env: {} }): Promise<Backend> {
   for (const dir of ["logs", "artifacts", "ledger"]) await mkdir(join(layout.data, dir), { recursive: true });
-  // The Start page lists this folder: the shipped defaults plus any profile the person adds.
-  await seedProfiles(bundledProfiles(layout), profiles(layout));
+  // The Start page lists this folder: the shipped defaults plus any profile the person adds. A checkout
+  // has its own profiles/, listed as they are.
+  if (!layout.checkout) await seedProfiles(bundledProfiles(layout), profiles(layout));
 
   progress("Starting the database");
-  const database = await startDatabase(layout);
-  const env = sdpEnvironment(layout, database);
+  const external = externalDatabase(config.env);
+  const database = external ?? (await startDatabase(layout));
+  const env = sdpEnvironment(layout, database, config.env);
+  if (external) await startExternalDatabase(layout, env);
   const apiToken = randomBytes(32).toString("hex");
 
   let api: ChildProcess | undefined;
@@ -119,13 +148,23 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
         await Promise.race([exited, new Promise((r) => setTimeout(r, 2000))]);
       }
     }
-    await stopDatabase(layout);
+    // A database the developer named is theirs (the harness scripts may be using it); it stays up.
+    if (!external) await stopDatabase(layout);
   };
 
   try {
     await mkdir(runtime(layout), { recursive: true });
     await writeFile(join(runtime(layout), "sdp-env.cmd"), commandPromptEnvironment(env), { mode: 0o600 });
     const childEnv = { ...process.env, ...env };
+    const registerArchives = async (): Promise<void> => {
+      const log = openLog(join(logs(layout), "integration.log"));
+      try {
+        await run(python(layout), ["-c", CLI, "integration", "register"], { env: childEnv, log, timeoutMs: REGISTER_TIMEOUT_MS });
+        await writeFile(join(runtime(layout), REGISTERED), `${new Date().toISOString()}\n`);
+      } finally {
+        log.end();
+      }
+    };
 
     progress("Preparing the database");
     const migrateLog = openLog(join(logs(layout), "migrate.log"));
@@ -146,6 +185,21 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
     // The first import of astropy and scipy is slow, more so while antivirus scans new files.
     await waitForHttp(`${apiUrl}/health`, 180_000, api);
 
+    if (layout.checkout) {
+      // The developer prompt reaches the running service too, so the UI's live-reload server
+      // (`pnpm --filter @sdp/evidence-ui dev`) and curl work there without settings of their own.
+      const promptEnv = { ...env, SDP_API_URL: `${apiUrl}/graphql`, SDP_API_TOKEN: apiToken };
+      const envFile = join(runtime(layout), "sdp-env.cmd");
+      await writeFile(envFile, commandPromptEnvironment(promptEnv, venvBin(layout.checkout, layout.windows)), { mode: 0o600 });
+      await writeFile(join(runtime(layout), "sdp-dev-prompt.cmd"), devPromptScript(envFile, layout.checkout));
+      if (!existsSync(join(runtime(layout), REGISTERED))) {
+        // Once per data folder, so plans can be drafted from the first start. Offline, it is tried again
+        // next start (or from the Developer menu); the app opens either way.
+        progress("Registering the archives (first start only, about 3 minutes)");
+        await registerArchives().catch(() => {});
+      }
+    }
+
     progress("Opening the workspace");
     const uiPort = await choosePort(54381);
     const uiUrl = `http://127.0.0.1:${uiPort}`;
@@ -161,9 +215,27 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
     });
     await import(pathToFileURL(ui(layout)).href);
     await waitForHttp(uiUrl, 30_000);
-    return { uiUrl, apiUrl, apiToken, stop };
+    return { uiUrl, apiUrl, apiToken, env, registerArchives, stop };
   } catch (error) {
     await stop().catch(() => {});
     throw error;
+  }
+}
+
+/** Start the developer's own local PostgreSQL with `sdp db start` when it is not running (it finds the
+ * data folder from SDP_PGDATA or <SDP_DATA>/postgres). A database elsewhere, or one already up, is left
+ * as it is; if it cannot be reached, the migrations that follow say so. */
+async function startExternalDatabase(layout: Layout, env: Record<string, string>): Promise<void> {
+  const log = openLog(join(logs(layout), "postgres.log"));
+  try {
+    await run(python(layout), ["-c", CLI, "db", "start"], {
+      env: { ...process.env, ...env },
+      log,
+      timeoutMs: 10 * 60_000,
+    });
+  } catch {
+    // Not a local cluster this checkout can start: the migrations report the real problem.
+  } finally {
+    log.end();
   }
 }

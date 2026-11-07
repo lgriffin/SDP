@@ -1,15 +1,31 @@
 // Smoke test of the staged resources without Electron: a fresh data folder, the whole start-up, a page
 // from the UI that came through sdp-api, then a clean shutdown. CI runs it on Windows before packaging.
 //   node dist/smoke.js [resources-dir]
-import { mkdtemp, rm } from "node:fs/promises";
+//   node dist/smoke.js --sdp-dev      developer mode: the services straight from this checkout
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { type Backend, startBackend } from "./backend.ts";
+import { type Backend, REGISTERED, startBackend } from "./backend.ts";
+import { checkoutOf, checkoutProblems, parseDevOptions } from "./dev.ts";
+import type { Layout } from "./layout.ts";
 
-const resources = resolve(process.argv[2] ?? join(import.meta.dirname, "..", "resources", "sdp"));
+const windows = process.platform === "win32";
+const dev = parseDevOptions(process.argv.slice(2), process.env).dev;
+const positional = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const resources = resolve(positional[0] ?? join(import.meta.dirname, "..", "resources", "sdp"));
 const data = await mkdtemp(join(tmpdir(), "sdp-desktop-smoke-"));
-const layout = { resources, data, windows: process.platform === "win32" };
+const layout: Layout = { resources, data, windows, checkout: dev ? checkoutOf(import.meta.dirname) : undefined };
+if (layout.checkout) {
+  const problems = checkoutProblems(layout.checkout, windows);
+  if (problems.length) {
+    console.error(problems.join("\n"));
+    process.exit(1);
+  }
+  // The smoke checks start-up, not the archives: skip the first-start `sdp integration register`.
+  await mkdir(join(data, "runtime"), { recursive: true });
+  await writeFile(join(data, "runtime", REGISTERED), "skipped by the smoke test\n");
+}
 
 let failed = false;
 let backend: Backend | undefined;

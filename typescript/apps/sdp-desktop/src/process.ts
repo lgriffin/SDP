@@ -8,6 +8,8 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   log: WriteStream;
+  /** Kill the process and fail after this long. */
+  timeoutMs?: number;
 }
 
 /** Start a process whose output goes to the log; on Windows no console window appears. */
@@ -25,8 +27,19 @@ export class CommandFailed extends Error {}
 export function run(command: string, args: string[], options: RunOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = start(command, args, options);
-    child.on("error", reject);
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            options.log.write(`\n(stopped after ${Math.round((options.timeoutMs ?? 0) / 1000)} seconds)\n`);
+            child.kill();
+          }, options.timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("exit", (code) => {
+      clearTimeout(timer);
       if (code === 0) resolve();
       else reject(new CommandFailed(`${command} ${args[0] ?? ""} exited with code ${code} (see ${options.log.path})`));
     });
