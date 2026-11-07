@@ -34,8 +34,21 @@ export const checkoutOf = (appDir: string): string => resolve(appDir, "..", ".."
 export const DEV_DATA_NAME = "SDP-dev";
 
 /** What a developer checkout must have before the app can start from it, as advice to show. */
-export function checkoutProblems(checkout: string, windows: boolean): string[] {
+export function checkoutProblems(
+  checkout: string,
+  windows: boolean,
+  platform: string = process.platform,
+  arch: string = process.arch,
+): string[] {
   const problems: string[] = [];
+  // The portable PostgreSQL the checkout brings (package.json's optionalDependencies) exists for these only.
+  if (arch !== "x64" || !(platform === "win32" || platform === "linux")) {
+    problems.push(
+      `Developer mode runs on Windows x64 and Linux x64, not ${platform} ${arch}: there is no portable PostgreSQL for it. ` +
+        "Use the manual route in docs/guides/install-dev-tools.md.",
+    );
+    return problems;
+  }
   if (!existsSync(join(checkout, "python", "pyproject.toml"))) {
     problems.push(`${checkout} is not an SDP checkout (no python/pyproject.toml).`);
     return problems;

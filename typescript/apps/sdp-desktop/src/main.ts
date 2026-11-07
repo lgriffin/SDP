@@ -1,6 +1,7 @@
 // Electron main process: one window showing the evidence UI, with the backend started behind it and
 // stopped when the window closes. Pages from anywhere but the local UI open in the default browser.
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -77,9 +78,14 @@ function developerMenu(): void {
           label: "Open the developer prompt",
           accelerator: "CmdOrCtrl+Shift+P",
           enabled: windows,
-          click: () => {
+          click: async () => {
+            const script = join(runtime(layout), "sdp-dev-prompt.cmd");
+            if (!backend || !existsSync(script)) {
+              await dialog.showMessageBox({ type: "info", message: "SDP (dev) is still starting.", detail: "The prompt opens once the service is up." });
+              return;
+            }
             // A detached cmd gets a console window of its own.
-            spawn("cmd.exe", ["/k", join(runtime(layout), "sdp-dev-prompt.cmd")], { detached: true, stdio: "ignore", cwd: checkout }).unref();
+            spawn("cmd.exe", ["/k", script], { detached: true, stdio: "ignore", cwd: checkout }).unref();
           },
         },
         { label: "Open the checkout folder", click: () => void shell.openPath(checkout) },
@@ -150,6 +156,16 @@ async function launch(): Promise<void> {
     backend = await starting;
     if (quitting) return;
     await window.loadURL(backend.uiUrl);
+    void backend.firstRegistration?.then(async (error) => {
+      if (!error || quitting) return;
+      await dialog.showMessageBox({
+        type: "warning",
+        message: "Registering the archives failed, so plans cannot be drafted yet.",
+        detail:
+          `${error.message}\n\nSee integration.log in ${logs(layout)}. It is tried again on the next start, ` +
+          "or now from Developer > Register the archives again.",
+      });
+    });
   } catch (error) {
     if (quitting) return;
     const { response } = await dialog.showMessageBox(window, {

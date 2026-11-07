@@ -115,6 +115,9 @@ export interface Backend {
   env: Record<string, string>;
   /** Run `sdp integration register` (what each archive offers, so plans can be drafted). */
   registerArchives(): Promise<void>;
+  /** Developer mode's first-start registration, running behind the open app: resolves to the error, or
+   * undefined when it succeeded. Absent when the data folder is already registered. */
+  firstRegistration?: Promise<Error | undefined>;
   stop(): Promise<void>;
 }
 
@@ -137,7 +140,10 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
   const apiToken = randomBytes(32).toString("hex");
 
   let api: ChildProcess | undefined;
+  // Ends a registration still running in the background when the app closes.
+  const closing = new AbortController();
   const stop = async (): Promise<void> => {
+    closing.abort();
     if (api && api.exitCode === null) {
       const exited = new Promise((r) => api?.once("exit", r));
       api.kill();
@@ -159,7 +165,12 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
     const registerArchives = async (): Promise<void> => {
       const log = openLog(join(logs(layout), "integration.log"));
       try {
-        await run(python(layout), ["-c", CLI, "integration", "register"], { env: childEnv, log, timeoutMs: REGISTER_TIMEOUT_MS });
+        await run(python(layout), ["-c", CLI, "integration", "register"], {
+          env: childEnv,
+          log,
+          timeoutMs: REGISTER_TIMEOUT_MS,
+          signal: closing.signal,
+        });
         await writeFile(join(runtime(layout), REGISTERED), `${new Date().toISOString()}\n`);
       } finally {
         log.end();
@@ -192,12 +203,6 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
       const envFile = join(runtime(layout), "sdp-env.cmd");
       await writeFile(envFile, commandPromptEnvironment(promptEnv, venvBin(layout.checkout, layout.windows)), { mode: 0o600 });
       await writeFile(join(runtime(layout), "sdp-dev-prompt.cmd"), devPromptScript(envFile, layout.checkout));
-      if (!existsSync(join(runtime(layout), REGISTERED))) {
-        // Once per data folder, so plans can be drafted from the first start. Offline, it is tried again
-        // next start (or from the Developer menu); the app opens either way.
-        progress("Registering the archives (first start only, about 3 minutes)");
-        await registerArchives().catch(() => {});
-      }
     }
 
     progress("Opening the workspace");
@@ -215,7 +220,17 @@ export async function startBackend(layout: Layout, progress: Progress = () => {}
     });
     await import(pathToFileURL(ui(layout)).href);
     await waitForHttp(uiUrl, 30_000);
-    return { uiUrl, apiUrl, apiToken, env, registerArchives, stop };
+    // Once per data folder in developer mode, so plans can be drafted from the first start. It runs behind
+    // the open app (about 3 minutes, longer if MAST is slow); a failure is reported, and tried again on
+    // the next start or from the Developer menu.
+    const firstRegistration =
+      layout.checkout && !existsSync(join(runtime(layout), REGISTERED))
+        ? registerArchives().then(
+            () => undefined,
+            (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
+          )
+        : undefined;
+    return { uiUrl, apiUrl, apiToken, env, registerArchives, firstRegistration, stop };
   } catch (error) {
     await stop().catch(() => {});
     throw error;

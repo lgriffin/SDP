@@ -108,6 +108,10 @@ function Invoke-Pnpm {
 if (-not $Checkout) {
     $Checkout = if (Test-Path (Join-Path $PSScriptRoot "python\pyproject.toml")) { $PSScriptRoot } else { Join-Path $HOME "code\SDP" }
 }
+# The signer name is one word in the ledger's allowed_signers file.
+if ($Signer -and $Signer -notmatch '^[A-Za-z0-9._@-]+$') {
+    throw "-Signer must be one word of letters, digits, dot, dash, underscore or @ (for example leigh), not '$Signer'."
+}
 $Checkout = [IO.Path]::GetFullPath($Checkout)
 $Data = [IO.Path]::GetFullPath($Data)
 if ($Data.TrimEnd("\").StartsWith($Checkout.TrimEnd("\") + "\", [StringComparison]::OrdinalIgnoreCase)) {
@@ -155,11 +159,16 @@ if (-not (Test-Path (Join-Path $Checkout ".git"))) {
 }
 $branch = git -C $Checkout rev-parse --abbrev-ref HEAD
 Write-Host "  on branch $branch at $(git -C $Checkout rev-parse --short HEAD)"
-# Checkouts made before .gitattributes (#193) may hold .sh files with Windows line endings.
+# Checkouts made before .gitattributes (#193) may hold .sh files with Windows line endings. Only an
+# unedited file is restored; one with local changes is left alone and named.
 Push-Location $Checkout
 try {
     foreach ($file in (git ls-files "*.sh")) {
         if ((Test-Path $file) -and ([IO.File]::ReadAllText((Join-Path $Checkout $file)).Contains("`r"))) {
+            if (git diff --name-only HEAD -- $file) {
+                Write-Warning "$file has Windows line endings and local changes, so it was left as it is. Convert it to LF line endings yourself."
+                continue
+            }
             Remove-Item $file
             git checkout -- $file
             Write-Host "  restored line endings of $file"
@@ -203,7 +212,10 @@ if ($ImportEnv) {
         if ($line -match '^\s*set\s+"?([A-Za-z_][A-Za-z0-9_]*)=(.*?)"?\s*$') {
             $name = $Matches[1]
             if ($skip -contains $name.ToUpper()) { continue }
-            $settings[$name] = [Environment]::ExpandEnvironmentVariables($Matches[2])
+            # cmd doubles a literal % (SDP's writer does too): keep those aside while %NAME% is expanded.
+            $marker = [char]0
+            $value = $Matches[2].Replace("%%", [string]$marker)
+            $settings[$name] = [Environment]::ExpandEnvironmentVariables($value).Replace([string]$marker, "%")
         }
     }
     Write-Host "  imported the settings in $ImportEnv"
@@ -217,7 +229,7 @@ if ($Signer -and -not $settings.Contains("SDP_SIGNING_KEY")) {
     New-Item -ItemType Directory -Force -Path $keyDir | Out-Null
     if (-not (Test-Path $key)) {
         # SDP loads the key without a passphrase. One argument string passes -N "" the same way on every PowerShell.
-        $keygen = Start-Process -FilePath "ssh-keygen" -ArgumentList "-q -t ed25519 -N `"`" -C $Signer -f `"$key`"" -NoNewWindow -Wait -PassThru
+        $keygen = Start-Process -FilePath "ssh-keygen" -ArgumentList "-q -t ed25519 -N `"`" -C `"$Signer`" -f `"$key`"" -NoNewWindow -Wait -PassThru
         if ($keygen.ExitCode -ne 0) { throw "ssh-keygen failed (exit code $($keygen.ExitCode))." }
         Write-Host "  made $key (keep it private: anyone with it can sign as you)"
     }

@@ -32,8 +32,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\setup-dev.ps1 -Che
   database address and folders from that file, so nothing moves:
   `powershell -NoProfile -ExecutionPolicy Bypass -File D:\code\SDP\setup-dev.ps1 -Data D:\SDP -ImportEnv D:\SDP\sdp-env.cmd -Launch`
 
-**Success:** the SDP (dev) window shows the Start page. The first start takes about 4 minutes. Later
-starts take seconds.
+**Success:** the SDP (dev) window shows the Start page within a minute or two. On the first start the
+archives are registered behind it, which takes about 3 more minutes before plans can be drafted (the app
+tells you if that fails). Later starts take seconds.
 
 In the app, the **Developer** menu has these items:
 

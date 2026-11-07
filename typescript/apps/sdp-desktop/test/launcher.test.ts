@@ -188,9 +188,17 @@ describe("developer mode", () => {
 
   it("says what a checkout is missing", async () => {
     const dir = await mkdtemp(join(tmpdir(), "sdp-checkout-"));
-    expect(checkoutProblems(dir, false)[0]).toMatch(/not an SDP checkout/);
+    expect(checkoutProblems(dir, false, "linux", "x64")[0]).toMatch(/not an SDP checkout/);
     await mkdir(join(dir, "python"), { recursive: true });
     await writeFile(join(dir, "python", "pyproject.toml"), "");
-    expect(checkoutProblems(dir, false).join("\n")).toMatch(/uv sync[\s\S]*evidence-ui build[\s\S]*pnpm install/);
+    expect(checkoutProblems(dir, false, "linux", "x64").join("\n")).toMatch(/uv sync[\s\S]*evidence-ui build[\s\S]*pnpm install/);
+  });
+});
+
+describe("developer mode platforms", () => {
+  it("names an unsupported platform instead of suggesting pnpm install", () => {
+    expect(checkoutProblems("/x", false, "darwin", "arm64")[0]).toMatch(/Windows x64 and Linux x64, not darwin arm64/);
+    expect(checkoutProblems("/x", false, "linux", "arm64")).toHaveLength(1);
+    expect(checkoutProblems("/x", false, "linux", "x64")[0]).toMatch(/not an SDP checkout/);
   });
 });

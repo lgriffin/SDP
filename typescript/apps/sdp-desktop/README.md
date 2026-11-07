@@ -31,7 +31,7 @@ checkout's own. A Python change takes effect on the next start; a UI change need
 On Windows, `setup-dev.ps1` at the top of the repository does the whole setup (tools via winget,
 `uv sync`, `pnpm install`, Electron, the UI build, `desktop-dev.json`, an optional signing key) and adds
 an **SDP (dev)** shortcut. See the [developer tools guide](../../../docs/guides/install-dev-tools.md). By hand,
-on any OS:
+on Windows x64 or Linux x64 (the platforms the portable PostgreSQL exists for; elsewhere the app says so):
 
 ```bash
 (cd python && uv sync --frozen)
@@ -49,7 +49,7 @@ How developer mode differs from the installed app:
 | Settings | Fixed | `<data>/desktop-dev.json`, `{ "env": { ... } }`, layered over the defaults |
 | Database | Its own, made on first start | Its own, unless `desktop-dev.json` names `SDP_DATABASE_URL`. Then the app runs `sdp db start` (which leaves a running or remote server alone) and does not stop that database on exit |
 | Profiles | Seeded copies in the data folder | The checkout's `profiles/` |
-| Archives | Not registered by the app | `sdp integration register` on the first start for each data folder (marker `runtime/archives-registered`), and from the menu |
+| Archives | Not registered by the app | `sdp integration register` behind the open app on the first start for each data folder (marker `runtime/archives-registered`; a failure is shown and retried next start), and from the menu |
 | Command prompt | Start menu **SDP Command Prompt** | **Developer > Open the developer prompt**: `runtime/sdp-dev-prompt.cmd`, with the venv first on `PATH` and `SDP_API_URL`/`SDP_API_TOKEN` set for the UI's dev server |
 | Menu | Hidden | File, Edit, View (reload, devtools), **Developer** |
 

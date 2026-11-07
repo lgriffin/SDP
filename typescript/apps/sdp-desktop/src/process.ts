@@ -10,6 +10,8 @@ export interface RunOptions {
   log: WriteStream;
   /** Kill the process and fail after this long. */
   timeoutMs?: number;
+  /** Kill the process when this aborts (the app is closing). */
+  signal?: AbortSignal;
 }
 
 /** Start a process whose output goes to the log; on Windows no console window appears. */
@@ -34,12 +36,15 @@ export function run(command: string, args: string[], options: RunOptions): Promi
             options.log.write(`\n(stopped after ${Math.round((options.timeoutMs ?? 0) / 1000)} seconds)\n`);
             child.kill();
           }, options.timeoutMs);
+    const abort = (): void => void child.kill();
+    options.signal?.addEventListener("abort", abort, { once: true });
     child.on("error", (error) => {
       clearTimeout(timer);
       reject(error);
     });
     child.on("exit", (code) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
       if (code === 0) resolve();
       else reject(new CommandFailed(`${command} ${args[0] ?? ""} exited with code ${code} (see ${options.log.path})`));
     });
