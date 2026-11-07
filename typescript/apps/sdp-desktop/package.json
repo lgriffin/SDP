@@ -14,7 +14,8 @@
     "stage": "node scripts/stage.mjs",
     "smoke": "node dist/smoke.js",
     "start": "node node_modules/electron/install.js && pnpm compile && electron .",
-    "dist": "pnpm compile && electron-builder --config electron-builder.yml"
+    "dist": "pnpm compile && electron-builder --config electron-builder.yml",
+    "dev": "node node_modules/electron/install.js && pnpm compile && electron . --sdp-dev"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

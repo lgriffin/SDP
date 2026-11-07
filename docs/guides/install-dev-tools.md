@@ -1,12 +1,59 @@
 # Install with the developer tools
 
-**Time:** 30 to 45 minutes the first time · **Needs:** Windows, Linux or macOS; about 5 GB free for
+**Time:** about 15 minutes on Windows with the script below, 30 to 45 minutes by hand · **Needs:** Windows, Linux or macOS; about 5 GB free for
 the tools, plus room for your data
 
 This route runs SDP straight from a copy of the repository. Use it when you want the newest code the
 moment it merges, when your data should live on another drive (such as `D:\SDP`), or when you are not
 on Windows. It is how SDP is run on Leigh's PC for the data-pull issues
 ([#62](https://github.com/lgriffin/SDP/issues/62) onwards).
+
+## On Windows: one script, then the SDP (dev) app
+
+On Windows you can skip everything below. One script installs the tools, fetches the code and builds it,
+and then adds an **SDP (dev)** shortcut. That shortcut opens the desktop app, but running *this checkout's*
+code: it starts and stops PostgreSQL for you, prepares the database, registers the archives on its first
+start, and serves the app. **Time:** about 15 minutes the first time, mostly downloads.
+
+Open **PowerShell** (not as administrator) and paste:
+
+```powershell
+irm https://raw.githubusercontent.com/lgriffin/SDP/main/setup-dev.ps1 -OutFile $env:TEMP\setup-dev.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\setup-dev.ps1 -Checkout D:\code\SDP -Data D:\SDP -Signer yourname -Launch
+```
+
+- `-Checkout` is where the code goes, and `-Data` is where your database, downloads and ledger go. Keep
+  the two apart. Without `-Data`, the data goes to `%LOCALAPPDATA%\SDP-dev`, which is separate from the
+  installed app's folder.
+- `-Signer yourname` makes a signing key for the signed steps (see [below](#a-signing-key-only-for-signed-steps)).
+  Leave it out if you only explore.
+- winget may ask once for permission while it installs Git or Node.js.
+- **Already set up by hand?** Run the copy in your checkout with your old settings file. It reads your
+  database address and folders from that file, so nothing moves:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File D:\code\SDP\setup-dev.ps1 -Data D:\SDP -ImportEnv D:\SDP\sdp-env.cmd -Launch`
+
+**Success:** the SDP (dev) window shows the Start page within a minute or two. On the first start the
+archives are registered behind it, which takes about 3 more minutes before plans can be drafted (the app
+tells you if that fails). Later starts take seconds.
+
+In the app, the **Developer** menu has these items:
+
+| Item | What it does |
+|---|---|
+| Open the developer prompt (Ctrl+Shift+P) | A Command Prompt in the checkout, already connected to the running app. Type `sdp ...` directly, with no `uv run` and no settings file. `pnpm --filter @sdp/evidence-ui dev` there serves the UI with live reload. |
+| Update and restart | Closes the app, pulls the current branch (only when nothing is uncommitted), runs `uv sync`, `pnpm install` and the UI build, then opens the app again |
+| Register the archives again | `sdp integration register`, for when a release adds an archive |
+| Open the checkout, data or log folder | Opens the folder in Explorer |
+
+A Python change takes effect the next time you open the app, with no staging or rebuild. A UI change
+needs **Update and restart**, or `pnpm --filter @sdp/evidence-ui build` in the developer prompt. Settings
+of your own (for example `SDP_GAIA_SOURCE`) go in `desktop-dev.json` in the data folder, under `"env"`.
+The script keeps that file when you run it again.
+
+The rest of this page is the manual route. It is the only route on Linux and macOS, and it shows what
+the script does for you on Windows.
+
+## The manual route
 
 You will set up four things:
 
