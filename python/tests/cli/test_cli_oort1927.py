@@ -86,7 +86,11 @@ def test_a_run_reads_the_whole_sky_from_the_bulk_copy_and_skips_rvs_until_it_is_
     truth = o.oort_constants(r0_kpc=8.0, v0_km_s=220.0, slope=0.0)
     assert report["proper_motions"]["baseline"]["A"]["value"] == pytest.approx(truth["A"], rel=0.07)
     assert "sdp archive bulk --subset rvs" in report["radial_velocities"]["not_run"]
-    assert "quick look" in (out / "report.md").read_text("utf-8")
+    md = (out / "report.md").read_bytes()
+    assert "quick look" in md.decode("utf-8-sig")
+    # #201: UTF-8 with a byte-order mark, so Windows tools do not show ± as Â±.
+    assert md.startswith(b"\xef\xbb\xbf")
+    assert "±" in md.decode("utf-8-sig") and "Â" not in md.decode("utf-8-sig")
 
 
 @pytest.mark.req("STL-018")

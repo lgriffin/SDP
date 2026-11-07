@@ -36,7 +36,7 @@ def test_packaged_schemas_are_the_source_schemas() -> None:
 @pytest.mark.req("CTR-003")
 @pytest.mark.parametrize(("name", "path"), fixtures("valid"), ids=lambda v: getattr(v, "stem", v))
 def test_valid_fixtures_are_accepted(name: str, path: Path) -> None:
-    document = json.loads(path.read_text())
+    document = json.loads(path.read_text(encoding="utf-8"))
     model = load(name, document)
     assert isinstance(model, MODELS[name])
 
@@ -44,7 +44,7 @@ def test_valid_fixtures_are_accepted(name: str, path: Path) -> None:
 @pytest.mark.req("CTR-003")
 @pytest.mark.parametrize(("name", "path"), fixtures("invalid"), ids=lambda v: getattr(v, "stem", v))
 def test_invalid_fixtures_are_rejected_at_the_expected_path(name: str, path: Path) -> None:
-    document = json.loads(path.read_text())
+    document = json.loads(path.read_text(encoding="utf-8"))
     expected = json.loads(path.with_suffix("").with_suffix(".expect.json").read_text())["path"]
     with pytest.raises(ContractViolation) as caught:
         load(name, document)

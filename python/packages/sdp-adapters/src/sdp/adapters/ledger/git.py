@@ -53,7 +53,7 @@ def read_allowed_signers(path: Path) -> dict[str, Ed25519PublicKey]:
     signers: dict[str, Ed25519PublicKey] = {}
     if not path.exists():
         return signers
-    for number, raw in enumerate(path.read_text().splitlines(), start=1):
+    for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -95,7 +95,7 @@ class GitSignedLedger:
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
-        with (self.root / ".lock").open("a+") as handle:
+        with (self.root / ".lock").open("a+", encoding="utf-8") as handle:
             if sys.platform == "win32":
                 import msvcrt
 
@@ -121,7 +121,7 @@ class GitSignedLedger:
         for kind in _KINDS:
             path = self.path(kind)
             if path.exists():
-                for line in path.read_text().splitlines():
+                for line in path.read_text("utf-8").splitlines():
                     if line.strip():
                         entries.append(LedgerEntry.from_document(json.loads(line)))
         return sorted(entries, key=lambda e: e.sequence)

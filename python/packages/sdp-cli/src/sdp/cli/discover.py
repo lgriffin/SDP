@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import time
+from collections import Counter
 from collections.abc import Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from pathlib import Path
@@ -665,7 +666,17 @@ def discover_audit(
     (folder / "_claims.json").write_text(
         json.dumps(sorted(_claim_file(c.claim_id) for c, _ in picked), indent=0), "utf-8"
     )
-    todo = [(c, g) for c, g in picked if not (out / _claim_file(c.claim_id)).exists()]
+    # a claim is done once it has a verdict; an unassessable one is tried again, because what made it so
+    # (a catalogue column, prepared stars) may have been put right since (#195), and it costs no search
+    retried = 0
+    todo = []
+    for c, g in picked:
+        stored = out / _claim_file(c.claim_id)
+        if stored.exists():
+            if _verdict(stored) != "unassessable":
+                continue
+            retried += 1
+        todo.append((c, g))
     if catalogue:
         todo = [(c, g) for c, g in todo if c.catalogue in catalogue]
     if limit is not None:
@@ -673,7 +684,8 @@ def discover_audit(
     singles = sum(1 for _, g in picked if g == "single")
     _say(
         f"{len(every):,} catalogued clusters; {singles:,} claimed by one catalogue only and "
-        f"{len(picked) - singles:,} control clusters to audit; {len(todo):,} to do now."
+        f"{len(picked) - singles:,} control clusters to audit; {len(todo):,} to do now"
+        + (f", {retried:,} of them unassessable last time and tried again." if retried else ".")
     )
     tile_deg = float(settings["tile_deg"])
     # claims grouped by distance shell and prepared band, so each band's stars are read once
@@ -736,6 +748,11 @@ def discover_audit(
 
     with ProcessPoolExecutor(max_workers=workers, mp_context=_spawn()) as pool:
         run_all(pool, jobs())
+    # judged over every claim the folder holds, not this run's alone: a resume retries only the
+    # unassessable ones, so this run's share says nothing about the audit
+    warning = folder_warning(out)
+    if warning:
+        _say(f"WARNING: {warning}")
     _emit(
         {
             "label": "EXPLORATORY",
@@ -744,11 +761,41 @@ def discover_audit(
             "verdicts_this_run": dict(sorted(verdicts.items())),
             "failed": failed,
             "seconds": round(time.monotonic() - started, 1),
+            **({"warning": warning} if warning else {}),
             "next": "run the audit again to retry the failed claims" if failed else "sdp discover audit-report",
         }
     )
     if failed:
         raise typer.Exit(1)
+
+
+#: above this share of unassessable claims an audit says it measured little (#195)
+UNASSESSABLE_WARNING = 0.5
+
+
+def _verdict(path: Path) -> str | None:
+    try:
+        return str(json.loads(path.read_text("utf-8")).get("verdict"))
+    except (OSError, ValueError):
+        return None  # a half-written file is not a verdict: the claim runs again
+
+
+def folder_warning(claims_folder: Path) -> str | None:
+    """``mostly_unassessable`` over every verdict stored in an audit's claims folder."""
+    stored = (_verdict(p) for p in claims_folder.glob("*.json"))
+    return mostly_unassessable(dict(Counter(v for v in stored if v is not None)))
+
+
+def mostly_unassessable(verdicts: dict[str, int]) -> str | None:
+    """A sentence when most claims could not be assessed, so a run that measured nothing does not read as done."""
+    total = sum(verdicts.values())
+    blind = verdicts.get("unassessable", 0)
+    if not total or blind / total <= UNASSESSABLE_WARNING:
+        return None
+    return (
+        f"{blind:,} of {total:,} claims ({blind / total:.0%}) are unassessable, so this audit says little; "
+        "audit.csv's reasons column says why (a catalogue without parallaxes, or no prepared stars)"
+    )
 
 
 @discover_app.command("audit-report")
@@ -775,6 +822,10 @@ def discover_audit_report(
     summary["claims_owed"] = len(owed)
     summary["claims_done"] = len(owed & {p.name for p in files})
     summary["complete"] = bool(owed) and summary["claims_done"] == len(owed)
+    warning = mostly_unassessable(dict(Counter(str(r["verdict"]) for r in results)))
+    if warning:
+        summary["warning"] = warning
+        _say(f"WARNING: {warning}")
     if not summary["complete"]:
         _say(
             f"The audit is not finished: {summary['claims_done']} of {len(owed)} claims done. "

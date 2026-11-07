@@ -42,16 +42,16 @@ def today() -> date:
 
 def ads_transport() -> Transport:
     """Live ADS, at most one search a second; tests replace this."""
-    from sdp.adapters.archives.transport import PoliteTransport, UrllibTransport
+    from sdp.adapters.archives.transport import ARCHIVE_RETRY, PoliteTransport, UrllibTransport
 
-    return PoliteTransport(UrllibTransport(timeout_s=120.0), min_seconds_between_calls=1.0)
+    return PoliteTransport.with_policy(UrllibTransport(timeout_s=120.0), ARCHIVE_RETRY)
 
 
 def mast_transport() -> Transport:
     """Live MAST TAP; tests replace this."""
-    from sdp.adapters.archives.transport import PoliteTransport, UrllibTransport
+    from sdp.adapters.archives.transport import ARCHIVE_RETRY, PoliteTransport, UrllibTransport
 
-    return PoliteTransport(UrllibTransport(timeout_s=600.0), min_seconds_between_calls=1.0)
+    return PoliteTransport.with_policy(UrllibTransport(timeout_s=600.0), ARCHIVE_RETRY)
 
 
 def ads_token() -> str:

@@ -7,6 +7,20 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
 out="$here/resources/sdp"
+# WSL reports Linux, so from a Windows checkout it would stage Linux Postgres and Python without a
+# word (#194). Stop and name the bash to use instead.
+if [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]] || grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+  if [[ "${SDP_STAGE_ALLOW_WSL:-0}" != 1 ]]; then
+    cat >&2 <<'MSG'
+stage.sh: this is WSL's bash, which would stage the Linux build. For the Windows app use Git Bash:
+  pnpm --filter @sdp/desktop stage
+or
+  & "C:\Program Files\Git\bin\bash.exe" typescript/apps/sdp-desktop/scripts/stage.sh
+(To stage a Linux build inside WSL on purpose, set SDP_STAGE_ALLOW_WSL=1.)
+MSG
+    exit 1
+  fi
+fi
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) platform=windows-x64 ;;
   Linux) platform=linux-x64 ;;

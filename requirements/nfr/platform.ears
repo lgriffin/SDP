@@ -108,3 +108,25 @@ requirements:
     traces:
       - "python/tests.integration.test_adapters_specific::test_gpu_telemetry_parses_nvidia_smi_and_is_empty_without_a_gpu"
       - "python/tests.integration.test_adapters_specific::test_tracker_writes_prometheus_gauges_per_experiment"
+  - id: NFR-011
+    pattern: event
+    text: "When a person starts SDP's local PostgreSQL, the platform shall start it on the database address's port on loopback only, and set aside a stale postmaster.pid only when no server runs on the data folder and nothing holds the port."
+    rationale: "After an unclean exit the portable PostgreSQL was down with a stale pid file and no documented way back (#198). sdp db start|stop|status does it, waiting through crash recovery."
+    verification: test
+    tiers: [T0]
+    status: approved
+    traces:
+      - "python/tests.unit.adapters.test_local_postgres::test_a_stale_pid_file_is_moved_aside_and_the_server_started_on_the_urls_port"
+      - "python/tests.unit.adapters.test_local_postgres::test_a_pid_file_is_kept_when_another_server_holds_the_port"
+      - "python/tests.unit.adapters.test_local_postgres::test_a_running_server_is_left_alone"
+      - "python/tests.unit.adapters.test_local_postgres::test_an_unreachable_database_message_names_the_address_and_the_command"
+  - id: NFR-012
+    pattern: ubiquitous
+    text: "The platform shall read and write every text file with a named encoding, and write each Markdown report as UTF-8 with a byte-order mark."
+    rationale: "On Windows the default is the ANSI code page: the git ledger was read back in cp1252, and reports showed ± as Â± in PowerShell 5.1 and Notepad (#201)."
+    verification: test
+    tiers: [T0]
+    status: approved
+    traces:
+      - "python/tests.unit.test_text_encoding::test_text_io_names_its_encoding"
+      - "python/tests.unit.test_text_encoding::test_a_markdown_report_round_trips_plus_minus"

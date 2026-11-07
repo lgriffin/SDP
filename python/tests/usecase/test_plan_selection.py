@@ -192,3 +192,46 @@ def test_a_listing_cut_at_the_gateways_row_limit_is_refused_not_planned_as_compl
     gateway.max_records = len(LISTED)
     with pytest.raises(IntegrationRefused, match="its limit of 8"):
         plan_with(gateway, profile())
+
+
+def test_the_shipped_image_contradictions_selection_drafts_under_the_request_cap_over_m16() -> None:
+    # #200: over M16 MAST lists about 400 combined mosaics within 3 arcmin, and a plan may ask MAST 200
+    # times at most (DEFAULT_BUDGET). With the shipped profile's selection the default invocation drafts.
+    from pathlib import Path
+
+    import yaml
+
+    from sdp.kernel.application.planning import DEFAULT_BUDGET
+
+    shipped = TestProfile.from_document(
+        yaml.safe_load(
+            (Path(__file__).resolve().parents[3] / "profiles" / "image-contradictions.yaml").read_text("utf-8")
+        )
+    )
+    (mast,) = [a for a in shipped.archives if a.source_id == "mast"]
+    assert mast.select is not None
+    # 400 HST mosaics in 40 filters, ten visits each
+    names = [f"hst_{n}_01_wfc3_uvis_f{100 + n % 40:03d}n_ick{n:03d}_drc.fits" for n in range(400)]
+    listed = tuple(
+        record(name, "HST", "WFC3/UVIS", f"F{100 + n % 40:03d}N", mjd=56000.0 + n) for n, name in enumerate(names)
+    )
+    gateway = CostingArchive(
+        MAST,
+        "mast:caom",
+        records=listed,
+        products={r.record.product.product_id: b"" for r in listed},
+        costs={name.removesuffix(".fits"): CutoutCost(MB, MB) for name in names},
+    )
+    deployment = replace(DEFAULT_BUDGET, min_nas_headroom_bytes=0)
+    base = profile()
+    selecting = replace(base, archives=tuple(replace(a, select=mast.select) for a in base.archives))
+    k = slice_kernel(gateway)
+    assert k.kernel.plan_investigation is not None
+    plan = k.kernel.plan_investigation.execute(PlanInvestigationCommand(jwst_field(), selecting, deployment, seed=1))
+    kept = sum(1 for i in plan.items if i.source_id == MAST)
+    cap = mast.select.max_products
+    assert cap is not None and 0 < kept <= cap <= deployment.max_requests_per_source
+    # the same listing without the selection is what failed on 2026-11-04
+    plain = replace(base, archives=tuple(replace(a, select=None) for a in base.archives))
+    with pytest.raises(IntegrationRefused, match="cannot exceed 200 requests per source: " + MAST):
+        k.kernel.plan_investigation.execute(PlanInvestigationCommand(jwst_field(), plain, deployment, seed=1))

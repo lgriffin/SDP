@@ -11,7 +11,7 @@
     "compile": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "stage": "bash scripts/stage.sh",
+    "stage": "node scripts/stage.mjs",
     "smoke": "node dist/smoke.js",
     "start": "node node_modules/electron/install.js && pnpm compile && electron .",
     "dist": "pnpm compile && electron-builder --config electron-builder.yml"

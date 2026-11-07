@@ -24,6 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Shell scripts keep LF endings (#193)
+        run: |
+          bad=$(git ls-files -z '*.sh' '*.bash' | xargs -0 -r grep -l $'\r' || true)
+          [ -z "$bad" ] || { echo "CRLF in: $bad"; exit 1; }
+          notlf=$(git ls-files '*.sh' '*.bash' | git check-attr --stdin eol | grep -v ': eol: lf$' || true)
+          [ -z "$notlf" ] || { echo ".gitattributes must give these eol=lf: $notlf"; exit 1; }
       - name: Contract fixtures and draft predeclarations
         run: uv run --no-project --with jsonschema --with referencing python contracts/tools/check_fixtures.py
       - uses: pnpm/action-setup@v4
@@ -287,8 +293,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @sdp/desktop compile
+      - name: Harness scripts parse, and each run gets its own worktree (#196)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File harness\tests\run-checkout.tests.ps1
       - name: Stage the UI, Python with the SDP packages, PostgreSQL 16 and the repository data
-        run: bash typescript/apps/sdp-desktop/scripts/stage.sh
+        # the same command a person types in PowerShell; it finds Git Bash itself (#194)
+        run: pnpm --filter @sdp/desktop stage
       - name: Smoke test on Windows (fresh database, migrations, sdp-api, UI home page, clean stop)
         run: pnpm --filter @sdp/desktop smoke
       - name: One-click installer
