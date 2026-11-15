@@ -265,7 +265,14 @@ def grid_from_files(files: Iterable[MistFile], settings: Mapping[str, Any]) -> G
         raise MistFormatError(f"no isochrone in the age range log10(age/yr) {lo} to {hi}")
     cols = {k: np.concatenate(v) for k, v in parts.items()}
     cols["log_age"] = np.round(cols["log_age"], 4)
+    shared["columns"] = columns_key(settings)
     return Grid(np.concatenate(fehs), cols, shared)
+
+
+def columns_key(settings: Mapping[str, Any]) -> str:
+    """The settings' MIST column choice as stored in a grid's metadata, so a grid built with another
+    choice (say the DR2 instead of the EDR3 Gaia bands) is never read as this one."""
+    return json.dumps({k: settings["columns"][k] for k in FIELDS}, sort_keys=True, separators=(",", ":"))
 
 
 # --- photometry, extinction and distance -----------------------------------------------------------
