@@ -10,7 +10,7 @@
       "Choi et al. 2016, ApJ 823, 102 (MIST I: the models)",
       "Paxton et al. 2011, ApJS 192, 3 and later MESA instrument papers"
     ],
-    "note": "The grid's Gaia bands are MIST's DR2 revised passbands (Gaia_G_DR2Rev and so on); Gaia DR3 photometry is on slightly different passbands, a difference of a few hundredths of a magnitude that the colour and magnitude floors below absorb."
+    "note": "The tarball's .iso.cmd files carry Gaia EDR3 passbands (Gaia_G_EDR3, Gaia_BP_EDR3, Gaia_RP_EDR3), which Gaia DR3 photometry shares, beside the older DR2 and MAW ones; SDP reads the EDR3 columns. Header and columns checked against the real tarball on 2026-11-15."
   },
   "columns": {
     "eep": "EEP",
@@ -21,9 +21,9 @@
     "log_g": "log_g",
     "log_l": "log_L",
     "phase": "phase",
-    "g": "Gaia_G_DR2Rev",
-    "bp": "Gaia_BP_DR2Rev",
-    "rp": "Gaia_RP_DR2Rev"
+    "g": "Gaia_G_EDR3",
+    "bp": "Gaia_BP_EDR3",
+    "rp": "Gaia_RP_EDR3"
   },
   "grid": {
     "log_age_min": 6.5,

@@ -198,3 +198,21 @@ def test_field_stars_get_a_mass_and_an_age_range_each(data: Path, tmp_path: Path
         report["stars"] == 3 and report["grid"]["mist_version"] == "1.2" and len(report["grid"]["source_sha256"]) == 64
     )
     assert json.loads(out.with_suffix(".json").read_text("utf-8")) == report
+
+
+@pytest.mark.req("STL-036")
+def test_a_grid_built_with_other_columns_is_refused_until_it_is_built_again(data: Path, tmp_path: Path) -> None:
+    path = fetched(data, tmp_path)
+    table = pq.read_table(path)
+    meta = dict(table.schema.metadata or {})
+    stale = json.loads(meta[b"sdp.columns"])
+    stale.update({"g": "Gaia_G_DR2Rev", "bp": "Gaia_BP_DR2Rev", "rp": "Gaia_RP_DR2Rev"})
+    meta[b"sdp.columns"] = json.dumps(stale).encode()
+    pq.write_table(table.replace_schema_metadata(meta), path)
+    refused = runner.invoke(cli.app, ["isochrones", "fit", "--stars", str(stars_csv(tmp_path / "s.csv"))])
+    assert refused.exit_code != 0 and "other MIST columns" in str(refused.exception)
+    pq.write_table(table.replace_schema_metadata({k: v for k, v in meta.items() if k != b"sdp.columns"}), path)
+    unrecorded = runner.invoke(cli.app, ["isochrones", "fit", "--stars", str(tmp_path / "s.csv")])
+    assert unrecorded.exit_code != 0 and "not recorded" in str(unrecorded.exception)
+    fetched(data, tmp_path)  # built again from the same tarball, it is read
+    assert cmd.load_grid().meta["columns"] == iso.columns_key(quick())

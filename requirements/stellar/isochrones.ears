@@ -14,6 +14,7 @@ requirements:
       - "python/tests.stellar.test_isochrones::test_a_file_that_breaks_the_layout_is_refused_with_the_line"
       - "python/tests.stellar.test_isochrones::test_the_grid_keeps_the_settings_columns_in_the_age_range_and_refuses_reddened_or_mixed_files"
       - "python/tests.stellar.test_isochrones::test_the_grid_survives_a_round_trip_through_its_stored_table"
+      - "python/tests.stellar.test_isochrones::test_the_real_mist_v12_header_and_its_gaia_edr3_columns_are_read"
   - id: STL-034
     pattern: ubiquitous
     text: "The stellar module shall fit a cluster's members with the MIST isochrone, extinction and distance modulus that minimise their capped error-weighted distances in the Gaia colour-magnitude plane plus a parallax prior, and report each parameter's grid profile range and the share of members on the isochrone."
@@ -54,5 +55,6 @@ requirements:
       - "python/tests.cli.test_cli_isochrones::test_a_fit_writes_a_header_a_row_per_cluster_a_table_per_cluster_and_its_plots"
       - "python/tests.cli.test_cli_isochrones::test_a_fit_needs_exactly_one_source_of_clusters_and_the_stars_columns"
       - "python/tests.cli.test_cli_isochrones::test_field_stars_get_a_mass_and_an_age_range_each"
+      - "python/tests.cli.test_cli_isochrones::test_a_grid_built_with_other_columns_is_refused_until_it_is_built_again"
       - "python/tests.cli.test_cli_companions::test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid"
       - "python/tests.stellar.test_isochrones::test_a_screen_with_a_grid_adds_isochrone_masses_and_flags_a_partner_heavier_than_any_living_star"

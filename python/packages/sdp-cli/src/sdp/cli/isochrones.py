@@ -85,12 +85,19 @@ def read_tarball(path: Path, suffix: str) -> Iterator[tuple[str, str]]:
 def load_grid(path: Path | None = None) -> Grid:
     import pyarrow.parquet as pq
 
-    from sdp_stellar.isochrones import Grid
+    from sdp_stellar.isochrones import Grid, columns_key, load_settings
 
     path = path or folder() / GRID_FILE
     if not path.exists():
         raise DomainError(f"no isochrone grid at {path}; run `sdp isochrones fetch` first")
-    return Grid.from_table(pq.read_table(path))
+    grid = Grid.from_table(pq.read_table(path))
+    if grid.meta.get("columns") != columns_key(load_settings()):
+        raise DomainError(
+            f"the grid at {path} was built with other MIST columns than the settings name "
+            f"({grid.meta.get('columns') or 'not recorded'}); build it again with `sdp isochrones fetch` "
+            "(it reuses the downloaded tarball), or run harness\\run-isochrones.ps1 -Refetch"
+        )
+    return grid
 
 
 @isochrones_app.command("fetch")

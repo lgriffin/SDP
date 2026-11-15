@@ -44,10 +44,10 @@ another photometric system or MESA revision, or a table without the expected Gai
 with the reason. The header is read in the layout of MIST's own reader (`read_mist_models.py`: the
 photometric system after `=` on line 3, A_V at the end of line 9).
 
-The grid's Gaia bands are MIST's revised DR2 passbands (`Gaia_G_DR2Rev` and so on). Gaia DR3 photometry
-uses slightly different passbands; the difference, a few hundredths of a magnitude, is inside the fit's
-colour and magnitude floors. The column names in the settings are taken from MIST's README; the first
-real `fetch` on the PC confirms them (a missing column stops it and lists the columns the file has).
+The tarball's files carry three sets of Gaia bands (DR2 revised, MAW, and EDR3); SDP reads the EDR3
+ones (`Gaia_G_EDR3`, `Gaia_BP_EDR3`, `Gaia_RP_EDR3`), the passbands Gaia DR3 photometry uses. The header
+layout and the column names were checked against the real tarball on 2026-11-15 (A_V sits on a line
+`# CCM89 extinction: Av =  0.000`), and a test keeps the first lines of a real file verbatim.
 
 ## How a cluster is fitted
 
@@ -135,10 +135,11 @@ checkpoint).
 
 * The extinction is one ratio per band; real Gaia extinction depends on a star's colour, a few per cent
   for A_V of a few magnitudes.
+* The grid is MIST v1.2 (MESA revision 7503).
 * MIST rotating models (v/vcrit 0.4) at solar-scaled [alpha/Fe] only; no grid of other rotation rates.
 * Unresolved binaries are capped, not modelled; a cluster rich in binaries fits with a smaller
   `on_isochrone_share`.
 * White dwarfs are not in the fit phases, so a white dwarf member is off the line and gets no mass.
 * The profile ranges are not calibrated confidence intervals.
 * The tests use invented isochrones in MIST's layout (`python/tests/stellar/mist_toy.py`), because the
-  sandbox that wrote this cannot reach mist.science; the first real run is the PC's.
+  sandbox that wrote this cannot reach mist.science, plus the first lines of one real file.

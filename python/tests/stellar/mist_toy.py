@@ -12,7 +12,7 @@ import numpy as np
 
 NAMES = (
     "EEP", "log10_isochrone_age_yr", "initial_mass", "star_mass", "log_Teff", "log_g", "log_L",
-    "[Fe/H]_init", "[Fe/H]", "Gaia_G_DR2Rev", "Gaia_BP_DR2Rev", "Gaia_RP_DR2Rev", "Gaia_G_MAW", "phase",
+    "[Fe/H]_init", "[Fe/H]", "Gaia_G_DR2Rev", "Gaia_G_EDR3", "Gaia_BP_EDR3", "Gaia_RP_EDR3", "phase",
 )  # fmt: skip
 AGES = tuple(round(6.5 + 0.05 * i, 2) for i in range(74))  # 6.5 .. 10.15
 FEHS = (-0.5, -0.25, 0.0, 0.25)
@@ -49,29 +49,28 @@ def toy_isochrone(feh: float, log_age: float) -> dict[str, np.ndarray]:
         "log_L": (4.8 - g) / 2.5,
         "[Fe/H]_init": np.full(mi.size, feh),
         "[Fe/H]": np.full(mi.size, feh),
-        "Gaia_G_DR2Rev": g,
-        "Gaia_BP_DR2Rev": bp,
-        "Gaia_RP_DR2Rev": bp - col,
-        "Gaia_G_MAW": g + 0.01,
+        "Gaia_G_DR2Rev": g + 0.01,
+        "Gaia_G_EDR3": g,
+        "Gaia_BP_EDR3": bp,
+        "Gaia_RP_EDR3": bp - col,
         "phase": phase,
     }
 
 
 def toy_cmd_text(feh: float, ages: Sequence[float] = AGES, av: float = 0.0, names: Sequence[str] = NAMES) -> str:
     rule = "# " + "-" * 86
-    # the header layout of MIST's own reader (MIST_codes read_mist_models.py, ISOCMD): line 3 holds
-    # the photometric system after "=", lines 5-6 the composition, line 8 the number of isochrones and
-    # line 9 ends with A_V
+    # the header of MIST v1.2's MIST_v1.2_vvcrit0.4_UBVRIplus.iso.cmd files line for line, as read
+    # from the real tarball on 2026-11-15 (only [Fe/H], Zinit and A_V change between files)
     out = [
         "# MIST version number  = 1.2",
         "# MESA revision number =     7503",
-        "# photometric system   = UBV(RI)c + 2MASS + Kepler + Hipparcos + Gaia (DR2/MAW)",
+        "# photometric system   = UBV(RI)c, 2MASS, Kepler, Hipparcos, Gaia (Vega)                 ",
         rule,
         "#  Yinit        Zinit   [Fe/H]   [a/Fe]  v/vcrit",
         f"#  0.2703  1.42857E-02  {feh:7.2f}     0.00     0.40",
         rule,
         f"# number of isochrones = {len(ages):4d}",
-        f"# Av = {av:6.4f}",
+        f"# CCM89 extinction: Av = {av:6.3f}",
         rule,
     ]
     for age in ages:
@@ -104,10 +103,10 @@ def cluster(
 
     rng = np.random.default_rng(seed)
     iso = toy_isochrone(feh, log_age)
-    on_ms = np.nonzero((iso["phase"] == 0) & (iso["Gaia_G_DR2Rev"] + modulus < 18.5))[0]
+    on_ms = np.nonzero((iso["phase"] == 0) & (iso["Gaia_G_EDR3"] + modulus < 18.5))[0]
     rows = np.concatenate([rng.choice(on_ms, n - 3), rng.choice(np.nonzero(iso["phase"] == 2)[0], 3)])
-    col = iso["Gaia_BP_DR2Rev"][rows] - iso["Gaia_RP_DR2Rev"][rows]
-    g = iso["Gaia_G_DR2Rev"][rows]
+    col = iso["Gaia_BP_EDR3"][rows] - iso["Gaia_RP_EDR3"][rows]
+    g = iso["Gaia_G_EDR3"][rows]
     a_g, e = extinction(av, settings)
     g_obs = g + modulus + float(a_g)
     c_obs = col + float(e)
