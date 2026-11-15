@@ -1,0 +1,745 @@
+"""IsochroneFit: MIST isochrones fitted to a cluster's Gaia colour-magnitude diagram, and stellar masses
+read off them (STL-033 to STL-036). EXPLORATORY.
+
+MIST (MESA Isochrones and Stellar Tracks; Dotter 2016, Choi et al. 2016) is a grid of stellar models
+computed with MESA. Each evolutionary track is resampled onto equivalent evolutionary points (EEPs:
+the zero-age main sequence, the end of core hydrogen burning, the tip of the red giant branch and so
+on), so stars of different masses can be compared point for point, and an isochrone is the set of EEPs
+reached by every mass at one age. MIST publishes the isochrones with synthetic photometry in ``.iso.cmd``
+files: a header block of global values (MIST version, MESA revision, photometric system, the initial
+composition, Av and Rv), then one table per age. SDP reads those files as published, keeps the columns
+it needs and records where they came from.
+
+A star cluster is one age, one composition and one distance, so its members lie along one isochrone.
+The fit finds the age, [Fe/H], extinction A_V and distance modulus that put the members closest to one,
+by a grid search over the MIST ages and metallicities and a fine grid in A_V and modulus. Each member's
+distance to the isochrone is measured in the colour-magnitude plane in units of its error (a smooth
+model by G plus a floor), capped so that binaries and interlopers cannot pull the fit, and the cluster's
+mean parallax adds a prior on the modulus. The result is the best grid point and, per parameter, the
+range whose best cost lies within ``profile_delta`` of the minimum: a grid profile, not a calibrated
+confidence interval.
+
+Masses: a member's mass is the mass of the nearest point of the cluster's best isochrone. The heaviest
+star still alive at the cluster's age (the largest current mass on the isochrone) bounds any partner
+that is itself a normal cluster star; a partner heavier than that is a remnant, a merger product, or
+not coeval with the cluster. A field star has no cluster age, so its mass and age come from weights
+over every grid point of one metallicity, with a Kroupa initial mass function and a prior uniform in
+age.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import itertools
+import json
+import math
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
+from importlib import resources
+from typing import Any
+
+import numpy as np
+import pyarrow as pa
+from numpy.typing import NDArray
+from scipy.spatial import cKDTree
+
+SETTINGS_FILE = "isochrones.json"
+SCHEMA = "sdp-stellar/isochrone-fit@1"
+#: the grid's columns, in the settings' names; every one is stored
+FIELDS = ("eep", "log_age", "initial_mass", "star_mass", "log_teff", "log_g", "log_l", "phase", "g", "bp", "rp")
+#: global values each stored grid carries in its metadata
+META_KEYS = ("mist_version", "mesa_revision", "photometric_system", "vvcrit", "afe", "source_url", "source_sha256")
+
+Array = NDArray[np.float64]
+
+
+class MistFormatError(ValueError):
+    """A file that is not a MIST ``.iso.cmd`` table as SDP expects it."""
+
+
+def settings_text() -> str:
+    return resources.files("sdp_stellar").joinpath(SETTINGS_FILE).read_text("utf-8")
+
+
+def load_settings() -> dict[str, Any]:
+    document: dict[str, Any] = json.loads(settings_text())
+    return document
+
+
+def settings_sha256() -> str:
+    return hashlib.sha256(settings_text().encode("utf-8")).hexdigest()
+
+
+# --- reading MIST files ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MistFile:
+    """One ``.iso.cmd`` file: its header values and one column table per isochrone."""
+
+    meta: dict[str, Any]
+    blocks: list[dict[str, Array]]
+
+
+def _value_line(lines: Sequence[str], i: int) -> list[str]:
+    if i >= len(lines) or not lines[i].startswith("#"):
+        raise MistFormatError(f"line {i + 1}: expected a header line of values")
+    return lines[i].lstrip("#").split()
+
+
+def _number(token: str) -> float:
+    try:
+        return float(token.replace("D", "E"))
+    except ValueError:
+        raise MistFormatError(f"{token!r} is not a number") from None
+
+
+def parse_cmd(text: str) -> MistFile:
+    """Read a MIST ``.iso.cmd`` file. The header's labelled values are kept by name (``mist_version``,
+    ``mesa_revision``, ``photometric_system``, ``yinit``, ``zinit``, ``feh``, ``afe``, ``vvcrit``,
+    ``av``, ``rv``); each ``number of EEPs, cols = N M`` line opens a table whose column names are the
+    next header line that is not only column numbers, followed by N rows of M values."""
+    lines = text.splitlines()
+    meta: dict[str, Any] = {}
+    blocks: list[dict[str, Array]] = []
+    labels = {"Yinit": "yinit", "Zinit": "zinit", "[Fe/H]": "feh", "[a/Fe]": "afe", "v/vcrit": "vvcrit"}
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        body = line.lstrip("#").strip()
+        if not line.startswith("#"):
+            if body:
+                raise MistFormatError(f"line {i + 1}: a data row outside any table")
+            i += 1
+            continue
+        lowered = body.lower()
+        if lowered.startswith("mist version number"):
+            meta["mist_version"] = body.split("=", 1)[1].strip()
+        elif lowered.startswith("mesa revision number"):
+            meta["mesa_revision"] = body.split("=", 1)[1].strip()
+        elif lowered.startswith("photometric system"):
+            if "=" in body:  # MIST's layout: the system follows "=" on the same line
+                meta["photometric_system"] = body.split("=", 1)[1].strip()
+            else:
+                j = i + 1
+                while j < len(lines) and set(lines[j].lstrip("#").strip()) <= {"-"}:
+                    j += 1
+                meta["photometric_system"] = lines[j].lstrip("#").strip() if j < len(lines) else ""
+        elif "Yinit" in body.split() and "[Fe/H]" in body.split():
+            names = body.split()
+            values = _value_line(lines, i + 1)
+            if len(values) != len(names):
+                raise MistFormatError(f"line {i + 2}: {len(values)} values for {len(names)} labels")
+            meta.update({labels.get(n, n): _number(v) for n, v in zip(names, values, strict=True)})
+            i += 1
+        elif body.split()[:2] == ["Av", "Rv"]:  # labels on one line, values on the next
+            av, rv = (_number(v) for v in _value_line(lines, i + 1)[:2])
+            meta.update({"av": av, "rv": rv})
+            i += 1
+        elif lowered.startswith("av") and "=" in body:  # MIST's layout: the line ends with A_V
+            meta["av"] = _number(body.split()[-1])
+        elif lowered.startswith("number of eeps, cols"):
+            n_rows, n_cols = (int(t) for t in body.split("=", 1)[1].split())
+            j = i + 1
+            while j < len(lines) and lines[j].startswith("#") and all(t.isdigit() for t in lines[j][1:].split()):
+                j += 1
+            names = _value_line(lines, j)
+            if len(names) != n_cols:
+                raise MistFormatError(f"line {j + 1}: {len(names)} column names, the header says {n_cols}")
+            rows = lines[j + 1 : j + 1 + n_rows]
+            if len(rows) != n_rows or any(not r.strip() or r.startswith("#") for r in rows):
+                raise MistFormatError(f"line {j + 2}: fewer than the {n_rows} rows the header announces")
+            try:
+                data = np.asarray([[float(t) for t in r.split()] for r in rows], dtype=np.float64)
+            except ValueError as exc:
+                raise MistFormatError(f"line {j + 2}: {exc}") from None
+            if data.shape != (n_rows, n_cols):
+                raise MistFormatError(f"line {j + 2}: rows do not all have {n_cols} values")
+            blocks.append({name: data[:, k] for k, name in enumerate(names)})
+            i = j + 1 + n_rows
+            continue
+        i += 1
+    if not blocks:
+        raise MistFormatError("no isochrone tables (no 'number of EEPs, cols' line)")
+    for key in ("feh", "av"):
+        if key not in meta:
+            raise MistFormatError(f"the header has no {key!r} value")
+    return MistFile(meta, blocks)
+
+
+# --- the grid ---------------------------------------------------------------------------------------
+
+
+@dataclass
+class Grid:
+    """Every isochrone kept, as flat columns sorted by [Fe/H], age and EEP, plus where they came from."""
+
+    feh: Array
+    columns: dict[str, Array]
+    meta: dict[str, Any] = field(default_factory=dict)
+    _index: dict[tuple[float, float], slice] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        order = np.lexsort((self.columns["eep"], self.columns["log_age"], self.feh))
+        self.feh = np.asarray(self.feh, dtype=np.float64)[order]
+        self.columns = {k: np.asarray(v, dtype=np.float64)[order] for k, v in self.columns.items()}
+        keys = np.round(self.feh, 4), np.round(self.columns["log_age"], 4)
+        change = np.nonzero((np.diff(keys[0]) != 0) | (np.diff(keys[1]) != 0))[0] + 1
+        starts = np.concatenate([[0], change, [self.feh.size]]).astype(int) if self.feh.size else np.zeros(1, int)
+        self._index = {
+            (float(keys[0][a]), float(keys[1][a])): slice(int(a), int(b)) for a, b in itertools.pairwise(starts)
+        }
+
+    @property
+    def size(self) -> int:
+        return int(self.feh.size)
+
+    def fehs(self) -> list[float]:
+        return sorted({k[0] for k in self._index})
+
+    def ages(self, feh: float) -> list[float]:
+        f = round(float(feh), 4)
+        return sorted(k[1] for k in self._index if k[0] == f)
+
+    def isochrone(self, feh: float, log_age: float) -> dict[str, Array]:
+        """One isochrone's rows, in EEP order; KeyError when the grid has no such point."""
+        s = self._index[(round(float(feh), 4), round(float(log_age), 4))]
+        return {k: v[s] for k, v in self.columns.items()}
+
+    def to_table(self) -> pa.Table:
+        data = {"feh": pa.array(self.feh, pa.float32())}
+        data.update({k: pa.array(self.columns[k], pa.float32()) for k in FIELDS})
+        meta = {f"sdp.{k}": str(v) for k, v in self.meta.items()}
+        return pa.table(data).replace_schema_metadata(meta)
+
+    @classmethod
+    def from_table(cls, table: pa.Table) -> Grid:
+        missing = [c for c in ("feh", *FIELDS) if c not in table.column_names]
+        if missing:
+            raise MistFormatError(f"the stored grid lacks columns {missing}")
+        meta = {k.decode()[4:]: v.decode() for k, v in (table.schema.metadata or {}).items() if k.startswith(b"sdp.")}
+        cols = {k: np.asarray(table.column(k).to_numpy(), dtype=np.float64) for k in FIELDS}
+        # float32 storage: round the keys back to the grid's own steps
+        feh = np.round(np.asarray(table.column("feh").to_numpy(), dtype=np.float64), 3)
+        cols["log_age"] = np.round(cols["log_age"], 3)
+        return cls(feh, cols, meta)
+
+
+def grid_from_files(files: Iterable[MistFile], settings: Mapping[str, Any]) -> Grid:
+    """The kept columns of every isochrone in the settings' age range from files with A_V = 0. All
+    files must share one MIST version and photometric system. [Fe/H] is the file's initial value."""
+    names = settings["columns"]
+    lo, hi = float(settings["grid"]["log_age_min"]), float(settings["grid"]["log_age_max"])
+    fehs: list[Array] = []
+    parts: dict[str, list[Array]] = {k: [] for k in FIELDS}
+    shared: dict[str, Any] = {}
+    seen_feh: set[float] = set()
+    for f in files:
+        if f.meta.get("av", 0.0) != 0.0:
+            raise MistFormatError(f"a file has A_V = {f.meta['av']}; SDP applies extinction itself and needs A_V = 0")
+        feh = round(float(f.meta["feh"]), 4)
+        if feh in seen_feh:
+            raise MistFormatError(f"two files with [Fe/H] = {feh}")
+        seen_feh.add(feh)
+        for key in ("mist_version", "mesa_revision", "photometric_system", "vvcrit", "afe"):
+            if key in f.meta:
+                if key in shared and shared[key] != f.meta[key]:
+                    raise MistFormatError(f"files disagree on {key}: {shared[key]!r} and {f.meta[key]!r}")
+                shared[key] = f.meta[key]
+        for block in f.blocks:
+            absent = [names[k] for k in FIELDS if names[k] not in block]
+            if absent:
+                have = ", ".join(sorted(block)[:60])
+                raise MistFormatError(f"the table has no column {absent}; it has: {have}")
+            age = block[names["log_age"]]
+            keep = (age >= lo - 1e-9) & (age <= hi + 1e-9)
+            if not keep.any():
+                continue
+            for k in FIELDS:
+                parts[k].append(block[names[k]][keep])
+            fehs.append(np.full(int(keep.sum()), feh))
+    if not fehs:
+        raise MistFormatError(f"no isochrone in the age range log10(age/yr) {lo} to {hi}")
+    cols = {k: np.concatenate(v) for k, v in parts.items()}
+    cols["log_age"] = np.round(cols["log_age"], 4)
+    return Grid(np.concatenate(fehs), cols, shared)
+
+
+# --- photometry, extinction and distance -----------------------------------------------------------
+
+
+def extinction(av: float | Array, settings: Mapping[str, Any]) -> tuple[Array, Array]:
+    """(A_G, E(BP-RP)) for an A_V, from the settings' fixed ratios."""
+    e = settings["extinction"]
+    a = np.asarray(av, dtype=np.float64)
+    return a * float(e["a_g_over_a_v"]), a * (float(e["a_bp_over_a_v"]) - float(e["a_rp_over_a_v"]))
+
+
+def photometric_errors(g: Array, settings: Mapping[str, Any]) -> tuple[Array, Array]:
+    """(colour error, G error) of each star, each the quadrature sum of the floor and an error that grows
+    by a factor 10^0.2 per magnitude fainter than G = 15 (photon noise)."""
+    p = settings["photometry"]
+    grow = 10 ** (0.2 * (np.asarray(g, dtype=np.float64) - 15.0))
+    colour = np.hypot(float(p["colour_floor"]), float(p["colour_error_at_g15"]) * grow)
+    mag = np.hypot(float(p["g_floor"]), float(p["g_error_at_g15"]) * grow)
+    return colour, mag
+
+
+def modulus_prior(parallax_mas: float, parallax_err_mas: float, settings: Mapping[str, Any]) -> tuple[float, float]:
+    """The distance modulus a cluster's mean parallax gives, after the zero point, and its error with the
+    systematic floor; ValueError when the corrected parallax is not positive."""
+    p = settings["parallax"]
+    plx = float(parallax_mas) - float(p["zero_point_mas"])
+    if not plx > 0:
+        raise ValueError(f"a corrected parallax of {plx} mas gives no distance")
+    err = math.hypot(float(parallax_err_mas), float(p["systematic_mas"]))
+    return 5.0 * math.log10(100.0 / plx), 5.0 / math.log(10.0) * err / plx
+
+
+# --- the isochrone as a line in the colour-magnitude plane ------------------------------------------
+
+
+@dataclass(frozen=True)
+class Line:
+    """An isochrone's points in absolute G against intrinsic BP-RP, with points added along each segment
+    so no two neighbours are more than ``densify_step`` apart; a segment that changes phase is not
+    filled, so the jump from the red giant tip to the helium-burning clump draws no line."""
+
+    colour: Array
+    mag: Array
+    initial_mass: Array
+    star_mass: Array
+    phase: Array
+    log_age: Array
+
+    @property
+    def size(self) -> int:
+        return int(self.colour.size)
+
+
+def line(iso: Mapping[str, Array], phases: Sequence[int], step: float) -> Line:
+    keep = np.isin(np.round(iso["phase"]).astype(int), list(phases))
+    colour = (iso["bp"] - iso["rp"])[keep]
+    mag = iso["g"][keep]
+    mi, ms, ph, age = iso["initial_mass"][keep], iso["star_mass"][keep], iso["phase"][keep], iso["log_age"][keep]
+    if colour.size < 2:
+        return Line(colour, mag, mi, ms, ph, age)
+    seg = np.hypot(np.diff(colour), np.diff(mag))
+    same = ph[1:] == ph[:-1]
+    pieces = np.where(same, np.maximum(np.ceil(seg / step), 1), 1).astype(int)
+    starts = np.repeat(np.arange(colour.size - 1), pieces)
+    frac = np.concatenate([np.arange(n) / n for n in pieces])
+
+    def fill(x: Array) -> Array:
+        return np.concatenate([x[starts] + frac * (x[starts + 1] - x[starts]), x[-1:]])
+
+    def hold(x: Array) -> Array:
+        return np.concatenate([x[starts], x[-1:]])
+
+    return Line(fill(colour), fill(mag), fill(mi), fill(ms), hold(ph), hold(age))
+
+
+@dataclass
+class _Matcher:
+    """Nearest points of one line for stars with per-star errors."""
+
+    ln: Line
+    scale: tuple[float, float]
+    k: int
+    tree: Any = None
+
+    def __post_init__(self) -> None:
+        pts = np.column_stack([self.ln.colour / self.scale[0], self.ln.mag / self.scale[1]])
+        self.tree = cKDTree(pts)
+
+    def nearest(
+        self, colour: Array, mag: Array, sc: Array, sm: Array, limit: float = math.inf
+    ) -> tuple[Array, NDArray[np.int64]]:
+        """(squared distance in units of each star's errors, index of the nearest line point), exact for
+        every star whose distance is below ``limit`` (beyond it only a value at or above the limit: the
+        fit caps such distances anyway). The tree measures in units of the floors; a star's own errors are never
+        below them, so a point nearer in the star's units lies within sqrt(d2) / rho floor units, rho the
+        smaller of the floor-to-error ratios. Where the k-th neighbour is nearer than that, every point
+        inside that radius is checked too."""
+        k = min(self.k, self.ln.size)
+        q = np.column_stack([colour / self.scale[0], mag / self.scale[1]])
+        dist, idx = self.tree.query(q, k=k, workers=-1)
+        dist, idx = np.asarray(dist).reshape(colour.size, k), np.asarray(idx).reshape(colour.size, k)
+        d2 = ((colour[:, None] - self.ln.colour[idx]) / sc[:, None]) ** 2 + (
+            (mag[:, None] - self.ln.mag[idx]) / sm[:, None]
+        ) ** 2
+        best = np.argmin(d2, axis=1)
+        rows = np.arange(colour.size)
+        out_d2, out_i = d2[rows, best], idx[rows, best]
+        rho = np.minimum(self.scale[0] / sc, self.scale[1] / sm)
+        # a nearer point, or one below the limit, lies within this many floor units
+        radius = np.minimum(np.sqrt(out_d2), limit) / rho * (1.0 + 1e-9)
+        check = np.nonzero((dist[:, -1] < radius) & (k < self.ln.size))[0]
+        if check.size:
+            balls = self.tree.query_ball_point(q[check], radius[check], workers=-1)
+            lens = np.asarray([len(b) for b in balls], dtype=np.int64)
+            star = np.repeat(check, lens)
+            pts = np.fromiter((j for b in balls for j in b), dtype=np.int64, count=int(lens.sum()))
+            dd = ((colour[star] - self.ln.colour[pts]) / sc[star]) ** 2 + (
+                (mag[star] - self.ln.mag[pts]) / sm[star]
+            ) ** 2
+            order = np.lexsort((dd, star))
+            first = order[np.concatenate([[True], np.diff(star[order]) != 0])] if order.size else order
+            better = dd[first] < out_d2[star[first]]
+            out_d2[star[first][better]] = dd[first][better]
+            out_i[star[first][better]] = pts[first][better]
+        return out_d2, out_i
+
+
+# --- fitting a cluster -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Stars:
+    """A cluster's members: observed BP-RP and G and their errors."""
+
+    colour: Array
+    g: Array
+    colour_err: Array
+    g_err: Array
+
+    @classmethod
+    def from_photometry(cls, colour: Array, g: Array, settings: Mapping[str, Any]) -> Stars:
+        c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
+        ok = np.isfinite(c) & np.isfinite(m)
+        ce, ge = photometric_errors(m[ok], settings)
+        return cls(c[ok], m[ok], ce, ge)
+
+    @property
+    def size(self) -> int:
+        return int(self.colour.size)
+
+    def take(self, rows: NDArray[np.int64]) -> Stars:
+        return Stars(self.colour[rows], self.g[rows], self.colour_err[rows], self.g_err[rows])
+
+
+def _costs(
+    matcher: _Matcher, stars: Stars, av: float, moduli: Array, prior: tuple[float, float], settings: Mapping[str, Any]
+) -> Array:
+    """The fit's cost at one A_V for each distance modulus: the members' capped squared distances to the
+    line, summed, plus the parallax prior's term. All moduli are matched in one query."""
+    a_g, e_c = extinction(av, settings)
+    k = moduli.size
+    colour = np.tile(stars.colour - e_c, k)
+    mag = (stars.g[None, :] - a_g - moduli[:, None]).ravel()
+    cap = float(settings["fit"]["outlier_cap"]) ** 2
+    d2, _ = matcher.nearest(colour, mag, np.tile(stars.colour_err, k), np.tile(stars.g_err, k), math.sqrt(cap))
+    out: Array = np.minimum(d2, cap).reshape(k, stars.size).sum(axis=1) + ((moduli - prior[0]) / prior[1]) ** 2
+    return out
+
+
+def _steps(lo: float, hi: float, step: float) -> Array:
+    n = math.floor((hi - lo) / step + 1e-9)
+    return np.round(lo + step * np.arange(n + 1), 6)
+
+
+@dataclass
+class _Search:
+    grid: Grid
+    stars: Stars
+    prior: tuple[float, float]
+    settings: Mapping[str, Any]
+    trials: list[tuple[float, float, float, float, float]] = field(default_factory=list)
+    _lines: dict[tuple[float, float], _Matcher | None] = field(default_factory=dict)
+
+    def matcher(self, feh: float, age: float) -> _Matcher | None:
+        key = (feh, age)
+        if key not in self._lines:
+            fit = self.settings["fit"]
+            ln = line(self.grid.isochrone(feh, age), self.settings["phases"]["fit"], float(fit["densify_step"]))
+            floors = self.settings["photometry"]
+            scale = (float(floors["colour_floor"]), float(floors["g_floor"]))
+            self._lines[key] = _Matcher(ln, scale, int(fit["neighbours"])) if ln.size >= 2 else None
+        return self._lines[key]
+
+    def run(self, fehs: Sequence[float], ages_of: Mapping[float, Sequence[float]], avs: Array, mods: Array) -> None:
+        for feh in fehs:
+            for age in ages_of[feh]:
+                m = self.matcher(feh, age)
+                if m is None:
+                    continue
+                for av in avs:
+                    costs = _costs(m, self.stars, float(av), mods, self.prior, self.settings)
+                    self.trials.extend(
+                        (feh, age, float(av), float(mod), float(c)) for mod, c in zip(mods, costs, strict=True)
+                    )
+
+    def best(self) -> tuple[float, float, float, float, float]:
+        return min(self.trials, key=lambda t: (t[4], t[1], t[0], t[2], t[3]))
+
+
+def fit_cluster(
+    colour: Array,
+    g: Array,
+    parallax_mas: float,
+    parallax_err_mas: float,
+    grid: Grid,
+    settings: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """The best isochrone for a cluster's members (their BP-RP and G) at the distance its mean parallax
+    suggests, or None when fewer than ``min_stars`` members have both. Coarse grid over every [Fe/H] in
+    range, every ``age_coarse_stride``-th age, A_V and modulus; then the neighbouring metallicities, all
+    ages within two coarse steps, and a fine A_V and modulus grid around the coarse best."""
+    s = settings or load_settings()
+    f = s["fit"]
+    stars = Stars.from_photometry(colour, g, s)
+    if stars.size < int(f["min_stars"]):
+        return None
+    if stars.size > int(f["max_fit_stars"]):
+        rng = np.random.default_rng(int(f["seed"]))
+        stars = stars.take(np.sort(rng.choice(stars.size, int(f["max_fit_stars"]), replace=False)))
+    prior = modulus_prior(parallax_mas, parallax_err_mas, s)
+    half = max(float(f["modulus_halfwidth_sigma"]) * prior[1], float(f["modulus_halfwidth_min"]))
+    fehs = [x for x in grid.fehs() if float(f["feh_min"]) - 1e-9 <= x <= float(f["feh_max"]) + 1e-9]
+    if not fehs:
+        raise ValueError(f"the grid has no [Fe/H] between {f['feh_min']} and {f['feh_max']}")
+    search = _Search(grid, stars, prior, s)
+    stride = max(int(f["age_coarse_stride"]), 1)
+    coarse_ages = {x: grid.ages(x)[::stride] for x in fehs}
+    av_c = _steps(0.0, float(f["av_max"]), float(f["av_coarse_step"]))
+    mod_c = _steps(prior[0] - half, prior[0] + half, float(f["modulus_coarse_step"]))
+    search.run(fehs, coarse_ages, av_c, mod_c)
+    feh0, age0, av0, mod0, _ = search.best()
+
+    i = fehs.index(feh0)
+    near_fehs = fehs[max(i - 1, 0) : i + 2]
+    every = grid.ages(feh0)
+    j = every.index(age0)
+    fine_ages = {
+        x: [a for a in grid.ages(x) if every[max(j - 2 * stride, 0)] <= a <= every[min(j + 2 * stride, len(every) - 1)]]
+        for x in near_fehs
+    }
+    av_f = _steps(
+        max(av0 - float(f["av_coarse_step"]), 0.0), av0 + float(f["av_coarse_step"]), float(f["av_fine_step"])
+    )
+    mod_f = _steps(
+        mod0 - float(f["modulus_coarse_step"]), mod0 + float(f["modulus_coarse_step"]), float(f["modulus_fine_step"])
+    )
+    mod_f = mod_f[(mod_f >= prior[0] - half - 1e-9) & (mod_f <= prior[0] + half + 1e-9)]
+    search.run(near_fehs, fine_ages, av_f, mod_f)
+    feh, age, av, mod, cost = search.best()
+
+    best = search.matcher(feh, age)
+    assert best is not None
+    a_g, e_c = extinction(av, s)
+    d2, _ = best.nearest(stars.colour - e_c, stars.g - a_g - mod, stars.colour_err, stars.g_err)
+    iso = grid.isochrone(feh, age)
+    trials = np.asarray(search.trials)
+    return {
+        "schema": SCHEMA,
+        "feh": feh,
+        "log_age": age,
+        "age_myr": round(10 ** (age - 6.0), 3),
+        "av": round(av, 4),
+        "a_g": round(float(a_g), 4),
+        "e_bp_rp": round(float(e_c), 4),
+        "distance_modulus": round(mod, 4),
+        "distance_pc": round(10 ** (mod / 5.0 + 1.0), 2),
+        "parallax_modulus": round(prior[0], 4),
+        "parallax_modulus_err": round(prior[1], 4),
+        "cost": round(cost, 4),
+        "stars_fitted": stars.size,
+        "on_isochrone_share": round(float(np.mean(np.sqrt(d2) <= float(f["inlier_distance"]))), 4),
+        "median_distance": round(float(np.median(np.sqrt(d2))), 4),
+        "ranges": profile_ranges(trials, float(f["profile_delta"])),
+        "turnoff_initial_msun": turnoff_mass(iso),
+        "heaviest_living_msun": heaviest_living(iso),
+        "trials": len(search.trials),
+        "surface": surface(trials),
+    }
+
+
+def profile_ranges(trials: Array, delta: float) -> dict[str, list[float]]:
+    """Per parameter (columns feh, log_age, av, distance_modulus of ``trials``, cost last), the smallest
+    and largest value whose best cost over the others is within ``delta`` of the minimum."""
+    low = float(trials[:, 4].min())
+    out: dict[str, list[float]] = {}
+    for k, name in enumerate(("feh", "log_age", "av", "distance_modulus")):
+        values = np.unique(trials[:, k])
+        best = np.asarray([trials[trials[:, k] == v, 4].min() for v in values])
+        ok = values[best <= low + delta]
+        out[name] = [round(float(ok.min()), 4), round(float(ok.max()), 4)]
+    return out
+
+
+def surface(trials: Array) -> list[dict[str, float]]:
+    """The best cost at each (feh, log_age) tried: the age-metallicity map of the fit."""
+    keys = np.unique(trials[:, :2], axis=0)
+    out = []
+    for feh, age in keys:
+        sel = (trials[:, 0] == feh) & (trials[:, 1] == age)
+        out.append({"feh": float(feh), "log_age": float(age), "cost": round(float(trials[sel, 4].min()), 4)})
+    return out
+
+
+def turnoff_mass(iso: Mapping[str, Array]) -> float | None:
+    """The largest initial mass still on the main sequence (phase 0)."""
+    ms = np.round(iso["phase"]) == 0
+    return round(float(iso["initial_mass"][ms].max()), 4) if ms.any() else None
+
+
+def heaviest_living(iso: Mapping[str, Array]) -> float:
+    """The largest current mass of any star on the isochrone, whatever its phase: no normal star of the
+    cluster can be heavier."""
+    return round(float(iso["star_mass"].max()), 4)
+
+
+# --- masses -------------------------------------------------------------------------------------
+
+
+def member_masses(
+    colour: Array, g: Array, fit: Mapping[str, Any], grid: Grid, settings: Mapping[str, Any] | None = None
+) -> dict[str, Array]:
+    """Each star's distance (in error units) to the fitted isochrone and the phase of its nearest point,
+    whether it is within ``inlier_distance`` of it, and the initial and current mass of that point, but
+    only for a star within ``mass_distance_max``: a star further off (a white dwarf, a photometric
+    binary, an interloper) is not one the isochrone describes, so its masses are NaN. Stars with no
+    colour or G get NaN throughout."""
+    s = settings or load_settings()
+    c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
+    n = c.size
+    out = {k: np.full(n, np.nan) for k in ("initial_mass", "star_mass", "phase", "distance")}
+    ok = np.isfinite(c) & np.isfinite(m)
+    if ok.any():
+        ln = line(
+            grid.isochrone(float(fit["feh"]), float(fit["log_age"])),
+            s["phases"]["fit"],
+            float(s["fit"]["densify_step"]),
+        )
+        floors = s["photometry"]
+        matcher = _Matcher(ln, (float(floors["colour_floor"]), float(floors["g_floor"])), int(s["fit"]["neighbours"]))
+        a_g, e_c = extinction(float(fit["av"]), s)
+        ce, ge = photometric_errors(m[ok], s)
+        d2, idx = matcher.nearest(c[ok] - e_c, m[ok] - a_g - float(fit["distance_modulus"]), ce, ge)
+        near = np.sqrt(d2) <= float(s["fit"]["mass_distance_max"])
+        out["initial_mass"][ok] = np.where(near, ln.initial_mass[idx], np.nan)
+        out["star_mass"][ok] = np.where(near, ln.star_mass[idx], np.nan)
+        out["phase"][ok] = ln.phase[idx]
+        out["distance"][ok] = np.sqrt(d2)
+    out["on_isochrone"] = np.asarray(out["distance"] <= float(s["fit"]["inlier_distance"]), dtype=np.float64)
+    return out
+
+
+def imf_weight(mass: Array, settings: Mapping[str, Any]) -> Array:
+    """Kroupa's broken power law, continuous at the break."""
+    fs = settings["field_stars"]
+    brk = float(fs["imf_break_msun"])
+    a1, a2 = (float(x) for x in fs["imf_slopes"])
+    m = np.asarray(mass, dtype=np.float64)
+    return np.where(m < brk, (m / brk) ** -a1, (m / brk) ** -a2)
+
+
+def _weighted_quantiles(values: Array, weights: Array, qs: Sequence[float]) -> list[float]:
+    order = np.argsort(values)
+    v, w = values[order], weights[order]
+    c = np.cumsum(w)
+    if c[-1] <= 0:
+        return [math.nan] * len(qs)
+    return [float(v[min(int(np.searchsorted(c, q * c[-1])), v.size - 1)]) for q in qs]
+
+
+def field_star_estimates(
+    abs_g: Array,
+    colour0: Array,
+    grid: Grid,
+    settings: Mapping[str, Any] | None = None,
+    feh: float | None = None,
+    apparent_g: Array | None = None,
+    modulus_err: Array | None = None,
+) -> list[dict[str, Any]]:
+    """Mass and age of stars with no cluster, from their absolute G and intrinsic BP-RP: weights over
+    every grid point of the [Fe/H] nearest ``feh`` (default the settings'), each point weighted by the
+    initial mass function times the span of initial mass it stands for, by the age prior, and by a
+    Gaussian likelihood in the star's errors. Each star gets the 16th, 50th and 84th percentiles of
+    initial mass, current mass and log age, the most likely phase, and ``off_grid`` when no point lies
+    within ``off_grid_distance`` errors (a white dwarf, a binary, bad photometry).
+
+    The photometric errors grow with the star's apparent G (``apparent_g``; absolute G when it is not
+    given), and the error of its distance modulus from the parallax (``modulus_err``, magnitudes) adds
+    in quadrature to its G error."""
+    s = settings or load_settings()
+    fs = s["field_stars"]
+    target = float(fs["feh"] if feh is None else feh)
+    chosen = min(grid.fehs(), key=lambda x: (abs(x - target), x))
+    phases = s["phases"]["fit"]
+    pts: dict[str, list[Array]] = {k: [] for k in ("colour", "mag", "mi", "ms", "age", "phase", "w")}
+    for age in grid.ages(chosen):
+        iso = grid.isochrone(chosen, age)
+        keep = np.isin(np.round(iso["phase"]).astype(int), list(phases))
+        if keep.sum() < 2:
+            continue
+        mi = iso["initial_mass"][keep]
+        span = np.abs(np.gradient(mi))
+        prior_age = 10**age if fs["age_prior"] == "uniform-in-age" else 1.0
+        pts["colour"].append((iso["bp"] - iso["rp"])[keep])
+        pts["mag"].append(iso["g"][keep])
+        pts["mi"].append(mi)
+        pts["ms"].append(iso["star_mass"][keep])
+        pts["age"].append(np.full(mi.size, age))
+        pts["phase"].append(iso["phase"][keep])
+        pts["w"].append(imf_weight(mi, s) * span * prior_age)
+    p = {k: np.concatenate(v) for k, v in pts.items()}
+    p["w"] = p["w"] / p["w"].sum()
+    c0, mg = np.asarray(colour0, dtype=np.float64), np.asarray(abs_g, dtype=np.float64)
+    out: list[dict[str, Any]] = []
+    cap = float(fs["off_grid_distance"]) ** 2
+    chunk = int(fs["chunk"])
+    observed = mg if apparent_g is None else np.asarray(apparent_g, dtype=np.float64)
+    ce_all, ge_all = photometric_errors(observed, s)
+    if modulus_err is not None:
+        ge_all = np.hypot(ge_all, np.nan_to_num(np.asarray(modulus_err, dtype=np.float64), nan=0.0))
+    for a in range(0, c0.size, chunk):
+        c, m, ce, ge = c0[a : a + chunk], mg[a : a + chunk], ce_all[a : a + chunk], ge_all[a : a + chunk]
+        d2 = ((c[:, None] - p["colour"][None, :]) / ce[:, None]) ** 2 + (
+            (m[:, None] - p["mag"][None, :]) / ge[:, None]
+        ) ** 2
+        for r in range(c.size):
+            if not (math.isfinite(c[r]) and math.isfinite(m[r])):
+                out.append({"feh": chosen, "off_grid": True})
+                continue
+            nearest = float(d2[r].min())
+            w = p["w"] * np.exp(-0.5 * (d2[r] - nearest))
+            q_mi = _weighted_quantiles(p["mi"], w, (0.16, 0.5, 0.84))
+            q_ms = _weighted_quantiles(p["ms"], w, (0.16, 0.5, 0.84))
+            q_age = _weighted_quantiles(p["age"], w, (0.16, 0.5, 0.84))
+            phase_w = {int(ph): float(w[np.round(p["phase"]) == ph].sum()) for ph in np.unique(np.round(p["phase"]))}
+            out.append(
+                {
+                    "feh": chosen,
+                    "initial_mass_msun": [round(x, 4) for x in q_mi],
+                    "star_mass_msun": [round(x, 4) for x in q_ms],
+                    "log_age": [round(x, 3) for x in q_age],
+                    "phase": max(phase_w, key=lambda k: (phase_w[k], -k)),
+                    "nearest_distance": round(math.sqrt(nearest), 3),
+                    "off_grid": nearest > cap,
+                }
+            )
+    return out
+
+
+# --- known answers ------------------------------------------------------------------------------
+
+
+def known_answer(
+    cluster_names: Iterable[str], fit: Mapping[str, Any] | None, settings: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """The settings' sanity window for a famous cluster this one matches by name, and whether the fitted
+    age falls inside it; None when it matches none."""
+    tokens = {n.strip().lower() for name in cluster_names for n in [name, name.split(":", 1)[-1]] if n}
+    for entry in settings["known_answers"]["clusters"]:
+        if tokens & {n.lower() for n in entry["names"]}:
+            lo, hi = (float(x) for x in entry["log_age"])
+            age = None if fit is None else float(fit["log_age"])
+            return {
+                "cluster": entry["names"][0],
+                "window_log_age": [lo, hi],
+                "fitted_log_age": age,
+                "inside": age is not None and lo <= age <= hi,
+                "verified_window": bool(settings["known_answers"]["verified"]),
+            }
+    return None

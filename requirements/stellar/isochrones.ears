@@ -1,0 +1,58 @@
+# requirements/stellar/isochrones.ears
+capability: MIST isochrone fits and stellar masses
+owner: stellar
+requirements:
+  - id: STL-033
+    pattern: ubiquitous
+    text: "The stellar module shall read MIST isochrone tables as published, keeping each file's MIST version, MESA revision, photometric system, composition and extinction, and refuse a file whose layout, extinction, metallicity, photometric system or columns differ from what the settings expect."
+    rationale: "MIST (Dotter 2016; Choi et al. 2016) is computed with MESA and published as .iso.cmd files: a header block of global values, then one column table per age. SDP keeps the provenance with the numbers, as MESA's own output files do, and applies extinction itself, so it takes only A_V = 0 files."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_a_mist_file_is_read_with_its_header_values_and_every_table"
+      - "python/tests.stellar.test_isochrones::test_a_file_that_breaks_the_layout_is_refused_with_the_line"
+      - "python/tests.stellar.test_isochrones::test_the_grid_keeps_the_settings_columns_in_the_age_range_and_refuses_reddened_or_mixed_files"
+      - "python/tests.stellar.test_isochrones::test_the_grid_survives_a_round_trip_through_its_stored_table"
+  - id: STL-034
+    pattern: ubiquitous
+    text: "The stellar module shall fit a cluster's members with the MIST isochrone, extinction and distance modulus that minimise their capped error-weighted distances in the Gaia colour-magnitude plane plus a parallax prior, and report each parameter's grid profile range and the share of members on the isochrone."
+    rationale: "A real cluster is one age, composition and distance, so its members lie on one isochrone. The cap keeps binaries and interlopers from pulling the fit; the parallax prior uses the Gaia zero point (Lindegren et al. 2021). The profile range is the grid values within profile_delta of the best cost, not a calibrated confidence interval."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_extinction_errors_and_the_parallax_prior_follow_the_settings"
+      - "python/tests.stellar.test_isochrones::test_a_synthetic_cluster_gets_back_its_age_extinction_and_distance"
+      - "python/tests.stellar.test_isochrones::test_an_old_cluster_is_told_from_a_young_one_by_its_turnoff"
+      - "python/tests.stellar.test_isochrones::test_the_nearest_point_is_exact_in_each_stars_own_errors"
+      - "python/tests.stellar.test_isochrones::test_too_few_members_or_no_metallicity_in_range_give_no_fit"
+      - "python/tests.stellar.test_isochrones::test_a_profile_range_holds_every_value_within_delta_of_the_best"
+      - "python/tests.stellar.test_isochrones::test_a_known_cluster_is_checked_against_its_window_by_any_of_its_names"
+  - id: STL-035
+    pattern: ubiquitous
+    text: "The stellar module shall give each cluster member within mass_distance_max errors of its cluster's fitted isochrone the mass of the nearest point of it, give the heaviest living star's mass at the cluster's age, and give a field star the 16th, 50th and 84th percentiles of its mass and age over one metallicity's grid weighted by a Kroupa initial mass function and a prior uniform in age."
+    rationale: "The dark-companion screen needs the visible star's mass; in a cluster the age is known, so the mass is fixed by the star's place on one isochrone, and no partner that is a normal cluster star can be heavier than the heaviest star still alive."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_members_on_the_isochrone_get_their_masses_back"
+      - "python/tests.stellar.test_isochrones::test_the_heaviest_living_star_bounds_any_normal_partner"
+      - "python/tests.stellar.test_isochrones::test_the_imf_is_continuous_at_the_break_and_falls_with_mass"
+      - "python/tests.stellar.test_isochrones::test_a_field_stars_mass_is_recovered_and_a_star_far_from_every_model_is_off_grid"
+  - id: STL-036
+    pattern: event
+    text: "When `sdp isochrones fetch`, `sdp isochrones fit`, `sdp isochrones stars` or `sdp companions screen --isochrones` is invoked, the system shall write its results marked EXPLORATORY with the grid's MIST version, MESA revision and source SHA-256 and the settings' SHA-256 beside them."
+    rationale: "Laid out as MESA lays out a run: a header of global values and provenance, one row per cluster, one table per cluster of its stars, and the same standard plots for every cluster. In a companion screen the isochrone masses sit beside Gaia's verdicts and do not change them."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_isochrones::test_fetch_reads_a_mist_tarball_and_records_its_provenance"
+      - "python/tests.cli.test_cli_isochrones::test_fetch_downloads_the_settings_url_once_and_refuses_a_tarball_of_something_else"
+      - "python/tests.cli.test_cli_isochrones::test_a_fit_writes_a_header_a_row_per_cluster_a_table_per_cluster_and_its_plots"
+      - "python/tests.cli.test_cli_isochrones::test_a_fit_needs_exactly_one_source_of_clusters_and_the_stars_columns"
+      - "python/tests.cli.test_cli_isochrones::test_field_stars_get_a_mass_and_an_age_range_each"
+      - "python/tests.cli.test_cli_companions::test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid"
+      - "python/tests.stellar.test_isochrones::test_a_screen_with_a_grid_adds_isochrone_masses_and_flags_a_partner_heavier_than_any_living_star"

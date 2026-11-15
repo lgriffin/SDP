@@ -23,6 +23,7 @@ from sdp.cli.companions import companions_app
 from sdp.cli.delta import delta_app
 from sdp.cli.discover import _benchmark_path, discover_app
 from sdp.cli.einstein1921 import einstein1921_app
+from sdp.cli.isochrones import isochrones_app
 from sdp.cli.oort1927 import oort1927_app
 from sdp.cli.oort1932 import oort1932_app
 from sdp.cli.publication import publication_app
@@ -174,6 +175,7 @@ for name, sub in (
     ("oort1927", oort1927_app),
     ("oort1932", oort1932_app),
     ("companions", companions_app),
+    ("isochrones", isochrones_app),
     ("publication", publication_app),
     ("delta", delta_app),
 ):

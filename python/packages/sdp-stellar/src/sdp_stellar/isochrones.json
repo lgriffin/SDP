@@ -1,0 +1,94 @@
+{
+  "protocol": "mist-isochrone-fit",
+  "status": "EXPLORATORY: MIST isochrones fitted to Gaia colour-magnitude diagrams and the stellar masses read off them",
+  "source": {
+    "name": "MIST v1.2 (MESA Isochrones and Stellar Tracks), rotating models v/vcrit = 0.4, synthetic photometry UBV(RI)c + 2MASS + Kepler + Hipparcos + Tycho + Gaia",
+    "url": "https://mist.science/data/tarballs_v1.2/MIST_v1.2_vvcrit0.4_UBVRIplus.txz",
+    "member_suffix": ".iso.cmd",
+    "cite": [
+      "Dotter 2016, ApJS 222, 8 (the EEP method)",
+      "Choi et al. 2016, ApJ 823, 102 (MIST I: the models)",
+      "Paxton et al. 2011, ApJS 192, 3 and later MESA instrument papers"
+    ],
+    "note": "The grid's Gaia bands are MIST's DR2 revised passbands (Gaia_G_DR2Rev and so on); Gaia DR3 photometry is on slightly different passbands, a difference of a few hundredths of a magnitude that the colour and magnitude floors below absorb."
+  },
+  "columns": {
+    "eep": "EEP",
+    "log_age": "log10_isochrone_age_yr",
+    "initial_mass": "initial_mass",
+    "star_mass": "star_mass",
+    "log_teff": "log_Teff",
+    "log_g": "log_g",
+    "log_l": "log_L",
+    "phase": "phase",
+    "g": "Gaia_G_DR2Rev",
+    "bp": "Gaia_BP_DR2Rev",
+    "rp": "Gaia_RP_DR2Rev"
+  },
+  "grid": {
+    "log_age_min": 6.5,
+    "log_age_max": 10.15
+  },
+  "phases": {
+    "names": {"-1": "pre-main sequence", "0": "main sequence", "2": "red giant branch", "3": "core helium burning", "4": "early AGB", "5": "thermally pulsing AGB", "6": "post-AGB", "9": "Wolf-Rayet"},
+    "fit": [-1, 0, 2, 3, 4]
+  },
+  "extinction": {
+    "note": "A_X / A_V for the Gaia bands, Wang and Chen 2019, ApJ 877, 116; one ratio per band, so a colour-dependent extinction is not modelled",
+    "a_g_over_a_v": 0.789,
+    "a_bp_over_a_v": 1.002,
+    "a_rp_over_a_v": 0.589
+  },
+  "parallax": {
+    "note": "Gaia EDR3/DR3 parallaxes read about 0.017 mas too small (Lindegren et al. 2021, A&A 649, A4); a cluster's mean parallax also carries about 0.01 mas of correlated error on degree scales",
+    "zero_point_mas": -0.017,
+    "systematic_mas": 0.011
+  },
+  "photometry": {
+    "note": "the bulk Gaia copy has no photometric errors, so a smooth model of them by G; the floors stand for the models' own uncertainty, the DR2/DR3 passband difference and unresolved binaries",
+    "colour_error_at_g15": 0.005,
+    "colour_floor": 0.03,
+    "g_error_at_g15": 0.001,
+    "g_floor": 0.08
+  },
+  "fit": {
+    "feh_min": -1.0,
+    "feh_max": 0.5,
+    "av_max": 3.0,
+    "av_coarse_step": 0.1,
+    "av_fine_step": 0.02,
+    "modulus_halfwidth_sigma": 3.0,
+    "modulus_halfwidth_min": 0.3,
+    "modulus_coarse_step": 0.05,
+    "modulus_fine_step": 0.01,
+    "age_coarse_stride": 2,
+    "densify_step": 0.02,
+    "neighbours": 4,
+    "outlier_cap": 3.0,
+    "inlier_distance": 2.0,
+    "mass_distance_max": 3.0,
+    "profile_delta": 1.0,
+    "max_fit_stars": 400,
+    "min_stars": 15,
+    "seed": 20261115
+  },
+  "field_stars": {
+    "note": "one star with no cluster: weights over every grid point of one metallicity, a Kroupa (2001) initial mass function and a prior uniform in age, so its age is usually poorly fixed and its mass is fixed far better",
+    "feh": 0.0,
+    "imf_break_msun": 0.5,
+    "imf_slopes": [1.3, 2.3],
+    "age_prior": "uniform-in-age",
+    "off_grid_distance": 5.0,
+    "chunk": 256
+  },
+  "known_answers": {
+    "note": "Broad sanity windows, NOT binding: Leigh to check each against a published Gaia isochrone fit (for example Gaia Collaboration, Babusiaux et al. 2018, A&A 616, A10) before they become a check that fails the run",
+    "verified": false,
+    "clusters": [
+      {"names": ["Melotte 22", "Melotte_22", "Pleiades"], "log_age": [7.9, 8.3]},
+      {"names": ["Melotte 25", "Melotte_25", "Hyades"], "log_age": [8.7, 9.0]},
+      {"names": ["NGC 2632", "NGC_2632", "Praesepe"], "log_age": [8.7, 9.0]},
+      {"names": ["NGC 2682", "NGC_2682", "M67"], "log_age": [9.5, 9.7]}
+    ]
+  }
+}

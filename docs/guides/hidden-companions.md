@@ -32,6 +32,19 @@ parts it already has.
 `--members my-members.csv` (columns `cluster,source_id`) screens a published member list instead of a
 sweep.
 
+### With isochrone masses
+
+```bat
+uv run sdp isochrones fetch
+uv run sdp companions screen --sweep gaia-dr3 --isochrones --name clusters-mist
+```
+
+`--isochrones` also fits each cluster with a MIST isochrone (built with the MESA stellar-evolution code)
+and adds, beside Gaia's verdict, the visible star's mass on that isochrone (`m1_mist_msun`) and
+`heavier_than_living`: the partner's lower mass bound is above the heaviest star still alive at the
+cluster's age, so the partner is not an ordinary star of the cluster. See [isochrones](../isochrones.md).
+`harness\run-isochrones.ps1` runs both.
+
 ## What success looks like
 
 - `field` says **Gaia BH1 is flagged as a neutron star or black hole**. That is the known answer: BH1
