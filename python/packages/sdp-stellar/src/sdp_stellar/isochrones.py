@@ -33,6 +33,7 @@ import hashlib
 import itertools
 import json
 import math
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import resources
@@ -44,6 +45,8 @@ from numpy.typing import NDArray
 from scipy.spatial import cKDTree
 
 SETTINGS_FILE = "isochrones.json"
+#: A_V written as "Av = <value>" anywhere on a header line, as MIST v1.2's "# CCM89 extinction: Av =  0.000"
+_AV = re.compile(r"\bAv\s*=\s*(\S+)")
 SCHEMA = "sdp-stellar/isochrone-fit@1"
 #: the grid's columns, in the settings' names; every one is stored
 FIELDS = ("eep", "log_age", "initial_mass", "star_mass", "log_teff", "log_g", "log_l", "phase", "g", "bp", "rp")
@@ -136,8 +139,8 @@ def parse_cmd(text: str) -> MistFile:
             av, rv = (_number(v) for v in _value_line(lines, i + 1)[:2])
             meta.update({"av": av, "rv": rv})
             i += 1
-        elif lowered.startswith("av") and "=" in body:  # MIST's layout: the line ends with A_V
-            meta["av"] = _number(body.split()[-1])
+        elif (found := _AV.search(body)) is not None:  # "# CCM89 extinction: Av =  0.000"
+            meta["av"] = _number(found.group(1))
         elif lowered.startswith("number of eeps, cols"):
             n_rows, n_cols = (int(t) for t in body.split("=", 1)[1].split())
             j = i + 1

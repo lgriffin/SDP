@@ -14,6 +14,7 @@ requirements:
       - "python/tests.stellar.test_isochrones::test_a_file_that_breaks_the_layout_is_refused_with_the_line"
       - "python/tests.stellar.test_isochrones::test_the_grid_keeps_the_settings_columns_in_the_age_range_and_refuses_reddened_or_mixed_files"
       - "python/tests.stellar.test_isochrones::test_the_grid_survives_a_round_trip_through_its_stored_table"
+      - "python/tests.stellar.test_isochrones::test_the_real_mist_v12_header_and_its_gaia_edr3_columns_are_read"
   - id: STL-034
     pattern: ubiquitous
     text: "The stellar module shall fit a cluster's members with the MIST isochrone, extinction and distance modulus that minimise their capped error-weighted distances in the Gaia colour-magnitude plane plus a parallax prior, and report each parameter's grid profile range and the share of members on the isochrone."

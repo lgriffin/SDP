@@ -42,19 +42,19 @@ def test_a_mist_file_is_read_with_its_header_values_and_every_table() -> None:
     f = iso.parse_cmd(toy_cmd_text(0.25, (8.0, 9.0)))
     assert f.meta["mist_version"] == "1.2" and f.meta["mesa_revision"] == "7503"
     assert f.meta["photometric_system"].startswith("UBV(RI)c")
-    assert f.meta["photometric_system"] == "UBV(RI)c + 2MASS + Kepler + Hipparcos + Gaia (DR2/MAW)"
+    assert f.meta["photometric_system"] == "UBV(RI)c, 2MASS, Kepler, Hipparcos, Gaia (Vega)"
     assert (f.meta["feh"], f.meta["afe"], f.meta["vvcrit"], f.meta["av"]) == (0.25, 0.0, 0.4, 0.0)
     assert f.meta["zinit"] == pytest.approx(0.0142857)
     assert len(f.blocks) == 2
     first = f.blocks[0]
-    assert set(first) >= {"EEP", "Gaia_G_DR2Rev", "Gaia_BP_DR2Rev", "phase"}
-    np.testing.assert_allclose(first["Gaia_G_DR2Rev"], toy_isochrone(0.25, 8.0)["Gaia_G_DR2Rev"], rtol=1e-9)
+    assert set(first) >= {"EEP", "Gaia_G_EDR3", "Gaia_BP_EDR3", "phase"}
+    np.testing.assert_allclose(first["Gaia_G_EDR3"], toy_isochrone(0.25, 8.0)["Gaia_G_EDR3"], rtol=1e-9)
     assert f.blocks[1]["log10_isochrone_age_yr"][0] == 9.0
     # the other header layout: the system on the line after its label, Av and Rv labels over their values
     other = (
         toy_cmd_text(0.25, (8.0,))
         .replace("# photometric system   = UBV", "# photometric system\n# ----\n# UBV")
-        .replace("# Av = 0.0000", "#     Av       Rv\n#  0.0300   3.1000")
+        .replace("# CCM89 extinction: Av =  0.000", "#     Av       Rv\n#  0.0300   3.1000")
     )
     g = iso.parse_cmd(other)
     assert g.meta["photometric_system"].startswith("UBV(RI)c") and (g.meta["av"], g.meta["rv"]) == (0.03, 3.1)
@@ -73,7 +73,7 @@ def test_a_file_that_breaks_the_layout_is_refused_with_the_line() -> None:
         iso.parse_cmd(wrong)
     with pytest.raises(iso.MistFormatError, match="no isochrone tables"):
         iso.parse_cmd("\n".join(lines[:head]))
-    no_av = "\n".join(ln for ln in lines if not ln.startswith("# Av"))
+    no_av = "\n".join(ln for ln in lines if "Av =" not in ln)
     with pytest.raises(iso.MistFormatError, match="'av'"):
         iso.parse_cmd(no_av)
     stray = good.replace("# number of isochrones", "1 2 3\n# number of isochrones")
@@ -92,7 +92,7 @@ def test_the_grid_keeps_the_settings_columns_in_the_age_range_and_refuses_redden
     assert g.fehs() == [-0.5, 0.0] and g.ages(0.0) == [8.0, 8.05, 8.1]
     one = g.isochrone(-0.5, 8.05)
     assert np.all(np.diff(one["eep"]) > 0)
-    np.testing.assert_allclose(one["g"], toy_isochrone(-0.5, 8.05)["Gaia_G_DR2Rev"])
+    np.testing.assert_allclose(one["g"], toy_isochrone(-0.5, 8.05)["Gaia_G_EDR3"])
     assert g.meta["mist_version"] == "1.2" and g.meta["vvcrit"] == 0.4
     with pytest.raises(KeyError):
         g.isochrone(0.0, 9.0)
@@ -103,11 +103,11 @@ def test_the_grid_keeps_the_settings_columns_in_the_age_range_and_refuses_redden
     newer = iso.parse_cmd(toy_cmd_text(-0.5, (8.0,)).replace("=     7503", "=    10398"))
     with pytest.raises(iso.MistFormatError, match="mesa_revision"):
         iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (8.0,))), newer], s)
-    other = iso.parse_cmd(toy_cmd_text(-0.5, (8.0,)).replace("Gaia (DR2/MAW)", "SDSS"))
+    other = iso.parse_cmd(toy_cmd_text(-0.5, (8.0,)).replace("Gaia (Vega)", "SDSS"))
     with pytest.raises(iso.MistFormatError, match="photometric_system"):
         iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (8.0,))), other], s)
-    renamed = iso.parse_cmd(toy_cmd_text(0.0, (8.0,)).replace("Gaia_BP_DR2Rev", "Gaia_BP_EDR3"))
-    with pytest.raises(iso.MistFormatError, match="Gaia_BP_DR2Rev"):
+    renamed = iso.parse_cmd(toy_cmd_text(0.0, (8.0,)).replace("Gaia_BP_EDR3", "Gaia_BP_DR2Rev"))
+    with pytest.raises(iso.MistFormatError, match="Gaia_BP_EDR3"):
         iso.grid_from_files([renamed], s)
     with pytest.raises(iso.MistFormatError, match="age range"):
         iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (7.0,)))], s)
@@ -386,3 +386,45 @@ def _fit(row: dict[str, Any]) -> dict[str, Any]:
         "av": row["iso_av"],
         "distance_modulus": row["iso_distance_modulus"],
     }
+
+
+#: The first lines of MIST_v1.2_feh_m0.25_afe_p0.0_vvcrit0.4_UBVRIplus.iso.cmd from the real
+#: MIST_v1.2_vvcrit0.4_UBVRIplus.txz, copied character for character on 2026-11-15 (the table cut to its
+#: first three rows, so its row count reads 3 instead of 266).
+REAL_HEAD = (
+    "# MIST version number  = 1.2     \n"
+    "# MESA revision number =     7503\n"
+    "# photometric system   = UBV(RI)c, 2MASS, Kepler, Hipparcos, Gaia (Vega)                 \n"
+    "# --------------------------------------------------------------------------------------\n"
+    "#  Yinit        Zinit   [Fe/H]   [a/Fe]  v/vcrit                                        \n"
+    "# 0.2610  8.03343E-03    -0.25     0.00     0.40\n"
+    "# --------------------------------------------------------------------------------------\n"
+    "# number of isochrones =   107\n"
+    "# CCM89 extinction: Av =  0.000\n"
+    "# --------------------------------------------------------------------------------------\n"
+    "# number of EEPs, cols =     3   34\n"
+    "#   1                               2                               3                               4                               5                               6                               7                               8                   9                  10                  11                  12                  13                  14                  15                  16                  17                  18                  19                  20                  21                  22                  23                  24                  25                  26                  27                  28                  29                  30                  31                  32                  33                  34\n"
+    "# EEP          log10_isochrone_age_yr                    initial_mass                       star_mass                        log_Teff                           log_g                           log_L                     [Fe/H]_init              [Fe/H]           Bessell_U           Bessell_B           Bessell_V           Bessell_R           Bessell_I             2MASS_J             2MASS_H            2MASS_Ks           Kepler_Kp          Kepler_D51        Hipparcos_Hp             Tycho_B             Tycho_V       Gaia_G_DR2Rev      Gaia_BP_DR2Rev      Gaia_RP_DR2Rev          Gaia_G_MAW        Gaia_BP_MAWb        Gaia_BP_MAWf         Gaia_RP_MAW                TESS         Gaia_G_EDR3        Gaia_BP_EDR3        Gaia_RP_EDR3               phase\n"
+    "   14         5.0000000000000000E+000         1.0000000000000001E-001         9.9999987465850482E-002         3.4862207608164812E+000         3.1313420078437875E+000        -7.9366710581785394E-001        -2.5000000000000000E-001           -0.217200           11.576773           10.914362            9.781591            8.393749            6.590892            4.781341            4.071001            3.865110            8.209890           10.191441            9.569141           11.018705           10.004640            8.105919           10.045743            6.877904            8.119210           10.003132           10.036953            6.852643            6.732532            8.137337           10.024206            6.851886           -1.000000\n"
+    "   15         5.0000000000000000E+000         1.0264483521052409E-001         1.0264482205216272E-001         3.4873618400144251E+000         3.1268080177764190E+000        -7.7525415297838363E-001        -2.5000000000000000E-001           -0.217200           11.515804           10.847707            9.713316            8.334562            6.538465            4.738173            4.022935            3.819549            8.154368           10.124570            9.506421           10.953330            9.935961            8.052544            9.977938            6.826506            8.065170            9.935299            9.969279            6.801315            6.682570            8.083336            9.956364            6.800464           -1.000000\n"
+    "   16         5.0000000000000000E+000         1.0703921552827966E-001         1.0703920129064491E-001         3.4892434780670603E+000         3.1193671044823663E+000        -7.4481045034640248E-001        -2.5000000000000000E-001           -0.217200           11.415371           10.737701            9.600525            8.236778            6.451846            4.666836            3.943412            3.744168            8.062635           10.014151            9.402812           10.845475            9.822510            7.964358            9.865941            6.741587            7.975888            9.823252            9.857505            6.716511            6.600021            7.994116            9.844304            6.715503           -1.000000\n"
+)
+
+
+@pytest.mark.req("STL-033")
+def test_the_real_mist_v12_header_and_its_gaia_edr3_columns_are_read() -> None:
+    f = iso.parse_cmd(REAL_HEAD)
+    assert f.meta["mist_version"] == "1.2" and f.meta["mesa_revision"] == "7503"
+    assert f.meta["photometric_system"] == "UBV(RI)c, 2MASS, Kepler, Hipparcos, Gaia (Vega)"
+    assert (f.meta["feh"], f.meta["av"], f.meta["vvcrit"]) == (-0.25, 0.0, 0.4)
+    (block,) = f.blocks
+    assert len(block) == 34 and block["EEP"].tolist() == [14.0, 15.0, 16.0]
+    s = copy.deepcopy(ORIGINAL())
+    s["grid"]["log_age_min"] = 5.0
+    g = iso.grid_from_files([f], s)
+    one = g.isochrone(-0.25, 5.0)
+    np.testing.assert_allclose(one["g"], [8.137337, 8.083336, 7.994116])  # Gaia_G_EDR3, not the DR2 or MAW G
+    np.testing.assert_allclose(one["bp"], [10.024206, 9.956364, 9.844304])
+    np.testing.assert_allclose(one["rp"], [6.851886, 6.800464, 6.715503])
+    np.testing.assert_allclose(one["initial_mass"], [0.1, 0.10264483521052409, 0.10703921552827966])
+    assert one["phase"].tolist() == [-1.0, -1.0, -1.0]
