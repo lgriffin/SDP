@@ -291,12 +291,19 @@ def fit_one(
                     "on_isochrone": bool(on["on_isochrone"][i]),
                 }
             )
-    check = known_answer(names, fit, settings)
+    check = None if fit is None else known_answer(names, fit, settings)
     if check is not None:
         row["known_answer"] = f"{check['cluster']} log age {check['window_log_age']}: " + (
             "inside" if check["inside"] else "OUTSIDE"
         )
     return row, members, (None if fit is None else {**fit, "known_answer": check})
+
+
+def _provenance(grid: Grid) -> dict[str, Any]:
+    return {
+        k: grid.meta.get(k)
+        for k in ("mist_version", "mesa_revision", "photometric_system", "source_url", "source_sha256")
+    }
 
 
 def _r(x: float, digits: int = 4) -> float | None:
@@ -413,7 +420,11 @@ def isochrones_stars(
         abs_g = np.asarray([_float(r, "phot_g_mean_mag") for r in rows]) + 5 * np.log10(plx / 100.0) - a_g
     abs_g = np.where(plx > 0, abs_g, np.nan)
     colour0 = np.asarray([_float(r, "bp_rp") for r in rows]) - e_c
-    estimates = field_star_estimates(abs_g, colour0, grid, settings, feh)
+    apparent = np.asarray([_float(r, "phot_g_mean_mag") for r in rows])
+    plx_err = np.asarray([_float(r, "parallax_error") if r.get("parallax_error") else 0.0 for r in rows])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        modulus_err = 5.0 / math.log(10.0) * np.hypot(plx_err, float(settings["parallax"]["systematic_mas"])) / plx
+    estimates = field_star_estimates(abs_g, colour0, grid, settings, feh, apparent, modulus_err)
     phase_names = settings["phases"]["names"]
     table = []
     for r, e, mg in zip(rows, estimates, abs_g, strict=True):
@@ -431,12 +442,17 @@ def isochrones_stars(
         table.append(row)
     target = out or folder() / "stars.csv"
     _write_csv(target, table, ["source_id"])
-    _say(f"{len(table):,} stars estimated, {sum(1 for t in table if t['off_grid'])} off the grid. Open {target}.")
-    typer.echo(
-        json.dumps(
-            {"stars": len(table), "csv": str(target), "settings_sha256": settings_sha256()}, indent=2, sort_keys=True
-        )
-    )
+    summary = {
+        "status": "EXPLORATORY",
+        "stars": len(table),
+        "off_grid": sum(1 for t in table if t["off_grid"]),
+        "csv": str(target),
+        "settings_sha256": settings_sha256(),
+        "grid": _provenance(grid),
+    }
+    target.with_suffix(".json").write_text(json.dumps(summary, indent=2, sort_keys=True), "utf-8")
+    _say(f"{len(table):,} stars estimated, {summary['off_grid']} off the grid. Open {target}.")
+    typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
 
 # --- plots ---------------------------------------------------------------------------------------
@@ -454,6 +470,8 @@ def plot_svg(
     colour-magnitude diagram (absolute G down the axis, bright at the top) with the fitted isochrone,
     members off it drawn hollow; right, the best cost at each age and [Fe/H] tried, darker is better."""
     from html import escape
+
+    import numpy as np
 
     from sdp_stellar.isochrones import line
 
@@ -477,13 +495,16 @@ def plot_svg(
         f"m-M {fit['distance_modulus']} ({fit['distance_pc']:,} pc), {fit['on_isochrone_share']:.0%} of {fit['stars_fitted']} on the isochrone. EXPLORATORY</text>",
         '<rect x="60" y="50" width="340" height="420" fill="none" stroke="#999"/>',
     ]
-    keep = [(sx(c), sy(m)) for c, m in zip(ln.colour, ln.mag, strict=True) if x0 <= c <= x1 and y0 <= m <= y1]
-    if keep:
-        out.append(
-            '<polyline fill="none" stroke="#c0392b" stroke-width="1.5" points="'
-            + " ".join(f"{a:.1f},{b:.1f}" for a, b in keep)
-            + '"/>'
-        )
+    # one polyline per phase, since the isochrone is not drawn across a phase change
+    breaks = np.nonzero(np.diff(ln.phase) != 0)[0] + 1
+    for part in np.split(np.arange(ln.size), breaks):
+        keep = [(sx(ln.colour[i]), sy(ln.mag[i])) for i in part if x0 <= ln.colour[i] <= x1 and y0 <= ln.mag[i] <= y1]
+        if len(keep) > 1:
+            out.append(
+                '<polyline fill="none" stroke="#c0392b" stroke-width="1.5" points="'
+                + " ".join(f"{a:.1f},{b:.1f}" for a, b in keep)
+                + '"/>'
+            )
     for c, m, on in pts:
         fill = "#1f4e79" if on else "none"
         out.append(

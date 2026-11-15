@@ -604,13 +604,16 @@ def _isochrone(
         return None, {}
     from sdp_stellar import isochrones
 
-    fit = isochrones.fit_cluster(
-        np.asarray(stars["bp_rp"], dtype=float)[mem],
-        np.asarray(stars["phot_g_mean_mag"], dtype=float)[mem],
-        parallax,
-        parallax_err,
-        grid,
-    )
+    try:
+        fit = isochrones.fit_cluster(
+            np.asarray(stars["bp_rp"], dtype=float)[mem],
+            np.asarray(stars["phot_g_mean_mag"], dtype=float)[mem],
+            parallax,
+            parallax_err,
+            grid,
+        )
+    except ValueError as exc:  # no metallicity in range, or no distance from the parallax: this cluster only
+        return None, {"iso_note": f"no isochrone fit: {exc}"}
     if fit is None:
         return None, {"iso_note": "too few members with a colour for an isochrone fit"}
     row = {f"iso_{k}": fit[k] for k in ("log_age", "feh", "av", "distance_modulus", "on_isochrone_share")}

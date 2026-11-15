@@ -118,10 +118,13 @@ def parse_cmd(text: str) -> MistFile:
         elif lowered.startswith("mesa revision number"):
             meta["mesa_revision"] = body.split("=", 1)[1].strip()
         elif lowered.startswith("photometric system"):
-            j = i + 1
-            while j < len(lines) and set(lines[j].lstrip("#").strip()) <= {"-"}:
-                j += 1
-            meta["photometric_system"] = lines[j].lstrip("#").strip() if j < len(lines) else ""
+            if "=" in body:  # MIST's layout: the system follows "=" on the same line
+                meta["photometric_system"] = body.split("=", 1)[1].strip()
+            else:
+                j = i + 1
+                while j < len(lines) and set(lines[j].lstrip("#").strip()) <= {"-"}:
+                    j += 1
+                meta["photometric_system"] = lines[j].lstrip("#").strip() if j < len(lines) else ""
         elif "Yinit" in body.split() and "[Fe/H]" in body.split():
             names = body.split()
             values = _value_line(lines, i + 1)
@@ -129,10 +132,12 @@ def parse_cmd(text: str) -> MistFile:
                 raise MistFormatError(f"line {i + 2}: {len(values)} values for {len(names)} labels")
             meta.update({labels.get(n, n): _number(v) for n, v in zip(names, values, strict=True)})
             i += 1
-        elif body.split()[:2] == ["Av", "Rv"]:
+        elif body.split()[:2] == ["Av", "Rv"]:  # labels on one line, values on the next
             av, rv = (_number(v) for v in _value_line(lines, i + 1)[:2])
             meta.update({"av": av, "rv": rv})
             i += 1
+        elif lowered.startswith("av") and "=" in body:  # MIST's layout: the line ends with A_V
+            meta["av"] = _number(body.split()[-1])
         elif lowered.startswith("number of eeps, cols"):
             n_rows, n_cols = (int(t) for t in body.split("=", 1)[1].split())
             j = i + 1
@@ -236,13 +241,11 @@ def grid_from_files(files: Iterable[MistFile], settings: Mapping[str, Any]) -> G
         if feh in seen_feh:
             raise MistFormatError(f"two files with [Fe/H] = {feh}")
         seen_feh.add(feh)
-        for key in ("mist_version", "photometric_system", "vvcrit", "afe"):
+        for key in ("mist_version", "mesa_revision", "photometric_system", "vvcrit", "afe"):
             if key in f.meta:
                 if key in shared and shared[key] != f.meta[key]:
                     raise MistFormatError(f"files disagree on {key}: {shared[key]!r} and {f.meta[key]!r}")
                 shared[key] = f.meta[key]
-        if "mesa_revision" in f.meta:
-            shared["mesa_revision"] = f.meta["mesa_revision"]
         for block in f.blocks:
             absent = [names[k] for k in FIELDS if names[k] not in block]
             if absent:
@@ -349,17 +352,43 @@ class _Matcher:
         pts = np.column_stack([self.ln.colour / self.scale[0], self.ln.mag / self.scale[1]])
         self.tree = cKDTree(pts)
 
-    def nearest(self, colour: Array, mag: Array, sc: Array, sm: Array) -> tuple[Array, NDArray[np.int64]]:
-        """(squared distance in units of each star's errors, index of the nearest line point)."""
+    def nearest(
+        self, colour: Array, mag: Array, sc: Array, sm: Array, limit: float = math.inf
+    ) -> tuple[Array, NDArray[np.int64]]:
+        """(squared distance in units of each star's errors, index of the nearest line point), exact for
+        every star whose distance is below ``limit`` (beyond it only a value at or above the limit: the
+        fit caps such distances anyway). The tree measures in units of the floors; a star's own errors are never
+        below them, so a point nearer in the star's units lies within sqrt(d2) / rho floor units, rho the
+        smaller of the floor-to-error ratios. Where the k-th neighbour is nearer than that, every point
+        inside that radius is checked too."""
         k = min(self.k, self.ln.size)
-        _, idx = self.tree.query(np.column_stack([colour / self.scale[0], mag / self.scale[1]]), k=k, workers=-1)
-        idx = np.asarray(idx).reshape(colour.size, k)
+        q = np.column_stack([colour / self.scale[0], mag / self.scale[1]])
+        dist, idx = self.tree.query(q, k=k, workers=-1)
+        dist, idx = np.asarray(dist).reshape(colour.size, k), np.asarray(idx).reshape(colour.size, k)
         d2 = ((colour[:, None] - self.ln.colour[idx]) / sc[:, None]) ** 2 + (
             (mag[:, None] - self.ln.mag[idx]) / sm[:, None]
         ) ** 2
         best = np.argmin(d2, axis=1)
         rows = np.arange(colour.size)
-        return d2[rows, best], idx[rows, best]
+        out_d2, out_i = d2[rows, best], idx[rows, best]
+        rho = np.minimum(self.scale[0] / sc, self.scale[1] / sm)
+        # a nearer point, or one below the limit, lies within this many floor units
+        radius = np.minimum(np.sqrt(out_d2), limit) / rho * (1.0 + 1e-9)
+        check = np.nonzero((dist[:, -1] < radius) & (k < self.ln.size))[0]
+        if check.size:
+            balls = self.tree.query_ball_point(q[check], radius[check], workers=-1)
+            lens = np.asarray([len(b) for b in balls], dtype=np.int64)
+            star = np.repeat(check, lens)
+            pts = np.fromiter((j for b in balls for j in b), dtype=np.int64, count=int(lens.sum()))
+            dd = ((colour[star] - self.ln.colour[pts]) / sc[star]) ** 2 + (
+                (mag[star] - self.ln.mag[pts]) / sm[star]
+            ) ** 2
+            order = np.lexsort((dd, star))
+            first = order[np.concatenate([[True], np.diff(star[order]) != 0])] if order.size else order
+            better = dd[first] < out_d2[star[first]]
+            out_d2[star[first][better]] = dd[first][better]
+            out_i[star[first][better]] = pts[first][better]
+        return out_d2, out_i
 
 
 # --- fitting a cluster -----------------------------------------------------------------------------
@@ -398,8 +427,8 @@ def _costs(
     k = moduli.size
     colour = np.tile(stars.colour - e_c, k)
     mag = (stars.g[None, :] - a_g - moduli[:, None]).ravel()
-    d2, _ = matcher.nearest(colour, mag, np.tile(stars.colour_err, k), np.tile(stars.g_err, k))
     cap = float(settings["fit"]["outlier_cap"]) ** 2
+    d2, _ = matcher.nearest(colour, mag, np.tile(stars.colour_err, k), np.tile(stars.g_err, k), math.sqrt(cap))
     out: Array = np.minimum(d2, cap).reshape(k, stars.size).sum(axis=1) + ((moduli - prior[0]) / prior[1]) ** 2
     return out
 
@@ -566,9 +595,11 @@ def heaviest_living(iso: Mapping[str, Array]) -> float:
 def member_masses(
     colour: Array, g: Array, fit: Mapping[str, Any], grid: Grid, settings: Mapping[str, Any] | None = None
 ) -> dict[str, Array]:
-    """Each star's initial and current mass, phase and distance (in error units) at the nearest point of
-    the fitted isochrone, and whether it is within ``inlier_distance`` of it. Stars with no colour or G
-    get NaN. A photometric binary sits above the line, so its mass reads high."""
+    """Each star's distance (in error units) to the fitted isochrone and the phase of its nearest point,
+    whether it is within ``inlier_distance`` of it, and the initial and current mass of that point, but
+    only for a star within ``mass_distance_max``: a star further off (a white dwarf, a photometric
+    binary, an interloper) is not one the isochrone describes, so its masses are NaN. Stars with no
+    colour or G get NaN throughout."""
     s = settings or load_settings()
     c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
     n = c.size
@@ -585,8 +616,9 @@ def member_masses(
         a_g, e_c = extinction(float(fit["av"]), s)
         ce, ge = photometric_errors(m[ok], s)
         d2, idx = matcher.nearest(c[ok] - e_c, m[ok] - a_g - float(fit["distance_modulus"]), ce, ge)
-        out["initial_mass"][ok] = ln.initial_mass[idx]
-        out["star_mass"][ok] = ln.star_mass[idx]
+        near = np.sqrt(d2) <= float(s["fit"]["mass_distance_max"])
+        out["initial_mass"][ok] = np.where(near, ln.initial_mass[idx], np.nan)
+        out["star_mass"][ok] = np.where(near, ln.star_mass[idx], np.nan)
         out["phase"][ok] = ln.phase[idx]
         out["distance"][ok] = np.sqrt(d2)
     out["on_isochrone"] = np.asarray(out["distance"] <= float(s["fit"]["inlier_distance"]), dtype=np.float64)
@@ -612,14 +644,24 @@ def _weighted_quantiles(values: Array, weights: Array, qs: Sequence[float]) -> l
 
 
 def field_star_estimates(
-    abs_g: Array, colour0: Array, grid: Grid, settings: Mapping[str, Any] | None = None, feh: float | None = None
+    abs_g: Array,
+    colour0: Array,
+    grid: Grid,
+    settings: Mapping[str, Any] | None = None,
+    feh: float | None = None,
+    apparent_g: Array | None = None,
+    modulus_err: Array | None = None,
 ) -> list[dict[str, Any]]:
     """Mass and age of stars with no cluster, from their absolute G and intrinsic BP-RP: weights over
     every grid point of the [Fe/H] nearest ``feh`` (default the settings'), each point weighted by the
     initial mass function times the span of initial mass it stands for, by the age prior, and by a
     Gaussian likelihood in the star's errors. Each star gets the 16th, 50th and 84th percentiles of
     initial mass, current mass and log age, the most likely phase, and ``off_grid`` when no point lies
-    within ``off_grid_distance`` errors (a white dwarf, a binary, bad photometry)."""
+    within ``off_grid_distance`` errors (a white dwarf, a binary, bad photometry).
+
+    The photometric errors grow with the star's apparent G (``apparent_g``; absolute G when it is not
+    given), and the error of its distance modulus from the parallax (``modulus_err``, magnitudes) adds
+    in quadrature to its G error."""
     s = settings or load_settings()
     fs = s["field_stars"]
     target = float(fs["feh"] if feh is None else feh)
@@ -647,7 +689,10 @@ def field_star_estimates(
     out: list[dict[str, Any]] = []
     cap = float(fs["off_grid_distance"]) ** 2
     chunk = int(fs["chunk"])
-    ce_all, ge_all = photometric_errors(mg, s)
+    observed = mg if apparent_g is None else np.asarray(apparent_g, dtype=np.float64)
+    ce_all, ge_all = photometric_errors(observed, s)
+    if modulus_err is not None:
+        ge_all = np.hypot(ge_all, np.nan_to_num(np.asarray(modulus_err, dtype=np.float64), nan=0.0))
     for a in range(0, c0.size, chunk):
         c, m, ce, ge = c0[a : a + chunk], mg[a : a + chunk], ce_all[a : a + chunk], ge_all[a : a + chunk]
         d2 = ((c[:, None] - p["colour"][None, :]) / ce[:, None]) ** 2 + (

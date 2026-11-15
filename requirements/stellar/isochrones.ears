@@ -25,12 +25,13 @@ requirements:
       - "python/tests.stellar.test_isochrones::test_extinction_errors_and_the_parallax_prior_follow_the_settings"
       - "python/tests.stellar.test_isochrones::test_a_synthetic_cluster_gets_back_its_age_extinction_and_distance"
       - "python/tests.stellar.test_isochrones::test_an_old_cluster_is_told_from_a_young_one_by_its_turnoff"
+      - "python/tests.stellar.test_isochrones::test_the_nearest_point_is_exact_in_each_stars_own_errors"
       - "python/tests.stellar.test_isochrones::test_too_few_members_or_no_metallicity_in_range_give_no_fit"
       - "python/tests.stellar.test_isochrones::test_a_profile_range_holds_every_value_within_delta_of_the_best"
       - "python/tests.stellar.test_isochrones::test_a_known_cluster_is_checked_against_its_window_by_any_of_its_names"
   - id: STL-035
     pattern: ubiquitous
-    text: "The stellar module shall give each cluster member the mass of the nearest point of its cluster's fitted isochrone, give the heaviest living star's mass at the cluster's age, and give a field star the 16th, 50th and 84th percentiles of its mass and age over one metallicity's grid weighted by a Kroupa initial mass function and a prior uniform in age."
+    text: "The stellar module shall give each cluster member within mass_distance_max errors of its cluster's fitted isochrone the mass of the nearest point of it, give the heaviest living star's mass at the cluster's age, and give a field star the 16th, 50th and 84th percentiles of its mass and age over one metallicity's grid weighted by a Kroupa initial mass function and a prior uniform in age."
     rationale: "The dark-companion screen needs the visible star's mass; in a cluster the age is known, so the mass is fixed by the star's place on one isochrone, and no partner that is a normal cluster star can be heavier than the heaviest star still alive."
     verification: test
     tiers: [T1]

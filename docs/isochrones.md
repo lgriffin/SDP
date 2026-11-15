@@ -26,7 +26,7 @@ sdp isochrones fetch --file MIST_v1.2_vvcrit0.4_UBVRIplus.txz   :: or use a tarb
 sdp isochrones fit --sweep gaia-dr3        :: every sweep cluster, members from the bulk Gaia copy
 sdp isochrones fit --members members.csv   :: cluster,source_id, members from the bulk Gaia copy
 sdp isochrones fit --stars stars.csv       :: cluster,source_id,phot_g_mean_mag,bp_rp,parallax,parallax_error
-sdp isochrones stars --stars field.csv     :: source_id,phot_g_mean_mag,bp_rp,parallax[,a_v]: one mass and age each
+sdp isochrones stars --stars field.csv     :: source_id,phot_g_mean_mag,bp_rp,parallax[,parallax_error,a_v]: one mass and age each
 sdp companions screen --sweep gaia-dr3 --isochrones --name clusters-mist
 ```
 
@@ -40,7 +40,9 @@ the columns named in the settings (EEP, age, initial and current mass, Teff, log
 RP), and writes one Parquet table, `<SDP data>\isochrones\mist-v1.2-gaia.parquet`. The table's metadata
 carries the MIST version, the MESA revision, the photometric system, the tarball's URL and SHA-256 and
 the files read. A file with extinction already applied, a second file for the same [Fe/H], a file of
-another photometric system or a table without the expected Gaia columns is refused with the reason.
+another photometric system or MESA revision, or a table without the expected Gaia columns is refused
+with the reason. The header is read in the layout of MIST's own reader (`read_mist_models.py`: the
+photometric system after `=` on line 3, A_V at the end of line 9).
 
 The grid's Gaia bands are MIST's revised DR2 passbands (`Gaia_G_DR2Rev` and so on). Gaia DR3 photometry
 uses slightly different passbands; the difference, a few hundredths of a magnitude, is inside the fit's
@@ -76,15 +78,17 @@ failing the run, unlike the companion screen's Gaia BH1 check.
 ## Masses
 
 * **Cluster member:** the initial and current mass, and the phase, of the nearest point of the cluster's
-  best isochrone. A photometric binary sits above the line, so its mass reads high; `on_isochrone`
-  says whether the star is within 2 errors of the line.
+  best isochrone, measured exactly in the star's own errors. A star more than 3 errors off the line (a
+  white dwarf, an equal-mass photometric binary, an interloper) gets no mass, since the isochrone does
+  not describe it; `on_isochrone` says whether the star is within 2 errors of the line.
 * **Heaviest living star:** the largest current mass anywhere on the cluster's isochrone. No partner
   that is itself a normal star of the cluster can be heavier. A heavier partner is a remnant (white
   dwarf, neutron star, black hole), a merger product such as a blue straggler, or not coeval with the
   cluster.
 * **Field star:** weights over every grid point of one metallicity (the [Fe/H] nearest 0.0 by default):
   a Kroupa initial mass function times the span of initial mass the point stands for, a prior uniform in
-  age, and a Gaussian likelihood in the star's errors. Each star gets the 16th, 50th and 84th
+  age, and a Gaussian likelihood in the star's errors: the photometric errors at its apparent G, and the
+  error of its distance modulus from `parallax_error` (with the 0.011 mas floor) added to its G error. Each star gets the 16th, 50th and 84th
   percentiles of its initial mass, current mass and log age, its most likely phase, and `off_grid` when
   no model comes within 5 errors (a white dwarf, a binary, bad photometry). One star's age is usually
   poorly fixed; its mass much better.
@@ -97,7 +101,7 @@ gains `iso_log_age`, `iso_feh`, `iso_av`, `iso_distance_modulus`, `iso_on_isochr
 
 | column | meaning |
 | --- | --- |
-| `m1_mist_msun` | the visible star's current mass on the cluster's isochrone (Gaia's own M1 stays in `m1_msun`) |
+| `m1_mist_msun` | the visible star's current mass on the cluster's isochrone, empty when it is more than 3 errors off it (Gaia's own M1 stays in `m1_msun`) |
 | `m1_mist_on_isochrone` | whether the star is within 2 errors of the isochrone |
 | `m2_dark_mist_msun` | the dark partner's mass from the same mass function with the MIST M1 |
 | `m2_lower_mist_msun` | Gaia's lower bound carried over to the MIST M1 (the same mass function, solved again) |

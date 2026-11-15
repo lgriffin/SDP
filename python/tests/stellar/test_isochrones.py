@@ -20,8 +20,11 @@ AGES = tuple(round(7.5 + 0.05 * i, 2) for i in range(46))  # 7.5 .. 9.75
 FEHS = (-0.25, 0.0)
 
 
+ORIGINAL = iso.load_settings
+
+
 def settings(**fit: Any) -> dict[str, Any]:
-    s = copy.deepcopy(iso.load_settings())
+    s = copy.deepcopy(ORIGINAL())
     s["fit"].update({"feh_min": -0.25, "av_max": 1.0, **fit})
     return s
 
@@ -39,13 +42,22 @@ def test_a_mist_file_is_read_with_its_header_values_and_every_table() -> None:
     f = iso.parse_cmd(toy_cmd_text(0.25, (8.0, 9.0)))
     assert f.meta["mist_version"] == "1.2" and f.meta["mesa_revision"] == "7503"
     assert f.meta["photometric_system"].startswith("UBV(RI)c")
-    assert (f.meta["feh"], f.meta["afe"], f.meta["vvcrit"], f.meta["av"], f.meta["rv"]) == (0.25, 0.0, 0.4, 0.0, 3.1)
+    assert f.meta["photometric_system"] == "UBV(RI)c + 2MASS + Kepler + Hipparcos + Gaia (DR2/MAW)"
+    assert (f.meta["feh"], f.meta["afe"], f.meta["vvcrit"], f.meta["av"]) == (0.25, 0.0, 0.4, 0.0)
     assert f.meta["zinit"] == pytest.approx(0.0142857)
     assert len(f.blocks) == 2
     first = f.blocks[0]
     assert set(first) >= {"EEP", "Gaia_G_DR2Rev", "Gaia_BP_DR2Rev", "phase"}
     np.testing.assert_allclose(first["Gaia_G_DR2Rev"], toy_isochrone(0.25, 8.0)["Gaia_G_DR2Rev"], rtol=1e-9)
     assert f.blocks[1]["log10_isochrone_age_yr"][0] == 9.0
+    # the other header layout: the system on the line after its label, Av and Rv labels over their values
+    other = (
+        toy_cmd_text(0.25, (8.0,))
+        .replace("# photometric system   = UBV", "# photometric system\n# ----\n# UBV")
+        .replace("# Av = 0.0000", "#     Av       Rv\n#  0.0300   3.1000")
+    )
+    g = iso.parse_cmd(other)
+    assert g.meta["photometric_system"].startswith("UBV(RI)c") and (g.meta["av"], g.meta["rv"]) == (0.03, 3.1)
 
 
 @pytest.mark.req("STL-033")
@@ -61,7 +73,7 @@ def test_a_file_that_breaks_the_layout_is_refused_with_the_line() -> None:
         iso.parse_cmd(wrong)
     with pytest.raises(iso.MistFormatError, match="no isochrone tables"):
         iso.parse_cmd("\n".join(lines[:head]))
-    no_av = "\n".join(ln for ln in lines if not (ln.startswith("#") and ("Av" in ln or "3.1000" in ln)))
+    no_av = "\n".join(ln for ln in lines if not ln.startswith("# Av"))
     with pytest.raises(iso.MistFormatError, match="'av'"):
         iso.parse_cmd(no_av)
     stray = good.replace("# number of isochrones", "1 2 3\n# number of isochrones")
@@ -88,6 +100,9 @@ def test_the_grid_keeps_the_settings_columns_in_the_age_range_and_refuses_redden
         iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (8.0,), av=0.5))], s)
     with pytest.raises(iso.MistFormatError, match="two files"):
         iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (8.0,)))] * 2, s)
+    newer = iso.parse_cmd(toy_cmd_text(-0.5, (8.0,)).replace("=     7503", "=    10398"))
+    with pytest.raises(iso.MistFormatError, match="mesa_revision"):
+        iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (8.0,))), newer], s)
     other = iso.parse_cmd(toy_cmd_text(-0.5, (8.0,)).replace("Gaia (DR2/MAW)", "SDSS"))
     with pytest.raises(iso.MistFormatError, match="photometric_system"):
         iso.grid_from_files([iso.parse_cmd(toy_cmd_text(0.0, (8.0,))), other], s)
@@ -216,7 +231,32 @@ def test_members_on_the_isochrone_get_their_masses_back() -> None:
     np.testing.assert_allclose(out["initial_mass"][:4], one["initial_mass"][rows], rtol=0.02)
     assert np.all(out["phase"][:4] == 0) and np.all(out["on_isochrone"][:4] == 1)
     assert math.isnan(out["initial_mass"][4]) and out["on_isochrone"][4] == 0
-    assert out["on_isochrone"][5] == 0 and out["distance"][5] > 2  # far above the line: not on it
+    assert out["on_isochrone"][5] == 0 and out["distance"][5] > 3  # far above the line: not on it
+    assert math.isnan(out["initial_mass"][5]) and math.isnan(out["star_mass"][5])  # so no mass
+    assert out["phase"][5] in (0.0, 2.0)
+
+
+@pytest.mark.req("STL-034")
+def test_the_nearest_point_is_exact_in_each_stars_own_errors() -> None:
+    rng = np.random.default_rng(8)
+    one = grid().isochrone(0.0, 9.0)
+    ln = iso.line(one, [-1, 0, 2, 3, 4], 0.02)
+    matcher = iso._Matcher(ln, (0.03, 0.08), 4)
+    n = 400
+    colour = rng.uniform(-0.3, 2.2, n)
+    mag = rng.uniform(-2.0, 11.0, n)
+    sc = 0.03 * np.exp(rng.uniform(0.0, 3.0, n))  # errors never below the floors, often far above
+    sm = 0.08 * np.exp(rng.uniform(0.0, 1.0, n))
+    d2, _ = matcher.nearest(colour, mag, sc, sm)
+    brute = ((colour[:, None] - ln.colour[None, :]) / sc[:, None]) ** 2 + (
+        (mag[:, None] - ln.mag[None, :]) / sm[:, None]
+    ) ** 2
+    np.testing.assert_allclose(d2, brute.min(axis=1), rtol=1e-12)
+    capped, _ = matcher.nearest(colour, mag, sc, sm, limit=3.0)
+    exact = brute.min(axis=1)
+    near = np.sqrt(exact) < 3.0
+    np.testing.assert_allclose(capped[near], exact[near], rtol=1e-12)
+    assert np.all(capped[~near] >= 9.0 - 1e-9)  # beyond the limit: still beyond it
 
 
 @pytest.mark.req("STL-035")
@@ -253,6 +293,12 @@ def test_a_field_stars_mass_is_recovered_and_a_star_far_from_every_model_is_off_
         assert e["log_age"][0] <= e["log_age"][2]
     assert est[2]["off_grid"]  # a white dwarf's colour and magnitude
     assert est[3] == {"feh": 0.0, "off_grid": True}
+    # a faint star with a poor parallax: its errors grow with its apparent G and its modulus's error
+    sharp = iso.field_star_estimates(mag[:1], colour[:1], g, s, feh=0.0)[0]["initial_mass_msun"]
+    blurred = iso.field_star_estimates(
+        mag[:1], colour[:1], g, s, feh=0.0, apparent_g=mag[:1] + 14.0, modulus_err=np.asarray([0.5])
+    )[0]["initial_mass_msun"]
+    assert blurred[2] - blurred[0] > 1.5 * (sharp[2] - sharp[0])
 
 
 # --- the companion screen with an isochrone (STL-036) -----------------------------------------------
@@ -325,6 +371,10 @@ def test_a_screen_with_a_grid_adds_isochrone_masses_and_flags_a_partner_heavier_
     # the same mass function: a heavier visible star means a heavier dark partner
     assert (heavy["m2_dark_mist_msun"] > heavy["m2_dark_msun"]) == (heavy["m1_mist_msun"] > 1.0)
     assert heavy["verdict"] == comp.COMPACT  # Gaia's rule decides the verdict, the isochrone sits beside it
+    far = {**sky["stars"], "parallax": np.full(sky["stars"]["parallax"].size, 2.5)}
+    monkeypatch.setattr(iso, "load_settings", lambda: settings(feh_min=0.4, feh_max=0.5))
+    (none,) = comp.screen(sky["clusters"], far, sky["orbits"], sky["field"], comp.load_settings(), g)["clusters"]
+    assert "no isochrone fit" in none["iso_note"] and none["members"] > 0  # one cluster's failure, not the run's
     plain = comp.screen(sky["clusters"], sky["stars"], sky["orbits"], sky["field"], comp.load_settings())
     assert "iso_log_age" not in plain["clusters"][0] and "m1_mist_msun" not in plain["candidates"][0]
 

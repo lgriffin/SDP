@@ -109,7 +109,7 @@ def stars_csv(path: Path) -> Path:
     s = quick()
     rng = np.random.default_rng(2)
     rows: list[dict[str, Any]] = []
-    for name, age, n in (("Melotte_22", 8.05, 120), ("tiny", 8.5, 5)):
+    for name, age, n in (("Melotte_22", 8.05, 120), ("NGC_2682", 8.5, 5)):
         colour, g, _ = cluster(0.0, age, 0.2, 5.6, n, seed=9, settings=s)
         for i in range(n):
             rows.append(
@@ -147,14 +147,15 @@ def test_a_fit_writes_a_header_a_row_per_cluster_a_table_per_cluster_and_its_plo
     pleiades = rows["Melotte_22"]
     assert abs(float(pleiades["log_age"]) - 8.05) <= 0.1 and "inside" in pleiades["known_answer"]
     assert float(pleiades["log_age_lo"]) <= float(pleiades["log_age"]) <= float(pleiades["log_age_hi"])
-    assert "fewer than" in rows["tiny"]["note"]
+    assert "fewer than" in rows["NGC_2682"]["note"] and not rows["NGC_2682"].get("known_answer")  # M67, not fitted
     with (out / "members" / "Melotte_22.csv").open(encoding="utf-8") as handle:
         members = list(csv.DictReader(handle))
     assert len(members) == 120 and members[0]["phase"] in {"main sequence", "red giant branch"}
     assert float(members[0]["star_mass_msun"]) > 0
     svg = (out / "plots" / "Melotte_22.svg").read_text("utf-8")
     assert svg.startswith("<svg") and "<polyline" in svg and "best cost by age" in svg
-    assert not (out / "plots" / "tiny.svg").exists()
+    assert not (out / "plots" / "NGC_2682.svg").exists()
+    assert svg.count("<polyline") == 2  # the main sequence and the giant branch, not joined across the phase change
     assert "known answer: Melotte 22" in result.stderr
     fits = json.loads((out / "fits.json").read_text("utf-8"))
     assert fits["Melotte_22"]["schema"] == iso.SCHEMA
@@ -192,4 +193,8 @@ def test_field_stars_get_a_mass_and_an_age_range_each(data: Path, tmp_path: Path
         assert float(row["initial_mass_msun_p50"]) == pytest.approx(one["initial_mass"][r], rel=0.1)
         assert row["off_grid"] == "False" and row["phase"] == "main sequence"
     assert got[2]["off_grid"] == "True" and got[2]["initial_mass_msun_p50"] == ""
-    assert json.loads(result.stdout)["stars"] == 3
+    report = json.loads(result.stdout)
+    assert (
+        report["stars"] == 3 and report["grid"]["mist_version"] == "1.2" and len(report["grid"]["source_sha256"]) == 64
+    )
+    assert json.loads(out.with_suffix(".json").read_text("utf-8")) == report

@@ -83,13 +83,16 @@ if ($Refetch -or -not (Test-Path $Grid)) {
 
 $fitOk = $false
 $screenOk = $true
+$screenRan = $false
 if ($have) {
     $fitOk = Step "2 Fit the sweep's clusters" { Sdp isochrones fit --sweep $script:Name --name $script:Name | Out-Null }
     $Orbits = Join-Path $Data "companions\gaia-dr3-orbits.parquet"
-    if ($SkipCompanions) { Write-Host "Companion screen skipped (-SkipCompanions)" }
+    if (-not $fitOk) { Write-Host "The cluster fits failed, so the companion screen does not run" }
+    elseif ($SkipCompanions) { Write-Host "Companion screen skipped (-SkipCompanions)" }
     elseif (-not (Test-Path $Orbits)) { Write-Host "No orbit table at $Orbits (run harness\run-companions.ps1 first), so the companion screen does not run" }
     else {
         $screenOk = Step "3 Companion screen with MIST" { Sdp companions screen --sweep $script:Name --isochrones --name clusters-mist | Out-Null }
+        $screenRan = $screenOk
     }
 } else { Write-Host "The MIST download failed, so nothing else runs" }
 
@@ -110,7 +113,7 @@ if ($fitOk -and (Test-Path (Join-Path $Out "summary.json"))) {
     Write-Host "Plots: $Out\plots"
 }
 $Mist = Join-Path $Data "companions\clusters-mist\candidates.csv"
-if (Test-Path $Mist) {
+if ($screenRan -and (Test-Path $Mist)) {
     Write-Host "`n=== Partners heavier than any living star of their cluster ==="
     Import-Csv $Mist | Where-Object { $_.heavier_than_living -eq "True" } |
         Format-Table cluster_id, source_id, verdict, m1_msun, m1_mist_msun, m2_lower_msun, m2_lower_mist_msun, period_days -AutoSize |

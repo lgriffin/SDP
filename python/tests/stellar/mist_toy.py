@@ -59,20 +59,19 @@ def toy_isochrone(feh: float, log_age: float) -> dict[str, np.ndarray]:
 
 def toy_cmd_text(feh: float, ages: Sequence[float] = AGES, av: float = 0.0, names: Sequence[str] = NAMES) -> str:
     rule = "# " + "-" * 86
+    # the header layout of MIST's own reader (MIST_codes read_mist_models.py, ISOCMD): line 3 holds
+    # the photometric system after "=", lines 5-6 the composition, line 8 the number of isochrones and
+    # line 9 ends with A_V
     out = [
         "# MIST version number  = 1.2",
         "# MESA revision number =     7503",
-        rule,
-        "# photometric system ",
-        "# UBV(RI)c + 2MASS + Kepler + Hipparcos + Gaia (DR2/MAW)",
+        "# photometric system   = UBV(RI)c + 2MASS + Kepler + Hipparcos + Gaia (DR2/MAW)",
         rule,
         "#  Yinit        Zinit   [Fe/H]   [a/Fe]  v/vcrit",
         f"#  0.2703  1.42857E-02  {feh:7.2f}     0.00     0.40",
         rule,
-        "#     Av       Rv",
-        f"#  {av:6.4f}   3.1000",
-        rule,
         f"# number of isochrones = {len(ages):4d}",
+        f"# Av = {av:6.4f}",
         rule,
     ]
     for age in ages:
