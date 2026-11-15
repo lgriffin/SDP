@@ -213,6 +213,13 @@ def companions_screen(
     name: Annotated[
         str, typer.Option(help="Folder for this screen's results under <SDP data>/companions")
     ] = "clusters",
+    isochrones: Annotated[
+        bool,
+        typer.Option(
+            help="Also fit each cluster with a MIST isochrone (`sdp isochrones fetch` first): the members' masses "
+            "on it and whether a partner is heavier than any living star of the cluster"
+        ),
+    ] = False,
 ) -> None:
     """Find each cluster's members again (blind to RUWE), count its wobblers and dark partners, and set
     both against the field. Two passes over the bulk Gaia copy. EXPLORATORY."""
@@ -223,6 +230,13 @@ def companions_screen(
     from sdp_stellar.companions import FieldCounts, footprint, load_settings, near_any, screen, settings_sha256
 
     settings = load_settings()
+    grid = None
+    columns: tuple[str, ...] = COLUMNS
+    if isochrones:
+        from sdp.cli.isochrones import load_grid
+
+        grid = load_grid()
+        columns = (*COLUMNS, "bp_rp")
     statuses = status or ["potentially_new", "inconclusive", "known"]
     clusters = _clusters(sweep, members, statuses)
     if not clusters:
@@ -234,7 +248,7 @@ def companions_screen(
     _say(f"pass 1 of 2: the field's wobble baseline and the seed members of {len(clusters):,} clusters")
     field = FieldCounts(settings)
     seed_tables = []
-    for table in _scan(COLUMNS, plx_min):
+    for table in _scan(columns, plx_min):
         field.add(
             table.column("phot_g_mean_mag").to_numpy(zero_copy_only=False),
             table.column("parallax").to_numpy(zero_copy_only=False),
@@ -252,13 +266,13 @@ def companions_screen(
 
     _say(f"pass 2 of 2: every star inside the footprints of {len(fps):,} clusters")
     kept = []
-    for table in _scan(COLUMNS, plx_min):
+    for table in _scan(columns, plx_min):
         ra = table.column("ra").to_numpy(zero_copy_only=False)
         dec = table.column("dec").to_numpy(zero_copy_only=False)
         kept.append(table.filter(pa.array(near_any(fps, ra, dec))))
     stars = _arrays(kept)
 
-    result = screen(clusters, stars, o, field, settings)
+    result = screen(clusters, stars, o, field, settings, grid)
     target = folder() / name
     _write_csv(target / "candidates.csv", result["candidates"], ["cluster_id", "source_id", "verdict"])
     _write_csv(target / "clusters.csv", result["clusters"], ["cluster_id", "members"])
@@ -275,6 +289,16 @@ def companions_screen(
         "top": result["candidates"][:10],
         "folder": str(target),
     }
+    if grid is not None:
+        from sdp_stellar.isochrones import settings_sha256 as iso_sha256
+
+        heavy = [r for r in result["candidates"] if r.get("heavier_than_living")]
+        summary["isochrones"] = {
+            "settings_sha256": iso_sha256(),
+            "grid": {k: grid.meta.get(k) for k in ("mist_version", "mesa_revision", "source_sha256")},
+            "clusters_fitted": sum(1 for c in result["clusters"] if "iso_log_age" in c),
+            "partners_heavier_than_living": len(heavy),
+        }
     (target / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), "utf-8")
     _say(
         f"{summary['clusters_screened']:,} clusters screened ({summary['members']:,} members): "

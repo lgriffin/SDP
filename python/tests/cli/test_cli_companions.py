@@ -214,3 +214,26 @@ def test_the_field_list_fails_when_gaia_bh1_is_not_flagged(data: Path, tmp_path:
     result = runner.invoke(cli.app, ["companions", "field", "--orbits", str(without), "--out", str(tmp_path)])
     assert result.exit_code != 0 and "Gaia BH1" in str(result.exception)
     assert (tmp_path / "field.csv").exists()
+
+
+@pytest.mark.req("STL-036")
+def test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid(data: Path, tmp_path: Path) -> None:
+    from tests.stellar.mist_toy import toy_cmd_text
+
+    from sdp.cli.isochrones import GRID_FILE
+    from sdp_stellar import isochrones as iso
+
+    no_grid = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--isochrones"])
+    assert no_grid.exit_code != 0 and "sdp isochrones fetch" in str(no_grid.exception)
+    ages = tuple(round(8.0 + 0.1 * i, 2) for i in range(16))
+    grid = iso.grid_from_files([iso.parse_cmd(toy_cmd_text(f, ages)) for f in (-0.25, 0.0)], iso.load_settings())
+    (data / "isochrones").mkdir()
+    pq.write_table(grid.to_table(), data / "isochrones" / GRID_FILE)
+    result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--isochrones", "--name", "iso"])
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.stdout)
+    assert summary["flagged_in_clusters"] == 1  # the verdicts are Gaia's rule, as without isochrones
+    assert summary["isochrones"]["clusters_fitted"] == 1 and summary["isochrones"]["grid"]["mist_version"] == "1.2"
+    header = (data / "companions" / "iso" / "clusters.csv").read_text("utf-8").splitlines()[0]
+    assert "iso_log_age" in header and "iso_heaviest_living_msun" in header
+    assert "m1_mist_msun" in (data / "companions" / "iso" / "candidates.csv").read_text("utf-8").splitlines()[0]

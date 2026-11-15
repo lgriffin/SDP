@@ -480,13 +480,20 @@ def screen(
     orbits: Mapping[str, Any],
     field: FieldCounts,
     settings: Mapping[str, Any],
+    grid: Any = None,
 ) -> dict[str, Any]:
     """Every cluster's members found again, their wobble z and any published orbit's partner mass, and
     each cluster's counts against what the field gives for stars of the same G and parallax.
 
     ``stars`` holds the scanned rows (``source_id``, ``ra``, ``dec``, ``parallax``, ``parallax_error``,
     ``pmra``, ``pmra_error``, ``pmdec``, ``pmdec_error``, ``phot_g_mean_mag``, ``ruwe``) of every seed
-    member and every star near a cluster; ``orbits`` the Gaia orbit table with ``binary_masses``."""
+    member and every star near a cluster; ``orbits`` the Gaia orbit table with ``binary_masses``.
+
+    With a MIST ``grid`` (sdp_stellar.isochrones.Grid) and a ``bp_rp`` column, each cluster's members are
+    also fitted with an isochrone (STL-036): the cluster's row gains its age, [Fe/H], A_V and distance
+    modulus, and each orbit's row gains the visible star's mass on that isochrone, the partner's masses
+    with it, and whether the partner's lower bound is heavier than any star still alive at the cluster's
+    age. The verdicts stay Gaia's rule (STL-020); the isochrone columns sit beside them."""
     ids = np.asarray(stars["source_id"], dtype=np.int64)
     row_of = {int(s): i for i, s in enumerate(ids)}
     orbit_ids = np.asarray(orbits["source_id"], dtype=np.int64)
@@ -525,12 +532,14 @@ def screen(
         expected_orb = float(orbit_share[gi[good], pi[good]].sum())
         wob = int(np.sum(z_all[mem] > z_min))
         with_orbit = [(r, o) for r in mem for o in orbit_rows.get(int(ids[r]), [])]
+        fp_err = fp.parallax_spread / math.sqrt(max(len(mem), 1))
+        iso_fit, iso_row = _isochrone(stars, mem, fp.parallax, fp_err, grid)
         flagged_members: set[int] = set()
         if with_orbit:
             o_idx = np.asarray([o for _, o in with_orbit])
             sub = {k: np.asarray(v)[o_idx] for k, v in orbits.items()}
-            plx_err = fp.parallax_spread / math.sqrt(max(len(mem), 1))
-            masses, verdict = judge(sub, settings, np.full(len(o_idx), fp.parallax), np.full(len(o_idx), plx_err))
+            masses, verdict = judge(sub, settings, np.full(len(o_idx), fp.parallax), np.full(len(o_idx), fp_err))
+            mist = _mist_masses(stars, [r for r, _ in with_orbit], sub, masses, iso_fit, grid)
             for j, (r, _) in enumerate(with_orbit):
                 v = str(verdict[j])
                 if v in FLAGGED:
@@ -558,6 +567,7 @@ def screen(
                         "g_mag": _r(stars["phot_g_mean_mag"][r]),
                         "ruwe": _r(stars["ruwe"][r]),
                         "wobble_z": _r(z_all[r]),
+                        **{k: v[j] for k, v in mist.items()},
                     }
                 )
         summary.append(
@@ -576,6 +586,7 @@ def screen(
                 "flagged_orbits": len(flagged_members),
                 "flagged_expected": _r(expected_orb),
                 "flagged_field_p": _r(poisson_tail(len(flagged_members), expected_orb)),
+                **iso_row,
             }
         )
     order = {v: i for i, v in enumerate(VERDICTS)}
@@ -583,6 +594,65 @@ def screen(
     _, own_verdict = judge(orbits, settings)
     field_verdicts = {v: int(np.sum(own_verdict == v)) for v in VERDICTS}
     return {"candidates": rows, "clusters": summary, "field_orbit_verdicts": field_verdicts}
+
+
+def _isochrone(
+    stars: Mapping[str, Array], mem: NDArray[np.int64], parallax: float, parallax_err: float, grid: Any
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """The cluster's isochrone fit and its columns for clusters.csv; nothing without a grid or colours."""
+    if grid is None or "bp_rp" not in stars:
+        return None, {}
+    from sdp_stellar import isochrones
+
+    fit = isochrones.fit_cluster(
+        np.asarray(stars["bp_rp"], dtype=float)[mem],
+        np.asarray(stars["phot_g_mean_mag"], dtype=float)[mem],
+        parallax,
+        parallax_err,
+        grid,
+    )
+    if fit is None:
+        return None, {"iso_note": "too few members with a colour for an isochrone fit"}
+    row = {f"iso_{k}": fit[k] for k in ("log_age", "feh", "av", "distance_modulus", "on_isochrone_share")}
+    row["iso_heaviest_living_msun"] = fit["heaviest_living_msun"]
+    row["iso_turnoff_initial_msun"] = fit["turnoff_initial_msun"]
+    return fit, row
+
+
+def _mist_masses(
+    stars: Mapping[str, Array],
+    rows: Sequence[int],
+    sub: Mapping[str, Any],
+    masses: Mapping[str, Array],
+    fit: Mapping[str, Any] | None,
+    grid: Any,
+) -> dict[str, list[Any]]:
+    """Per orbit: the visible star's current mass on the cluster's isochrone, the dark partner's mass
+    with it, Gaia's lower bound carried over to it (the same mass function at the new M1), and whether
+    that bound is heavier than any living star of the cluster. Empty without a fit."""
+    if fit is None:
+        return {}
+    from sdp_stellar import isochrones
+
+    r = np.asarray(rows, dtype=np.int64)
+    on = isochrones.member_masses(
+        np.asarray(stars["bp_rp"], dtype=float)[r], np.asarray(stars["phot_g_mean_mag"], dtype=float)[r], fit, grid
+    )
+    m1 = on["star_mass"]
+    low = np.asarray(masses["m2_lower_msun"], dtype=float)
+    gaia_m1 = _col(sub, "m1", r.size)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f_low = low**3 / (gaia_m1 + low) ** 2
+    m2_dark = companion_mass(masses["mass_function_msun"], m1)
+    m2_low = companion_mass(f_low, m1)
+    heaviest = float(fit["heaviest_living_msun"])
+    return {
+        "m1_mist_msun": [_r(x) for x in m1],
+        "m1_mist_on_isochrone": [bool(x) for x in on["on_isochrone"]],
+        "m2_dark_mist_msun": [_r(x) for x in m2_dark],
+        "m2_lower_mist_msun": [_r(x) for x in m2_low],
+        "heavier_than_living": [bool(math.isfinite(x) and x > heaviest) for x in m2_low],
+    }
 
 
 def _r(x: Any, digits: int = 6) -> float | None:
