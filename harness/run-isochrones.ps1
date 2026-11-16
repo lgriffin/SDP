@@ -91,7 +91,7 @@ if ($have) {
     elseif ($SkipCompanions) { Write-Host "Companion screen skipped (-SkipCompanions)" }
     elseif (-not (Test-Path $Orbits)) { Write-Host "No orbit table at $Orbits (run harness\run-companions.ps1 first), so the companion screen does not run" }
     else {
-        $screenOk = Step "3 Companion screen with MIST" { Sdp companions screen --sweep $script:Name --isochrones --name clusters-mist | Out-Null }
+        $screenOk = Step "3 Companion screen with MIST" { Sdp companions screen --sweep $script:Name --isochrones --fits (Join-Path $Data "isochrones\$script:Name\fits.json") --name clusters-mist | Out-Null }
         $screenRan = $screenOk
     }
 } else { Write-Host "The MIST download failed, so nothing else runs" }
@@ -103,21 +103,27 @@ if ($fitOk -and (Test-Path (Join-Path $Out "summary.json"))) {
     Write-Host "`n=== Grid: MIST $($s.grid.mist_version), MESA r$($s.grid.mesa_revision), sha256 $($s.grid.source_sha256) ==="
     Write-Host "$($s.fitted) of $($s.clusters) clusters fitted"
     Write-Host "`n=== Famous clusters against their sanity windows (not yet verified windows) ==="
-    if ($s.known_answers) { $s.known_answers | Format-Table cluster, fitted_log_age, window_log_age, inside -AutoSize | Out-String -Width 200 | Write-Host }
+    if ($s.known_answers) { $s.known_answers | Format-Table cluster, fitted_log_age, window_log_age, fitted_feh, window_feh, inside -AutoSize | Out-String -Width 200 | Write-Host }
     else { Write-Host "none of the famous clusters is in this sweep" }
     Write-Host "`n=== Clusters most on one isochrone (largest share of members within 2 errors) ==="
     Import-Csv (Join-Path $Out "clusters.csv") | Where-Object { $_.log_age } |
         Sort-Object { -[double]$_.on_isochrone_share } | Select-Object -First 15 |
         Format-Table cluster_id, matches, members, log_age, age_myr, feh, av, distance_pc, on_isochrone_share -AutoSize |
         Out-String -Width 220 | Write-Host
+    Write-Host "`n=== Fits at the edge of the search (the best answer may lie beyond it) ==="
+    $edge = @(Import-Csv (Join-Path $Out "clusters.csv") | Where-Object { $_.at_grid_edge })
+    if ($edge.Count) { $edge | Format-Table cluster_id, matches, log_age, feh, av, at_grid_edge -AutoSize | Out-String -Width 200 | Write-Host }
+    else { Write-Host "none" }
     Write-Host "Plots: $Out\plots"
 }
 $Mist = Join-Path $Data "companions\clusters-mist\candidates.csv"
 if ($screenRan -and (Test-Path $Mist)) {
     Write-Host "`n=== Partners heavier than any living star of their cluster ==="
-    Import-Csv $Mist | Where-Object { $_.heavier_than_living -eq "True" } |
-        Format-Table cluster_id, source_id, verdict, m1_msun, m1_mist_msun, m2_lower_msun, m2_lower_mist_msun, period_days -AutoSize |
-        Out-String -Width 200 | Write-Host
+    $heavy = @(Import-Csv $Mist | Where-Object { $_.heavier_than_living -eq "True" })
+    if ($heavy.Count) {
+        $heavy | Format-Table cluster_id, source_id, verdict, m1_msun, m1_mist_msun, m2_lower_msun, m2_lower_mist_msun, period_days -AutoSize |
+            Out-String -Width 200 | Write-Host
+    } else { Write-Host "none" }
 }
 Write-Host "`n=== Summary ==="
 $Summary | ForEach-Object { Write-Host $_ }

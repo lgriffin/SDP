@@ -428,3 +428,101 @@ def test_the_real_mist_v12_header_and_its_gaia_edr3_columns_are_read() -> None:
     np.testing.assert_allclose(one["rp"], [6.851886, 6.800464, 6.715503])
     np.testing.assert_allclose(one["initial_mass"], [0.1, 0.10264483521052409, 0.10703921552827966])
     assert one["phase"].tolist() == [-1.0, -1.0, -1.0]
+
+
+# --- speed and the edges of the search (STL-037) ---------------------------------------------------
+
+
+@pytest.mark.req("STL-037")
+def test_every_extinction_matched_in_one_query_costs_the_same_as_one_at_a_time() -> None:
+    s = settings()
+    g = grid()
+    colour, mag, _ = cluster(0.0, 8.8, 0.4, 8.0, 120, seed=7, settings=s, binaries=12)
+    stars = iso.Stars.from_photometry(colour, mag, s)
+    ln = iso.line(g.isochrone(0.0, 8.8), s["phases"]["fit"], float(s["fit"]["densify_step"]))
+    m = iso._Matcher(ln, (s["photometry"]["colour_floor"], s["photometry"]["g_floor"]), int(s["fit"]["neighbours"]))
+    avs, mods = np.round(np.arange(0.0, 1.0, 0.1), 6), np.round(np.arange(7.8, 8.2, 0.05), 6)
+    together = iso._costs(m, stars, avs, mods, (8.0, 0.05), s, chunk=1_000)  # small chunks: several queries
+    alone = np.vstack([iso._costs(m, stars, np.asarray([av]), mods, (8.0, 0.05), s) for av in avs])
+    np.testing.assert_allclose(together, alone, rtol=1e-12)
+
+
+@pytest.mark.req("STL-038")
+def test_a_fit_that_ends_on_the_edge_of_its_search_says_so() -> None:
+    g = grid((-0.25, 0.0, 0.25))
+    s = settings()
+    colour, mag, _ = cluster(0.0, 8.8, 0.4, 8.0, 160, seed=3, settings=s, binaries=16)
+    inside = iso.fit_cluster(colour, mag, 2.5 - 0.017, 0.02, g, s)
+    assert inside is not None and inside["at_grid_edge"] == []
+    # the oldest cluster the grid holds: its age can only be at the grid's last one
+    old = iso.fit_cluster(*cluster(0.0, AGES[-1], 0.1, 7.0, 120, seed=5, settings=s)[:2], 4.0 - 0.017, 0.02, g, s)
+    assert old is not None and old["log_age"] == AGES[-1] and "log_age" in old["at_grid_edge"]
+    # dust beyond the search's largest A_V
+    dusty = iso.fit_cluster(*cluster(0.0, 8.8, 1.6, 8.0, 160, seed=3, settings=s)[:2], 2.5 - 0.017, 0.02, g, s)
+    assert dusty is not None and dusty["av"] == pytest.approx(1.0) and "av" in dusty["at_grid_edge"]
+
+
+@pytest.mark.req("STL-039")
+def test_a_globular_is_checked_against_its_age_and_metallicity_windows() -> None:
+    s = iso.load_settings()
+    assert s["fit"]["feh_min"] <= -2.5  # the search reaches metal-poor globulars such as M30
+    good = iso.known_answer(["far-b046-t114-c002", "HSC_46, NGC_5904", "NGC_5904"], {"log_age": 10.1, "feh": -1.25}, s)
+    assert good is not None and good["cluster"] == "NGC 5904" and good["inside"]
+    assert good["window_feh"] == [-1.6, -0.9] and good["fitted_feh"] == -1.25
+    metal_rich = iso.known_answer(["NGC_7099"], {"log_age": 10.1, "feh": -0.75}, s)
+    assert metal_rich is not None and not metal_rich["inside"]  # the right age, the wrong [Fe/H]
+    young = iso.known_answer(["M3"], {"log_age": 9.1, "feh": -1.5}, s)
+    assert young is not None and not young["inside"]
+    pleiades = iso.known_answer(["Pleiades"], {"log_age": 8.05, "feh": 0.5}, s)
+    assert pleiades is not None and pleiades["inside"] and "window_feh" not in pleiades  # an age window only
+
+
+@pytest.mark.req("STL-040")
+def test_a_star_above_the_line_has_a_negative_g_offset() -> None:
+    s = settings()
+    g = grid()
+    fit = {"feh": 0.0, "log_age": 9.0, "av": 0.3, "distance_modulus": 9.0}
+    one = g.isochrone(0.0, 9.0)
+    a_g, e = iso.extinction(0.3, s)
+    colour = np.repeat(one["bp"][60] - one["rp"][60] + e, 2)
+    mag = one["g"][60] + 9.0 + a_g + np.asarray([0.0, -0.75])  # on the line, and an equal-mass pair
+    out = iso.member_masses(colour, mag, fit, g, s)
+    assert abs(out["g_offset"][0]) < 0.01
+    assert out["g_offset"][1] < -0.3 and math.isnan(out["star_mass"][1])
+
+
+@pytest.mark.req("STL-041")
+def test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    s = settings()
+    monkeypatch.setattr(iso, "load_settings", lambda: s)
+    sky = companion_sky(s)
+    g = grid()
+    first = comp.screen(sky["clusters"], sky["stars"], sky["orbits"], sky["field"], comp.load_settings(), g)
+    (row,) = first["clusters"]
+    earlier = {
+        **_fit(row),
+        "a_g": 0.0,
+        "on_isochrone_share": row["iso_on_isochrone_share"],
+        "heaviest_living_msun": row["iso_heaviest_living_msun"],
+        "turnoff_initial_msun": row["iso_turnoff_initial_msun"],
+    }
+
+    def no_fit(*_: Any, **__: Any) -> None:
+        raise AssertionError("fitted again")
+
+    monkeypatch.setattr(iso, "fit_cluster", no_fit)
+    again = comp.screen(
+        sky["clusters"],
+        sky["stars"],
+        sky["orbits"],
+        sky["field"],
+        comp.load_settings(),
+        g,
+        {row["cluster_id"]: earlier},
+    )
+    (reused,) = again["clusters"]
+    assert reused["iso_from"] == "earlier fit" and reused["iso_log_age"] == row["iso_log_age"]
+    assert [r["heavier_than_living"] for r in again["candidates"]] == [
+        r["heavier_than_living"] for r in first["candidates"]
+    ]
+    assert all("m1_mist_g_offset_mag" in r for r in again["candidates"])

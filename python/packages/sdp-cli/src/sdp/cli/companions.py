@@ -220,6 +220,12 @@ def companions_screen(
             "on it and whether a partner is heavier than any living star of the cluster"
         ),
     ] = False,
+    fits: Annotated[
+        Path | None,
+        typer.Option(
+            help="With --isochrones: a fits.json from `sdp isochrones fit`; its clusters are not fitted again"
+        ),
+    ] = None,
 ) -> None:
     """Find each cluster's members again (blind to RUWE), count its wobblers and dark partners, and set
     both against the field. Two passes over the bulk Gaia copy. EXPLORATORY."""
@@ -237,6 +243,13 @@ def companions_screen(
 
         grid = load_grid()
         columns = (*COLUMNS, "bp_rp")
+    earlier: dict[str, Any] | None = None
+    if fits is not None:
+        if grid is None:
+            raise DomainError("--fits needs --isochrones")
+        if not fits.exists():
+            raise DomainError(f"no fits at {fits}; run `sdp isochrones fit` first")
+        earlier = json.loads(fits.read_text("utf-8"))
     statuses = status or ["potentially_new", "inconclusive", "known"]
     clusters = _clusters(sweep, members, statuses)
     if not clusters:
@@ -272,7 +285,7 @@ def companions_screen(
         kept.append(table.filter(pa.array(near_any(fps, ra, dec))))
     stars = _arrays(kept)
 
-    result = screen(clusters, stars, o, field, settings, grid)
+    result = screen(clusters, stars, o, field, settings, grid, earlier)
     target = folder() / name
     _write_csv(target / "candidates.csv", result["candidates"], ["cluster_id", "source_id", "verdict"])
     _write_csv(target / "clusters.csv", result["clusters"], ["cluster_id", "members"])
@@ -297,6 +310,7 @@ def companions_screen(
             "settings_sha256": iso_sha256(),
             "grid": {k: grid.meta.get(k) for k in ("mist_version", "mesa_revision", "source_sha256")},
             "clusters_fitted": sum(1 for c in result["clusters"] if "iso_log_age" in c),
+            "fits_reused": sum(1 for c in result["clusters"] if c.get("iso_from")),
             "partners_heavier_than_living": len(heavy),
         }
     (target / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), "utf-8")

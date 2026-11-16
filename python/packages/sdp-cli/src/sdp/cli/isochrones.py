@@ -15,6 +15,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -277,6 +278,7 @@ def fit_one(
             "parallax_modulus_err", "stars_fitted", "on_isochrone_share", "median_distance", "cost",
             "turnoff_initial_msun", "heaviest_living_msun",
         )})  # fmt: skip
+        row["at_grid_edge"] = ",".join(fit.get("at_grid_edge", []))
         for k, (lo, hi) in fit["ranges"].items():
             row[f"{k}_lo"], row[f"{k}_hi"] = lo, hi
         on = member_masses(np.asarray(cluster["bp_rp"]), np.asarray(cluster["phot_g_mean_mag"]), fit, grid, settings)
@@ -295,6 +297,7 @@ def fit_one(
                     "star_mass_msun": _r(on["star_mass"][i]),
                     "phase": "" if not math.isfinite(ph) else phase_names.get(str(round(ph)), str(round(ph))),
                     "distance": _r(on["distance"][i]),
+                    "g_offset_mag": _r(on["g_offset"][i]),
                     "on_isochrone": bool(on["on_isochrone"][i]),
                 }
             )
@@ -304,6 +307,48 @@ def fit_one(
             "inside" if check["inside"] else "OUTSIDE"
         )
     return row, members, (None if fit is None else {**fit, "known_answer": check})
+
+
+_WORKER: dict[str, Any] = {}
+
+
+def _worker_start(grid_path: Path | None, settings: Mapping[str, Any]) -> None:
+    from sdp_stellar import isochrones
+
+    isochrones.TREE_WORKERS = 1  # the processes share the cores; each query stays on its own
+    _WORKER["grid"], _WORKER["settings"] = load_grid(grid_path), settings
+
+
+def _worker_fit(cluster: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any] | None]:
+    return fit_one(cluster, _WORKER["grid"], _WORKER["settings"])
+
+
+def _fit_all(
+    clusters: Sequence[Mapping[str, Any]],
+    grid: Grid,
+    grid_path: Path | None,
+    settings: Mapping[str, Any],
+    workers: int,
+) -> Iterator[tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any] | None]]:
+    """fit_one for every cluster, in order. Clusters are independent, so with more than one worker each
+    process loads the grid once and fits whole clusters; the answers are the same as one at a time."""
+    n = workers or min(max((os.cpu_count() or 2) // 2, 1), 16)
+    n = min(n, len(clusters))
+    if n <= 1:
+        for c in clusters:
+            yield fit_one(c, grid, settings)
+        return
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    _say(f"fitting {len(clusters):,} clusters in {n} processes")
+    with ProcessPoolExecutor(
+        max_workers=n,
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=_worker_start,
+        initargs=(grid_path, dict(settings)),
+    ) as pool:
+        yield from pool.map(_worker_fit, clusters)
 
 
 def _provenance(grid: Grid) -> dict[str, Any]:
@@ -332,6 +377,9 @@ def isochrones_fit(
     ] = None,
     grid_path: Annotated[Path | None, typer.Option("--grid", help="The grid (default the fetched one)")] = None,
     name: Annotated[str, typer.Option(help="Folder for the results under <SDP data>/isochrones")] = "clusters",
+    workers: Annotated[
+        int, typer.Option(help="Clusters fitted side by side, one process each (0: half the logical cores, at most 16)")
+    ] = 0,
 ) -> None:
     """Fit every cluster's members with one MIST isochrone: age, [Fe/H], extinction and distance, each
     member's mass on it, and the standard plots. EXPLORATORY."""
@@ -348,8 +396,9 @@ def isochrones_fit(
         clusters = _from_bulk(sweep, members, status or ["potentially_new", "inconclusive", "known"])
     target = folder() / name
     rows, fits = [], {}
-    for i, c in enumerate(clusters, 1):
-        row, member_rows, fit = fit_one(c, grid, settings)
+    for i, (c, (row, member_rows, fit)) in enumerate(
+        zip(clusters, _fit_all(clusters, grid, grid_path or folder() / GRID_FILE, settings, workers), strict=True), 1
+    ):
         rows.append(row)
         safe = _safe(str(c["cluster_id"]))
         if fit is not None:
@@ -363,6 +412,7 @@ def isochrones_fit(
             f"[{i}/{len(clusters)}] {c['cluster_id']}: "
             + (
                 f"log age {fit['log_age']}, [Fe/H] {fit['feh']}, A_V {fit['av']}, {fit['on_isochrone_share']:.0%} on the isochrone"
+                + (f" (at the grid's edge in {', '.join(fit['at_grid_edge'])})" if fit.get("at_grid_edge") else "")
                 if fit
                 else row.get("note", "not fitted")
             )

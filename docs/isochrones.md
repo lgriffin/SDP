@@ -1,4 +1,4 @@
-# MIST isochrones and stellar masses (STL-033 to STL-036)
+# MIST isochrones and stellar masses (STL-033 to STL-041)
 
 **Status: EXPLORATORY.** Nothing here is a discovery claim. Every result file says so.
 
@@ -60,17 +60,25 @@ field interloper costs a fixed amount and cannot drag the fit. The cluster's mea
 Gaia's zero point (-0.017 mas, Lindegren et al. 2021) and with a 0.011 mas systematic floor, adds a
 Gaussian prior on the distance modulus.
 
-The search is a grid: every [Fe/H] from -1.0 to +0.5, every second MIST age, A_V from 0 to 3 in steps of
+The search is a grid: every [Fe/H] from -2.5 to +0.5, every second MIST age, A_V from 0 to 3 in steps of
 0.1 and the modulus within three sigma of the parallax's; then the neighbouring metallicities, all ages
 nearby and fine steps of A_V (0.02) and modulus (0.01) around the best. A grid is slower than an
 optimiser but gives the same answer every time and a cost for every point, which is what the plots show.
+Every A_V and modulus step for one isochrone is matched in a few large tree queries, and `fit` runs
+clusters side by side in separate processes (`--workers`, by default half the logical cores, at most 16);
+neither changes an answer (STL-037).
+
+A fit whose best [Fe/H], age, A_V or modulus lies on the edge of its search lists it in `at_grid_edge`
+(STL-038): the true value may lie beyond it. The first PC run (2026-11-16) searched only down to [Fe/H]
+-1.0 and put the globulars M5 and M3 on that limit and on the grid's oldest age, and M30 at 1.3 Gyr.
 
 Each parameter's **range** is the set of grid values whose best cost is within 1 of the minimum: a grid
 profile, not a calibrated confidence interval. **on_isochrone_share** is the share of fitted members
 within 2 errors of the line.
 
-**Known answers.** The settings list sanity windows for four famous clusters (the Pleiades, the Hyades,
-Praesepe and M67). A run that fits one of them reports whether its age falls inside its window. The
+**Known answers.** The settings list sanity windows for four famous open clusters (the Pleiades, the
+Hyades, Praesepe and M67) and three globulars (M5, M3 and M30, which also carry an [Fe/H] window,
+STL-039). A run that fits one of them reports whether its age falls inside its window. The
 windows are broad and **not yet verified** against a published Gaia fit (for example Gaia
 Collaboration, Babusiaux et al. 2018); until Leigh checks them, a miss prints a warning instead of
 failing the run, unlike the companion screen's Gaia BH1 check.
@@ -80,7 +88,9 @@ failing the run, unlike the companion screen's Gaia BH1 check.
 * **Cluster member:** the initial and current mass, and the phase, of the nearest point of the cluster's
   best isochrone, measured exactly in the star's own errors. A star more than 3 errors off the line (a
   white dwarf, an equal-mass photometric binary, an interloper) gets no mass, since the isochrone does
-  not describe it; `on_isochrone` says whether the star is within 2 errors of the line.
+  not describe it; `on_isochrone` says whether the star is within 2 errors of the line, and `g_offset_mag` is its
+  absolute G minus the main sequence's at its colour: negative above the line, down to -0.75 for an
+  equal-mass pair (STL-040).
 * **Heaviest living star:** the largest current mass anywhere on the cluster's isochrone. No partner
   that is itself a normal star of the cluster can be heavier. A heavier partner is a remnant (white
   dwarf, neutron star, black hole), a merger product such as a blue straggler, or not coeval with the
@@ -95,7 +105,9 @@ failing the run, unlike the companion screen's Gaia BH1 check.
 
 ## In the companion screen
 
-`sdp companions screen --isochrones` fits each cluster after finding its members again. `clusters.csv`
+`sdp companions screen --isochrones` fits each cluster after finding its members again, unless
+`--fits <SDP data>\isochrones\<sweep>\fits.json` gives it the sweep fit's answer for that cluster
+(STL-041; the harness passes it). `clusters.csv`
 gains `iso_log_age`, `iso_feh`, `iso_av`, `iso_distance_modulus`, `iso_on_isochrone_share`,
 `iso_heaviest_living_msun` and `iso_turnoff_initial_msun`. Each orbit's row in `candidates.csv` gains:
 
@@ -103,6 +115,7 @@ gains `iso_log_age`, `iso_feh`, `iso_av`, `iso_distance_modulus`, `iso_on_isochr
 | --- | --- |
 | `m1_mist_msun` | the visible star's current mass on the cluster's isochrone, empty when it is more than 3 errors off it (Gaia's own M1 stays in `m1_msun`) |
 | `m1_mist_on_isochrone` | whether the star is within 2 errors of the isochrone |
+| `m1_mist_g_offset_mag` | how far the star sits from the main sequence in G at its colour, negative above it: a star well above it most likely has a companion that shines |
 | `m2_dark_mist_msun` | the dark partner's mass from the same mass function with the MIST M1 |
 | `m2_lower_mist_msun` | Gaia's lower bound carried over to the MIST M1 (the same mass function, solved again) |
 | `heavier_than_living` | `m2_lower_mist_msun` is above the cluster's heaviest living star |
@@ -139,6 +152,9 @@ checkpoint).
 * MIST rotating models (v/vcrit 0.4) at solar-scaled [alpha/Fe] only; no grid of other rotation rates.
 * Unresolved binaries are capped, not modelled; a cluster rich in binaries fits with a smaller
   `on_isochrone_share`.
+* MIST's models are solar-scaled; globulars are alpha-enhanced, so their fitted [Fe/H] reads a little high.
+* The first PC run put about a quarter of the open clusters at [Fe/H] +0.5, many with A_V = 0: metallicity
+  and dust trade against each other in a colour-magnitude diagram. Read such fits with care.
 * White dwarfs are not in the fit phases, so a white dwarf member is off the line and gets no mass.
 * The profile ranges are not calibrated confidence intervals.
 * The tests use invented isochrones in MIST's layout (`python/tests/stellar/mist_toy.py`), because the

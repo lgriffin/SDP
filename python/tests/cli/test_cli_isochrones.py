@@ -216,3 +216,17 @@ def test_a_grid_built_with_other_columns_is_refused_until_it_is_built_again(data
     assert unrecorded.exit_code != 0 and "not recorded" in str(unrecorded.exception)
     fetched(data, tmp_path)  # built again from the same tarball, it is read
     assert cmd.load_grid().meta["columns"] == iso.columns_key(quick())
+
+
+@pytest.mark.req("STL-037")
+def test_clusters_fitted_side_by_side_give_the_same_results_as_one_at_a_time(data: Path, tmp_path: Path) -> None:
+    fetched(data, tmp_path)
+    stars = str(stars_csv(tmp_path / "stars.csv"))
+    one = runner.invoke(cli.app, ["isochrones", "fit", "--stars", stars, "--name", "one", "--workers", "1"])
+    two = runner.invoke(cli.app, ["isochrones", "fit", "--stars", stars, "--name", "two", "--workers", "2"])
+    assert one.exit_code == 0 and two.exit_code == 0, one.output + two.output
+    assert "in 2 processes" in two.stderr and "processes" not in one.stderr
+    for name in ("clusters.csv", "fits.json", "members/Melotte_22.csv"):
+        assert (data / "isochrones" / "one" / name).read_bytes() == (data / "isochrones" / "two" / name).read_bytes()
+    with (data / "isochrones" / "two" / "members" / "Melotte_22.csv").open(encoding="utf-8") as handle:
+        assert "g_offset_mag" in next(csv.DictReader(handle))

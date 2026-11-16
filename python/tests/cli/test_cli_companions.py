@@ -237,3 +237,23 @@ def test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid(dat
     header = (data / "companions" / "iso" / "clusters.csv").read_text("utf-8").splitlines()[0]
     assert "iso_log_age" in header and "iso_heaviest_living_msun" in header
     assert "m1_mist_msun" in (data / "companions" / "iso" / "candidates.csv").read_text("utf-8").splitlines()[0]
+    # step 2's fits are reused: the same answers, without fitting the cluster again
+    with (data / "companions" / "iso" / "clusters.csv").open(encoding="utf-8") as handle:
+        row = next(r for r in csv.DictReader(handle) if r.get("iso_log_age"))
+    earlier = {
+        row["cluster_id"]: {
+            **{k: float(row[f"iso_{k}"]) for k in ("log_age", "feh", "av", "distance_modulus", "on_isochrone_share")},
+            "heaviest_living_msun": float(row["iso_heaviest_living_msun"]),
+            "turnoff_initial_msun": float(row["iso_turnoff_initial_msun"]),
+        }
+    }
+    fits = tmp_path / "fits.json"
+    fits.write_text(json.dumps(earlier), "utf-8")
+    reused = runner.invoke(
+        cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--isochrones", "--fits", str(fits), "--name", "re"]
+    )
+    assert reused.exit_code == 0, reused.output
+    again = json.loads(reused.stdout)
+    assert again["isochrones"]["fits_reused"] == 1 and again["flagged_in_clusters"] == 1
+    lone = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--fits", str(fits)])
+    assert lone.exit_code != 0 and "--fits needs --isochrones" in str(lone.exception)

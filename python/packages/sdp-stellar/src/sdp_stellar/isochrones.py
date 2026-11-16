@@ -349,6 +349,10 @@ def line(iso: Mapping[str, Array], phases: Sequence[int], step: float) -> Line:
     return Line(fill(colour), fill(mag), fill(mi), fill(ms), hold(ph), hold(age))
 
 
+# threads per tree query: -1 uses every core; a process that fits clusters side by side sets it to 1
+TREE_WORKERS = -1
+
+
 @dataclass
 class _Matcher:
     """Nearest points of one line for stars with per-star errors."""
@@ -373,7 +377,7 @@ class _Matcher:
         inside that radius is checked too."""
         k = min(self.k, self.ln.size)
         q = np.column_stack([colour / self.scale[0], mag / self.scale[1]])
-        dist, idx = self.tree.query(q, k=k, workers=-1)
+        dist, idx = self.tree.query(q, k=k, workers=TREE_WORKERS)
         dist, idx = np.asarray(dist).reshape(colour.size, k), np.asarray(idx).reshape(colour.size, k)
         d2 = ((colour[:, None] - self.ln.colour[idx]) / sc[:, None]) ** 2 + (
             (mag[:, None] - self.ln.mag[idx]) / sm[:, None]
@@ -386,10 +390,10 @@ class _Matcher:
         radius = np.minimum(np.sqrt(out_d2), limit) / rho * (1.0 + 1e-9)
         check = np.nonzero((dist[:, -1] < radius) & (k < self.ln.size))[0]
         if check.size:
-            balls = self.tree.query_ball_point(q[check], radius[check], workers=-1)
+            balls = self.tree.query_ball_point(q[check], radius[check], workers=TREE_WORKERS)
             lens = np.asarray([len(b) for b in balls], dtype=np.int64)
             star = np.repeat(check, lens)
-            pts = np.fromiter((j for b in balls for j in b), dtype=np.int64, count=int(lens.sum()))
+            pts = np.fromiter(itertools.chain.from_iterable(balls), dtype=np.int64, count=int(lens.sum()))
             dd = ((colour[star] - self.ln.colour[pts]) / sc[star]) ** 2 + (
                 (mag[star] - self.ln.mag[pts]) / sm[star]
             ) ** 2
@@ -429,18 +433,35 @@ class Stars:
 
 
 def _costs(
-    matcher: _Matcher, stars: Stars, av: float, moduli: Array, prior: tuple[float, float], settings: Mapping[str, Any]
+    matcher: _Matcher,
+    stars: Stars,
+    avs: Array,
+    moduli: Array,
+    prior: tuple[float, float],
+    settings: Mapping[str, Any],
+    chunk: int = 200_000,
 ) -> Array:
-    """The fit's cost at one A_V for each distance modulus: the members' capped squared distances to the
-    line, summed, plus the parallax prior's term. All moduli are matched in one query."""
-    a_g, e_c = extinction(av, settings)
-    k = moduli.size
-    colour = np.tile(stars.colour - e_c, k)
-    mag = (stars.g[None, :] - a_g - moduli[:, None]).ravel()
+    """The fit's cost at each A_V (rows) and distance modulus (columns): the members' capped squared
+    distances to the line, summed, plus the parallax prior's term. Every A_V and modulus is matched in a
+    few large queries rather than one per A_V: a tree query has a fixed start-up cost (its worker threads),
+    which thousands of small queries per cluster paid over and over."""
     cap = float(settings["fit"]["outlier_cap"]) ** 2
-    d2, _ = matcher.nearest(colour, mag, np.tile(stars.colour_err, k), np.tile(stars.g_err, k), math.sqrt(cap))
-    out: Array = np.minimum(d2, cap).reshape(k, stars.size).sum(axis=1) + ((moduli - prior[0]) / prior[1]) ** 2
-    return out
+    n, k = stars.size, moduli.size
+    a_g, e_c = extinction(np.asarray(avs, dtype=np.float64), settings)
+    out = np.empty((a_g.size, k))
+    per = max(chunk // max(n * k, 1), 1)
+    for lo in range(0, a_g.size, per):
+        hi = min(lo + per, a_g.size)
+        m = hi - lo
+        colour = np.broadcast_to((stars.colour[None, :] - e_c[lo:hi, None])[:, None, :], (m, k, n)).ravel()
+        mag = (stars.g[None, None, :] - a_g[lo:hi, None, None] - moduli[None, :, None]).ravel()
+        reps = m * k
+        d2, _ = matcher.nearest(
+            colour, mag, np.tile(stars.colour_err, reps), np.tile(stars.g_err, reps), math.sqrt(cap)
+        )
+        out[lo:hi] = np.minimum(d2, cap).reshape(m, k, n).sum(axis=2)
+    result: Array = out + ((moduli[None, :] - prior[0]) / prior[1]) ** 2
+    return result
 
 
 def _steps(lo: float, hi: float, step: float) -> Array:
@@ -454,7 +475,7 @@ class _Search:
     stars: Stars
     prior: tuple[float, float]
     settings: Mapping[str, Any]
-    trials: list[tuple[float, float, float, float, float]] = field(default_factory=list)
+    blocks: list[Array] = field(default_factory=list)
     _lines: dict[tuple[float, float], _Matcher | None] = field(default_factory=dict)
 
     def matcher(self, feh: float, age: float) -> _Matcher | None:
@@ -468,19 +489,25 @@ class _Search:
         return self._lines[key]
 
     def run(self, fehs: Sequence[float], ages_of: Mapping[float, Sequence[float]], avs: Array, mods: Array) -> None:
+        av_col, mod_col = np.repeat(avs, mods.size), np.tile(mods, avs.size)
         for feh in fehs:
             for age in ages_of[feh]:
                 m = self.matcher(feh, age)
                 if m is None:
                     continue
-                for av in avs:
-                    costs = _costs(m, self.stars, float(av), mods, self.prior, self.settings)
-                    self.trials.extend(
-                        (feh, age, float(av), float(mod), float(c)) for mod, c in zip(mods, costs, strict=True)
-                    )
+                costs = _costs(m, self.stars, avs, mods, self.prior, self.settings).ravel()
+                block = np.column_stack([np.full(costs.size, feh), np.full(costs.size, age), av_col, mod_col, costs])
+                self.blocks.append(block)
+
+    @property
+    def trials(self) -> Array:
+        return np.concatenate(self.blocks) if self.blocks else np.empty((0, 5))
 
     def best(self) -> tuple[float, float, float, float, float]:
-        return min(self.trials, key=lambda t: (t[4], t[1], t[0], t[2], t[3]))
+        t = self.trials
+        i = int(np.lexsort((t[:, 3], t[:, 2], t[:, 0], t[:, 1], t[:, 4]))[0])
+        feh, age, av, mod, cost = (float(x) for x in t[i])
+        return feh, age, av, mod, cost
 
 
 def fit_cluster(
@@ -527,6 +554,7 @@ def fit_cluster(
     av_f = _steps(
         max(av0 - float(f["av_coarse_step"]), 0.0), av0 + float(f["av_coarse_step"]), float(f["av_fine_step"])
     )
+    av_f = av_f[av_f <= float(f["av_max"]) + 1e-9]  # the fine steps stay inside the search
     mod_f = _steps(
         mod0 - float(f["modulus_coarse_step"]), mod0 + float(f["modulus_coarse_step"]), float(f["modulus_fine_step"])
     )
@@ -539,7 +567,14 @@ def fit_cluster(
     a_g, e_c = extinction(av, s)
     d2, _ = best.nearest(stars.colour - e_c, stars.g - a_g - mod, stars.colour_err, stars.g_err)
     iso = grid.isochrone(feh, age)
-    trials = np.asarray(search.trials)
+    trials = search.trials
+    ages_all = grid.ages(feh)
+    edges = {
+        "feh": feh in (fehs[0], fehs[-1]) and len(fehs) > 1,
+        "log_age": age in (ages_all[0], ages_all[-1]),
+        "av": av >= float(f["av_max"]) - 1e-9,
+        "distance_modulus": abs(abs(mod - prior[0]) - half) < float(f["modulus_fine_step"]),
+    }
     return {
         "schema": SCHEMA,
         "feh": feh,
@@ -559,7 +594,8 @@ def fit_cluster(
         "ranges": profile_ranges(trials, float(f["profile_delta"])),
         "turnoff_initial_msun": turnoff_mass(iso),
         "heaviest_living_msun": heaviest_living(iso),
-        "trials": len(search.trials),
+        "trials": int(trials.shape[0]),
+        "at_grid_edge": [k for k, v in edges.items() if v],
         "surface": surface(trials),
     }
 
@@ -608,12 +644,14 @@ def member_masses(
     """Each star's distance (in error units) to the fitted isochrone and the phase of its nearest point,
     whether it is within ``inlier_distance`` of it, and the initial and current mass of that point, but
     only for a star within ``mass_distance_max``: a star further off (a white dwarf, a photometric
-    binary, an interloper) is not one the isochrone describes, so its masses are NaN. Stars with no
-    colour or G get NaN throughout."""
+    binary, an interloper) is not one the isochrone describes, so its masses are NaN. ``g_offset`` is the
+    star's absolute G minus the main sequence's at its colour, negative above it (brighter: an unresolved
+    companion that shines adds light, up to 0.75 mag for an equal pair); NaN off the main sequence's colours. Stars with no colour or G get NaN
+    throughout."""
     s = settings or load_settings()
     c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
     n = c.size
-    out = {k: np.full(n, np.nan) for k in ("initial_mass", "star_mass", "phase", "distance")}
+    out = {k: np.full(n, np.nan) for k in ("initial_mass", "star_mass", "phase", "distance", "g_offset")}
     ok = np.isfinite(c) & np.isfinite(m)
     if ok.any():
         ln = line(
@@ -625,13 +663,40 @@ def member_masses(
         matcher = _Matcher(ln, (float(floors["colour_floor"]), float(floors["g_floor"])), int(s["fit"]["neighbours"]))
         a_g, e_c = extinction(float(fit["av"]), s)
         ce, ge = photometric_errors(m[ok], s)
-        d2, idx = matcher.nearest(c[ok] - e_c, m[ok] - a_g - float(fit["distance_modulus"]), ce, ge)
+        abs_g = m[ok] - a_g - float(fit["distance_modulus"])
+        d2, idx = matcher.nearest(c[ok] - e_c, abs_g, ce, ge)
+        out["g_offset"][ok] = abs_g - main_sequence_g(
+            grid.isochrone(float(fit["feh"]), float(fit["log_age"])), c[ok] - e_c, abs_g
+        )
         near = np.sqrt(d2) <= float(s["fit"]["mass_distance_max"])
         out["initial_mass"][ok] = np.where(near, ln.initial_mass[idx], np.nan)
         out["star_mass"][ok] = np.where(near, ln.star_mass[idx], np.nan)
         out["phase"][ok] = ln.phase[idx]
         out["distance"][ok] = np.sqrt(d2)
     out["on_isochrone"] = np.asarray(out["distance"] <= float(s["fit"]["inlier_distance"]), dtype=np.float64)
+    return out
+
+
+def main_sequence_g(iso: Mapping[str, Array], colour0: Array, abs_g: Array) -> Array:
+    """The absolute G of the isochrone's main sequence (and pre-main sequence) at each intrinsic colour:
+    where several of its segments cross that colour (the turnoff's hook), the one nearest the star's own
+    G; NaN where none does."""
+    keep = np.round(iso["phase"]) <= 0
+    col, mag = (iso["bp"] - iso["rp"])[keep], iso["g"][keep]
+    out = np.full(colour0.size, np.nan)
+    if col.size < 2 or colour0.size == 0:
+        return out
+    a, b = col[:-1][None, :], col[1:][None, :]
+    x = colour0[:, None]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (x - a) / (b - a)
+    cross = (t >= 0) & (t <= 1) & np.isfinite(t)
+    g_at = mag[:-1][None, :] + t * (mag[1:] - mag[:-1])[None, :]
+    gap = np.where(cross, np.abs(g_at - abs_g[:, None]), np.inf)
+    j = np.argmin(gap, axis=1)
+    rows = np.arange(colour0.size)
+    found = np.isfinite(gap[rows, j])
+    out[found] = g_at[rows, j][found]
     return out
 
 
@@ -739,17 +804,23 @@ def known_answer(
     cluster_names: Iterable[str], fit: Mapping[str, Any] | None, settings: Mapping[str, Any]
 ) -> dict[str, Any] | None:
     """The settings' sanity window for a famous cluster this one matches by name, and whether the fitted
-    age falls inside it; None when it matches none."""
+    age (and [Fe/H], where the window gives one) falls inside it; None when it matches none."""
     tokens = {n.strip().lower() for name in cluster_names for n in [name, name.split(":", 1)[-1]] if n}
     for entry in settings["known_answers"]["clusters"]:
         if tokens & {n.lower() for n in entry["names"]}:
             lo, hi = (float(x) for x in entry["log_age"])
             age = None if fit is None else float(fit["log_age"])
-            return {
+            out: dict[str, Any] = {
                 "cluster": entry["names"][0],
                 "window_log_age": [lo, hi],
                 "fitted_log_age": age,
                 "inside": age is not None and lo <= age <= hi,
                 "verified_window": bool(settings["known_answers"]["verified"]),
             }
+            if "feh" in entry:
+                f_lo, f_hi = (float(x) for x in entry["feh"])
+                feh = None if fit is None else float(fit["feh"])
+                out.update(window_feh=[f_lo, f_hi], fitted_feh=feh)
+                out["inside"] = bool(out["inside"] and feh is not None and f_lo <= feh <= f_hi)
+            return out
     return None
