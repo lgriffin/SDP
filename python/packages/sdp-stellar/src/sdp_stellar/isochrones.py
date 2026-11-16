@@ -285,13 +285,19 @@ def extinction(av: float | Array, settings: Mapping[str, Any]) -> tuple[Array, A
     return a * float(e["a_g_over_a_v"]), a * (float(e["a_bp_over_a_v"]) - float(e["a_rp_over_a_v"]))
 
 
-def photometric_errors(g: Array, settings: Mapping[str, Any]) -> tuple[Array, Array]:
+def photometric_errors(g: Array, settings: Mapping[str, Any], abs_g: Array | None = None) -> tuple[Array, Array]:
     """(colour error, G error) of each star, each the quadrature sum of the floor and an error that grows
-    by a factor 10^0.2 per magnitude fainter than G = 15 (photon noise)."""
+    by a factor 10^0.2 per magnitude fainter than G = 15 (photon noise). Given its absolute G, a star
+    fainter than ``red_dwarf_abs_g`` (a K or M dwarf) also carries ``red_dwarf_colour_error`` in colour:
+    the models' colours of such stars are known to be poor, and without it a handful of red dwarfs pulled
+    fits to [Fe/H] +0.5 (the 2026-11-16 PC run)."""
     p = settings["photometry"]
     grow = 10 ** (0.2 * (np.asarray(g, dtype=np.float64) - 15.0))
     colour = np.hypot(float(p["colour_floor"]), float(p["colour_error_at_g15"]) * grow)
     mag = np.hypot(float(p["g_floor"]), float(p["g_error_at_g15"]) * grow)
+    if abs_g is not None and "red_dwarf_abs_g" in p:
+        red = np.asarray(abs_g, dtype=np.float64) > float(p["red_dwarf_abs_g"])
+        colour = np.hypot(colour, np.where(red, float(p["red_dwarf_colour_error"]), 0.0))
     return colour, mag
 
 
@@ -410,26 +416,47 @@ class _Matcher:
 
 @dataclass(frozen=True)
 class Stars:
-    """A cluster's members: observed BP-RP and G and their errors."""
+    """A cluster's members: observed BP-RP and G and their errors. ``colour_err`` leaves out the models'
+    red-dwarf term: whether a star is a red dwarf depends on its absolute G, so on each trial's A_V and
+    modulus, and :func:`_costs` adds it per trial (``red_abs_g``, ``red_colour_err``)."""
 
     colour: Array
     g: Array
     colour_err: Array
     g_err: Array
+    red_abs_g: float | None = None
+    red_colour_err: float = 0.0
 
     @classmethod
     def from_photometry(cls, colour: Array, g: Array, settings: Mapping[str, Any]) -> Stars:
+        """The stars with a colour and G, carrying the red-dwarf settings (see :func:`photometric_errors`)."""
         c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
         ok = np.isfinite(c) & np.isfinite(m)
         ce, ge = photometric_errors(m[ok], settings)
-        return cls(c[ok], m[ok], ce, ge)
+        p = settings["photometry"]
+        red = float(p["red_dwarf_abs_g"]) if "red_dwarf_abs_g" in p else None
+        return cls(c[ok], m[ok], ce, ge, red, float(p.get("red_dwarf_colour_error", 0.0)))
+
+    def colour_errors(self, abs_g: Array) -> Array:
+        """The colour errors at these absolute magnitudes: the stars in order, repeated once per trial."""
+        base = np.tile(self.colour_err, abs_g.size // max(self.size, 1))
+        if self.red_abs_g is None or self.red_colour_err == 0.0:
+            return base
+        return np.hypot(base, np.where(abs_g > self.red_abs_g, self.red_colour_err, 0.0))
 
     @property
     def size(self) -> int:
         return int(self.colour.size)
 
     def take(self, rows: NDArray[np.int64]) -> Stars:
-        return Stars(self.colour[rows], self.g[rows], self.colour_err[rows], self.g_err[rows])
+        return Stars(
+            self.colour[rows],
+            self.g[rows],
+            self.colour_err[rows],
+            self.g_err[rows],
+            self.red_abs_g,
+            self.red_colour_err,
+        )
 
 
 def _costs(
@@ -455,10 +482,7 @@ def _costs(
         m = hi - lo
         colour = np.broadcast_to((stars.colour[None, :] - e_c[lo:hi, None])[:, None, :], (m, k, n)).ravel()
         mag = (stars.g[None, None, :] - a_g[lo:hi, None, None] - moduli[None, :, None]).ravel()
-        reps = m * k
-        d2, _ = matcher.nearest(
-            colour, mag, np.tile(stars.colour_err, reps), np.tile(stars.g_err, reps), math.sqrt(cap)
-        )
+        d2, _ = matcher.nearest(colour, mag, stars.colour_errors(mag), np.tile(stars.g_err, m * k), math.sqrt(cap))
         out[lo:hi] = np.minimum(d2, cap).reshape(m, k, n).sum(axis=2)
     result: Array = out + ((moduli[None, :] - prior[0]) / prior[1]) ** 2
     return result
@@ -475,6 +499,7 @@ class _Search:
     stars: Stars
     prior: tuple[float, float]
     settings: Mapping[str, Any]
+    feh_prior: tuple[float, float] | None = None
     blocks: list[Array] = field(default_factory=list)
     _lines: dict[tuple[float, float], _Matcher | None] = field(default_factory=dict)
 
@@ -496,6 +521,8 @@ class _Search:
                 if m is None:
                     continue
                 costs = _costs(m, self.stars, avs, mods, self.prior, self.settings).ravel()
+                if self.feh_prior is not None:
+                    costs = costs + ((feh - self.feh_prior[0]) / self.feh_prior[1]) ** 2
                 block = np.column_stack([np.full(costs.size, feh), np.full(costs.size, age), av_col, mod_col, costs])
                 self.blocks.append(block)
 
@@ -517,25 +544,30 @@ def fit_cluster(
     parallax_err_mas: float,
     grid: Grid,
     settings: Mapping[str, Any] | None = None,
+    feh_prior: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """The best isochrone for a cluster's members (their BP-RP and G) at the distance its mean parallax
-    suggests, or None when fewer than ``min_stars`` members have both. Coarse grid over every [Fe/H] in
+    suggests, or None when fewer than ``min_stars`` members have both. A ``feh_prior`` (``mean``,
+    ``sigma``, from :func:`metallicity_prior`) adds a Gaussian term in [Fe/H] to every cost. Coarse grid over every [Fe/H] in
     range, every ``age_coarse_stride``-th age, A_V and modulus; then the neighbouring metallicities, all
     ages within two coarse steps, and a fine A_V and modulus grid around the coarse best."""
     s = settings or load_settings()
     f = s["fit"]
-    stars = Stars.from_photometry(colour, g, s)
-    if stars.size < int(f["min_stars"]):
+    if int(np.sum(np.isfinite(np.asarray(colour, dtype=float)) & np.isfinite(np.asarray(g, dtype=float)))) < int(
+        f["min_stars"]
+    ):
         return None
+    prior = modulus_prior(parallax_mas, parallax_err_mas, s)
+    stars = Stars.from_photometry(colour, g, s)
     if stars.size > int(f["max_fit_stars"]):
         rng = np.random.default_rng(int(f["seed"]))
         stars = stars.take(np.sort(rng.choice(stars.size, int(f["max_fit_stars"]), replace=False)))
-    prior = modulus_prior(parallax_mas, parallax_err_mas, s)
     half = max(float(f["modulus_halfwidth_sigma"]) * prior[1], float(f["modulus_halfwidth_min"]))
     fehs = [x for x in grid.fehs() if float(f["feh_min"]) - 1e-9 <= x <= float(f["feh_max"]) + 1e-9]
     if not fehs:
         raise ValueError(f"the grid has no [Fe/H] between {f['feh_min']} and {f['feh_max']}")
-    search = _Search(grid, stars, prior, s)
+    gauss = None if feh_prior is None else (float(feh_prior["mean"]), float(feh_prior["sigma"]))
+    search = _Search(grid, stars, prior, s, gauss)
     stride = max(int(f["age_coarse_stride"]), 1)
     coarse_ages = {x: grid.ages(x)[::stride] for x in fehs}
     av_c = _steps(0.0, float(f["av_max"]), float(f["av_coarse_step"]))
@@ -596,6 +628,7 @@ def fit_cluster(
         "heaviest_living_msun": heaviest_living(iso),
         "trials": int(trials.shape[0]),
         "at_grid_edge": [k for k, v in edges.items() if v],
+        "feh_prior": None if feh_prior is None else dict(feh_prior),
         "surface": surface(trials),
     }
 
@@ -662,8 +695,8 @@ def member_masses(
         floors = s["photometry"]
         matcher = _Matcher(ln, (float(floors["colour_floor"]), float(floors["g_floor"])), int(s["fit"]["neighbours"]))
         a_g, e_c = extinction(float(fit["av"]), s)
-        ce, ge = photometric_errors(m[ok], s)
         abs_g = m[ok] - a_g - float(fit["distance_modulus"])
+        ce, ge = photometric_errors(m[ok], s, abs_g)
         d2, idx = matcher.nearest(c[ok] - e_c, abs_g, ce, ge)
         out["g_offset"][ok] = abs_g - main_sequence_g(
             grid.isochrone(float(fit["feh"]), float(fit["log_age"])), c[ok] - e_c
@@ -762,7 +795,7 @@ def field_star_estimates(
     cap = float(fs["off_grid_distance"]) ** 2
     chunk = int(fs["chunk"])
     observed = mg if apparent_g is None else np.asarray(apparent_g, dtype=np.float64)
-    ce_all, ge_all = photometric_errors(observed, s)
+    ce_all, ge_all = photometric_errors(observed, s, mg)
     if modulus_err is not None:
         ge_all = np.hypot(ge_all, np.nan_to_num(np.asarray(modulus_err, dtype=np.float64), nan=0.0))
     for a in range(0, c0.size, chunk):
@@ -797,12 +830,83 @@ def field_star_estimates(
 # --- known answers ------------------------------------------------------------------------------
 
 
+def _names(cluster_names: Iterable[str]) -> set[str]:
+    """Every name a cluster goes by, lower case, with and without a catalogue prefix ("hr23:")."""
+    return {
+        n.strip().lower()
+        for name in cluster_names
+        for part in str(name).split(",")
+        for n in [part, part.split(":", 1)[-1]]
+        if n.strip()
+    }
+
+
+def metallicity_prior(
+    cluster_names: Iterable[str],
+    ra_deg: Any,
+    dec_deg: Any,
+    distance_pc: float | None,
+    settings: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """A Gaussian prior on the fitted [Fe/H] (``mean``, ``sigma``, ``source``). A Gaia colour-magnitude
+    diagram of a few dozen stars hardly fixes metallicity: it trades against dust, and the models' own
+    errors (the colours of red dwarfs, the horizontal branch) pull the fit to the grid's ends. So:
+
+    * a cluster the settings know by name takes its spectroscopic [Fe/H], turned into the solar-scaled
+      metallicity MIST uses with Salaris et al. (1993): [M/H] = [Fe/H] + log10(0.638 f + 0.362), f = 10^[a/Fe];
+    * otherwise a cluster within ``z_max_kpc`` of the Galactic plane takes the disc's radial gradient at
+      its Galactocentric radius;
+    * and one further out the halo's broad distribution.
+
+    ``ra_deg`` and ``dec_deg`` are the members' positions (or one position); their mean is taken on the
+    sphere, so a cluster across RA 0 is placed right. None without a position or the settings block."""
+    mp = settings.get("metallicity_prior")
+    if not mp:
+        return None
+    tokens = _names(cluster_names)
+    for entry in mp.get("known", []):
+        if tokens & {n.lower() for n in entry["names"]}:
+            f = 10 ** float(entry.get("alpha_fe", 0.0))
+            mean = float(entry["feh"]) + math.log10(0.638 * f + 0.362)
+            return {"mean": round(mean, 3), "sigma": float(entry["sigma"]), "source": f"known: {entry['names'][0]}"}
+    if ra_deg is None or dec_deg is None or distance_pc is None or not math.isfinite(float(distance_pc)):
+        return None
+    ra = np.radians(np.atleast_1d(np.asarray(ra_deg, dtype=float)))
+    dec = np.radians(np.atleast_1d(np.asarray(dec_deg, dtype=float)))
+    ok = np.isfinite(ra) & np.isfinite(dec)
+    if not ok.any():
+        return None
+    vx, vy, vz = (float(np.mean(v[ok])) for v in (np.cos(dec) * np.cos(ra), np.cos(dec) * np.sin(ra), np.sin(dec)))
+    ra_deg, dec_deg = math.degrees(math.atan2(vy, vx)) % 360.0, math.degrees(math.atan2(vz, math.hypot(vx, vy)))
+    import astropy.units as u
+    from astropy.coordinates import Galactocentric, SkyCoord
+
+    disc = mp["disc"]
+    here = SkyCoord(ra=float(ra_deg) * u.deg, dec=float(dec_deg) * u.deg, distance=float(distance_pc) * u.pc)
+    gc = here.transform_to(Galactocentric(galcen_distance=float(disc["r_sun_kpc"]) * u.kpc))
+    r_kpc = float(np.hypot(gc.x.to_value(u.kpc), gc.y.to_value(u.kpc)))
+    z_kpc = float(gc.z.to_value(u.kpc))
+    if abs(z_kpc) <= float(disc["z_max_kpc"]):
+        mean = float(disc["feh_at_r_sun"]) + float(disc["gradient_dex_per_kpc"]) * (r_kpc - float(disc["r_sun_kpc"]))
+        return {
+            "mean": round(mean, 3),
+            "sigma": float(disc["sigma"]),
+            "source": f"disc gradient at R = {r_kpc:.2f} kpc, z = {z_kpc:.2f} kpc",
+        }
+    halo = mp["halo"]
+    return {
+        "mean": float(halo["mean"]),
+        "sigma": float(halo["sigma"]),
+        "source": f"halo at R = {r_kpc:.2f} kpc, z = {z_kpc:.2f} kpc",
+    }
+
+
 def known_answer(
     cluster_names: Iterable[str], fit: Mapping[str, Any] | None, settings: Mapping[str, Any]
 ) -> dict[str, Any] | None:
     """The settings' sanity window for a famous cluster this one matches by name, and whether the fitted
     age (and [Fe/H], where the window gives one) falls inside it; None when it matches none."""
-    tokens = {n.strip().lower() for name in cluster_names for n in [name, name.split(":", 1)[-1]] if n}
+    tokens = _names(cluster_names)
     for entry in settings["known_answers"]["clusters"]:
         if tokens & {n.lower() for n in entry["names"]}:
             lo, hi = (float(x) for x in entry["log_age"])

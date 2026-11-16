@@ -38,7 +38,7 @@ isochrones_app = typer.Typer(
 
 GRID_FILE = "mist-v1.2-gaia.parquet"
 #: the native gaia_source columns a fit reads from the bulk copy
-COLUMNS = ("source_id", "parallax", "parallax_error", "phot_g_mean_mag", "bp_rp")
+COLUMNS = ("source_id", "ra", "dec", "parallax", "parallax_error", "phot_g_mean_mag", "bp_rp")
 
 
 def _say(text: str) -> None:
@@ -171,6 +171,7 @@ def _from_star_rows(rows: Sequence[Mapping[str, str]]) -> list[dict[str, Any]]:
     if rows and (missing := [k for k in needed if k not in rows[0]]):
         raise DomainError(f"the stars CSV lacks columns {missing}")
     groups: dict[str, list[Mapping[str, str]]] = {}
+    r0 = rows[0] if rows else {}
     for r in rows:
         groups.setdefault(r["cluster"], []).append(r)
     return [
@@ -179,6 +180,7 @@ def _from_star_rows(rows: Sequence[Mapping[str, str]]) -> list[dict[str, Any]]:
             "matches": "",
             "source_id": [int(r["source_id"]) for r in g],
             **{k: [_float(r, k) for r in g] for k in needed[2:]},
+            **{k: [_float(r, k) for r in g] for k in ("ra", "dec") if k in r0},
         }
         for name, g in sorted(groups.items())
     ]
@@ -247,7 +249,7 @@ def fit_one(
     """(clusters.csv row, members rows, the fit or None) for one cluster."""
     import numpy as np
 
-    from sdp_stellar.isochrones import fit_cluster, known_answer, member_masses
+    from sdp_stellar.isochrones import fit_cluster, known_answer, member_masses, metallicity_prior
 
     names = [
         str(cluster["cluster_id"]),
@@ -263,9 +265,19 @@ def fit_one(
     if plx is None:
         row["note"] = "no usable parallaxes"
     else:
+        zp = float(settings["parallax"]["zero_point_mas"])
+        where = [cluster.get(k) or None for k in ("ra", "dec")]
+        distance = 1000.0 / (plx[0] - zp) if plx[0] - zp > 0 else None
+        feh_prior = metallicity_prior(names, where[0], where[1], distance, settings)
         try:
             fit = fit_cluster(
-                np.asarray(cluster["bp_rp"]), np.asarray(cluster["phot_g_mean_mag"]), plx[0], plx[1], grid, settings
+                np.asarray(cluster["bp_rp"]),
+                np.asarray(cluster["phot_g_mean_mag"]),
+                plx[0],
+                plx[1],
+                grid,
+                settings,
+                feh_prior,
             )
         except ValueError as exc:
             row["note"] = str(exc)
@@ -279,6 +291,11 @@ def fit_one(
             "turnoff_initial_msun", "heaviest_living_msun",
         )})  # fmt: skip
         row["at_grid_edge"] = ",".join(fit.get("at_grid_edge", []))
+        if fit.get("feh_prior"):
+            row["feh_prior"] = "{mean} ± {sigma} ({source})".format(**fit["feh_prior"])
+        elif "metallicity_prior" in settings:
+            why = "no ra,dec" if where[0] is None or where[1] is None else "no position or distance"
+            row["feh_prior"] = f"none ({why})"
         for k, (lo, hi) in fit["ranges"].items():
             row[f"{k}_lo"], row[f"{k}_hi"] = lo, hi
         on = member_masses(np.asarray(cluster["bp_rp"]), np.asarray(cluster["phot_g_mean_mag"]), fit, grid, settings)
@@ -371,7 +388,8 @@ def isochrones_fit(
     stars: Annotated[
         Path | None,
         typer.Option(
-            help="A CSV of cluster,source_id,phot_g_mean_mag,bp_rp,parallax,parallax_error (no Gaia copy needed)"
+            help="A CSV of cluster,source_id,phot_g_mean_mag,bp_rp,parallax,parallax_error and optional ra,dec "
+            "(no Gaia copy needed; without ra,dec an unnamed cluster gets no [Fe/H] prior, and its row says so)"
         ),
     ] = None,
     sweep: Annotated[str | None, typer.Option(help="Or a sweep's folder under <SDP data>/sweep, e.g. gaia-dr3")] = None,
