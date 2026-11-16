@@ -293,6 +293,9 @@ def fit_one(
         row["at_grid_edge"] = ",".join(fit.get("at_grid_edge", []))
         if fit.get("feh_prior"):
             row["feh_prior"] = "{mean} ± {sigma} ({source})".format(**fit["feh_prior"])
+        elif "metallicity_prior" in settings:
+            why = "no ra,dec" if where[0] is None or where[1] is None else "no position or distance"
+            row["feh_prior"] = f"none ({why})"
         for k, (lo, hi) in fit["ranges"].items():
             row[f"{k}_lo"], row[f"{k}_hi"] = lo, hi
         on = member_masses(np.asarray(cluster["bp_rp"]), np.asarray(cluster["phot_g_mean_mag"]), fit, grid, settings)
@@ -385,7 +388,8 @@ def isochrones_fit(
     stars: Annotated[
         Path | None,
         typer.Option(
-            help="A CSV of cluster,source_id,phot_g_mean_mag,bp_rp,parallax,parallax_error (no Gaia copy needed)"
+            help="A CSV of cluster,source_id,phot_g_mean_mag,bp_rp,parallax,parallax_error and optional ra,dec "
+            "(no Gaia copy needed; without ra,dec an unnamed cluster gets no [Fe/H] prior, and its row says so)"
         ),
     ] = None,
     sweep: Annotated[str | None, typer.Option(help="Or a sweep's folder under <SDP data>/sweep, e.g. gaia-dr3")] = None,

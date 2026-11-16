@@ -505,6 +505,7 @@ def test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again(monkeypa
         "on_isochrone_share": row["iso_on_isochrone_share"],
         "heaviest_living_msun": row["iso_heaviest_living_msun"],
         "turnoff_initial_msun": row["iso_turnoff_initial_msun"],
+        "feh_prior": {"mean": 0.0, "sigma": 0.2, "source": "test"},
     }
 
     def no_fit(*_: Any, **__: Any) -> None:
@@ -522,6 +523,7 @@ def test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again(monkeypa
     )
     (reused,) = again["clusters"]
     assert reused["iso_from"] == "the sweep fit of the seed members" and reused["iso_log_age"] == row["iso_log_age"]
+    assert "disc gradient" in row["iso_feh_prior"] and reused["iso_feh_prior"] == "0.0 ± 0.2 (test)"  # both record it
     assert reused["iso_on_isochrone_share"] == pytest.approx(row["iso_on_isochrone_share"], abs=0.2)  # measured here
     assert [r["heavier_than_living"] for r in again["candidates"]] == [
         r["heavier_than_living"] for r in first["candidates"]
@@ -571,3 +573,29 @@ def test_red_dwarfs_carry_the_models_extra_colour_error() -> None:
     ce, ge = iso.photometric_errors(g, s, abs_g=np.asarray([5.0, 9.0]))  # a G dwarf and an M dwarf
     assert ce[0] == plain_c[0] and np.all(ge == plain_g)
     assert ce[1] == pytest.approx(math.hypot(plain_c[1], s["photometry"]["red_dwarf_colour_error"]))
+
+
+@pytest.mark.req("STL-043")
+def test_a_fit_names_red_dwarfs_by_their_absolute_g_after_each_trials_dust() -> None:
+    s = iso.load_settings()
+    stars = iso.Stars.from_photometry(np.asarray([1.0, 1.0]), np.asarray([15.5, 18.0]), s)
+    plain, _ = iso.photometric_errors(stars.g, s)
+    seen: list[np.ndarray] = []
+
+    class Matcher:
+        def nearest(
+            self, colour: np.ndarray, mag: np.ndarray, ce: np.ndarray, ge: np.ndarray, cap: float
+        ) -> tuple[np.ndarray, np.ndarray]:
+            seen.append(np.asarray(ce).reshape(-1, 2))
+            return np.zeros(colour.size), np.zeros(colour.size, dtype=np.int64)
+
+    avs = np.asarray([0.0, 2.0])
+    a_g, _ = iso.extinction(avs, s)
+    modulus = 15.5 - s["photometry"]["red_dwarf_abs_g"] - 0.5  # the first star is at absolute G 7.5 without dust
+    iso._costs(Matcher(), stars, avs, np.asarray([modulus]), (modulus, 0.1), s)  # type: ignore[arg-type]
+    clear, dusty = np.concatenate(seen)
+    red = math.hypot(plain[0], s["photometry"]["red_dwarf_colour_error"])
+    assert (
+        a_g[1] > 0.5 and clear[0] == pytest.approx(red) and dusty[0] == pytest.approx(plain[0])
+    )  # dust makes it bright
+    assert clear[1] > plain[1] and dusty[1] > plain[1]  # the faint star is a red dwarf either way

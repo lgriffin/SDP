@@ -147,6 +147,7 @@ def test_a_fit_writes_a_header_a_row_per_cluster_a_table_per_cluster_and_its_plo
     pleiades = rows["Melotte_22"]
     assert abs(float(pleiades["log_age"]) - 8.05) <= 0.1 and "inside" in pleiades["known_answer"]
     assert float(pleiades["log_age_lo"]) <= float(pleiades["log_age"]) <= float(pleiades["log_age_hi"])
+    assert pleiades["feh_prior"] == "none (no ra,dec)"  # an unnamed cluster without a position gets no prior
     assert "fewer than" in rows["NGC_2682"]["note"] and not rows["NGC_2682"].get("known_answer")  # M67, not fitted
     with (out / "members" / "Melotte_22.csv").open(encoding="utf-8") as handle:
         members = list(csv.DictReader(handle))

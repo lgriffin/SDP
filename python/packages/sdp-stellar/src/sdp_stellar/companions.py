@@ -631,6 +631,7 @@ def _isochrone(
         row["iso_turnoff_initial_msun"] = earlier["turnoff_initial_msun"]
         row["iso_from"] = "the sweep fit of the seed members"
         row["iso_seed_on_isochrone_share"] = earlier["on_isochrone_share"]
+        row["iso_feh_prior"] = _prior_text(earlier.get("feh_prior"))
         return fit, row
     settings = isochrones.load_settings()
     zp = float(settings["parallax"]["zero_point_mas"])
@@ -658,7 +659,13 @@ def _isochrone(
     row = {f"iso_{k}": fit[k] for k in ("log_age", "feh", "av", "distance_modulus", "on_isochrone_share")}
     row["iso_heaviest_living_msun"] = fit["heaviest_living_msun"]
     row["iso_turnoff_initial_msun"] = fit["turnoff_initial_msun"]
+    row["iso_feh_prior"] = _prior_text(fit.get("feh_prior"))
     return fit, row
+
+
+def _prior_text(prior: Mapping[str, Any] | None) -> str:
+    """The [Fe/H] prior a fit used, as clusters.csv shows it; "none" when it had none."""
+    return "{mean} ± {sigma} ({source})".format(**prior) if prior else "none"
 
 
 def _mist_masses(

@@ -416,30 +416,47 @@ class _Matcher:
 
 @dataclass(frozen=True)
 class Stars:
-    """A cluster's members: observed BP-RP and G and their errors."""
+    """A cluster's members: observed BP-RP and G and their errors. ``colour_err`` leaves out the models'
+    red-dwarf term: whether a star is a red dwarf depends on its absolute G, so on each trial's A_V and
+    modulus, and :func:`_costs` adds it per trial (``red_abs_g``, ``red_colour_err``)."""
 
     colour: Array
     g: Array
     colour_err: Array
     g_err: Array
+    red_abs_g: float | None = None
+    red_colour_err: float = 0.0
 
     @classmethod
-    def from_photometry(
-        cls, colour: Array, g: Array, settings: Mapping[str, Any], modulus: float | None = None
-    ) -> Stars:
-        """The stars with a colour and G; with the cluster's distance ``modulus``, red dwarfs get the
-        models' extra colour error (see :func:`photometric_errors`)."""
+    def from_photometry(cls, colour: Array, g: Array, settings: Mapping[str, Any]) -> Stars:
+        """The stars with a colour and G, carrying the red-dwarf settings (see :func:`photometric_errors`)."""
         c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
         ok = np.isfinite(c) & np.isfinite(m)
-        ce, ge = photometric_errors(m[ok], settings, None if modulus is None else m[ok] - modulus)
-        return cls(c[ok], m[ok], ce, ge)
+        ce, ge = photometric_errors(m[ok], settings)
+        p = settings["photometry"]
+        red = float(p["red_dwarf_abs_g"]) if "red_dwarf_abs_g" in p else None
+        return cls(c[ok], m[ok], ce, ge, red, float(p.get("red_dwarf_colour_error", 0.0)))
+
+    def colour_errors(self, abs_g: Array) -> Array:
+        """The colour errors at these absolute magnitudes: the stars in order, repeated once per trial."""
+        base = np.tile(self.colour_err, abs_g.size // max(self.size, 1))
+        if self.red_abs_g is None or self.red_colour_err == 0.0:
+            return base
+        return np.hypot(base, np.where(abs_g > self.red_abs_g, self.red_colour_err, 0.0))
 
     @property
     def size(self) -> int:
         return int(self.colour.size)
 
     def take(self, rows: NDArray[np.int64]) -> Stars:
-        return Stars(self.colour[rows], self.g[rows], self.colour_err[rows], self.g_err[rows])
+        return Stars(
+            self.colour[rows],
+            self.g[rows],
+            self.colour_err[rows],
+            self.g_err[rows],
+            self.red_abs_g,
+            self.red_colour_err,
+        )
 
 
 def _costs(
@@ -465,10 +482,7 @@ def _costs(
         m = hi - lo
         colour = np.broadcast_to((stars.colour[None, :] - e_c[lo:hi, None])[:, None, :], (m, k, n)).ravel()
         mag = (stars.g[None, None, :] - a_g[lo:hi, None, None] - moduli[None, :, None]).ravel()
-        reps = m * k
-        d2, _ = matcher.nearest(
-            colour, mag, np.tile(stars.colour_err, reps), np.tile(stars.g_err, reps), math.sqrt(cap)
-        )
+        d2, _ = matcher.nearest(colour, mag, stars.colour_errors(mag), np.tile(stars.g_err, m * k), math.sqrt(cap))
         out[lo:hi] = np.minimum(d2, cap).reshape(m, k, n).sum(axis=2)
     result: Array = out + ((moduli[None, :] - prior[0]) / prior[1]) ** 2
     return result
@@ -544,7 +558,7 @@ def fit_cluster(
     ):
         return None
     prior = modulus_prior(parallax_mas, parallax_err_mas, s)
-    stars = Stars.from_photometry(colour, g, s, prior[0])
+    stars = Stars.from_photometry(colour, g, s)
     if stars.size > int(f["max_fit_stars"]):
         rng = np.random.default_rng(int(f["seed"]))
         stars = stars.take(np.sort(rng.choice(stars.size, int(f["max_fit_stars"]), replace=False)))

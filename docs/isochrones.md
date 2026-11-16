@@ -89,12 +89,14 @@ main sequence left too few stars. So every fit now adds a Gaussian term in [Fe/H
   the Sun's radius) with sigma 0.2;
 * one further out takes the halo's -1.5 with sigma 0.6.
 
-The prior is in each fit (`feh_prior`) and in `clusters.csv`. Its numbers were entered from memory and
+The prior is in each fit (`feh_prior`), in `clusters.csv` (with the reason when there is none, such as a
+`--stars` CSV without ra,dec) and in the companion screen's `iso_feh_prior`. Its numbers were entered from memory and
 are **not yet verified** (`metallicity_prior.verified` is false). With a known [Fe/H] the globulars' [Fe/H]
 windows no longer test the fit independently; their age windows still do.
 
 **Red dwarfs (STL-043).** The models' colours of K and M dwarfs are poor, so a star fainter than absolute
-G 7 carries 0.15 mag more colour error. On the PC a cluster of 19 red dwarfs went from [Fe/H] +0.5
+G 7 carries 0.15 mag more colour error. Absolute G is taken after each trial's dust and distance, so the
+reddened turnoff of a dusty cluster is not mistaken for red dwarfs. On the PC a cluster of 19 red dwarfs went from [Fe/H] +0.5
 (cost 41) to +0.25 with 95 per cent of its stars on the line.
 
 **Known answers.** The settings list sanity windows for four famous open clusters (the Pleiades, the
