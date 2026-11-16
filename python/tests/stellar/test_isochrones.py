@@ -521,7 +521,8 @@ def test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again(monkeypa
         {row["cluster_id"]: earlier},
     )
     (reused,) = again["clusters"]
-    assert reused["iso_from"] == "earlier fit" and reused["iso_log_age"] == row["iso_log_age"]
+    assert reused["iso_from"] == "the sweep fit of the seed members" and reused["iso_log_age"] == row["iso_log_age"]
+    assert reused["iso_on_isochrone_share"] == pytest.approx(row["iso_on_isochrone_share"], abs=0.2)  # measured here
     assert [r["heavier_than_living"] for r in again["candidates"]] == [
         r["heavier_than_living"] for r in first["candidates"]
     ]

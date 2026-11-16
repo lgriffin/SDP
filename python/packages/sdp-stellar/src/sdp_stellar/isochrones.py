@@ -573,7 +573,7 @@ def fit_cluster(
         "feh": feh in (fehs[0], fehs[-1]) and len(fehs) > 1,
         "log_age": age in (ages_all[0], ages_all[-1]),
         "av": av >= float(f["av_max"]) - 1e-9,
-        "distance_modulus": abs(abs(mod - prior[0]) - half) < float(f["modulus_fine_step"]),
+        "distance_modulus": abs(abs(mod - prior[0]) - half) < 0.5 * float(f["modulus_fine_step"]),
     }
     return {
         "schema": SCHEMA,
@@ -645,7 +645,7 @@ def member_masses(
     whether it is within ``inlier_distance`` of it, and the initial and current mass of that point, but
     only for a star within ``mass_distance_max``: a star further off (a white dwarf, a photometric
     binary, an interloper) is not one the isochrone describes, so its masses are NaN. ``g_offset`` is the
-    star's absolute G minus the main sequence's at its colour, negative above it (brighter: an unresolved
+    star's absolute G minus the lower main sequence's at its colour, negative above it (brighter: an unresolved
     companion that shines adds light, up to 0.75 mag for an equal pair); NaN off the main sequence's colours. Stars with no colour or G get NaN
     throughout."""
     s = settings or load_settings()
@@ -666,7 +666,7 @@ def member_masses(
         abs_g = m[ok] - a_g - float(fit["distance_modulus"])
         d2, idx = matcher.nearest(c[ok] - e_c, abs_g, ce, ge)
         out["g_offset"][ok] = abs_g - main_sequence_g(
-            grid.isochrone(float(fit["feh"]), float(fit["log_age"])), c[ok] - e_c, abs_g
+            grid.isochrone(float(fit["feh"]), float(fit["log_age"])), c[ok] - e_c
         )
         near = np.sqrt(d2) <= float(s["fit"]["mass_distance_max"])
         out["initial_mass"][ok] = np.where(near, ln.initial_mass[idx], np.nan)
@@ -677,26 +677,23 @@ def member_masses(
     return out
 
 
-def main_sequence_g(iso: Mapping[str, Array], colour0: Array, abs_g: Array) -> Array:
-    """The absolute G of the isochrone's main sequence (and pre-main sequence) at each intrinsic colour:
-    where several of its segments cross that colour (the turnoff's hook), the one nearest the star's own
-    G; NaN where none does."""
+def main_sequence_g(iso: Mapping[str, Array], colour0: Array, chunk: int = 2048) -> Array:
+    """The absolute G of the isochrone's lower main sequence (and pre-main sequence) at each intrinsic
+    colour: where several of its segments cross that colour (the turnoff's hook), the faintest, so a star
+    lifted by a companion's light is measured from the sequence below it; NaN where none crosses."""
     keep = np.round(iso["phase"]) <= 0
     col, mag = (iso["bp"] - iso["rp"])[keep], iso["g"][keep]
     out = np.full(colour0.size, np.nan)
-    if col.size < 2 or colour0.size == 0:
+    if col.size < 2:
         return out
-    a, b = col[:-1][None, :], col[1:][None, :]
-    x = colour0[:, None]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        t = (x - a) / (b - a)
-    cross = (t >= 0) & (t <= 1) & np.isfinite(t)
-    g_at = mag[:-1][None, :] + t * (mag[1:] - mag[:-1])[None, :]
-    gap = np.where(cross, np.abs(g_at - abs_g[:, None]), np.inf)
-    j = np.argmin(gap, axis=1)
-    rows = np.arange(colour0.size)
-    found = np.isfinite(gap[rows, j])
-    out[found] = g_at[rows, j][found]
+    a, b, ga, gb = col[:-1][None, :], col[1:][None, :], mag[:-1][None, :], mag[1:][None, :]
+    for lo in range(0, colour0.size, chunk):  # stars by chunks: a cluster can have thousands of members
+        x = colour0[lo : lo + chunk, None]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = (x - a) / (b - a)
+            g_at = np.where((t >= 0) & (t <= 1), ga + t * (gb - ga), -np.inf)
+        faint = g_at.max(axis=1)
+        out[lo : lo + chunk] = np.where(np.isfinite(faint), faint, np.nan)
     return out
 
 

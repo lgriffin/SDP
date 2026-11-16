@@ -89,7 +89,7 @@ failing the run, unlike the companion screen's Gaia BH1 check.
   best isochrone, measured exactly in the star's own errors. A star more than 3 errors off the line (a
   white dwarf, an equal-mass photometric binary, an interloper) gets no mass, since the isochrone does
   not describe it; `on_isochrone` says whether the star is within 2 errors of the line, and `g_offset_mag` is its
-  absolute G minus the main sequence's at its colour: negative above the line, down to -0.75 for an
+  absolute G minus the lower main sequence's at its colour (the faintest branch at the turnoff's hook): negative above it, down to -0.75 for an
   equal-mass pair (STL-040).
 * **Heaviest living star:** the largest current mass anywhere on the cluster's isochrone. No partner
   that is itself a normal star of the cluster can be heavier. A heavier partner is a remnant (white
@@ -107,7 +107,10 @@ failing the run, unlike the companion screen's Gaia BH1 check.
 
 `sdp companions screen --isochrones` fits each cluster after finding its members again, unless
 `--fits <SDP data>\isochrones\<sweep>\fits.json` gives it the sweep fit's answer for that cluster
-(STL-041; the harness passes it). `clusters.csv`
+(STL-041; the harness passes it). The screen then takes the cluster's age, [Fe/H], A_V and distance
+from that fit of the seed members, measures `iso_on_isochrone_share` again on the members it found
+(the seed share stays in `iso_seed_on_isochrone_share`), and refuses fits whose run (its `summary.json`)
+used other isochrone settings or another MIST grid. `clusters.csv`
 gains `iso_log_age`, `iso_feh`, `iso_av`, `iso_distance_modulus`, `iso_on_isochrone_share`,
 `iso_heaviest_living_msun` and `iso_turnoff_initial_msun`. Each orbit's row in `candidates.csv` gains:
 

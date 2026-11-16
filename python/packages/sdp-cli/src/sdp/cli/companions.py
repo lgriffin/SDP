@@ -202,6 +202,42 @@ def _arrays(tables: Sequence[pa.Table]) -> dict[str, Any]:
     return {name: np.asarray(whole.column(name).to_numpy(zero_copy_only=False)) for name in whole.column_names}
 
 
+_FIT_KEYS = (
+    "log_age", "feh", "av", "distance_modulus", "on_isochrone_share", "heaviest_living_msun", "turnoff_initial_msun",
+)  # fmt: skip
+
+
+def _earlier_fits(path: Path, grid: Any) -> dict[str, Any]:
+    """The fits of an `sdp isochrones fit` run, checked before any Gaia file is read: each a complete fit,
+    made with this grid and these isochrone settings (from the run's summary.json beside it)."""
+    from sdp_stellar.isochrones import settings_sha256
+
+    try:
+        fits = json.loads(path.read_text("utf-8"))
+        run = json.loads((path.parent / "summary.json").read_text("utf-8"))
+    except FileNotFoundError as exc:
+        raise DomainError(
+            f"{exc.filename} is missing; --fits takes the fits.json of an `sdp isochrones fit` run"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise DomainError(f"{path} or its summary.json is not JSON: {exc}") from exc
+    if not isinstance(fits, dict) or not all(isinstance(v, dict) for v in fits.values()):
+        raise DomainError(f"{path} is not a fits.json of `sdp isochrones fit`: a mapping of cluster id to fit")
+    if bad := [k for k, v in fits.items() if any(not isinstance(v.get(f), int | float) for f in _FIT_KEYS)]:
+        raise DomainError(f"{path}: the fits of {', '.join(sorted(bad)[:5])} lack {', '.join(_FIT_KEYS)}")
+    ours = {"settings_sha256": settings_sha256(), "source_sha256": grid.meta.get("source_sha256")}
+    theirs = {
+        "settings_sha256": run.get("settings_sha256"),
+        "source_sha256": (run.get("grid") or {}).get("source_sha256"),
+    }
+    if ours != theirs:
+        raise DomainError(
+            f"{path} was fitted with other isochrone settings or another MIST grid ({theirs}, now {ours}); "
+            "fit the sweep again with `sdp isochrones fit` first"
+        )
+    return fits
+
+
 @companions_app.command("screen")
 def companions_screen(
     sweep: Annotated[str | None, typer.Option(help="A sweep's folder under <SDP data>/sweep, e.g. gaia-dr3")] = None,
@@ -249,7 +285,7 @@ def companions_screen(
             raise DomainError("--fits needs --isochrones")
         if not fits.exists():
             raise DomainError(f"no fits at {fits}; run `sdp isochrones fit` first")
-        earlier = json.loads(fits.read_text("utf-8"))
+        earlier = _earlier_fits(fits, grid)
     statuses = status or ["potentially_new", "inconclusive", "known"]
     clusters = _clusters(sweep, members, statuses)
     if not clusters:

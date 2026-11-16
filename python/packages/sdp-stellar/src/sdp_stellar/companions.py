@@ -613,11 +613,22 @@ def _isochrone(
     from sdp_stellar import isochrones
 
     if earlier is not None:
+        # the cluster's isochrone (age, [Fe/H], A_V, distance) from the earlier fit of its seed members; the
+        # share on it is measured again on the members found here, which are the stars the masses are for
         fit: dict[str, Any] | None = dict(earlier)
-        row = {f"iso_{k}": earlier[k] for k in ("log_age", "feh", "av", "distance_modulus", "on_isochrone_share")}
+        row = {f"iso_{k}": earlier[k] for k in ("log_age", "feh", "av", "distance_modulus")}
+        on = isochrones.member_masses(
+            np.asarray(stars["bp_rp"], dtype=float)[mem],
+            np.asarray(stars["phot_g_mean_mag"], dtype=float)[mem],
+            earlier,
+            grid,
+        )
+        measured = np.isfinite(on["distance"])
+        row["iso_on_isochrone_share"] = round(float(on["on_isochrone"][measured].mean()), 4) if measured.any() else None
         row["iso_heaviest_living_msun"] = earlier["heaviest_living_msun"]
         row["iso_turnoff_initial_msun"] = earlier["turnoff_initial_msun"]
-        row["iso_from"] = "earlier fit"
+        row["iso_from"] = "the sweep fit of the seed members"
+        row["iso_seed_on_isochrone_share"] = earlier["on_isochrone_share"]
         return fit, row
     try:
         fit = isochrones.fit_cluster(

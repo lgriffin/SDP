@@ -247,13 +247,27 @@ def test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid(dat
             "turnoff_initial_msun": float(row["iso_turnoff_initial_msun"]),
         }
     }
-    fits = tmp_path / "fits.json"
+    run = tmp_path / "run"
+    run.mkdir()
+    fits = run / "fits.json"
     fits.write_text(json.dumps(earlier), "utf-8")
+    made = {"settings_sha256": iso.settings_sha256(), "grid": {"source_sha256": grid.meta.get("source_sha256")}}
+    (run / "summary.json").write_text(json.dumps(made), "utf-8")
     reused = runner.invoke(
         cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--isochrones", "--fits", str(fits), "--name", "re"]
     )
     assert reused.exit_code == 0, reused.output
     again = json.loads(reused.stdout)
     assert again["isochrones"]["fits_reused"] == 1 and again["flagged_in_clusters"] == 1
+    # fits from other settings, or a file that is not fits, are refused before any Gaia file is read
+    (run / "summary.json").write_text(json.dumps({**made, "settings_sha256": "0" * 64}), "utf-8")
+    stale = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--isochrones", "--fits", str(fits)])
+    assert stale.exit_code != 0 and "other isochrone settings" in str(stale.exception)
+    (run / "summary.json").write_text(json.dumps(made), "utf-8")
+    fits.write_text(json.dumps({"c1": {"log_age": 9.0}}), "utf-8")
+    partial = runner.invoke(
+        cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--isochrones", "--fits", str(fits)]
+    )
+    assert partial.exit_code != 0 and "lack" in str(partial.exception)
     lone = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--fits", str(fits)])
     assert lone.exit_code != 0 and "--fits needs --isochrones" in str(lone.exception)

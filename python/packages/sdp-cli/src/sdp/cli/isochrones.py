@@ -303,10 +303,14 @@ def fit_one(
             )
     check = None if fit is None else known_answer(names, fit, settings)
     if check is not None:
-        row["known_answer"] = f"{check['cluster']} log age {check['window_log_age']}: " + (
-            "inside" if check["inside"] else "OUTSIDE"
-        )
+        row["known_answer"] = f"{_window(check)}: " + ("inside" if check["inside"] else "OUTSIDE")
     return row, members, (None if fit is None else {**fit, "known_answer": check})
+
+
+def _window(check: Mapping[str, Any]) -> str:
+    """A known answer's windows in words: its log age window and, where it has one, its [Fe/H] window."""
+    out = f"{check['cluster']} log age {check['window_log_age']}"
+    return out + (f" [Fe/H] {check['window_feh']}" if "window_feh" in check else "")
 
 
 _WORKER: dict[str, Any] = {}
@@ -440,10 +444,14 @@ def isochrones_fit(
     _say(f"{len(fits):,} of {len(clusters):,} clusters fitted. Open {target / 'clusters.csv'} and {target / 'plots'}.")
     for c in checks:
         _say(
-            f"known answer: {c['cluster']} fitted log age {c['fitted_log_age']}, window {c['window_log_age']}: {'inside' if c['inside'] else 'OUTSIDE'}"
+            f"known answer: {_window(c)}, fitted log age {c['fitted_log_age']}"
+            + (f" and [Fe/H] {c['fitted_feh']}" if "window_feh" in c else "")
+            + f": {'inside' if c['inside'] else 'OUTSIDE'}"
         )
     if outside:
-        _say("WARNING: a famous cluster's age is outside its sanity window; read its plot before trusting the run.")
+        _say(
+            "WARNING: a famous cluster's age or [Fe/H] is outside its sanity window; read its plot before trusting the run."
+        )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
 
