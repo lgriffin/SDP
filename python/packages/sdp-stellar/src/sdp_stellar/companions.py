@@ -481,6 +481,7 @@ def screen(
     field: FieldCounts,
     settings: Mapping[str, Any],
     grid: Any = None,
+    fits: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Every cluster's members found again, their wobble z and any published orbit's partner mass, and
     each cluster's counts against what the field gives for stars of the same G and parallax.
@@ -493,7 +494,8 @@ def screen(
     also fitted with an isochrone (STL-036): the cluster's row gains its age, [Fe/H], A_V and distance
     modulus, and each orbit's row gains the visible star's mass on that isochrone, the partner's masses
     with it, and whether the partner's lower bound is heavier than any star still alive at the cluster's
-    age. The verdicts stay Gaia's rule (STL-020); the isochrone columns sit beside them."""
+    age. The verdicts stay Gaia's rule (STL-020); the isochrone columns sit beside them. ``fits`` (by
+    cluster id, as ``sdp isochrones fit`` writes them) are used instead of fitting a cluster again."""
     ids = np.asarray(stars["source_id"], dtype=np.int64)
     row_of = {int(s): i for i, s in enumerate(ids)}
     orbit_ids = np.asarray(orbits["source_id"], dtype=np.int64)
@@ -533,7 +535,7 @@ def screen(
         wob = int(np.sum(z_all[mem] > z_min))
         with_orbit = [(r, o) for r in mem for o in orbit_rows.get(int(ids[r]), [])]
         fp_err = fp.parallax_spread / math.sqrt(max(len(mem), 1))
-        iso_fit, iso_row = _isochrone(stars, mem, fp.parallax, fp_err, grid)
+        iso_fit, iso_row = _isochrone(stars, mem, fp.parallax, fp_err, grid, (fits or {}).get(c.cluster_id))
         flagged_members: set[int] = set()
         if with_orbit:
             o_idx = np.asarray([o for _, o in with_orbit])
@@ -597,13 +599,37 @@ def screen(
 
 
 def _isochrone(
-    stars: Mapping[str, Array], mem: NDArray[np.int64], parallax: float, parallax_err: float, grid: Any
+    stars: Mapping[str, Array],
+    mem: NDArray[np.int64],
+    parallax: float,
+    parallax_err: float,
+    grid: Any,
+    earlier: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    """The cluster's isochrone fit and its columns for clusters.csv; nothing without a grid or colours."""
+    """The cluster's isochrone fit and its columns for clusters.csv; nothing without a grid or colours.
+    An ``earlier`` fit of the same cluster is used as it is, saving the fit."""
     if grid is None or "bp_rp" not in stars:
         return None, {}
     from sdp_stellar import isochrones
 
+    if earlier is not None:
+        # the cluster's isochrone (age, [Fe/H], A_V, distance) from the earlier fit of its seed members; the
+        # share on it is measured again on the members found here, which are the stars the masses are for
+        fit: dict[str, Any] | None = dict(earlier)
+        row = {f"iso_{k}": earlier[k] for k in ("log_age", "feh", "av", "distance_modulus")}
+        on = isochrones.member_masses(
+            np.asarray(stars["bp_rp"], dtype=float)[mem],
+            np.asarray(stars["phot_g_mean_mag"], dtype=float)[mem],
+            earlier,
+            grid,
+        )
+        measured = np.isfinite(on["distance"])
+        row["iso_on_isochrone_share"] = round(float(on["on_isochrone"][measured].mean()), 4) if measured.any() else None
+        row["iso_heaviest_living_msun"] = earlier["heaviest_living_msun"]
+        row["iso_turnoff_initial_msun"] = earlier["turnoff_initial_msun"]
+        row["iso_from"] = "the sweep fit of the seed members"
+        row["iso_seed_on_isochrone_share"] = earlier["on_isochrone_share"]
+        return fit, row
     try:
         fit = isochrones.fit_cluster(
             np.asarray(stars["bp_rp"], dtype=float)[mem],
@@ -652,6 +678,7 @@ def _mist_masses(
     return {
         "m1_mist_msun": [_r(x) for x in m1],
         "m1_mist_on_isochrone": [bool(x) for x in on["on_isochrone"]],
+        "m1_mist_g_offset_mag": [_r(x) for x in on["g_offset"]],
         "m2_dark_mist_msun": [_r(x) for x in m2_dark],
         "m2_lower_mist_msun": [_r(x) for x in m2_low],
         "heavier_than_living": [bool(math.isfinite(x) and x > heaviest) for x in m2_low],

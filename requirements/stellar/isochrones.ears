@@ -58,3 +58,50 @@ requirements:
       - "python/tests.cli.test_cli_isochrones::test_a_grid_built_with_other_columns_is_refused_until_it_is_built_again"
       - "python/tests.cli.test_cli_companions::test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid"
       - "python/tests.stellar.test_isochrones::test_a_screen_with_a_grid_adds_isochrone_masses_and_flags_a_partner_heavier_than_any_living_star"
+  - id: STL-037
+    pattern: ubiquitous
+    text: "The stellar module shall give the same cluster fit whether its extinction and distance steps are matched in one query or one at a time, and whether clusters are fitted one at a time or side by side in separate processes."
+    rationale: "The first PC run fitted 112 clusters in about five hours; most of it was start-up cost of thousands of small tree queries per cluster, and the PC has 24 cores idle. Speed must not change an answer."
+    verification: test
+    tiers: [T1, T4]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_every_extinction_matched_in_one_query_costs_the_same_as_one_at_a_time"
+      - "python/tests.cli.test_cli_isochrones::test_clusters_fitted_side_by_side_give_the_same_results_as_one_at_a_time"
+  - id: STL-038
+    pattern: ubiquitous
+    text: "The stellar module shall name every fitted parameter whose best value lies on the edge of its search."
+    rationale: "The first PC run put M5 and M3 on the old [Fe/H] limit of -1.0 and the grid's oldest age: an answer on the edge may lie beyond it, so a reader must be told."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_a_fit_that_ends_on_the_edge_of_its_search_says_so"
+  - id: STL-039
+    pattern: ubiquitous
+    text: "The stellar module shall pass a famous cluster's fit only when its age lies in the cluster's age window and, where the window gives one, its [Fe/H] lies in the [Fe/H] window."
+    rationale: "M30 fitted at 1.3 Gyr and [Fe/H] -0.75 against about 13 Gyr and -2.3; globulars have well known metallicities, so their windows check [Fe/H] as well as age."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_a_globular_is_checked_against_its_age_and_metallicity_windows"
+  - id: STL-040
+    pattern: ubiquitous
+    text: "The stellar module shall give each cluster member its absolute G minus that of its cluster's main sequence at its intrinsic colour."
+    rationale: "Many orbit candidates sat well above the isochrone and so had no MIST mass; how far above (up to 0.75 mag for an equal pair) says the companion shines, evidence against a dark partner."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_a_star_above_the_line_has_a_negative_g_offset"
+  - id: STL-041
+    pattern: event
+    text: "When `sdp companions screen --isochrones` is given a fits file from `sdp isochrones fit`, the system shall use each listed cluster's fit instead of fitting the cluster again."
+    rationale: "The first PC run fitted the companion screen's clusters a second time after the sweep fit had fitted them."
+    verification: test
+    tiers: [T1, T4]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again"
+      - "python/tests.cli.test_cli_companions::test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid"
