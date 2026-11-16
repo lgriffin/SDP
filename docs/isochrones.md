@@ -1,4 +1,4 @@
-# MIST isochrones and stellar masses (STL-033 to STL-041)
+# MIST isochrones and stellar masses (STL-033 to STL-043)
 
 **Status: EXPLORATORY.** Nothing here is a discovery claim. Every result file says so.
 
@@ -75,6 +75,27 @@ A fit whose best [Fe/H], age, A_V or modulus lies on the edge of its search list
 Each parameter's **range** is the set of grid values whose best cost is within 1 of the minimum: a grid
 profile, not a calibrated confidence interval. **on_isochrone_share** is the share of fitted members
 within 2 errors of the line.
+
+**A prior on [Fe/H] (STL-042).** A Gaia colour-magnitude diagram of a few dozen stars hardly fixes
+metallicity: it trades against dust, and the models' own errors pull the fit to the grid's ends. On the
+2026-11-16 PC run 43 of 112 fits sat at [Fe/H] -2.5 or +0.5, young dusty clusters at -2.5, and the
+globulars, which the sweep sees only as giants (no turnoff), away from their known [Fe/H]. Trials on the
+PC showed that leaving out the horizontal branch made the globulars worse, and that cutting the lower
+main sequence left too few stars. So every fit now adds a Gaussian term in [Fe/H]:
+
+* a cluster the settings name (the globulars M5, M3 and M30) takes its spectroscopic [Fe/H], turned into
+  MIST's solar-scaled metallicity with Salaris et al. (1993) for [alpha/Fe] = 0.3, with sigma 0.1;
+* a cluster within 1 kpc of the Galactic plane takes the disc's radial gradient (-0.07 dex/kpc, solar at
+  the Sun's radius) with sigma 0.2;
+* one further out takes the halo's -1.5 with sigma 0.6.
+
+The prior is in each fit (`feh_prior`) and in `clusters.csv`. Its numbers were entered from memory and
+are **not yet verified** (`metallicity_prior.verified` is false). With a known [Fe/H] the globulars' [Fe/H]
+windows no longer test the fit independently; their age windows still do.
+
+**Red dwarfs (STL-043).** The models' colours of K and M dwarfs are poor, so a star fainter than absolute
+G 7 carries 0.15 mag more colour error. On the PC a cluster of 19 red dwarfs went from [Fe/H] +0.5
+(cost 41) to +0.25 with 95 per cent of its stars on the line.
 
 **Known answers.** The settings list sanity windows for four famous open clusters (the Pleiades, the
 Hyades, Praesepe and M67) and three globulars (M5, M3 and M30, which also carry an [Fe/H] window,

@@ -527,3 +527,47 @@ def test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again(monkeypa
         r["heavier_than_living"] for r in first["candidates"]
     ]
     assert all("m1_mist_g_offset_mag" in r for r in again["candidates"])
+
+
+# --- a prior on [Fe/H] and the models' red dwarfs (STL-042, STL-043) ----------------------------------
+
+
+@pytest.mark.req("STL-042")
+def test_a_metallicity_prior_comes_from_a_known_name_the_disc_or_the_halo() -> None:
+    s = iso.load_settings()
+    known = iso.metallicity_prior(["far-b046-t114-c002", "HSC_46, NGC_5904"], None, None, None, s)
+    assert known is not None and known["source"] == "known: NGC 5904"
+    assert known["mean"] == pytest.approx(-1.29 + math.log10(0.638 * 10**0.3 + 0.362), abs=1e-3)  # Salaris 1993
+    pleiades = iso.metallicity_prior(["x"], 56.75, 24.12, 136.0, s)  # in the plane, near the Sun
+    assert pleiades is not None and abs(pleiades["mean"]) < 0.05 and pleiades["source"].startswith("disc")
+    inner = iso.metallicity_prior(["x"], 266.4, -29.0, 3000.0, s)  # towards the Galactic centre: richer
+    assert inner is not None and inner["mean"] > 0.1
+    halo = iso.metallicity_prior(["x"], 229.64, 2.08, 7500.0, s)  # M5's place, unnamed: far above the plane
+    assert halo is not None and halo["source"].startswith("halo") and halo["mean"] < -1.0
+    across = iso.metallicity_prior(["x"], [359.9, 0.1], [24.0, 24.2], 136.0, s)  # members either side of RA 0
+    near0 = iso.metallicity_prior(["x"], 0.0, 24.1, 136.0, s)
+    assert across is not None and near0 is not None and across["mean"] == pytest.approx(near0["mean"], abs=0.01)
+    assert iso.metallicity_prior(["x"], None, None, 136.0, s) is None
+    assert iso.metallicity_prior(["x"], [float("nan")], [1.0], 136.0, s) is None
+
+
+@pytest.mark.req("STL-042")
+def test_a_metallicity_prior_pulls_the_fit_and_is_recorded() -> None:
+    s = settings()
+    g = grid((-0.25, 0.0, 0.25))
+    colour, mag, _ = cluster(0.0, 8.8, 0.4, 8.0, 160, seed=3, settings=s, binaries=16)
+    free = iso.fit_cluster(colour, mag, 2.5 - 0.017, 0.02, g, s)
+    tight = iso.fit_cluster(colour, mag, 2.5 - 0.017, 0.02, g, s, {"mean": 0.25, "sigma": 0.01, "source": "test"})
+    assert free is not None and tight is not None
+    assert free["feh"] == 0.0 and free["feh_prior"] is None
+    assert tight["feh"] == 0.25 and tight["feh_prior"]["source"] == "test"
+
+
+@pytest.mark.req("STL-043")
+def test_red_dwarfs_carry_the_models_extra_colour_error() -> None:
+    s = iso.load_settings()
+    g = np.asarray([12.0, 16.0])
+    plain_c, plain_g = iso.photometric_errors(g, s)
+    ce, ge = iso.photometric_errors(g, s, abs_g=np.asarray([5.0, 9.0]))  # a G dwarf and an M dwarf
+    assert ce[0] == plain_c[0] and np.all(ge == plain_g)
+    assert ce[1] == pytest.approx(math.hypot(plain_c[1], s["photometry"]["red_dwarf_colour_error"]))

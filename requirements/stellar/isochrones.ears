@@ -105,3 +105,22 @@ requirements:
     traces:
       - "python/tests.stellar.test_isochrones::test_a_screen_given_an_earlier_fit_uses_it_instead_of_fitting_again"
       - "python/tests.cli.test_cli_companions::test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid"
+  - id: STL-042
+    pattern: ubiquitous
+    text: "The stellar module shall add to every fit's cost a Gaussian prior on [Fe/H] taken from the cluster's known spectroscopic [Fe/H] when the settings name it, from the Galactic disc's radial gradient when the cluster lies within z_max_kpc of the plane, and from the halo's distribution otherwise."
+    rationale: "On the 2026-11-16 PC runs a Gaia CMD of 20 to 150 stars barely fixed metallicity: 43 of 112 fits sat at -2.5 or +0.5, young dusty clusters at -2.5, and the globulars (giants only, no turnoff) away from their known [Fe/H]. Catalogues of Gaia clusters use such priors; the prior is recorded with every fit."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_a_metallicity_prior_comes_from_a_known_name_the_disc_or_the_halo"
+      - "python/tests.stellar.test_isochrones::test_a_metallicity_prior_pulls_the_fit_and_is_recorded"
+  - id: STL-043
+    pattern: ubiquitous
+    text: "The stellar module shall add red_dwarf_colour_error in quadrature to the colour error of every star whose absolute G is fainter than red_dwarf_abs_g."
+    rationale: "The models' colours of K and M dwarfs are poor; on the PC a cluster of 19 red dwarfs fitted [Fe/H] +0.5 at a cost of 41, and with 0.15 mag more colour error it fitted +0.25 with 95 per cent of its stars on the line."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_isochrones::test_red_dwarfs_carry_the_models_extra_colour_error"

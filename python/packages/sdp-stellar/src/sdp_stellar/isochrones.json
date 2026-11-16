@@ -49,7 +49,9 @@
     "colour_error_at_g15": 0.005,
     "colour_floor": 0.03,
     "g_error_at_g15": 0.001,
-    "g_floor": 0.08
+    "g_floor": 0.08,
+    "red_dwarf_abs_g": 7.0,
+    "red_dwarf_colour_error": 0.15
   },
   "fit": {
     "feh_min": -2.5,
@@ -71,6 +73,17 @@
     "max_fit_stars": 400,
     "min_stars": 15,
     "seed": 20261115
+  },
+  "metallicity_prior": {
+    "note": "A Gaussian prior on the fitted [Fe/H]: the first PC runs (2026-11-16) showed a Gaia CMD of 20 to 150 stars barely fixes metallicity (it trades against dust; red-dwarf colours and the horizontal branch pull fits to the grid's ends: 43 of 112 fits at -2.5 or +0.5). Known clusters take their spectroscopic [Fe/H] (Harris 1996, 2010 edition, for the globulars; alpha_fe 0.3 for globulars), others the disc's radial gradient within z_max_kpc of the plane (about -0.07 dex/kpc, e.g. Myers et al. 2022, AJ 164, 85), the halo beyond. NOT YET VERIFIED: the numbers were entered from memory; Leigh to check them against Harris 2010 and the gradient paper.",
+    "verified": false,
+    "disc": {"feh_at_r_sun": 0.0, "gradient_dex_per_kpc": -0.07, "r_sun_kpc": 8.122, "sigma": 0.2, "z_max_kpc": 1.0},
+    "halo": {"mean": -1.5, "sigma": 0.6},
+    "known": [
+      {"names": ["NGC 5904", "NGC_5904", "M5", "M_5"], "feh": -1.29, "alpha_fe": 0.3, "sigma": 0.1},
+      {"names": ["NGC 5272", "NGC_5272", "M3", "M_3"], "feh": -1.50, "alpha_fe": 0.3, "sigma": 0.1},
+      {"names": ["NGC 7099", "NGC_7099", "M30", "M_30"], "feh": -2.27, "alpha_fe": 0.3, "sigma": 0.1}
+    ]
   },
   "field_stars": {
     "note": "one star with no cluster: weights over every grid point of one metallicity, a Kroupa (2001) initial mass function and a prior uniform in age, so its age is usually poorly fixed and its mass is fixed far better",

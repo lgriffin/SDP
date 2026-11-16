@@ -535,7 +535,8 @@ def screen(
         wob = int(np.sum(z_all[mem] > z_min))
         with_orbit = [(r, o) for r in mem for o in orbit_rows.get(int(ids[r]), [])]
         fp_err = fp.parallax_spread / math.sqrt(max(len(mem), 1))
-        iso_fit, iso_row = _isochrone(stars, mem, fp.parallax, fp_err, grid, (fits or {}).get(c.cluster_id))
+        names = [c.cluster_id, *[m.strip() for m in str(c.matches or "").split(",") if m.strip()]]
+        iso_fit, iso_row = _isochrone(stars, mem, fp.parallax, fp_err, grid, (fits or {}).get(c.cluster_id), names)
         flagged_members: set[int] = set()
         if with_orbit:
             o_idx = np.asarray([o for _, o in with_orbit])
@@ -605,6 +606,7 @@ def _isochrone(
     parallax_err: float,
     grid: Any,
     earlier: Mapping[str, Any] | None = None,
+    names: Sequence[str] = (),
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """The cluster's isochrone fit and its columns for clusters.csv; nothing without a grid or colours.
     An ``earlier`` fit of the same cluster is used as it is, saving the fit."""
@@ -630,6 +632,15 @@ def _isochrone(
         row["iso_from"] = "the sweep fit of the seed members"
         row["iso_seed_on_isochrone_share"] = earlier["on_isochrone_share"]
         return fit, row
+    settings = isochrones.load_settings()
+    zp = float(settings["parallax"]["zero_point_mas"])
+    feh_prior = isochrones.metallicity_prior(
+        names,
+        np.asarray(stars["ra"], dtype=float)[mem] if "ra" in stars and len(mem) else None,
+        np.asarray(stars["dec"], dtype=float)[mem] if "dec" in stars and len(mem) else None,
+        1000.0 / (parallax - zp) if parallax - zp > 0 else None,
+        settings,
+    )
     try:
         fit = isochrones.fit_cluster(
             np.asarray(stars["bp_rp"], dtype=float)[mem],
@@ -637,6 +648,8 @@ def _isochrone(
             parallax,
             parallax_err,
             grid,
+            settings,
+            feh_prior,
         )
     except ValueError as exc:  # no metallicity in range, or no distance from the parallax: this cluster only
         return None, {"iso_note": f"no isochrone fit: {exc}"}
