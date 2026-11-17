@@ -175,7 +175,7 @@ def _clusters(sweep: str | None, members: Path | None, statuses: list[str]) -> l
     return clusters_from_tiles((json.loads(p.read_text("utf-8")) for p in tiles), statuses)
 
 
-def _scan(columns: Sequence[str], parallax_min: float, every: int | None = None) -> Iterator[pa.Table]:
+def _scan(columns: Sequence[str], parallax_min: float | None, every: int | None = None) -> Iterator[pa.Table]:
     from sdp.adapters.archives.bulk import BulkCatalogueGateway
     from sdp.adapters.archives.tap import load_sources
     from sdp.adapters.bootstrap import artifact_store
@@ -189,7 +189,8 @@ def _scan(columns: Sequence[str], parallax_min: float, every: int | None = None)
         if done % 100 == 0 or done == total:
             _say(f"gaia {done}/{total} files")
 
-    yield from bulk.scan(columns, [("parallax", ">=", parallax_min)], progress=report)
+    filters = [] if parallax_min is None else [("parallax", ">=", parallax_min)]
+    yield from bulk.scan(columns, filters, progress=report)
 
 
 def _arrays(tables: Sequence[pa.Table]) -> dict[str, Any]:
@@ -262,16 +263,31 @@ def companions_screen(
             help="With --isochrones: a fits.json from `sdp isochrones fit`; its clusters are not fitted again"
         ),
     ] = None,
+    protocol: Annotated[
+        str,
+        typer.Option(
+            help="Settings to screen with: 'trial' (the DR3 trial, companions.json) or 'uc06' (the predeclared "
+            "Gaia DR4 settings of protocol UC-06: crowding-matched field and the stacked test)"
+        ),
+    ] = "trial",
 ) -> None:
     """Find each cluster's members again (blind to RUWE), count its wobblers and dark partners, and set
     both against the field. Two passes over the bulk Gaia copy. EXPLORATORY."""
+    import hashlib
+
     import numpy as np
     import pyarrow as pa
     import pyarrow.compute as pc
 
-    from sdp_stellar.companions import FieldCounts, footprint, load_settings, near_any, screen, settings_sha256
+    from sdp_stellar import companions as comp
+    from sdp_stellar.companions import FieldCounts, footprint, near_any, screen
 
-    settings = load_settings()
+    files = {"trial": comp.SETTINGS_FILE, "uc06": comp.UC06_FILE}
+    if protocol not in files:
+        raise DomainError(f"--protocol is 'trial' or 'uc06', not {protocol!r}")
+    settings = comp.load_settings(files[protocol])
+    if protocol == "uc06" and comp.frozen_sha256(settings) != comp.UC06_FROZEN_SHA256:
+        raise DomainError("uc06.json differs from the predeclared UC-06 settings; it cannot be used for UC-06")
     grid = None
     columns: tuple[str, ...] = COLUMNS
     if isochrones:
@@ -294,14 +310,29 @@ def companions_screen(
     seeds = pa.array(sorted({s for c in clusters for s in c.seed_ids}), type=pa.int64())
     plx_min = float(settings["membership"]["parallax_min_mas"])
 
+    density = None
+    if settings.get("crowding"):
+        density = comp.SourceDensity(int(settings["crowding"]["healpix_level"]))
+        _say("pass 0: how crowded every patch of sky is (every Gaia source, any parallax)")
+        for table in _scan(("source_id",), None):
+            density.add(table.column("source_id").to_numpy(zero_copy_only=False))
+
+    def crowd(table: pa.Table) -> pa.Table:
+        if density is None:
+            return table
+        ids = table.column("source_id").to_numpy(zero_copy_only=False)
+        return table.append_column("crowding", pa.array(density.of(ids), type=pa.int64()))
+
     _say(f"pass 1 of 2: the field's wobble baseline and the seed members of {len(clusters):,} clusters")
     field = FieldCounts(settings)
     seed_tables = []
     for table in _scan(columns, plx_min):
+        table = crowd(table)
         field.add(
             table.column("phot_g_mean_mag").to_numpy(zero_copy_only=False),
             table.column("parallax").to_numpy(zero_copy_only=False),
             table.column("ruwe").to_numpy(zero_copy_only=False),
+            table.column("crowding").to_numpy(zero_copy_only=False) if density is not None else None,
         )
         seed_tables.append(table.filter(pc.is_in(table.column("source_id"), value_set=seeds)))
     seed_stars = _arrays(seed_tables)
@@ -316,6 +347,7 @@ def companions_screen(
     _say(f"pass 2 of 2: every star inside the footprints of {len(fps):,} clusters")
     kept = []
     for table in _scan(columns, plx_min):
+        table = crowd(table)
         ra = table.column("ra").to_numpy(zero_copy_only=False)
         dec = table.column("dec").to_numpy(zero_copy_only=False)
         kept.append(table.filter(pa.array(near_any(fps, ra, dec))))
@@ -326,12 +358,21 @@ def companions_screen(
     _write_csv(target / "candidates.csv", result["candidates"], ["cluster_id", "source_id", "verdict"])
     _write_csv(target / "clusters.csv", result["clusters"], ["cluster_id", "members"])
     flagged = [r for r in result["candidates"] if r["verdict"] in ("neutron-star-or-black-hole", "dark-partner")]
+    listing = json.dumps(
+        {c.cluster_id: sorted(c.seed_ids) for c in clusters}, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    (target / "cluster-list.json").write_bytes(listing)
     summary = {
         "status": "EXPLORATORY",
-        "settings_sha256": settings_sha256(),
+        "protocol": settings.get("protocol"),
+        "settings_file": files[protocol],
+        "settings_sha256": comp.settings_sha256(files[protocol]),
+        "frozen_sha256": comp.frozen_sha256(settings),
+        "cluster_list_sha256": hashlib.sha256(listing).hexdigest(),
         "clusters": len(clusters),
         "clusters_screened": sum(1 for c in result["clusters"] if c.get("members")),
         "clusters_out_of_scope": sum(1 for c in result["clusters"] if c.get("out_of_scope")),
+        **({"test": comp.stacked_test(result["clusters"], settings)} if "test" in settings else {}),
         "members": sum(int(c.get("members") or 0) for c in result["clusters"]),
         "orbits_in_clusters": len(result["candidates"]),
         "flagged_in_clusters": len(flagged),

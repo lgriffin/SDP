@@ -3,6 +3,9 @@
 #
 #   powershell -ExecutionPolicy Bypass -File harness\run-companions.ps1
 #   powershell -ExecutionPolicy Bypass -File harness\run-companions.ps1 -Branch claude/project-thread-lf7jxs
+#   powershell -ExecutionPolicy Bypass -File harness\run-companions.ps1 -Protocol uc06
+#     the DR3 dry run of protocol UC-06 (STL-044): adds a pass 0 that counts crowding, matches the field on it,
+#     and prints the stacked test's verdict and the cluster list's hash. Results in <SDP data>\companions\uc06-dr3.
 #
 # 1. Updates the checkout (-Branch, main by default)
 # 2. Downloads every Gaia DR3 orbit with Gaia's masses (about 169,000 rows, 36 parts, about 10 minutes; a rerun
@@ -18,8 +21,11 @@ param(
     [string]$EnvFile = "D:\SDP\sdp-env.cmd",
     [string]$Branch = "main",
     [string]$Name = "gaia-dr3",
-    [switch]$Refetch
+    [switch]$Refetch,
+    [ValidateSet("trial", "uc06")][string]$Protocol = "trial",
+    [switch]$Isochrones
 )
+$Folder = if ($Protocol -eq "uc06") { "uc06-dr3" } else { "clusters" }
 $ErrorActionPreference = "Continue"
 . (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
 # runs in its own worktree of -Branch, never switching your checkout (#196); see harness/README.md
@@ -82,13 +88,18 @@ $screenOk = $false
 if ($have) {
     $fieldOk = Step "2 Field list" { Sdp companions field | Out-Null }
     if ($fieldOk) {
-        $screenOk = Step "3 Cluster screen" { Sdp companions screen --sweep $script:Name | Out-Null }
+        $screenOk = Step "3 Cluster screen ($Protocol)" {
+            $a = @("companions", "screen", "--sweep", $script:Name, "--protocol", $script:Protocol, "--name", $script:Folder)
+            if ($script:Isochrones) { $a += "--isochrones" }
+            Sdp @a | Out-Null
+        }
     } else { Write-Host "The field list failed (Gaia BH1 must be flagged), so the cluster screen does not run" }
 } else { Write-Host "The orbit download failed, so nothing else runs" }
 
 Pop-Location
-$Clusters = Join-Path $Data "companions\clusters\clusters.csv"
-$Candidates = Join-Path $Data "companions\clusters\candidates.csv"
+$Clusters = Join-Path $Data "companions\$Folder\clusters.csv"
+$Candidates = Join-Path $Data "companions\$Folder\candidates.csv"
+$ScreenSummary = Join-Path $Data "companions\$Folder\summary.json"
 if ($screenOk -and (Test-Path $Candidates)) {
     Write-Host "`n=== Cluster members with a dark partner ==="
     Import-Csv $Candidates | Where-Object { $_.verdict -in @("neutron-star-or-black-hole", "dark-partner") } |
@@ -101,6 +112,15 @@ if ($screenOk -and (Test-Path $Clusters)) {
         Sort-Object { [double]$_.wobblers_field_p } | Select-Object -First 15 |
         Format-Table cluster_id, matches, members, wobblers, wobblers_expected, wobblers_field_p, flagged_orbits, flagged_expected -AutoSize |
         Out-String -Width 200 | Write-Host
+}
+if ($screenOk -and $Protocol -eq "uc06" -and (Test-Path $ScreenSummary)) {
+    $s = Get-Content $ScreenSummary -Raw | ConvertFrom-Json
+    Write-Host "`n=== UC-06 stacked test (DR3 dry run; the verdict counts only on DR4) ==="
+    $s.test | Select-Object verdict, clusters_in_test, wobblers, wobblers_expected, excess_fraction, p | Format-List | Out-String | Write-Host
+    Write-Host "Left out (over the size cap): $($s.test.clusters_over_size_cap -join ', ')"
+    Write-Host "Clusters out of scope (beyond 1 kpc): $($s.clusters_out_of_scope)"
+    Write-Host "Settings frozen hash: $($s.frozen_sha256)"
+    Write-Host "Cluster list hash:    $($s.cluster_list_sha256)"
 }
 Write-Host "`n=== Summary ==="
 $Summary | ForEach-Object { Write-Host $_ }
