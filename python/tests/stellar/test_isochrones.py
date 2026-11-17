@@ -576,10 +576,14 @@ def test_red_dwarfs_carry_the_models_extra_colour_error() -> None:
 
 
 @pytest.mark.req("STL-043")
-def test_a_fit_names_red_dwarfs_by_their_absolute_g_after_each_trials_dust() -> None:
+def test_every_trial_of_a_fit_sees_the_same_red_dwarfs() -> None:
     s = iso.load_settings()
-    stars = iso.Stars.from_photometry(np.asarray([1.0, 1.0]), np.asarray([15.5, 18.0]), s)
+    cut = s["photometry"]["red_dwarf_abs_g"]
+    stars = iso.Stars.from_photometry(np.asarray([1.0, 1.0]), np.asarray([15.5, 18.0]), s, 15.5 - cut - 0.5)
     plain, _ = iso.photometric_errors(stars.g, s)
+    assert list(stars.red) == [True, True] and stars.colour_err[0] > plain[0]
+    dusty = stars.judged(s, 15.5 - cut + 0.5)  # with dust the first star is brighter than the cutoff
+    assert list(dusty.red) == [False, True] and dusty.colour_err[0] == pytest.approx(plain[0])
     seen: list[np.ndarray] = []
 
     class Matcher:
@@ -589,13 +593,32 @@ def test_a_fit_names_red_dwarfs_by_their_absolute_g_after_each_trials_dust() -> 
             seen.append(np.asarray(ce).reshape(-1, 2))
             return np.zeros(colour.size), np.zeros(colour.size, dtype=np.int64)
 
-    avs = np.asarray([0.0, 2.0])
-    a_g, _ = iso.extinction(avs, s)
-    modulus = 15.5 - s["photometry"]["red_dwarf_abs_g"] - 0.5  # the first star is at absolute G 7.5 without dust
-    iso._costs(Matcher(), stars, avs, np.asarray([modulus]), (modulus, 0.1), s)  # type: ignore[arg-type]
-    clear, dusty = np.concatenate(seen)
-    red = math.hypot(plain[0], s["photometry"]["red_dwarf_colour_error"])
-    assert (
-        a_g[1] > 0.5 and clear[0] == pytest.approx(red) and dusty[0] == pytest.approx(plain[0])
-    )  # dust makes it bright
-    assert clear[1] > plain[1] and dusty[1] > plain[1]  # the faint star is a red dwarf either way
+    iso._costs(Matcher(), stars, np.asarray([0.0, 2.0]), np.asarray([8.0, 9.0]), (8.5, 0.1), s)  # type: ignore[arg-type]
+    rows = np.concatenate(seen)
+    assert np.all(rows == rows[0])  # no trial gets larger errors, and so a smaller cost, for nothing
+
+
+@pytest.mark.req("STL-043")
+def test_a_dusty_clusters_red_dwarfs_are_judged_after_its_dust() -> None:
+    s = settings(av_max=2.0)
+    g = grid((0.0,))
+    colour, mag, _ = cluster(0.0, 8.8, 1.5, 8.0, 160, seed=3, settings=s)
+    fit = iso.fit_cluster(colour, mag, 2.5 - 0.017, 0.02, g, s)
+    assert fit is not None
+    true_abs_g = mag - float(iso.extinction(1.5, s)[0]) - 8.0
+    without_dust = int(np.sum(mag - 8.0 > s["photometry"]["red_dwarf_abs_g"]))
+    expected = int(np.sum(true_abs_g > s["photometry"]["red_dwarf_abs_g"]))
+    assert expected < without_dust  # the dust would have made turnoff stars look like red dwarfs
+    assert abs(fit["red_dwarfs"] - expected) <= 3
+
+
+@pytest.mark.req("STL-043")
+def test_member_flags_use_the_red_dwarfs_the_fit_judged() -> None:
+    s = settings(av_max=2.0)
+    g = grid((0.0,))
+    colour, mag, _ = cluster(0.0, 8.8, 1.5, 8.0, 160, seed=3, settings=s)
+    fit = iso.fit_cluster(colour, mag, 2.5 - 0.017, 0.02, g, s)
+    assert fit is not None and fit["red_dwarf_offset"] > 8.5  # judged after the dust, not at the parallax distance
+    same = iso.member_masses(colour, mag, fit, g, s)
+    other = iso.member_masses(colour, mag, {**fit, "red_dwarf_offset": fit["red_dwarf_offset"] - 3.0}, g, s)
+    assert not np.allclose(same["distance"], other["distance"], equal_nan=True)  # the flags follow the fit's

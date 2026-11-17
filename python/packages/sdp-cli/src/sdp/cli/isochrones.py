@@ -287,7 +287,7 @@ def fit_one(
     if fit is not None:
         row.update({k: fit[k] for k in (
             "feh", "log_age", "age_myr", "av", "e_bp_rp", "distance_modulus", "distance_pc", "parallax_modulus",
-            "parallax_modulus_err", "stars_fitted", "on_isochrone_share", "median_distance", "cost",
+            "parallax_modulus_err", "stars_fitted", "red_dwarfs", "on_isochrone_share", "median_distance", "cost",
             "turnoff_initial_msun", "heaviest_living_msun",
         )})  # fmt: skip
         row["at_grid_edge"] = ",".join(fit.get("at_grid_edge", []))

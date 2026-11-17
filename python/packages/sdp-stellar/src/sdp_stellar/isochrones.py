@@ -416,47 +416,48 @@ class _Matcher:
 
 @dataclass(frozen=True)
 class Stars:
-    """A cluster's members: observed BP-RP and G and their errors. ``colour_err`` leaves out the models'
-    red-dwarf term: whether a star is a red dwarf depends on its absolute G, so on each trial's A_V and
-    modulus, and :func:`_costs` adds it per trial (``red_abs_g``, ``red_colour_err``)."""
+    """A cluster's members: observed BP-RP and G and their errors. ``red`` marks the stars counted as red
+    dwarfs, whose ``colour_err`` carries the models' extra colour error (see :func:`photometric_errors`).
+    The marks are fixed for every trial a fit compares: were they judged per trial, a trial that made more
+    stars red dwarfs (less dust, a larger distance) would get their larger errors and a smaller cost for
+    nothing, and the 2026-11-16 22:40 PC run showed exactly that pull to low A_V and high [Fe/H]."""
 
     colour: Array
     g: Array
     colour_err: Array
     g_err: Array
-    red_abs_g: float | None = None
-    red_colour_err: float = 0.0
+    red: NDArray[np.bool_]
 
     @classmethod
-    def from_photometry(cls, colour: Array, g: Array, settings: Mapping[str, Any]) -> Stars:
-        """The stars with a colour and G, carrying the red-dwarf settings (see :func:`photometric_errors`)."""
+    def from_photometry(
+        cls, colour: Array, g: Array, settings: Mapping[str, Any], offset: float | None = None
+    ) -> Stars:
+        """The stars with a colour and G; with ``offset`` (A_G plus the distance modulus) those whose
+        absolute G is fainter than ``red_dwarf_abs_g`` are marked red dwarfs."""
         c, m = np.asarray(colour, dtype=np.float64), np.asarray(g, dtype=np.float64)
         ok = np.isfinite(c) & np.isfinite(m)
-        ce, ge = photometric_errors(m[ok], settings)
-        p = settings["photometry"]
-        red = float(p["red_dwarf_abs_g"]) if "red_dwarf_abs_g" in p else None
-        return cls(c[ok], m[ok], ce, ge, red, float(p.get("red_dwarf_colour_error", 0.0)))
+        return cls(c[ok], m[ok], *_errors(m[ok], settings, offset))
 
-    def colour_errors(self, abs_g: Array) -> Array:
-        """The colour errors at these absolute magnitudes: the stars in order, repeated once per trial."""
-        base = np.tile(self.colour_err, abs_g.size // max(self.size, 1))
-        if self.red_abs_g is None or self.red_colour_err == 0.0:
-            return base
-        return np.hypot(base, np.where(abs_g > self.red_abs_g, self.red_colour_err, 0.0))
+    def judged(self, settings: Mapping[str, Any], offset: float) -> Stars:
+        """The same stars with their red dwarfs judged again at this ``offset`` (A_G plus modulus)."""
+        return Stars(self.colour, self.g, *_errors(self.g, settings, offset))
 
     @property
     def size(self) -> int:
         return int(self.colour.size)
 
     def take(self, rows: NDArray[np.int64]) -> Stars:
-        return Stars(
-            self.colour[rows],
-            self.g[rows],
-            self.colour_err[rows],
-            self.g_err[rows],
-            self.red_abs_g,
-            self.red_colour_err,
-        )
+        return Stars(self.colour[rows], self.g[rows], self.colour_err[rows], self.g_err[rows], self.red[rows])
+
+
+def _errors(g: Array, settings: Mapping[str, Any], offset: float | None) -> tuple[Array, Array, NDArray[np.bool_]]:
+    p = settings["photometry"]
+    if offset is None or "red_dwarf_abs_g" not in p:
+        red = np.zeros(np.shape(g), dtype=bool)
+    else:
+        red = (g - offset) > float(p["red_dwarf_abs_g"])
+    ce, ge = photometric_errors(g, settings, None if offset is None else g - offset)
+    return ce, ge, red
 
 
 def _costs(
@@ -482,7 +483,10 @@ def _costs(
         m = hi - lo
         colour = np.broadcast_to((stars.colour[None, :] - e_c[lo:hi, None])[:, None, :], (m, k, n)).ravel()
         mag = (stars.g[None, None, :] - a_g[lo:hi, None, None] - moduli[None, :, None]).ravel()
-        d2, _ = matcher.nearest(colour, mag, stars.colour_errors(mag), np.tile(stars.g_err, m * k), math.sqrt(cap))
+        reps = m * k
+        d2, _ = matcher.nearest(
+            colour, mag, np.tile(stars.colour_err, reps), np.tile(stars.g_err, reps), math.sqrt(cap)
+        )
         out[lo:hi] = np.minimum(d2, cap).reshape(m, k, n).sum(axis=2)
     result: Array = out + ((moduli[None, :] - prior[0]) / prior[1]) ** 2
     return result
@@ -558,7 +562,8 @@ def fit_cluster(
     ):
         return None
     prior = modulus_prior(parallax_mas, parallax_err_mas, s)
-    stars = Stars.from_photometry(colour, g, s)
+    # red dwarfs are judged first at the parallax distance without dust, then again at the coarse best A_V
+    stars = Stars.from_photometry(colour, g, s, prior[0])
     if stars.size > int(f["max_fit_stars"]):
         rng = np.random.default_rng(int(f["seed"]))
         stars = stars.take(np.sort(rng.choice(stars.size, int(f["max_fit_stars"]), replace=False)))
@@ -574,6 +579,17 @@ def fit_cluster(
     mod_c = _steps(prior[0] - half, prior[0] + half, float(f["modulus_coarse_step"]))
     search.run(fehs, coarse_ages, av_c, mod_c)
     feh0, age0, av0, mod0, _ = search.best()
+    offset = prior[0]
+    # dust can move stars across the cutoff: judge them again at the coarse best and search again, until the
+    # red dwarfs stop changing (at most red_dwarf_passes coarse searches; the last judgement is kept)
+    for _ in range(int(f["red_dwarf_passes"]) - 1):
+        again = stars.judged(s, float(extinction(av0, s)[0]) + mod0)
+        if np.array_equal(again.red, stars.red):
+            break
+        stars, offset = again, float(extinction(av0, s)[0]) + mod0
+        search = _Search(grid, stars, prior, s, gauss, _lines=search._lines)
+        search.run(fehs, coarse_ages, av_c, mod_c)
+        feh0, age0, av0, mod0, _ = search.best()
 
     i = fehs.index(feh0)
     near_fehs = fehs[max(i - 1, 0) : i + 2]
@@ -621,6 +637,8 @@ def fit_cluster(
         "parallax_modulus_err": round(prior[1], 4),
         "cost": round(cost, 4),
         "stars_fitted": stars.size,
+        "red_dwarfs": int(stars.red.sum()),
+        "red_dwarf_offset": round(offset, 4),
         "on_isochrone_share": round(float(np.mean(np.sqrt(d2) <= float(f["inlier_distance"]))), 4),
         "median_distance": round(float(np.median(np.sqrt(d2))), 4),
         "ranges": profile_ranges(trials, float(f["profile_delta"])),
@@ -696,7 +714,9 @@ def member_masses(
         matcher = _Matcher(ln, (float(floors["colour_floor"]), float(floors["g_floor"])), int(s["fit"]["neighbours"]))
         a_g, e_c = extinction(float(fit["av"]), s)
         abs_g = m[ok] - a_g - float(fit["distance_modulus"])
-        ce, ge = photometric_errors(m[ok], s, abs_g)
+        # the red dwarfs the fit judged (A_G plus modulus at its coarse best), so the flags agree with the fit
+        judged_at = float(fit.get("red_dwarf_offset", float(a_g) + float(fit["distance_modulus"])))
+        ce, ge = photometric_errors(m[ok], s, m[ok] - judged_at)
         d2, idx = matcher.nearest(c[ok] - e_c, abs_g, ce, ge)
         out["g_offset"][ok] = abs_g - main_sequence_g(
             grid.isochrone(float(fit["feh"]), float(fit["log_age"])), c[ok] - e_c
