@@ -40,6 +40,7 @@ requirements:
       - "python/tests.stellar.test_companions::test_the_second_scan_keeps_only_stars_inside_a_footprint"
       - "python/tests.stellar.test_companions::test_a_dark_partner_of_a_member_is_found_and_the_cluster_is_judged_against_the_field"
       - "python/tests.stellar.test_companions::test_a_cluster_with_too_few_seeds_in_the_scan_is_reported_not_screened"
+      - "python/tests.stellar.test_companions::test_a_cluster_with_only_some_seeds_in_the_scan_says_how_many"
       - "python/tests.stellar.test_companions::test_clusters_come_from_sweep_tiles_once_each_or_from_a_member_list"
   - id: STL-023
     pattern: event

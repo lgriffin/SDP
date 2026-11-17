@@ -514,13 +514,21 @@ def screen(
         seeds = np.asarray(sorted(row_of[s] for s in c.seed_ids if s in row_of), dtype=np.int64)
         fp = footprint(stars, seeds, settings)
         if fp is None:
+            floor = float(settings["membership"]["parallax_min_mas"])
             summary.append(
                 {
                     "cluster_id": c.cluster_id,
                     "status": c.status,
                     "matches": c.matches,
                     "members": 0,
-                    "note": "fewer than 3 seed members found in the scan",
+                    "seeds": len(c.seed_ids),
+                    "seeds_in_scan": len(seeds),
+                    "out_of_scope": len(seeds) == 0,
+                    "note": (
+                        f"out of scope: none of its seed members is inside the scan (parallax >= {floor:g} mas)"
+                        if len(seeds) == 0
+                        else f"fewer than 3 seed members found in the scan ({len(seeds)} of {len(c.seed_ids)})"
+                    ),
                 }
             )
             continue

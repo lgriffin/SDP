@@ -331,6 +331,7 @@ def companions_screen(
         "settings_sha256": settings_sha256(),
         "clusters": len(clusters),
         "clusters_screened": sum(1 for c in result["clusters"] if c.get("members")),
+        "clusters_out_of_scope": sum(1 for c in result["clusters"] if c.get("out_of_scope")),
         "members": sum(int(c.get("members") or 0) for c in result["clusters"]),
         "orbits_in_clusters": len(result["candidates"]),
         "flagged_in_clusters": len(flagged),

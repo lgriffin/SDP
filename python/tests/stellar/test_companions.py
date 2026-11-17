@@ -261,7 +261,17 @@ def test_a_dark_partner_of_a_member_is_found_and_the_cluster_is_judged_against_t
 def test_a_cluster_with_too_few_seeds_in_the_scan_is_reported_not_screened(sky: dict[str, Any]) -> None:
     lost = [c.Cluster("gone", "known", "Fixture", frozenset({999_999_999, 888_888_888}))]
     (cluster,) = c.screen(lost, sky["stars"], sky["orbits"], sky["field"], SETTINGS)["clusters"]
-    assert cluster["members"] == 0 and "fewer than 3" in cluster["note"]
+    assert cluster["members"] == 0 and cluster["out_of_scope"] and "out of scope" in cluster["note"]
+    assert cluster["seeds"] == 2 and cluster["seeds_in_scan"] == 0
+
+
+@pytest.mark.req("STL-022")
+def test_a_cluster_with_only_some_seeds_in_the_scan_says_how_many(sky: dict[str, Any]) -> None:
+    some = sorted(int(s) for s in sky["stars"]["source_id"][:2])
+    thin = [c.Cluster("thin", "known", "Fixture", frozenset({*some, 999_999_999}))]
+    (cluster,) = c.screen(thin, sky["stars"], sky["orbits"], sky["field"], SETTINGS)["clusters"]
+    assert cluster["members"] == 0 and not cluster["out_of_scope"]
+    assert "fewer than 3" in cluster["note"] and "(2 of 3)" in cluster["note"]
 
 
 @pytest.mark.req("STL-022")
