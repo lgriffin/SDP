@@ -96,10 +96,11 @@ windows no longer test the fit independently; their age windows still do.
 
 **Red dwarfs (STL-043).** The models' colours of K and M dwarfs are poor, so a star fainter than absolute
 G 7 carries 0.15 mag more colour error. Which stars are red dwarfs is decided once per fit: first at
-the parallax distance without dust, then again at the coarse search's best A_V and distance (searching again
-if that changed any star). Every trial then sees the same red dwarfs. Deciding it per trial was tried and
+the parallax distance without dust, then again at the coarse search's best A_V and distance, searching again
+until no star changes (at most `red_dwarf_passes` = 3 coarse searches). Every trial then sees the same red dwarfs. Deciding it per trial was tried and
 was wrong: a trial with less dust turned more stars into red dwarfs and won on their larger errors alone,
-which pushed 45 fits to lower A_V and higher [Fe/H]. Each fit records `red_dwarfs`, the number counted. On the PC a cluster of 19 red dwarfs went from [Fe/H] +0.5
+which pushed 45 fits to lower A_V and higher [Fe/H]. Each fit records `red_dwarfs`, the number counted, and
+`red_dwarf_offset`, the A_G plus modulus they were judged at; the member tables use the same judgement. On the PC a cluster of 19 red dwarfs went from [Fe/H] +0.5
 (cost 41) to +0.25 with 95 per cent of its stars on the line.
 
 **Known answers.** The settings list sanity windows for four famous open clusters (the Pleiades, the

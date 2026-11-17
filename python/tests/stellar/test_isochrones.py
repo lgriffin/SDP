@@ -610,3 +610,15 @@ def test_a_dusty_clusters_red_dwarfs_are_judged_after_its_dust() -> None:
     expected = int(np.sum(true_abs_g > s["photometry"]["red_dwarf_abs_g"]))
     assert expected < without_dust  # the dust would have made turnoff stars look like red dwarfs
     assert abs(fit["red_dwarfs"] - expected) <= 3
+
+
+@pytest.mark.req("STL-043")
+def test_member_flags_use_the_red_dwarfs_the_fit_judged() -> None:
+    s = settings(av_max=2.0)
+    g = grid((0.0,))
+    colour, mag, _ = cluster(0.0, 8.8, 1.5, 8.0, 160, seed=3, settings=s)
+    fit = iso.fit_cluster(colour, mag, 2.5 - 0.017, 0.02, g, s)
+    assert fit is not None and fit["red_dwarf_offset"] > 8.5  # judged after the dust, not at the parallax distance
+    same = iso.member_masses(colour, mag, fit, g, s)
+    other = iso.member_masses(colour, mag, {**fit, "red_dwarf_offset": fit["red_dwarf_offset"] - 3.0}, g, s)
+    assert not np.allclose(same["distance"], other["distance"], equal_nan=True)  # the flags follow the fit's

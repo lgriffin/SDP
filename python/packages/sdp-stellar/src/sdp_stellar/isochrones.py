@@ -579,9 +579,14 @@ def fit_cluster(
     mod_c = _steps(prior[0] - half, prior[0] + half, float(f["modulus_coarse_step"]))
     search.run(fehs, coarse_ages, av_c, mod_c)
     feh0, age0, av0, mod0, _ = search.best()
-    again = stars.judged(s, float(extinction(av0, s)[0]) + mod0)
-    if not np.array_equal(again.red, stars.red):  # dust moved stars across the cutoff: search again with them
-        stars = again
+    offset = prior[0]
+    # dust can move stars across the cutoff: judge them again at the coarse best and search again, until the
+    # red dwarfs stop changing (at most red_dwarf_passes coarse searches; the last judgement is kept)
+    for _ in range(int(f["red_dwarf_passes"]) - 1):
+        again = stars.judged(s, float(extinction(av0, s)[0]) + mod0)
+        if np.array_equal(again.red, stars.red):
+            break
+        stars, offset = again, float(extinction(av0, s)[0]) + mod0
         search = _Search(grid, stars, prior, s, gauss, _lines=search._lines)
         search.run(fehs, coarse_ages, av_c, mod_c)
         feh0, age0, av0, mod0, _ = search.best()
@@ -633,6 +638,7 @@ def fit_cluster(
         "cost": round(cost, 4),
         "stars_fitted": stars.size,
         "red_dwarfs": int(stars.red.sum()),
+        "red_dwarf_offset": round(offset, 4),
         "on_isochrone_share": round(float(np.mean(np.sqrt(d2) <= float(f["inlier_distance"]))), 4),
         "median_distance": round(float(np.median(np.sqrt(d2))), 4),
         "ranges": profile_ranges(trials, float(f["profile_delta"])),
@@ -708,7 +714,9 @@ def member_masses(
         matcher = _Matcher(ln, (float(floors["colour_floor"]), float(floors["g_floor"])), int(s["fit"]["neighbours"]))
         a_g, e_c = extinction(float(fit["av"]), s)
         abs_g = m[ok] - a_g - float(fit["distance_modulus"])
-        ce, ge = photometric_errors(m[ok], s, abs_g)
+        # the red dwarfs the fit judged (A_G plus modulus at its coarse best), so the flags agree with the fit
+        judged_at = float(fit.get("red_dwarf_offset", float(a_g) + float(fit["distance_modulus"])))
+        ce, ge = photometric_errors(m[ok], s, m[ok] - judged_at)
         d2, idx = matcher.nearest(c[ok] - e_c, abs_g, ce, ge)
         out["g_offset"][ok] = abs_g - main_sequence_g(
             grid.isochrone(float(fit["feh"]), float(fit["log_age"])), c[ok] - e_c

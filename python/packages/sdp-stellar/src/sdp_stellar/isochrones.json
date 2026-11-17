@@ -71,6 +71,7 @@
     "mass_distance_max": 3.0,
     "profile_delta": 1.0,
     "max_fit_stars": 400,
+    "red_dwarf_passes": 3,
     "min_stars": 15,
     "seed": 20261115
   },
