@@ -1,0 +1,115 @@
+cluster_id,status,matches,seeds_found,members,parallax_mas,radius_deg,wobblers,wobblers_expected,wobblers_field_p,orbits,flagged_orbits,flagged_expected,flagged_field_p,seeds,seeds_in_scan,out_of_scope,note
+far-b037-t053-c001,known,"NGC 2360, NGC_2360",3,72,1.015914,0.078739,9,5.982747,0.150986,0,0,0.001221,1.0,,,,
+far-b053-t037-c004,known,"NGC 1817, NGC_1817",,0,,,,,,,,,,388,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b068-t103-c003,known,"NGC 6811, NGC_6811",,0,,,,,,,,,,200,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b046-t114-c002,known,"HSC_46, NGC_5904",,0,,,,,,,,,,143,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b021-t020-c010,potentially_new,,78,3078,2.6251,1.480075,141,122.247328,0.051883,0,0,0.034402,1.0,,,,
+mid-b034-t060-c006,known,"UPK 185, UPK_185",74,858,1.796727,0.49427,69,55.583566,0.045251,0,0,0.014751,1.0,,,,
+far-b036-t055-c005,known,"Cl Ruprecht 151, Ruprecht_151",,0,,,,,,,,,,48,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b043-t008-c003,potentially_new,,,0,,,,,,,,,,48,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b015-t019-c001,potentially_new,,46,7607,2.307701,3.851989,656,243.238686,0.0,1,0,0.032326,1.0,,,,
+far-b023-t125-c001,potentially_new,,,0,,,,,,,,,,44,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b034-t007-c007,potentially_new,,43,3815,1.887553,1.369459,185,191.373496,0.687138,0,0,0.012739,1.0,,,,
+far-b059-t090-c001,known,NGC_5272,,0,,,,,,,,,,43,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b032-t008-c001,potentially_new,,40,3028,2.459977,1.736957,127,103.660329,0.0145,0,0,0.01266,1.0,,,,
+far-b038-t138-c002,known,"UPK 23, UPK_23",13,6600,1.019353,0.378399,452,885.458991,1.0,0,0,0.003749,1.0,,,,
+far-b068-t014-c004,potentially_new,,9,1063,1.011389,0.623131,50,46.538076,0.32494,0,0,0.001099,1.0,,,,
+far-b032-t050-c003,known,Theia_3099,,0,,,,,,,,,,33,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b016-t081-c001,potentially_new,,11,710,1.03215,0.499219,23,30.448929,0.930476,0,0,0.002297,1.0,,,,
+far-b031-t114-c003,potentially_new,,,0,,,,,,,,,,32,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b073-t096-c008,potentially_new,,,0,,,,,,,,,,31,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b041-t141-c185,potentially_new,,,0,,,,,,,,,,31,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b019-t068-c002,potentially_new,,30,99806,1.598295,1.941225,7340,11506.130135,1.0,0,0,0.029395,1.0,,,,
+far-b047-t046-c001,potentially_new,,8,2569,1.016044,0.59598,101,112.471592,0.871556,0,0,0.003415,1.0,,,,
+far-b029-t049-c001,potentially_new,,,0,,,,,,,,,,30,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b062-t149-c001,potentially_new,,,0,,,,,,,,,,29,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b033-t150-c004,known,NGC_7099,,0,,,,,,,,,,29,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b036-t048-c002,potentially_new,,27,4696,3.042498,2.844072,633,501.764341,0.0,4,0,0.032547,1.0,,,,
+mid-b019-t068-c024,inconclusive,,27,37302,1.434298,0.751482,2692,5086.185471,1.0,1,0,0.00933,1.0,,,,
+far-b037-t054-c014,known,CWNU_1087,11,2368,1.025585,0.435259,111,114.718862,0.648276,0,0,0.00288,1.0,,,,
+mid-b025-t076-c001,potentially_new,,26,39930,2.591984,2.438426,1907,1948.713709,0.830454,5,0,0.177124,1.0,,,,
+mid-b037-t005-c008,potentially_new,,26,9988,1.781863,1.759462,533,562.420336,0.897242,1,0,0.014382,1.0,,,,
+far-b044-t164-c001,potentially_new,,,0,,,,,,,,,,26,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b052-t086-c002,potentially_new,,,0,,,,,,,,,,26,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b045-t014-c001,potentially_new,,,0,,,,,,,,,,26,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b016-t019-c001,potentially_new,,25,700,2.35435,1.190174,66,25.281086,0.0,0,0,0.008654,1.0,,,,
+mid-b023-t066-c007,potentially_new,,25,6050,1.966546,1.416961,236,323.37397,1.0,0,0,0.008865,1.0,,,,
+mid-b037-t044-c019,potentially_new,,25,8054,1.470811,1.247511,614,532.809574,0.000313,0,0,0.005181,1.0,,,,
+far-b053-t034-c001,potentially_new,,,0,,,,,,,,,,25,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b012-t047-c013,potentially_new,,24,22717,1.288478,0.842392,1206,1670.811863,1.0,2,0,0.018275,1.0,,,,
+far-b015-t047-c002,potentially_new,,12,14842,1.019025,0.678623,1211,1488.508618,1.0,0,0,0.006189,1.0,,,,
+far-b013-t051-c005,potentially_new,,,0,,,,,,,,,,24,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b039-t063-c001,potentially_new,,,0,,,,,,,,,,24,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b067-t106-c009,potentially_new,,,0,,,,,,,,,,24,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b070-t104-c015,potentially_new,,,0,,,,,,,,,,24,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b035-t017-c001,potentially_new,,,0,,,,,,,,,,24,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b008-t029-c008,potentially_new,,23,74518,2.793364,3.052299,5258,6473.848272,1.0,1,0,0.090851,1.0,,,,
+mid-b039-t019-c005,potentially_new,,23,1829,2.622717,1.920276,115,82.275613,0.000377,1,0,0.045328,1.0,,,,
+far-b059-t035-c003,potentially_new,,11,629,1.034125,0.309333,19,29.716682,0.985369,0,0,0.002048,1.0,,,,
+far-b036-t138-c001,potentially_new,,3,665,1.004823,0.17192,27,49.956681,0.999854,0,0,0.00043,1.0,,,,
+far-b073-t002-c009,potentially_new,,,0,,,,,,,,,,23,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b046-t142-c002,potentially_new,,,0,,,,,,,,,,23,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b065-t118-c008,potentially_new,,,0,,,,,,,,,,23,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b067-t029-c004,potentially_new,,,0,,,,,,,,,,23,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b049-t051-c005,known,HSC_1618,,0,,,,,,,,,,23,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b034-t010-c000,potentially_new,,,0,,,,,,,,,,23,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b024-t021-c002,potentially_new,,22,2461,3.354573,2.413669,176,141.796847,0.003058,0,0,0.019471,1.0,,,,
+mid-b019-t072-c005,potentially_new,,22,22184,2.63465,1.690238,1072,1191.406828,0.999792,0,0,0.053233,1.0,,,,
+mid-b030-t020-c001,potentially_new,,22,963,2.126726,1.191699,46,54.911372,0.90077,0,0,0.007166,1.0,,,,
+mid-b022-t024-c002,potentially_new,,22,23933,1.845837,1.724844,1056,1116.894536,0.967789,0,0,0.091378,1.0,,,,
+mid-b022-t072-c007,potentially_new,,22,26425,1.773117,1.260629,2233,2215.045705,0.354235,0,0,0.053053,1.0,,,,
+mid-b007-t036-c003,potentially_new,,22,3751,1.376675,0.820077,162,206.929622,0.999469,0,0,0.019287,1.0,,,,
+far-b021-t062-c001,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b074-t007-c001,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b021-t043-c005,known,HXHWL_36,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b044-t059-c002,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b032-t098-c001,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b036-t103-c004,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b083-t034-c001,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b075-t088-c049,potentially_new,,,0,,,,,,,,,,22,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b026-t022-c007,potentially_new,,21,18840,3.4659,2.083817,698,846.057704,1.0,0,0,0.027782,1.0,,,,
+mid-b006-t016-c003,potentially_new,,21,36944,3.184476,3.191262,2255,1907.467849,0.0,0,0,0.029158,1.0,,,,
+mid-b002-t009-c007,potentially_new,,21,10415,3.159375,2.413255,597,486.992771,1e-06,0,0,0.016238,1.0,,,,
+mid-b019-t021-c003,potentially_new,,21,607,2.420428,1.012419,52,25.6385,3e-06,0,0,0.008204,1.0,,,,
+mid-b011-t047-c015,potentially_new,,21,67850,2.187594,1.419601,4415,5845.933008,1.0,0,0,0.024723,1.0,,,,
+mid-b005-t016-c010,potentially_new,,21,14384,1.996695,1.344147,1224,1113.48026,0.000577,1,0,0.019721,1.0,,,,
+mid-b025-t032-c008,potentially_new,,21,4406,1.509171,2.442128,213,164.817068,0.000181,4,0,0.027225,1.0,,,,
+mid-b035-t029-c001,potentially_new,,19,463,1.102654,2.033693,22,18.849506,0.262812,1,0,0.005025,1.0,,,,
+far-b058-t136-c003,potentially_new,,10,1580,1.047398,0.513615,138,174.199597,0.997979,0,0,0.001614,1.0,,,,
+far-b081-t003-c003,potentially_new,,5,599,1.003366,0.37986,35,25.054409,0.034718,0,0,0.000697,1.0,,,,
+far-b055-t120-c002,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b041-t146-c003,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b035-t056-c004,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b045-t145-c008,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b043-t036-c002,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b073-t016-c008,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b035-t052-c001,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b057-t046-c003,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b070-t020-c003,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b030-t145-c003,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b075-t078-c015,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b039-t138-c008,potentially_new,,,0,,,,,,,,,,21,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+near-b009-t013-c001,potentially_new,,20,146,10.814081,6.800945,15,16.434759,0.671767,0,0,0.002722,1.0,,,,
+mid-b042-t014-c001,potentially_new,,20,2046,3.035604,1.540713,169,70.514815,0.0,1,0,0.012971,1.0,,,,
+mid-b020-t059-c002,potentially_new,,20,10975,2.788298,1.788363,365,367.277628,0.554251,2,0,0.053419,1.0,,,,
+mid-b011-t022-c010,potentially_new,,20,4766,2.630591,1.42852,481,298.539469,0.0,1,0,0.014217,1.0,,,,
+mid-b021-t029-c007,potentially_new,,20,1297,2.076517,1.071835,67,69.078849,0.614866,1,0,0.010884,1.0,,,,
+mid-b033-t057-c007,potentially_new,,20,5345,1.818011,1.056802,457,346.816256,0.0,0,0,0.008727,1.0,,,,
+mid-b032-t011-c007,potentially_new,,20,8894,1.743686,1.802262,375,356.861934,0.174919,1,0,0.021963,1.0,,,,
+mid-b012-t052-c029,potentially_new,,20,26720,1.740685,1.341431,2287,4283.928895,1.0,0,0,0.012477,1.0,,,,
+mid-b023-t063-c005,potentially_new,,20,12261,1.474525,1.631447,481,555.15342,0.999395,2,0,0.069083,1.0,,,,
+mid-b030-t062-c011,potentially_new,,20,1793,1.409374,0.625252,109,115.64232,0.743931,0,0,0.002991,1.0,,,,
+far-b023-t054-c007,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b044-t051-c004,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b007-t021-c004,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b061-t137-c003,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b028-t049-c007,known,HSC_1988,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b057-t040-c007,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b011-t040-c024,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b062-t132-c009,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b006-t036-c001,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b069-t101-c005,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b057-t029-c003,potentially_new,,,0,,,,,,,,,,20,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+mid-b012-t056-c003,potentially_new,,19,15809,2.102336,2.093086,523,723.070252,1.0,0,0,0.012615,1.0,,,,
+far-b069-t027-c005,potentially_new,,,0,,,,,,,,,,13,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
+far-b001-t002-c003,potentially_new,,,0,,,,,,,,,,13,0,True,out of scope: none of its seed members is inside the scan (parallax >= 1 mas)
