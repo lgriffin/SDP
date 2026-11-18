@@ -1,9 +1,9 @@
 # Protocol UC-06: star clusters in Gaia DR4, predeclared before the release
 
-- Protocol id: `uc06-gaia-dr4-clusters`, version 1.0.0 (locked when the tag `uc06-prereg-v1` is pushed and deposited; until then edits are allowed and are listed under "History")
+- Protocol id: `uc06-gaia-dr4-clusters`, version 1.0.0, locked on 18 November 2026: tag [`uc06-prereg-v1`](https://github.com/lgriffin/SDP/releases/tag/uc06-prereg-v1) (commit 35ded1b), deposited on Zenodo as [doi:10.5281/zenodo.24354087](https://doi.org/10.5281/zenodo.24354087) (all versions: [10.5281/zenodo.24354086](https://doi.org/10.5281/zenodo.24354086)). The deposited text is this file as of that tag; later edits are listed under "History"
 - Modules: `sdp_stellar.dr4_delta` (Part A), `sdp_stellar.companions` (Part B)
 - Predeclared Part B settings: [`sdp_stellar/uc06.json`](../../python/packages/sdp-stellar/src/sdp_stellar/uc06.json). The hash of its deciding keys is pinned as `UC06_FROZEN_SHA256` (`a0b6bcd2fd342aca77915e93ca69f75b6ee8c51f2a260ef16b01f89ba0a79aa0`; the declared release, `gaia:DR4`, is part of it), a test checks it, and `sdp companions screen --protocol uc06` refuses any other settings. Requirement STL-044.
-- Lock date: Monday 24 November 2026. The Gaia archive goes offline on 25 November and Gaia DR4 is released on 2 December 2026.
+- Lock deadline: Monday 24 November 2026 (met on 18 November). The Gaia archive goes offline on 25 November and Gaia DR4 is released on 2 December 2026.
 - Rule of this protocol: it is committed, tagged and deposited publicly before any Gaia DR4 data is read. Anything changed after the lock is a dated, labelled amendment and is reported as such.
 
 - Cluster list (DR3 seeds of every cluster screened): SHA-256 `4e4eb5f32a30e3a633d168a096f61aa5f15f7a02d4e20cb3ec217ec55986ccbd`, from the DR3 dry run of 18 November 2026. The DR4 run must give the same hash.
@@ -79,7 +79,7 @@ The verdict, the counts and expected counts, the per-cluster table, every flagge
 
 ## Outputs and timeline
 
-1. Lock: this file at 1.0.0, frozen settings files, git tag `uc06-prereg-v1`, Zenodo deposit for a DOI (Leigh's account). By 24 November 2026.
+1. Lock: this file at 1.0.0, frozen settings files, git tag `uc06-prereg-v1`, Zenodo deposit for a DOI (Leigh's account). Done 18 November 2026: [doi:10.5281/zenodo.24354087](https://doi.org/10.5281/zenodo.24354087).
 2. Part A report: by mid December 2026.
 3. Part B verdict: as a Research Note of the AAS by end of January 2027, citing the deposit.
 
@@ -88,3 +88,4 @@ The verdict, the counts and expected counts, the per-cluster table, every flagge
 - 0.1.0, 17 November 2026: first draft.
 - 0.2.0, 17 November 2026: Leigh accepted the 1 kpc scope, the 3,000-member cap, and epoch astrometry as reported only.
 - 1.0.0, 18 November 2026: after code review, H0 needs at least 3 expected dark partners, the release joined the pinned settings, and a verdict counts only on DR4 data, the predeclared cluster list and a flagged Gaia BH1. Earlier the same day: after the DR3 dry run already gave a wobble excess, Leigh chose dark partners to decide; the wobble excess is reported only. Cluster list hash added.
+- After the lock, 18 November 2026: the tag and Zenodo DOI were added to this file. This is a record of the lock, not an amendment; no hypothesis, setting, threshold or hash changed.
