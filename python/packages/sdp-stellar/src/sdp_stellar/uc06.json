@@ -1,6 +1,6 @@
 {
   "protocol": "uc06-gaia-dr4-clusters",
-  "status": "PREDECLARED: protocol UC-06 Part B, accepted by Leigh on 17 November 2026 before Gaia DR4 (2 December 2026). The DR3 dry run uses these settings on DR3 and is labelled as such.",
+  "status": "PREDECLARED: protocol UC-06 Part B. Choices accepted by Leigh on 17 November 2026; on 18 November 2026, after the DR3 dry run already showed a wobble excess, Leigh chose dark partners to decide. Before Gaia DR4 (2 December 2026).",
   "frozen_on": "2026-11-17",
   "source_release": "gaia:DR4",
   "orbits": {
@@ -72,11 +72,23 @@
     "groups": 4
   },
   "test": {
+    "decides": "dark-partners: cluster members with a flagged dark partner (STL-020 rule) against the field rate",
     "max_members": 3000,
     "h1_p_below": 0.001,
-    "h1_min_excess": 0.1,
+    "h1_min_members": 3,
     "h0_p_above": 0.05,
     "per_cluster": "holm",
+    "wobble": {
+      "role": "reported, not deciding",
+      "dr3_dry_run": {
+        "date": "2026-11-18",
+        "clusters_in_test": 20,
+        "wobblers": 1419,
+        "wobblers_expected": 1265.094808,
+        "excess_fraction": 0.121655,
+        "p": 1.1e-05
+      }
+    },
     "epoch_astrometry": "reported, not deciding"
   }
 }

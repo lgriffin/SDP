@@ -328,8 +328,11 @@ def test_the_uc06_settings_are_the_ones_leigh_accepted_and_their_hash_is_pinned(
     assert c.frozen_sha256(UC06) == c.UC06_FROZEN_SHA256
     assert UC06["membership"]["parallax_min_mas"] == 1.0  # 1 kpc scope
     assert UC06["test"]["max_members"] == 3000
-    assert UC06["test"]["h1_p_below"] == 0.001 and UC06["test"]["h1_min_excess"] == 0.10
+    assert UC06["test"]["decides"].startswith("dark-partners")
+    assert UC06["test"]["h1_p_below"] == 0.001 and UC06["test"]["h1_min_members"] == 3
     assert UC06["test"]["h0_p_above"] == 0.05
+    assert UC06["test"]["wobble"]["role"].startswith("reported, not deciding")
+    assert UC06["test"]["wobble"]["dr3_dry_run"]["wobblers"] == 1419
     assert UC06["test"]["epoch_astrometry"].startswith("reported, not deciding")
     assert UC06["crowding"]["healpix_level"] == 11 and UC06["crowding"]["groups"] == 4
     tweaked = copy.deepcopy(UC06)
@@ -378,27 +381,36 @@ def test_the_field_null_is_matched_on_crowding_so_crowded_wobble_is_not_a_cluste
         field.add(g, plx, 10**lr)  # declared crowding must be given
 
 
-def _cl(cid: str, members: int, wob: int, expected: float, p: float) -> dict[str, Any]:
-    return {"cluster_id": cid, "members": members, "wobblers": wob, "wobblers_expected": expected,
-            "wobblers_field_p": p}  # fmt: skip
+def _cl(cid: str, members: int, dark: int, dark_exp: float, wob: int = 50, wob_exp: float = 50.0) -> dict[str, Any]:
+    return {"cluster_id": cid, "members": members, "flagged_orbits": dark, "flagged_expected": dark_exp,
+            "flagged_field_p": c.poisson_tail(dark, dark_exp), "wobblers": wob, "wobblers_expected": wob_exp,
+            "wobblers_field_p": c.poisson_tail(wob, wob_exp)}  # fmt: skip
 
 
 @pytest.mark.req("STL-044")
-def test_the_stacked_test_follows_the_declared_verdict_rule_and_leaves_out_big_groups() -> None:
-    big = _cl("huge", 26_425, 2_233, 2_102.1, 0.0024)
-    strong = c.stacked_test([_cl("a", 500, 80, 50.0, 1e-4), _cl("b", 400, 70, 50.0, 0.004), big], UC06)
-    assert strong["verdict"] == "H1" and strong["clusters_in_test"] == 2
-    assert strong["clusters_over_size_cap"] == ["huge"] and strong["wobblers"] == 150
-    assert strong["holm_p"]["a"] == pytest.approx(2e-4) and strong["holm_p"]["b"] == pytest.approx(0.004)
-    null = c.stacked_test([_cl("a", 500, 50, 50.0, 0.5), _cl("b", 400, 48, 50.0, 0.6)], UC06)
-    assert null["verdict"] == "H0"
-    between = c.stacked_test([_cl("a", 500, 118, 100.0, 0.04)], UC06)
-    assert between["verdict"] == "inconclusive"
-    # significant but under the declared 10% excess: a big sample with a small crowding-like bias
-    small = c.stacked_test([_cl("a", 2_999, 1_080, 1_000.0, 0.007)], UC06)
-    assert small["p"] < 0.05 and small["excess_fraction"] == pytest.approx(0.08)
-    assert small["verdict"] == "inconclusive"
+def test_dark_partners_decide_by_the_declared_rule_and_big_groups_are_left_out() -> None:
+    big = _cl("huge", 26_425, 9, 0.03)
+    strong = c.stacked_test([_cl("a", 500, 3, 0.1), _cl("b", 400, 1, 0.1), big], UC06)
+    assert strong["verdict"] == "H1" and strong["decided_by"] == "dark-partners"
+    assert strong["clusters_in_test"] == 2 and strong["clusters_over_size_cap"] == ["huge"]
+    assert strong["dark_partners"] == 4 and strong["p"] < 0.001
+    none = c.stacked_test([_cl("a", 500, 0, 0.2), _cl("b", 400, 0, 0.1)], UC06)
+    assert none["verdict"] == "H0"
+    # two partners against 0.05 expected is rare (p ~ 0.001) but under the declared three members
+    two = c.stacked_test([_cl("a", 500, 2, 0.02)], UC06)
+    assert two["p"] < 0.001 and two["verdict"] == "inconclusive"
     assert c.stacked_test([big], UC06)["verdict"] == "no-clusters"
+
+
+@pytest.mark.req("STL-044")
+def test_the_wobble_excess_is_reported_beside_the_verdict_and_never_decides() -> None:
+    # the DR3 dry run's wobble excess with no dark partner: the verdict is H0, the excess still shown
+    result = c.stacked_test([_cl("a", 2_000, 0, 0.3, 1_419, 1_265.1)], UC06)
+    assert result["verdict"] == "H0"
+    w = result["wobble"]
+    assert w["reported_only"] and w["wobblers"] == 1_419 and w["p"] < 1e-4
+    assert w["excess_fraction"] == pytest.approx(0.1217, abs=1e-3)
+    assert w["dr3_baseline"]["excess_fraction"] == pytest.approx(0.121655)
 
 
 @pytest.mark.req("STL-044")

@@ -56,8 +56,8 @@ requirements:
       - "python/tests.cli.test_cli_companions::test_fetch_writes_the_orbit_table_through_the_transport"
   - id: STL-044
     pattern: ubiquitous
-    text: "The stellar module shall, under protocol UC-06's predeclared settings (uc06.json, whose frozen part's hash is pinned), match each cluster member's field wobble share on crowding (Gaia sources in the member's HEALPix level-11 pixel, grouped at the field's own quartiles) as well as G and parallax, and decide UC06-H1 with one Poisson test over every screened cluster of at most the declared size: H1 when p is below 0.001 and the excess is at least 10%, H0 when p is above 0.05, otherwise inconclusive, with Holm-adjusted per-cluster p-values reported beside it."
-    rationale: "Cluster cores are crowded and crowding alone raises RUWE, so an unmatched field null would turn crowding into a false excess. The rule and the size cap (groups over 3,000 members look like field structure in the DR3 trial) were accepted by Leigh on 17 November 2026, before Gaia DR4."
+    text: "The stellar module shall, under protocol UC-06's predeclared settings (uc06.json, whose frozen part's hash is pinned), match each cluster member's field wobble share on crowding (Gaia sources in the member's HEALPix level-11 pixel, grouped at the field's own quartiles) as well as G and parallax, and decide UC06-H1 with one Poisson test of the members with a flagged dark partner against the field's expectation, over every screened cluster of at most the declared size: H1 when p is below 0.001 and at least 3 members have one, H0 when p is above 0.05, otherwise inconclusive; the wobble excess is reported beside it with the DR3 dry run as its baseline and never decides, and Holm-adjusted per-cluster p-values are reported for both."
+    rationale: "Cluster cores are crowded and crowding alone raises RUWE, so an unmatched field null would turn crowding into a false excess. The DR3 dry run (18 November 2026) already gave a 12% wobble excess (p 1e-5) with no dark partner, so the wobble cannot be a DR4 prediction nor point to compact objects; Leigh chose dark partners to decide that day. The size cap (groups over 3,000 members look like field structure) was accepted on 17 November."
     verification: test
     tiers: [T1, T4]
     status: approved
@@ -65,7 +65,8 @@ requirements:
       - "python/tests.stellar.test_companions::test_the_uc06_settings_are_the_ones_leigh_accepted_and_their_hash_is_pinned"
       - "python/tests.stellar.test_companions::test_a_sources_healpix_pixel_comes_from_its_source_id_and_crowding_counts_every_source"
       - "python/tests.stellar.test_companions::test_the_field_null_is_matched_on_crowding_so_crowded_wobble_is_not_a_cluster_excess"
-      - "python/tests.stellar.test_companions::test_the_stacked_test_follows_the_declared_verdict_rule_and_leaves_out_big_groups"
+      - "python/tests.stellar.test_companions::test_dark_partners_decide_by_the_declared_rule_and_big_groups_are_left_out"
+      - "python/tests.stellar.test_companions::test_the_wobble_excess_is_reported_beside_the_verdict_and_never_decides"
       - "python/tests.stellar.test_companions::test_holm_adjusts_in_the_given_order"
       - "python/tests.stellar.test_companions::test_a_screen_under_crowding_settings_needs_each_stars_crowding"
       - "python/tests.cli.test_cli_companions::test_a_uc06_screen_matches_the_field_on_crowding_and_gives_the_stacked_verdict"

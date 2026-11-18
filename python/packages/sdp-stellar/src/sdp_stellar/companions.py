@@ -63,9 +63,10 @@ Array = NDArray[np.float64]
 
 #: the predeclared Gaia DR4 settings of protocol UC-06 (docs/protocols/uc06-gaia-dr4-clusters.md)
 UC06_FILE = "uc06.json"
-#: The hash of frozen_part() of uc06.json as Leigh accepted it on 17 November 2026. It may change only before
+#: The hash of frozen_part() of uc06.json as Leigh accepted it (17 November 2026; dark partners decide since 18
+#: November, after the DR3 dry run). It may change only before
 #: the lock (git tag uc06-prereg-v1, by 24 November 2026); after that, never.
-UC06_FROZEN_SHA256 = "6045c916f3b14bd9b554da6e0d73c040927fe5e4ab20bb7fc9a32c7e49faff07"
+UC06_FROZEN_SHA256 = "f2b7970a858208d08fc2f974fec08756fd3a59d2ccfc9234134f1aa49f097d4c"
 #: the settings keys that decide UC-06's result; the rest (status, notes) may be reworded
 FROZEN_KEYS = ("protocol", "orbits", "mass", "wobble", "membership", "field", "crowding", "test")
 
@@ -425,36 +426,53 @@ def holm(p_values: Sequence[float]) -> list[float]:
     return [float(x) for x in adjusted]
 
 
+def _stack(
+    used: Sequence[Mapping[str, Any]], count: str, expected_key: str, p_key: str
+) -> tuple[int, float, float, list[float]]:
+    observed = sum(int(c[count]) for c in used)
+    expected = float(sum(float(c[expected_key] or 0.0) for c in used))
+    adjusted = holm([float(c[p_key]) for c in used]) if used else []
+    return observed, expected, poisson_tail(observed, expected), adjusted
+
+
 def stacked_test(clusters: Sequence[Mapping[str, Any]], settings: Mapping[str, Any]) -> dict[str, Any]:
-    """UC-06's decision on H1: every screened cluster up to the declared size, its wobblers and their field
-    expectation summed, one Poisson tail, and the declared verdict rule. Per-cluster Holm p-values are
-    reported beside it and do not change the verdict."""
+    """UC-06's decision: every screened cluster up to the declared size, its members with a flagged dark
+    partner and the field's expectation for them summed, one Poisson tail, and the declared verdict rule.
+    The wobble excess is computed the same way and reported beside it, with the DR3 dry run as its
+    baseline; it does not decide (Gaia DR3 already showed it, 18 November 2026). Per-cluster Holm
+    p-values are reported and do not change the verdict."""
     t = settings["test"]
     cap = int(t["max_members"])
     used = [c for c in clusters if c.get("members") and int(c["members"]) <= cap]
     left = [c["cluster_id"] for c in clusters if c.get("members") and int(c["members"]) > cap]
-    observed = sum(int(c["wobblers"]) for c in used)
-    expected = float(sum(float(c["wobblers_expected"] or 0.0) for c in used))
-    p = poisson_tail(observed, expected)
-    excess = (observed - expected) / expected if expected > 0 else None
+    dark, dark_exp, dark_p, dark_holm = _stack(used, "flagged_orbits", "flagged_expected", "flagged_field_p")
     if not used:
         verdict = "no-clusters"
-    elif p < float(t["h1_p_below"]) and excess is not None and excess >= float(t["h1_min_excess"]):
+    elif dark_p < float(t["h1_p_below"]) and dark >= int(t["h1_min_members"]):
         verdict = "H1"
-    elif p > float(t["h0_p_above"]):
+    elif dark_p > float(t["h0_p_above"]):
         verdict = "H0"
     else:
         verdict = "inconclusive"
-    adjusted = holm([float(c["wobblers_field_p"]) for c in used]) if used else []
+    wob, wob_exp, wob_p, wob_holm = _stack(used, "wobblers", "wobblers_expected", "wobblers_field_p")
     return {
         "verdict": verdict,
+        "decided_by": "dark-partners",
         "clusters_in_test": len(used),
         "clusters_over_size_cap": left,
-        "wobblers": observed,
-        "wobblers_expected": _r(expected),
-        "excess_fraction": _r(excess) if excess is not None else None,
-        "p": _r(p),
-        "holm_p": {c["cluster_id"]: _r(a) for c, a in zip(used, adjusted, strict=True)},
+        "dark_partners": dark,
+        "dark_partners_expected": _r(dark_exp),
+        "p": _r(dark_p),
+        "holm_p": {c["cluster_id"]: _r(x) for c, x in zip(used, dark_holm, strict=True)},
+        "wobble": {
+            "reported_only": True,
+            "wobblers": wob,
+            "wobblers_expected": _r(wob_exp),
+            "excess_fraction": _r((wob - wob_exp) / wob_exp) if wob_exp > 0 else None,
+            "p": _r(wob_p),
+            "holm_p": {c["cluster_id"]: _r(x) for c, x in zip(used, wob_holm, strict=True)},
+            "dr3_baseline": t["wobble"]["dr3_dry_run"],
+        },
     }
 
 

@@ -116,7 +116,9 @@ if ($screenOk -and (Test-Path $Clusters)) {
 if ($screenOk -and $Protocol -eq "uc06" -and (Test-Path $ScreenSummary)) {
     $s = Get-Content $ScreenSummary -Raw | ConvertFrom-Json
     Write-Host "`n=== UC-06 stacked test (DR3 dry run; the verdict counts only on DR4) ==="
-    $s.test | Select-Object verdict, clusters_in_test, wobblers, wobblers_expected, excess_fraction, p | Format-List | Out-String | Write-Host
+    $s.test | Select-Object verdict, decided_by, clusters_in_test, dark_partners, dark_partners_expected, p | Format-List | Out-String | Write-Host
+    Write-Host "Wobble excess (reported only):"
+    $s.test.wobble | Select-Object wobblers, wobblers_expected, excess_fraction, p | Format-List | Out-String | Write-Host
     Write-Host "Left out (over the size cap): $($s.test.clusters_over_size_cap -join ', ')"
     Write-Host "Clusters out of scope (beyond 1 kpc): $($s.clusters_out_of_scope)"
     Write-Host "Settings frozen hash: $($s.frozen_sha256)"
