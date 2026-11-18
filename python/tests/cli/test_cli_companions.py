@@ -4,6 +4,7 @@ a bulk Gaia copy with sweep tiles (STL-023). Not Gaia data."""
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -271,3 +272,23 @@ def test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid(dat
     assert partial.exit_code != 0 and "lack" in str(partial.exception)
     lone = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--fits", str(fits)])
     assert lone.exit_code != 0 and "--fits needs --isochrones" in str(lone.exception)
+
+
+@pytest.mark.req("STL-044")
+def test_a_uc06_screen_matches_the_field_on_crowding_and_gives_the_stacked_verdict(data: Path) -> None:
+    result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06"])
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.stdout)
+    assert summary["protocol"] == "uc06-gaia-dr4-clusters" and summary["settings_file"] == "uc06.json"
+    assert summary["test"]["clusters_in_test"] == 1
+    assert summary["test"]["verdict"] in ("H1", "H0", "inconclusive")
+    # invented DR3 stars and an invented sweep: the verdict is shown but does not count
+    assert summary["test"]["counts"] is False
+    why = " ".join(summary["test"]["not_counted_because"])
+    assert "not gaia:DR4" in why and "not the predeclared one" in why
+    assert summary["test"]["gaia_bh1_flagged"] is True and "Gaia BH1" not in why
+    assert summary["test"]["h2_search"].startswith("not searched")
+    listing = (data / "companions" / "clusters" / "cluster-list.json").read_bytes()
+    assert hashlib.sha256(listing).hexdigest() == summary["cluster_list_sha256"]
+    bad = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "dr9"])
+    assert bad.exit_code != 0 and "'trial' or 'uc06'" in str(bad.exception)

@@ -61,17 +61,42 @@ FLAGGED = (COMPACT, DARK)
 Array = NDArray[np.float64]
 
 
-def settings_text() -> str:
-    return resources.files("sdp_stellar").joinpath(SETTINGS_FILE).read_text("utf-8")
+#: the predeclared Gaia DR4 settings of protocol UC-06 (docs/protocols/uc06-gaia-dr4-clusters.md)
+UC06_FILE = "uc06.json"
+#: The hash of frozen_part() of uc06.json as Leigh accepted it (17 November 2026; dark partners decide since 18
+#: November, after the DR3 dry run). It may change only before
+#: the lock (git tag uc06-prereg-v1, by 24 November 2026); after that, never.
+UC06_FROZEN_SHA256 = "a0b6bcd2fd342aca77915e93ca69f75b6ee8c51f2a260ef16b01f89ba0a79aa0"
+#: The SHA-256 of the cluster list (each cluster's DR3 seed ids) of the DR3 dry run, 18 November 2026. A UC-06
+#: run on any other list gives no verdict.
+UC06_CLUSTER_LIST_SHA256 = "4e4eb5f32a30e3a633d168a096f61aa5f15f7a02d4e20cb3ec217ec55986ccbd"
+#: Gaia BH1, the known answer: a run that does not call it a neutron star or black hole gives no verdict
+GAIA_BH1 = 4373465352415301632
+#: the settings keys that decide UC-06's result; the rest (status, notes) may be reworded
+FROZEN_KEYS = ("protocol", "source_release", "orbits", "mass", "wobble", "membership", "field", "crowding", "test")
 
 
-def load_settings() -> dict[str, Any]:
-    document: dict[str, Any] = json.loads(settings_text())
+def settings_text(name: str = SETTINGS_FILE) -> str:
+    return resources.files("sdp_stellar").joinpath(name).read_text("utf-8")
+
+
+def load_settings(name: str = SETTINGS_FILE) -> dict[str, Any]:
+    document: dict[str, Any] = json.loads(settings_text(name))
     return document
 
 
-def settings_sha256() -> str:
-    return hashlib.sha256(settings_text().encode("utf-8")).hexdigest()
+def settings_sha256(name: str = SETTINGS_FILE) -> str:
+    return hashlib.sha256(settings_text(name).encode("utf-8")).hexdigest()
+
+
+def frozen_part(settings: Mapping[str, Any]) -> dict[str, Any]:
+    """The predeclared part of a settings document: the keys that decide the result."""
+    return {k: settings[k] for k in FROZEN_KEYS if k in settings}
+
+
+def frozen_sha256(settings: Mapping[str, Any]) -> str:
+    text = json.dumps(frozen_part(settings), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 # --- orbits to masses -----------------------------------------------------------------------------
@@ -243,30 +268,51 @@ def _bin(values: Array, edges: Array) -> NDArray[np.int64]:
     return np.where(np.isfinite(v), idx, -1)
 
 
+def _crowd_edges(settings: Mapping[str, Any]) -> Array:
+    """Fine log10 bins of crowding (Gaia sources in a star's HEALPix pixel); one bin when not declared."""
+    c = settings.get("crowding")
+    if not c:
+        return np.asarray([-np.inf, np.inf])
+    e = c["log_count_edges"]
+    return np.linspace(float(e["start"]), float(e["stop"]), int(e["count"]) + 1)
+
+
 @dataclass
 class FieldCounts:
-    """Counts of every scanned star by (G bin, parallax bin, log RUWE bin)."""
+    """Counts of every scanned star by (G bin, parallax bin, crowding bin, log RUWE bin). Without a declared
+    ``crowding`` the crowding axis has one bin and everything is as in the DR3 trial."""
 
     settings: Mapping[str, Any]
     counts: NDArray[np.int64] = field(init=False)
 
     def __post_init__(self) -> None:
         g, p, r = _edges(self.settings)
-        self.counts = np.zeros((len(g) - 1, len(p) - 1, len(r) - 1), dtype=np.int64)
+        c = _crowd_edges(self.settings)
+        self.counts = np.zeros((len(g) - 1, len(p) - 1, len(c) - 1, len(r) - 1), dtype=np.int64)
 
-    def add(self, g_mag: Array, parallax_mas: Array, ruwe: Array) -> None:
+    def add(self, g_mag: Array, parallax_mas: Array, ruwe: Array, crowding: Array | None = None) -> None:
         g_edges, p_edges, r_edges = _edges(self.settings)
         gi, pi = _bin(g_mag, g_edges), _bin(parallax_mas, p_edges)
+        ci = self.crowd_bin(crowding, len(gi))
         with np.errstate(divide="ignore", invalid="ignore"):
             ri = _bin(np.log10(np.asarray(ruwe, dtype=float)), r_edges)
-        ok = (gi >= 0) & (pi >= 0) & (ri >= 0) & (np.asarray(parallax_mas, dtype=float) >= p_edges[0])
-        np.add.at(self.counts, (gi[ok], pi[ok], ri[ok]), 1)
+        ok = (gi >= 0) & (pi >= 0) & (ci >= 0) & (ri >= 0) & (np.asarray(parallax_mas, dtype=float) >= p_edges[0])
+        np.add.at(self.counts, (gi[ok], pi[ok], ci[ok], ri[ok]), 1)
+
+    def crowd_bin(self, crowding: Array | None, n: int) -> NDArray[np.int64]:
+        """Each star's fine crowding bin (0 for all without a declared crowding)."""
+        if "crowding" not in self.settings or not self.settings["crowding"]:
+            return np.zeros(n, dtype=np.int64)
+        if crowding is None:
+            raise ValueError("these settings declare a crowding axis: give every star's crowding")
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return _bin(np.log10(np.asarray(crowding, dtype=float)), _crowd_edges(self.settings))
 
     def baseline(self) -> tuple[Array, Array]:
         """Median and robust spread (1.4826 MAD) of log RUWE in each G bin, from the histogram."""
         _, _, r_edges = _edges(self.settings)
         centres = 0.5 * (r_edges[:-1] + r_edges[1:])
-        per_g = self.counts.sum(axis=1)
+        per_g = self.counts.sum(axis=(1, 2))
         med = np.full(per_g.shape[0], np.nan)
         mad = np.full(per_g.shape[0], np.nan)
         for i, h in enumerate(per_g):
@@ -289,21 +335,151 @@ class FieldCounts:
         return out
 
     def stars(self) -> NDArray[np.int64]:
-        out: NDArray[np.int64] = self.counts.sum(axis=2)
+        out: NDArray[np.int64] = self.counts.sum(axis=(2, 3))
         return out
 
-    def wobbler_share(self) -> Array:
-        """For each (G, parallax) bin, the share of stars with z above the declared threshold."""
+    def _wobblers(self) -> NDArray[np.int64]:
+        """Wobblers by (G, parallax, fine crowding) bin."""
         _, _, r_edges = _edges(self.settings)
         centres = 0.5 * (r_edges[:-1] + r_edges[1:])
         med, spread = self.baseline()
         z = (centres[None, :] - med[:, None]) / spread[:, None]
         above = z > float(self.settings["wobble"]["z_min"])
-        wob = (self.counts * above[:, None, :]).sum(axis=2)
+        out: NDArray[np.int64] = (self.counts * above[:, None, None, :]).sum(axis=3)
+        return out
+
+    def wobbler_share(self) -> Array:
+        """For each (G, parallax) bin, the share of stars with z above the declared threshold."""
+        wob = self._wobblers().sum(axis=2)
         total = self.stars()
         with np.errstate(divide="ignore", invalid="ignore"):
             out: Array = np.where(total > 0, wob / total, 0.0)
         return out
+
+    def crowd_groups(self) -> NDArray[np.int64]:
+        """The crowding group of every fine crowding bin: the declared number of groups, split at the
+        field's own quantiles of crowding (each group edge falls on a fine bin edge)."""
+        per_c = self.counts.sum(axis=(0, 1, 3))
+        k = int((self.settings.get("crowding") or {}).get("groups", 1))
+        if k <= 1 or per_c.sum() == 0:
+            return np.zeros(per_c.size, dtype=np.int64)
+        cum = np.cumsum(per_c) / per_c.sum()
+        cuts = [int(np.searchsorted(cum, q / k, side="left")) for q in range(1, k)]
+        out: NDArray[np.int64] = np.searchsorted(np.asarray(cuts), np.arange(per_c.size), side="right").astype(np.int64)
+        return out
+
+    def wobbler_share_crowded(self) -> Array:
+        """For each (G, parallax, crowding group), the share of stars with z above the threshold."""
+        groups = self.crowd_groups()
+        k = int(groups.max()) + 1
+        wob, total = self._wobblers(), self.counts.sum(axis=3)
+        w = np.zeros((*wob.shape[:2], k))
+        t = np.zeros((*wob.shape[:2], k))
+        for gidx in range(k):
+            w[:, :, gidx] = wob[:, :, groups == gidx].sum(axis=2)
+            t[:, :, gidx] = total[:, :, groups == gidx].sum(axis=2)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out: Array = np.where(t > 0, w / t, 0.0)
+        return out
+
+
+# --- crowding from Gaia source ids ----------------------------------------------------------------
+
+
+def healpix_pixel(source_id: NDArray[np.int64], level: int) -> NDArray[np.int64]:
+    """A Gaia source's nested HEALPix pixel at ``level`` (0 to 12), read from its source_id: Gaia packs
+    the level-12 pixel into the bits above 2^35 (Gaia DR3 documentation, source_id)."""
+    if not 0 <= level <= 12:
+        raise ValueError(f"HEALPix level {level} is outside 0..12")
+    shift = 35 + 2 * (12 - level)
+    out: NDArray[np.int64] = np.right_shift(np.asarray(source_id, dtype=np.int64), shift)
+    return out
+
+
+@dataclass
+class SourceDensity:
+    """How many Gaia sources, of any brightness or parallax, fall in each HEALPix pixel of one level:
+    the crowding a star sits in (a level-11 pixel is about 3 square arcminutes)."""
+
+    level: int
+    counts: NDArray[np.int64] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.counts = np.zeros(12 * 4**self.level, dtype=np.int64)
+
+    def add(self, source_id: NDArray[np.int64]) -> None:
+        pixels, n = np.unique(healpix_pixel(source_id, self.level), return_counts=True)
+        self.counts[pixels] += n  # unique pixels, so no repeated index is lost; no full-sky temporary
+
+    def of(self, source_id: NDArray[np.int64]) -> NDArray[np.int64]:
+        out: NDArray[np.int64] = self.counts[healpix_pixel(source_id, self.level)]
+        return out
+
+
+# --- the stacked test of UC-06 --------------------------------------------------------------------
+
+
+def holm(p_values: Sequence[float]) -> list[float]:
+    """Holm's step-down adjustment of a family of p-values, in the order given."""
+    p = np.asarray(p_values, dtype=float)
+    order = np.argsort(p)
+    m = p.size
+    adjusted = np.empty(m)
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, min(1.0, float((m - rank) * p[i])))
+        adjusted[i] = running
+    return [float(x) for x in adjusted]
+
+
+def _stack(
+    used: Sequence[Mapping[str, Any]], count: str, expected_key: str, p_key: str
+) -> tuple[int, float, float, list[float]]:
+    observed = sum(int(c[count]) for c in used)
+    expected = float(sum(float(c[expected_key] or 0.0) for c in used))
+    adjusted = holm([poisson_tail(int(c[count]), float(c[expected_key] or 0.0)) for c in used]) if used else []
+    return observed, expected, poisson_tail(observed, expected), adjusted
+
+
+def stacked_test(clusters: Sequence[Mapping[str, Any]], settings: Mapping[str, Any]) -> dict[str, Any]:
+    """UC-06's decision: every screened cluster up to the declared size, its members with a flagged dark
+    partner and the field's expectation for them summed, one Poisson tail, and the declared verdict rule.
+    The wobble excess is computed the same way and reported beside it, with the DR3 dry run as its
+    baseline; it does not decide (Gaia DR3 already showed it, 18 November 2026). Per-cluster Holm
+    p-values are reported and do not change the verdict."""
+    t = settings["test"]
+    cap = int(t["max_members"])
+    used = [c for c in clusters if c.get("members") and int(c["members"]) <= cap]
+    left = [c["cluster_id"] for c in clusters if c.get("members") and int(c["members"]) > cap]
+    dark, dark_exp, dark_p, dark_holm = _stack(used, "flagged_orbits", "flagged_expected", "flagged_field_p")
+    if not used:
+        verdict = "no-clusters"
+    elif dark_p < float(t["h1_p_below"]) and dark >= int(t["h1_min_members"]):
+        verdict = "H1"
+    elif dark_p > float(t["h0_p_above"]) and dark_exp >= float(t["h0_min_expected"]):
+        verdict = "H0"
+    else:
+        verdict = "inconclusive"
+    wob, wob_exp, wob_p, wob_holm = _stack(used, "wobblers", "wobblers_expected", "wobblers_field_p")
+    return {
+        "verdict": verdict,
+        "decided_by": "dark-partners",
+        "clusters_in_test": len(used),
+        "clusters_over_size_cap": left,
+        "dark_partners": dark,
+        "dark_partners_expected": _r(dark_exp),
+        "p": _r(dark_p),
+        "holm_p": {c["cluster_id"]: _r(x) for c, x in zip(used, dark_holm, strict=True)},
+        "wobble": {
+            "reported_only": True,
+            "wobblers": wob,
+            "wobblers_expected": _r(wob_exp),
+            "excess_fraction": _r((wob - wob_exp) / wob_exp) if wob_exp > 0 else None,
+            "p": _r(wob_p),
+            "holm_p": {c["cluster_id"]: _r(x) for c, x in zip(used, wob_holm, strict=True)},
+            "dr3_baseline": t["wobble"]["dr3_dry_run"],
+        },
+    }
 
 
 def _hist_quantile(x: Array, h: NDArray[np.int64], q: float) -> float:
@@ -503,7 +679,11 @@ def screen(
     for i, s in enumerate(orbit_ids):
         orbit_rows.setdefault(int(s), []).append(i)
     orbit_share = field_orbit_share(orbits, field, settings)
-    wobble_share = field.wobbler_share()
+    crowded = bool(settings.get("crowding"))
+    if crowded and "crowding" not in stars:
+        raise ValueError("these settings declare a crowding axis: the stars need a crowding column")
+    wobble_share = field.wobbler_share_crowded() if crowded else field.wobbler_share()
+    groups = field.crowd_groups()
     z_all = field.z(np.asarray(stars["phot_g_mean_mag"], dtype=float), np.asarray(stars["ruwe"], dtype=float))
     z_min = float(settings["wobble"]["z_min"])
 
@@ -514,13 +694,21 @@ def screen(
         seeds = np.asarray(sorted(row_of[s] for s in c.seed_ids if s in row_of), dtype=np.int64)
         fp = footprint(stars, seeds, settings)
         if fp is None:
+            floor = float(settings["membership"]["parallax_min_mas"])
             summary.append(
                 {
                     "cluster_id": c.cluster_id,
                     "status": c.status,
                     "matches": c.matches,
                     "members": 0,
-                    "note": "fewer than 3 seed members found in the scan",
+                    "seeds": len(c.seed_ids),
+                    "seeds_in_scan": len(seeds),
+                    "out_of_scope": len(seeds) == 0,
+                    "note": (
+                        f"out of scope: none of its seed members is inside the scan (parallax >= {floor:g} mas)"
+                        if len(seeds) == 0
+                        else f"fewer than 3 seed members found in the scan ({len(seeds)} of {len(c.seed_ids)})"
+                    ),
                 }
             )
             continue
@@ -530,7 +718,12 @@ def screen(
         mem = members(stars, fp, near, settings)
         gi, pi = bin_index(stars["phot_g_mean_mag"][mem], stars["parallax"][mem], settings)
         good = (gi >= 0) & (pi >= 0)
-        expected_wob = float(wobble_share[gi[good], pi[good]].sum())
+        if crowded:
+            ci = field.crowd_bin(stars["crowding"][mem], len(mem))
+            good &= ci >= 0
+            expected_wob = float(wobble_share[gi[good], pi[good], groups[ci[good]]].sum())
+        else:
+            expected_wob = float(wobble_share[gi[good], pi[good]].sum())
         expected_orb = float(orbit_share[gi[good], pi[good]].sum())
         wob = int(np.sum(z_all[mem] > z_min))
         with_orbit = [(r, o) for r in mem for o in orbit_rows.get(int(ids[r]), [])]
@@ -583,11 +776,11 @@ def screen(
                 "parallax_mas": _r(fp.parallax),
                 "radius_deg": _r(fp.radius_deg),
                 "wobblers": wob,
-                "wobblers_expected": _r(expected_wob),
+                "wobblers_expected": expected_wob,
                 "wobblers_field_p": _r(poisson_tail(wob, expected_wob)),
                 "orbits": len({r for r, _ in with_orbit}),
                 "flagged_orbits": len(flagged_members),
-                "flagged_expected": _r(expected_orb),
+                "flagged_expected": expected_orb,
                 "flagged_field_p": _r(poisson_tail(len(flagged_members), expected_orb)),
                 **iso_row,
             }

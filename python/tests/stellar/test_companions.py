@@ -261,7 +261,17 @@ def test_a_dark_partner_of_a_member_is_found_and_the_cluster_is_judged_against_t
 def test_a_cluster_with_too_few_seeds_in_the_scan_is_reported_not_screened(sky: dict[str, Any]) -> None:
     lost = [c.Cluster("gone", "known", "Fixture", frozenset({999_999_999, 888_888_888}))]
     (cluster,) = c.screen(lost, sky["stars"], sky["orbits"], sky["field"], SETTINGS)["clusters"]
-    assert cluster["members"] == 0 and "fewer than 3" in cluster["note"]
+    assert cluster["members"] == 0 and cluster["out_of_scope"] and "out of scope" in cluster["note"]
+    assert cluster["seeds"] == 2 and cluster["seeds_in_scan"] == 0
+
+
+@pytest.mark.req("STL-022")
+def test_a_cluster_with_only_some_seeds_in_the_scan_says_how_many(sky: dict[str, Any]) -> None:
+    some = sorted(int(s) for s in sky["stars"]["source_id"][:2])
+    thin = [c.Cluster("thin", "known", "Fixture", frozenset({*some, 999_999_999}))]
+    (cluster,) = c.screen(thin, sky["stars"], sky["orbits"], sky["field"], SETTINGS)["clusters"]
+    assert cluster["members"] == 0 and not cluster["out_of_scope"]
+    assert "fewer than 3" in cluster["note"] and "(2 of 3)" in cluster["note"]
 
 
 @pytest.mark.req("STL-022")
@@ -306,3 +316,122 @@ def test_a_member_orbit_with_a_poor_own_parallax_is_not_used_at_the_clusters_dis
     o["parallax_error"][0] = o["parallax"][0] / 5.0  # parallax_over_error 5, below the gate of 10
     (row,) = c.screen(sky["clusters"], sky["stars"], o, sky["field"], SETTINGS)["candidates"]
     assert row["source_id"] == 175 and row["verdict"] == c.UNUSABLE
+
+
+# --- UC-06: crowding-matched field, the stacked test, the predeclared settings ----------------------
+
+UC06 = c.load_settings(c.UC06_FILE)
+
+
+@pytest.mark.req("STL-044")
+def test_the_uc06_settings_are_the_ones_leigh_accepted_and_their_hash_is_pinned() -> None:
+    assert c.frozen_sha256(UC06) == c.UC06_FROZEN_SHA256
+    assert UC06["membership"]["parallax_min_mas"] == 1.0  # 1 kpc scope
+    assert UC06["test"]["max_members"] == 3000
+    assert UC06["test"]["decides"].startswith("dark-partners")
+    assert UC06["test"]["h1_p_below"] == 0.001 and UC06["test"]["h1_min_members"] == 3
+    assert UC06["test"]["h0_p_above"] == 0.05
+    assert UC06["test"]["wobble"]["role"].startswith("reported, not deciding")
+    assert UC06["test"]["wobble"]["dr3_dry_run"]["wobblers"] == 1419
+    assert UC06["test"]["epoch_astrometry"].startswith("reported, not deciding")
+    assert UC06["crowding"]["healpix_level"] == 11 and UC06["crowding"]["groups"] == 4
+    tweaked = copy.deepcopy(UC06)
+    tweaked["test"]["h1_p_below"] = 0.01
+    assert c.frozen_sha256(tweaked) != c.UC06_FROZEN_SHA256
+    assert UC06["test"]["h0_min_expected"] == 3.0
+    moved = copy.deepcopy(UC06)
+    moved["source_release"] = "gaia:DR3"
+    assert c.frozen_sha256(moved) != c.UC06_FROZEN_SHA256
+    reworded = copy.deepcopy(UC06)
+    reworded["status"] = "reworded"
+    assert c.frozen_sha256(reworded) == c.UC06_FROZEN_SHA256
+
+
+@pytest.mark.req("STL-044")
+def test_a_sources_healpix_pixel_comes_from_its_source_id_and_crowding_counts_every_source() -> None:
+    level12 = np.asarray([0, 1, 4, 5, 4 * 4 + 3], dtype=np.int64)
+    ids = level12 * 2**35 + 7
+    assert list(c.healpix_pixel(ids, 12)) == list(level12)
+    assert list(c.healpix_pixel(ids, 11)) == [0, 0, 1, 1, 4]
+    with pytest.raises(ValueError):
+        c.healpix_pixel(ids, 13)
+    density = c.SourceDensity(11)
+    density.add(ids)
+    density.add(ids[:1])
+    assert list(density.of(ids)) == [3, 3, 2, 2, 1]
+
+
+@pytest.mark.req("STL-044")
+def test_the_field_null_is_matched_on_crowding_so_crowded_wobble_is_not_a_cluster_excess() -> None:
+    rng = np.random.default_rng(5)
+    n = 40_000
+    g = rng.uniform(12.0, 17.0, n)
+    plx = rng.uniform(1.2, 1.4, n)
+    crowd = np.where(rng.random(n) < 0.5, 3.0, 300.0)  # sparse and crowded sky
+    lr = rng.normal(0.0, 0.03, n)
+    crowded = crowd > 100
+    lr[crowded & (rng.random(n) < 0.2)] = 0.5  # crowding alone raises RUWE for a fifth of crowded stars
+    field = c.FieldCounts(UC06)
+    field.add(g, plx, 10**lr, crowd)
+    groups = field.crowd_groups()
+    ci = field.crowd_bin(np.asarray([3.0, 300.0]), 2)
+    assert groups[ci[0]] < groups[ci[1]]
+    share = field.wobbler_share_crowded()
+    gi, pi = c.bin_index(np.asarray([14.5]), np.asarray([1.3]), UC06)
+    sparse, dense = share[gi[0], pi[0], groups[ci[0]]], share[gi[0], pi[0], groups[ci[1]]]
+    assert sparse < 0.01 and dense == pytest.approx(0.2, abs=0.03)
+    assert field.wobbler_share()[gi[0], pi[0]] == pytest.approx(0.1, abs=0.02)  # unmatched: the mix
+    with pytest.raises(ValueError):
+        field.add(g, plx, 10**lr)  # declared crowding must be given
+
+
+def _cl(cid: str, members: int, dark: int, dark_exp: float, wob: int = 50, wob_exp: float = 50.0) -> dict[str, Any]:
+    return {"cluster_id": cid, "members": members, "flagged_orbits": dark, "flagged_expected": dark_exp,
+            "flagged_field_p": c.poisson_tail(dark, dark_exp), "wobblers": wob, "wobblers_expected": wob_exp,
+            "wobblers_field_p": c.poisson_tail(wob, wob_exp)}  # fmt: skip
+
+
+@pytest.mark.req("STL-044")
+def test_dark_partners_decide_by_the_declared_rule_and_big_groups_are_left_out() -> None:
+    big = _cl("huge", 26_425, 9, 0.03)
+    strong = c.stacked_test([_cl("a", 500, 3, 0.1), _cl("b", 400, 1, 0.1), big], UC06)
+    assert strong["verdict"] == "H1" and strong["decided_by"] == "dark-partners"
+    assert strong["clusters_in_test"] == 2 and strong["clusters_over_size_cap"] == ["huge"]
+    assert strong["dark_partners"] == 4 and strong["p"] < 0.001
+    none = c.stacked_test([_cl("a", 500, 1, 2.0), _cl("b", 400, 1, 1.5)], UC06)
+    assert none["verdict"] == "H0"
+    # two partners against 0.05 expected is rare (p ~ 0.001) but under the declared three members
+    two = c.stacked_test([_cl("a", 500, 2, 0.02)], UC06)
+    assert two["p"] < 0.001 and two["verdict"] == "inconclusive"
+    assert c.stacked_test([big], UC06)["verdict"] == "no-clusters"
+
+
+@pytest.mark.req("STL-044")
+def test_the_wobble_excess_is_reported_beside_the_verdict_and_never_decides() -> None:
+    # the DR3 dry run's wobble excess with no dark partner: no verdict from the wobble, the excess still shown
+    result = c.stacked_test([_cl("a", 2_000, 0, 0.3, 1_419, 1_265.1)], UC06)
+    assert result["verdict"] == "inconclusive"
+    w = result["wobble"]
+    assert w["reported_only"] and w["wobblers"] == 1_419 and w["p"] < 1e-4
+    assert w["excess_fraction"] == pytest.approx(0.1217, abs=1e-3)
+    assert w["dr3_baseline"]["excess_fraction"] == pytest.approx(0.121655)
+
+
+@pytest.mark.req("STL-044")
+def test_no_dark_partner_where_the_field_expects_almost_none_is_not_a_null() -> None:
+    # DR3's case: 0 against 0.3 expected has p = 1 but no power, so it is inconclusive, not H0
+    weak = c.stacked_test([_cl("a", 500, 0, 0.2), _cl("b", 400, 0, 0.1)], UC06)
+    assert weak["p"] == 1.0 and weak["verdict"] == "inconclusive"
+    strong = c.stacked_test([_cl("a", 500, 0, 2.0), _cl("b", 400, 0, 1.2)], UC06)
+    assert strong["verdict"] == "H0"
+
+
+@pytest.mark.req("STL-044")
+def test_holm_adjusts_in_the_given_order() -> None:
+    assert c.holm([0.01, 0.04, 0.03]) == pytest.approx([0.03, 0.06, 0.06])
+
+
+@pytest.mark.req("STL-044")
+def test_a_screen_under_crowding_settings_needs_each_stars_crowding(sky: dict[str, Any]) -> None:
+    with pytest.raises(ValueError, match="crowding column"):
+        c.screen(sky["clusters"], sky["stars"], sky["orbits"], sky["field"], UC06)
