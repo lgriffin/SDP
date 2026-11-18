@@ -5,7 +5,8 @@
 #   powershell -ExecutionPolicy Bypass -File harness\run-companions.ps1 -Branch claude/project-thread-lf7jxs
 #   powershell -ExecutionPolicy Bypass -File harness\run-companions.ps1 -Protocol uc06
 #     the DR3 dry run of protocol UC-06 (STL-044): adds a pass 0 that counts crowding, matches the field on it,
-#     and prints the stacked test's verdict and the cluster list's hash. Results in <SDP data>\companions\uc06-dr3.
+#     and prints the stacked test's verdict and the cluster list's hash. It adds --isochrones (needs
+#     `sdp isochrones fetch` once) unless -NoIsochrones. Results in <SDP data>\companions\uc06-dr3.
 #
 # 1. Updates the checkout (-Branch, main by default)
 # 2. Downloads every Gaia DR3 orbit with Gaia's masses (about 169,000 rows, 36 parts, about 10 minutes; a rerun
@@ -23,8 +24,11 @@ param(
     [string]$Name = "gaia-dr3",
     [switch]$Refetch,
     [ValidateSet("trial", "uc06")][string]$Protocol = "trial",
-    [switch]$Isochrones
+    [switch]$Isochrones,
+    [switch]$NoIsochrones
 )
+# UC-06 searches for partners heavier than any living star (H2), which needs the MIST grid
+if ($Protocol -eq "uc06" -and -not $NoIsochrones) { $Isochrones = $true }
 $Folder = if ($Protocol -eq "uc06") { "uc06-dr3" } else { "clusters" }
 $ErrorActionPreference = "Continue"
 . (Join-Path $PSScriptRoot "lib\run-checkout.ps1")
@@ -116,7 +120,8 @@ if ($screenOk -and (Test-Path $Clusters)) {
 if ($screenOk -and $Protocol -eq "uc06" -and (Test-Path $ScreenSummary)) {
     $s = Get-Content $ScreenSummary -Raw | ConvertFrom-Json
     Write-Host "`n=== UC-06 stacked test (DR3 dry run; the verdict counts only on DR4) ==="
-    $s.test | Select-Object verdict, decided_by, clusters_in_test, dark_partners, dark_partners_expected, p | Format-List | Out-String | Write-Host
+    $s.test | Select-Object verdict, counts, decided_by, clusters_in_test, dark_partners, dark_partners_expected, p, gaia_bh1_flagged, h2_search | Format-List | Out-String | Write-Host
+    if (-not $s.test.counts) { Write-Host "This verdict does not count: $($s.test.not_counted_because -join '; ')" }
     Write-Host "Wobble excess (reported only):"
     $s.test.wobble | Select-Object wobblers, wobblers_expected, excess_fraction, p | Format-List | Out-String | Write-Host
     Write-Host "Left out (over the size cap): $($s.test.clusters_over_size_cap -join ', ')"

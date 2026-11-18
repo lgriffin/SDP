@@ -282,6 +282,12 @@ def test_a_uc06_screen_matches_the_field_on_crowding_and_gives_the_stacked_verdi
     assert summary["protocol"] == "uc06-gaia-dr4-clusters" and summary["settings_file"] == "uc06.json"
     assert summary["test"]["clusters_in_test"] == 1
     assert summary["test"]["verdict"] in ("H1", "H0", "inconclusive")
+    # invented DR3 stars and an invented sweep: the verdict is shown but does not count
+    assert summary["test"]["counts"] is False
+    why = " ".join(summary["test"]["not_counted_because"])
+    assert "not gaia:DR4" in why and "not the predeclared one" in why
+    assert summary["test"]["gaia_bh1_flagged"] is True and "Gaia BH1" not in why
+    assert summary["test"]["h2_search"].startswith("not searched")
     listing = (data / "companions" / "clusters" / "cluster-list.json").read_bytes()
     assert hashlib.sha256(listing).hexdigest() == summary["cluster_list_sha256"]
     bad = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "dr9"])

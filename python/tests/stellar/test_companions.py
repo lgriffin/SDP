@@ -338,6 +338,10 @@ def test_the_uc06_settings_are_the_ones_leigh_accepted_and_their_hash_is_pinned(
     tweaked = copy.deepcopy(UC06)
     tweaked["test"]["h1_p_below"] = 0.01
     assert c.frozen_sha256(tweaked) != c.UC06_FROZEN_SHA256
+    assert UC06["test"]["h0_min_expected"] == 3.0
+    moved = copy.deepcopy(UC06)
+    moved["source_release"] = "gaia:DR3"
+    assert c.frozen_sha256(moved) != c.UC06_FROZEN_SHA256
     reworded = copy.deepcopy(UC06)
     reworded["status"] = "reworded"
     assert c.frozen_sha256(reworded) == c.UC06_FROZEN_SHA256
@@ -394,7 +398,7 @@ def test_dark_partners_decide_by_the_declared_rule_and_big_groups_are_left_out()
     assert strong["verdict"] == "H1" and strong["decided_by"] == "dark-partners"
     assert strong["clusters_in_test"] == 2 and strong["clusters_over_size_cap"] == ["huge"]
     assert strong["dark_partners"] == 4 and strong["p"] < 0.001
-    none = c.stacked_test([_cl("a", 500, 0, 0.2), _cl("b", 400, 0, 0.1)], UC06)
+    none = c.stacked_test([_cl("a", 500, 1, 2.0), _cl("b", 400, 1, 1.5)], UC06)
     assert none["verdict"] == "H0"
     # two partners against 0.05 expected is rare (p ~ 0.001) but under the declared three members
     two = c.stacked_test([_cl("a", 500, 2, 0.02)], UC06)
@@ -404,13 +408,22 @@ def test_dark_partners_decide_by_the_declared_rule_and_big_groups_are_left_out()
 
 @pytest.mark.req("STL-044")
 def test_the_wobble_excess_is_reported_beside_the_verdict_and_never_decides() -> None:
-    # the DR3 dry run's wobble excess with no dark partner: the verdict is H0, the excess still shown
+    # the DR3 dry run's wobble excess with no dark partner: no verdict from the wobble, the excess still shown
     result = c.stacked_test([_cl("a", 2_000, 0, 0.3, 1_419, 1_265.1)], UC06)
-    assert result["verdict"] == "H0"
+    assert result["verdict"] == "inconclusive"
     w = result["wobble"]
     assert w["reported_only"] and w["wobblers"] == 1_419 and w["p"] < 1e-4
     assert w["excess_fraction"] == pytest.approx(0.1217, abs=1e-3)
     assert w["dr3_baseline"]["excess_fraction"] == pytest.approx(0.121655)
+
+
+@pytest.mark.req("STL-044")
+def test_no_dark_partner_where_the_field_expects_almost_none_is_not_a_null() -> None:
+    # DR3's case: 0 against 0.3 expected has p = 1 but no power, so it is inconclusive, not H0
+    weak = c.stacked_test([_cl("a", 500, 0, 0.2), _cl("b", 400, 0, 0.1)], UC06)
+    assert weak["p"] == 1.0 and weak["verdict"] == "inconclusive"
+    strong = c.stacked_test([_cl("a", 500, 0, 2.0), _cl("b", 400, 0, 1.2)], UC06)
+    assert strong["verdict"] == "H0"
 
 
 @pytest.mark.req("STL-044")

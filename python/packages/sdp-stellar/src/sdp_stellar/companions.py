@@ -66,9 +66,14 @@ UC06_FILE = "uc06.json"
 #: The hash of frozen_part() of uc06.json as Leigh accepted it (17 November 2026; dark partners decide since 18
 #: November, after the DR3 dry run). It may change only before
 #: the lock (git tag uc06-prereg-v1, by 24 November 2026); after that, never.
-UC06_FROZEN_SHA256 = "f2b7970a858208d08fc2f974fec08756fd3a59d2ccfc9234134f1aa49f097d4c"
+UC06_FROZEN_SHA256 = "a0b6bcd2fd342aca77915e93ca69f75b6ee8c51f2a260ef16b01f89ba0a79aa0"
+#: The SHA-256 of the cluster list (each cluster's DR3 seed ids) of the DR3 dry run, 18 November 2026. A UC-06
+#: run on any other list gives no verdict.
+UC06_CLUSTER_LIST_SHA256 = "4e4eb5f32a30e3a633d168a096f61aa5f15f7a02d4e20cb3ec217ec55986ccbd"
+#: Gaia BH1, the known answer: a run that does not call it a neutron star or black hole gives no verdict
+GAIA_BH1 = 4373465352415301632
 #: the settings keys that decide UC-06's result; the rest (status, notes) may be reworded
-FROZEN_KEYS = ("protocol", "orbits", "mass", "wobble", "membership", "field", "crowding", "test")
+FROZEN_KEYS = ("protocol", "source_release", "orbits", "mass", "wobble", "membership", "field", "crowding", "test")
 
 
 def settings_text(name: str = SETTINGS_FILE) -> str:
@@ -403,7 +408,8 @@ class SourceDensity:
         self.counts = np.zeros(12 * 4**self.level, dtype=np.int64)
 
     def add(self, source_id: NDArray[np.int64]) -> None:
-        self.counts += np.bincount(healpix_pixel(source_id, self.level), minlength=self.counts.size)
+        pixels, n = np.unique(healpix_pixel(source_id, self.level), return_counts=True)
+        self.counts[pixels] += n  # unique pixels, so no repeated index is lost; no full-sky temporary
 
     def of(self, source_id: NDArray[np.int64]) -> NDArray[np.int64]:
         out: NDArray[np.int64] = self.counts[healpix_pixel(source_id, self.level)]
@@ -431,7 +437,7 @@ def _stack(
 ) -> tuple[int, float, float, list[float]]:
     observed = sum(int(c[count]) for c in used)
     expected = float(sum(float(c[expected_key] or 0.0) for c in used))
-    adjusted = holm([float(c[p_key]) for c in used]) if used else []
+    adjusted = holm([poisson_tail(int(c[count]), float(c[expected_key] or 0.0)) for c in used]) if used else []
     return observed, expected, poisson_tail(observed, expected), adjusted
 
 
@@ -450,7 +456,7 @@ def stacked_test(clusters: Sequence[Mapping[str, Any]], settings: Mapping[str, A
         verdict = "no-clusters"
     elif dark_p < float(t["h1_p_below"]) and dark >= int(t["h1_min_members"]):
         verdict = "H1"
-    elif dark_p > float(t["h0_p_above"]):
+    elif dark_p > float(t["h0_p_above"]) and dark_exp >= float(t["h0_min_expected"]):
         verdict = "H0"
     else:
         verdict = "inconclusive"
@@ -770,11 +776,11 @@ def screen(
                 "parallax_mas": _r(fp.parallax),
                 "radius_deg": _r(fp.radius_deg),
                 "wobblers": wob,
-                "wobblers_expected": _r(expected_wob),
+                "wobblers_expected": expected_wob,
                 "wobblers_field_p": _r(poisson_tail(wob, expected_wob)),
                 "orbits": len({r for r, _ in with_orbit}),
                 "flagged_orbits": len(flagged_members),
-                "flagged_expected": _r(expected_orb),
+                "flagged_expected": expected_orb,
                 "flagged_field_p": _r(poisson_tail(len(flagged_members), expected_orb)),
                 **iso_row,
             }

@@ -2,7 +2,7 @@
 
 - Protocol id: `uc06-gaia-dr4-clusters`, version 1.0.0 (locked when the tag `uc06-prereg-v1` is pushed and deposited; until then edits are allowed and are listed under "History")
 - Modules: `sdp_stellar.dr4_delta` (Part A), `sdp_stellar.companions` (Part B)
-- Predeclared Part B settings: [`sdp_stellar/uc06.json`](../../python/packages/sdp-stellar/src/sdp_stellar/uc06.json). The hash of its deciding keys is pinned as `UC06_FROZEN_SHA256` (`f2b7970a858208d08fc2f974fec08756fd3a59d2ccfc9234134f1aa49f097d4c`), a test checks it, and `sdp companions screen --protocol uc06` refuses any other settings. Requirement STL-044.
+- Predeclared Part B settings: [`sdp_stellar/uc06.json`](../../python/packages/sdp-stellar/src/sdp_stellar/uc06.json). The hash of its deciding keys is pinned as `UC06_FROZEN_SHA256` (`a0b6bcd2fd342aca77915e93ca69f75b6ee8c51f2a260ef16b01f89ba0a79aa0`; the declared release, `gaia:DR4`, is part of it), a test checks it, and `sdp companions screen --protocol uc06` refuses any other settings. Requirement STL-044.
 - Lock date: Monday 24 November 2026. The Gaia archive goes offline on 25 November and Gaia DR4 is released on 2 December 2026.
 - Rule of this protocol: it is committed, tagged and deposited publicly before any Gaia DR4 data is read. Anything changed after the lock is a dated, labelled amendment and is reported as such.
 
@@ -39,7 +39,8 @@ Every screen writes the cluster list with each cluster's seed ids (`cluster-list
 - **Dark partner:** a member's Gaia DR4 two-body orbit judged by STL-020's rule at the cluster's parallax: no main-sequence flux ratio fits the partner (or Gaia's AMRF class III), so the partner is dark. Members with a neutron star or black hole candidate are counted with it and also reported on their own.
 - **Field null:** each member's chance of having one is the field share of stars with a flagged orbit in its (G, parallax) bin, from the whole DR4 orbit table judged the same way.
 - **Statistic:** members with a dark partner over all clusters in the test, against the total the field predicts. One-sided Poisson tail.
-- **Verdict rule:** H1 if p < 0.001 **and** at least 3 members have a dark partner. H0 if p > 0.05. Anything between is inconclusive.
+- **Verdict rule:** H1 if p < 0.001 **and** at least 3 members have a dark partner. H0 if p > 0.05 **and** the field expects at least 3 (so that a null has power: DR3's 0 against 0.3 expected is not a null). Anything else is inconclusive.
+- **When a verdict counts:** only when the orbits and the stars are both Gaia DR4, the cluster list's hash is the one above, and Gaia BH1 is flagged as a neutron star or black hole under these same settings. Otherwise the run says why, and its verdict is not reported as UC-06's.
 - **Per-cluster results** are reported with Holm-corrected p-values. They do not change the verdict.
 
 ## Part B: the wobble excess (reported, never decides)
@@ -86,4 +87,4 @@ The verdict, the counts and expected counts, the per-cluster table, every flagge
 
 - 0.1.0, 17 November 2026: first draft.
 - 0.2.0, 17 November 2026: Leigh accepted the 1 kpc scope, the 3,000-member cap, and epoch astrometry as reported only.
-- 1.0.0, 18 November 2026: after the DR3 dry run already gave a wobble excess, Leigh chose dark partners to decide; the wobble excess is reported only. Cluster list hash added.
+- 1.0.0, 18 November 2026: after code review, H0 needs at least 3 expected dark partners, the release joined the pinned settings, and a verdict counts only on DR4 data, the predeclared cluster list and a flagged Gaia BH1. Earlier the same day: after the DR3 dry run already gave a wobble excess, Leigh chose dark partners to decide; the wobble excess is reported only. Cluster list hash added.

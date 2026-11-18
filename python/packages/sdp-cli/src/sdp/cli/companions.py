@@ -62,7 +62,9 @@ def transport() -> Transport:
     return PoliteTransport.with_policy(UrllibTransport(timeout_s=180.0), ARCHIVE_RETRY)
 
 
-def _orbits(path: Path | None) -> dict[str, Any]:
+def _orbits(path: Path | None, any_release: bool = False) -> tuple[dict[str, Any], str]:
+    """The orbit table and the Gaia release it says it holds. It must be the trial settings' release,
+    unless ``any_release`` (UC-06, which records the release and gives no counted verdict on another)."""
     import pyarrow.parquet as pq
 
     from sdp_stellar.companions import load_settings
@@ -73,9 +75,9 @@ def _orbits(path: Path | None) -> dict[str, Any]:
     table = pq.read_table(path)
     release = (table.schema.metadata or {}).get(b"sdp.release", b"").decode()
     wanted = load_settings()["source_release"]
-    if release != wanted:
+    if release != wanted and not (any_release and release):
         raise DomainError(f"{path} holds orbits of release {release or 'unknown'!r}, not {wanted!r}")
-    return {name: table.column(name).to_numpy(zero_copy_only=False) for name in table.column_names}
+    return {name: table.column(name).to_numpy(zero_copy_only=False) for name in table.column_names}, release
 
 
 def _write_csv(path: Path, rows: Sequence[dict[str, Any]], empty: Sequence[str]) -> None:
@@ -124,7 +126,7 @@ def companions_field(
     (source_id 4373465352415301632) must come out a neutron star or black hole. EXPLORATORY."""
     from sdp_stellar.companions import COMPACT, field_orbits, load_settings, settings_sha256
 
-    o = _orbits(orbits)
+    o, _ = _orbits(orbits)
     rows = field_orbits(o, load_settings())
     target = (out or folder()) / "field.csv"
     _write_csv(target, rows, ["source_id", "verdict"])
@@ -239,6 +241,45 @@ def _earlier_fits(path: Path, grid: Any) -> dict[str, Any]:
     return fits
 
 
+def _uc06_test(
+    clusters: Sequence[dict[str, Any]],
+    settings: dict[str, Any],
+    orbits: dict[str, Any],
+    orbit_release: str,
+    listing: bytes,
+    grid: Any,
+) -> dict[str, Any]:
+    """The stacked test, and whether its verdict counts: only on the declared release's orbits and stars,
+    on the predeclared cluster list, and with Gaia BH1 flagged under these same settings."""
+    import hashlib
+
+    import numpy as np
+
+    from sdp.adapters.archives.tap import load_sources
+    from sdp_stellar import companions as comp
+
+    test = comp.stacked_test(clusters, settings)
+    declared = str(settings["source_release"])
+    stars_release = load_sources()["gaia"].descriptor.release_label
+    _, verdicts = comp.judge(orbits, settings)
+    ids = np.asarray(orbits["source_id"], dtype=np.int64)
+    bh1 = bool(np.any(verdicts[ids == comp.GAIA_BH1] == comp.COMPACT))
+    reasons = []
+    if orbit_release != declared:
+        reasons.append(f"the orbits are {orbit_release}, not {declared}")
+    if stars_release != declared:
+        reasons.append(f"the stars are {stars_release}, not {declared}")
+    if hashlib.sha256(listing).hexdigest() != comp.UC06_CLUSTER_LIST_SHA256:
+        reasons.append("the cluster list is not the predeclared one")
+    if not bh1:
+        reasons.append("Gaia BH1 is not flagged as a neutron star or black hole (known-answer check)")
+    test["gaia_bh1_flagged"] = bh1
+    test["counts"] = not reasons
+    test["not_counted_because"] = reasons
+    test["h2_search"] = "searched (isochrones)" if grid is not None else "not searched: run with --isochrones"
+    return test
+
+
 @companions_app.command("screen")
 def companions_screen(
     sweep: Annotated[str | None, typer.Option(help="A sweep's folder under <SDP data>/sweep, e.g. gaia-dr3")] = None,
@@ -306,7 +347,7 @@ def companions_screen(
     clusters = _clusters(sweep, members, statuses)
     if not clusters:
         raise DomainError("no clusters to screen")
-    o = _orbits(orbits)
+    o, orbit_release = _orbits(orbits, any_release=protocol == "uc06")
     seeds = pa.array(sorted({s for c in clusters for s in c.seed_ids}), type=pa.int64())
     plx_min = float(settings["membership"]["parallax_min_mas"])
 
@@ -372,7 +413,11 @@ def companions_screen(
         "clusters": len(clusters),
         "clusters_screened": sum(1 for c in result["clusters"] if c.get("members")),
         "clusters_out_of_scope": sum(1 for c in result["clusters"] if c.get("out_of_scope")),
-        **({"test": comp.stacked_test(result["clusters"], settings)} if "test" in settings else {}),
+        **(
+            {"test": _uc06_test(result["clusters"], settings, o, orbit_release, listing, grid)}
+            if "test" in settings
+            else {}
+        ),
         "members": sum(int(c.get("members") or 0) for c in result["clusters"]),
         "orbits_in_clusters": len(result["candidates"]),
         "flagged_in_clusters": len(flagged),
