@@ -21,6 +21,8 @@ on:
         type: boolean
         default: true
 
+# A release whose tag does not start with v (a preregistration such as uc06-prereg-v1, archived by
+# Zenodo) is not a software release: nothing here runs for it.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -35,10 +37,12 @@ env:
 jobs:
   ci:
     name: every CI stage on the release commit
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     uses: ./.github/workflows/ci.yml
 
   mutation:
     name: T10 mutation scores
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     uses: ./.github/workflows/mutation.yml
     permissions:
       contents: write
@@ -47,6 +51,7 @@ jobs:
 
   reproduce:
     name: T9 clean-room reproduction (NFR-004)
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +96,7 @@ jobs:
 
   images:
     name: images · ${{ matrix.image }}
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -146,6 +152,7 @@ jobs:
 
   sbom:
     name: SBOM of the locked dependencies
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -164,7 +171,7 @@ jobs:
   report:
     name: harness release report
     needs: [ci, mutation, reproduce, images, sbom]
-    if: always()
+    if: always() && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
