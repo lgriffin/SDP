@@ -1,0 +1,2 @@
+# Recorded sweep tiles must stay byte-identical (sha256 in manifest.json): no line-ending conversion.
+* -text

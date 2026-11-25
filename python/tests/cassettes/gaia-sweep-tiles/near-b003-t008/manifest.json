@@ -1,0 +1,16 @@
+{
+  "benchmarks": [
+    "hr23",
+    "cga20"
+  ],
+  "bytes": 3400661,
+  "sha256": {
+    "benchmark-cga20.parquet": "a4aff0cf92b7291897b660f7747a4d1e9e6534c956cea2a68f8b5f9d5b64900d",
+    "benchmark-hr23.parquet": "a3887286176a16c9682304489a3c49f5c4a22b61ba16d8c917cb10eb8698d616",
+    "stars.parquet": "3405552c99b797554ae719e8c6f7d4cf2b43098284236274caca7ceda2d08dcb",
+    "sweep-settings.json": "353ffe7dcd48e5081b7273b927b58a8505792d6712798c07df126c2f8930e11a",
+    "tile.json": "4b344010628a96bd00fbfc87e35ba771b7ffb6537e1aa09e52755707fe780596"
+  },
+  "stars": 29646,
+  "tile_id": "near-b003-t008"
+}
