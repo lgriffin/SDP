@@ -1,0 +1,42 @@
+{
+  "about": "Real-data ratchet marks (TST-012, docs/testing.md#t8r-real-data). Moved only by `tools/realdata.py update`, only in the better direction. Never edit a value by hand.",
+  "marks": {
+    "companions.field_dr3.compact": {
+      "better": "exact",
+      "value": 136,
+      "source": "sdp companions field on Leigh's PC, main 51d3cae, 2026-11-04 (companions/field-dr3.csv)",
+      "measured_on": "2026-11-04"
+    },
+    "companions.field_dr3.dark_partner": {
+      "better": "exact",
+      "value": 5098,
+      "source": "sdp companions field on Leigh's PC, main 51d3cae, 2026-11-04 (companions/field-dr3.csv)",
+      "measured_on": "2026-11-04"
+    },
+    "companions.dr3_screen.clusters_screened": {
+      "better": "higher",
+      "value": 52,
+      "source": "sdp companions screen on Leigh's PC, main 51d3cae with PR #178, 2026-11-04 (52 of 114; 62 lacked 3 seeds inside the scan)",
+      "measured_on": "2026-11-04"
+    },
+    "companions.dr3_screen.member_dark_partners": {
+      "better": "exact",
+      "value": 0,
+      "source": "sdp companions screen on Leigh's PC, main 51d3cae with PR #178, 2026-11-04",
+      "measured_on": "2026-11-04"
+    },
+    "sweep.known": {
+      "better": "higher",
+      "value": 14,
+      "source": "whole-sky shells sweep on Leigh's PC, main 7575489, 2026-10-31 (issue #170: CMD coherence pass mark rejects 31 known clusters)",
+      "measured_on": "2026-10-31"
+    },
+    "sweep.null_false_positive_rate": {
+      "better": "lower",
+      "value": 0.006,
+      "tolerance": 0.0005,
+      "source": "whole-sky shells sweep on Leigh's PC, main 7575489, 2026-10-31 (issue #170)",
+      "measured_on": "2026-10-31"
+    }
+  }
+}

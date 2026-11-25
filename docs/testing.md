@@ -47,7 +47,7 @@ Most of the science gap was not weak tests but the wrong tests: the target ran o
 
 ## The tiers
 
-Twelve tiers from §11.1 plus the harness gates and the BDD tier. Each owns one class of failure.
+Twelve tiers from §11.1 plus the harness gates, the BDD tier and the real-data tier T8R. Each owns one class of failure.
 
 | Tier | Owns | Location | Command | Where CI runs it | Signal that it can fail |
 |---|---|---|---|---|---|
@@ -61,10 +61,33 @@ Twelve tiers from §11.1 plus the harness gates and the BDD tier. Each owns one 
 | T6 Cross-language | Golden fixtures, generated-code drift, GraphQL schema, manifests through the harness | `contracts/fixtures`, `python/tests/contracts`, `typescript/packages/contracts/test` | `just contracts`, `just cross-language` | `contracts-codegen`, `cross-language` | Every fixture under `fixtures/invalid` must be rejected at its expected path (CTR-003) |
 | T7 End to end | Synthetic experiment from acquisition to UI | `typescript/packages/e2e`, `infrastructure/t7.sh` | `pnpm --filter @sdp/e2e test` | `e2e`; nightly | Playwright asserts on rendered evidence |
 | T8 Scientific validation | Oracles, null, injection, independent implementation | `-m scientific` in `python/tests/relativity`, `python/tests/stellar` | `just pytest --tier T8` | `python-fast` (synthetic), nightly | An oracle without a verification record fails the test that uses it |
+| T8R Real data | Known answers on the real sky: committed real-data recordings against full runs, and full-sky measures against one-way marks (TST-011, TST-012) | `python/tests/**/test_*_recorded.py`, `python/tests/cassettes`, `realdata/baselines.json`, `harness/run-realdata.ps1` | `just pytest --tier T8`; full tables `pytest -m realdata`; PC `harness\run-realdata.ps1` | `python-fast` (recordings), nightly; full tables on the PC | Each recording carries a test that moves a rule and must go red; the ratchet fails a worse value |
 | T9 Reproducibility | Clean-room `reproduce.sh` in a fresh container | `infrastructure/reproduce.sh` | `just reproduce` | release | The harness refuses a level whose tier did not pass (TST-006) |
 | T10 Mutation | Strength of T1–T4 and the BDD tier | `python/tools/mutation.py`, Stryker configs | `just mutation <target>`, `npx stryker run` | weekly `mutation.yml`, release | The known-weak fixture must lose a mutant and keep a survivor (TST-009), on every pull request |
 | T11 Live archive smoke | One small query per adapter; schema drift | `-m live` | `archive-smoke.yml` | weekly | A live response of the wrong shape fails; counts as a probe |
 | Harness gates | Requirements compile, coverage, guard, re-derivation, ratchet, release report | `typescript/packages/spec-harness` | `pnpm harness <command>` | `static-contracts`, `trace`, `guard`, `cross-language`, release | Each command has a negative test in `spec-harness/test` |
+
+## T8R: real data
+
+Synthetic tests prove the code does what it was written to do. Only real data proves it still gives the answers it gave on the real sky, so T8R holds the platform to the results of its own full runs. It extends T8 rather than replacing anything above: the same markers, the same Rules, the same mutation targets.
+
+Three rules keep it honest.
+
+1. **Recordings are cut by rule, never by hand.** A committed recording is real archive data, cut from a full table by a committed tool (`python/tools/realdata_slice.py`, `sdp einstein1921 export`, `sdp oort1927 export`) so the same input gives the same bytes. Its SHA-256 is pinned in the test that reads it, and its README says where it came from and under which licence.
+2. **Expected values come from full runs, never from memory.** A known answer is a number a full run printed (a PC run's CSV or report, a published table that was uploaded), named with its commit and date. A snapshot of what main gives today is allowed only where it is labelled a snapshot, to catch a change that moves a verdict.
+3. **Every recording has a test that can go red.** It moves one rule in a copy of the settings (never the locked file) and checks that the known answer no longer comes back.
+
+### Layers
+
+| Layer | Where it runs | What it holds |
+|---|---|---|
+| Recordings | Every pull request (`python-fast`) and nightly | M13 cone (REL-021), Oort sample (STL-019), Gaia DR3 orbit slice and the PC field list (STL-020, STL-023), recorded archive replies |
+| Full tables (`-m realdata`) | Wherever `SDP_REALDATA` points at the tables (the PC's data folder; in the cloud sandbox the project share); skipped elsewhere, saying which file it looked for | The full 169,227-orbit DR3 table must give back the PC field list orbit for orbit |
+| Full-sky measures | The PC, `harness\run-realdata.ps1` | Known clusters the sweep recovers, its null false-positive rate, the companion screen's counts, checked against `realdata/baselines.json` |
+
+### The ratchet
+
+`realdata/baselines.json` holds one mark per full-sky measure, each with the direction that is better (`higher`, `lower` or `exact`), a tolerance where the measure is a rate, and the run it came from. `python/tools/realdata.py check` fails when a measured value is worse; `update` moves a mark only the better way and seeds a mark with no value. As with the mutation high-water marks, nobody edits a value by hand. A parked feature's mark records its current behaviour (the sweep's 14 known clusters of #170), so the mark rises when the feature is fixed and cannot quietly fall before then.
 
 ## The test system in C4
 

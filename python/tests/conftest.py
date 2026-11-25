@@ -2,7 +2,32 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
+
+#: where the full real-data tables live when no SDP_REALDATA is set: the project share in the cloud sandbox
+REALDATA_FALLBACKS = (Path("/mnt/project-files"),)
+
+
+def realdata_root() -> Path | None:
+    """The folder holding full real-data tables (T8R, TST-011): SDP_REALDATA, else a known share."""
+    env = os.environ.get("SDP_REALDATA")
+    if env:
+        return Path(env)
+    return next((p for p in REALDATA_FALLBACKS if p.is_dir()), None)
+
+
+def realdata_file(relative: str) -> Path:
+    """A full real-data table by its path under the real-data folder, or skip the test saying where it looked."""
+    root = realdata_root()
+    if root is None:
+        pytest.skip(f"full real data not here: set SDP_REALDATA to the folder holding {relative}")
+    path = root / relative
+    if not path.is_file():
+        pytest.skip(f"full real data not here: {path} is missing")
+    return path
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
