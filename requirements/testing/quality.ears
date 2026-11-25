@@ -103,3 +103,24 @@ requirements:
     verification: test
     tiers: [harness]
     status: approved
+  - id: TST-011
+    pattern: ubiquitous
+    text: "The T8R tier shall check each committed real-data recording against its pinned SHA-256 digest and against the known answer of the full run it was cut from."
+    rationale: "Synthetic tests prove the code does what it was written to do; only real data proves it still gives the answers it gave on the real sky. A recording is cut by a committed rule, never by hand, and its expected values come from a full run, never from memory."
+    verification: test
+    tiers: [T8]
+    status: approved
+    traces:
+      - "python/tests.stellar.test_companions_recorded::test_the_committed_recordings_are_the_ones_cut_from_the_full_table"
+      - "python/tests.stellar.test_companions_recorded::test_the_slice_gives_back_leighs_pc_field_list_orbit_for_orbit"
+      - "python/tests.stellar.test_companions_recorded::test_the_known_answer_goes_red_when_the_rule_moves"
+  - id: TST-012
+    pattern: unwanted
+    text: "If a measured real-data value is worse than its recorded baseline, then the real-data ratchet shall fail the run."
+    rationale: "Measures that need the full sky (known clusters recovered, null false-positive rates) run on the PC, not in CI; a one-way mark keeps them from sliding unnoticed between runs, as the mutation high-water marks do."
+    verification: test
+    tiers: [harness]
+    status: approved
+    traces:
+      - "python/tests.architecture.test_realdata_tool::test_a_value_worse_than_its_mark_fails_the_run"
+      - "python/tests.architecture.test_realdata_tool::test_update_moves_marks_only_the_better_way_and_seeds_empty_ones"

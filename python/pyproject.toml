@@ -50,6 +50,7 @@ markers = [
   "scientific: tier T8 scientific validation (nightly)",
   "integration: tier T5, needs real infrastructure",
   "live: tier T11, touches live archives (weekly)",
+  "realdata: tier T8R on full real-data tables outside the repo (SDP_REALDATA); skipped when they are absent",
   "gpu: needs a CUDA device (DGX runner)",
   "slow: long-running",
 ]
