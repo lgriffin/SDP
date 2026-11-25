@@ -229,3 +229,39 @@ requirements:
       - "python/tests.archives.test_gaia_nss::test_by_default_each_range_is_an_async_job_polled_until_it_completes"
       - "python/tests.archives.test_gaia_nss::test_a_job_the_service_fails_is_a_refusal_with_its_message"
       - "python/tests.archives.test_gaia_nss::test_a_job_that_never_finishes_is_aborted_and_reported_as_a_timeout"
+      - "python/tests.archives.test_gaia_delta::test_by_default_a_cone_is_an_async_job_so_no_request_waits_on_the_archive"
+      - "python/tests.archives.test_gaia_delta::test_a_capped_async_cone_is_refused_too"
+      - "python/tests.archives.test_gaia_delta::test_a_job_whose_phase_the_service_stops_answering_is_deleted_not_left_behind"
+
+  - id: DSI-027
+    pattern: unwanted
+    text: "If a command is asked to read a Gaia release whose table and column names in gaia_releases.yaml are not confirmed against the live archive, then the system shall refuse before any request and name the command that checks them, while every confirmed release is read through the tables, columns (under SDP's names where the release renamed one), bulk folder and citation that file gives, with DR3's queries byte for byte as before."
+    rationale: "Gaia DR4 (2 December 2026) names its tables only on release day. One file makes release day a mapping commit, which protocol UC-06 says is not an amendment, and the refusal keeps any run from reading DR4 under guessed names. Unchanged DR3 queries keep kept orbit parts, kept cones and recordings valid."
+    verification: test
+    tiers: [T1, T3, T4]
+    status: approved
+    traces:
+      - "python/tests.archives.test_gaia_releases::test_the_packaged_file_names_dr2_dr3_and_an_unconfirmed_dr4"
+      - "python/tests.archives.test_gaia_releases::test_an_unconfirmed_release_is_refused_with_the_command_that_checks_it"
+      - "python/tests.archives.test_gaia_releases::test_a_release_file_with_unsafe_or_incomplete_names_is_refused"
+      - "python/tests.archives.test_gaia_releases::test_the_dr3_source_is_unchanged_and_dr4s_shares_its_columns_under_its_own_table"
+      - "python/tests.archives.test_gaia_releases::test_dr3_orbit_queries_are_byte_for_byte_the_ones_sdp_always_sent"
+      - "python/tests.archives.test_gaia_releases::test_a_dr4_orbit_fetch_names_dr4s_tables_renamed_columns_and_label"
+      - "python/tests.archives.test_gaia_releases::test_a_bulk_copy_of_a_release_that_renamed_a_column_stores_it_under_sdps_name"
+      - "python/tests.archives.test_gaia_delta::test_with_no_column_renamed_the_cone_query_is_the_one_kept_cones_were_fetched_with"
+      - "python/tests.archives.test_gaia_delta::test_a_renamed_column_is_read_under_sdps_name"
+      - "python/tests.cli.test_cli_delta::test_a_dr4_fetch_is_refused_until_its_names_are_confirmed"
+      - "python/tests.cli.test_cli_delta::test_once_confirmed_dr4_cones_name_the_dr4_table_and_carry_its_label"
+      - "python/tests.cli.test_cli_companions::test_a_uc06_screen_reads_dr4_by_default_and_refuses_while_its_names_are_unconfirmed"
+      - "python/tests.archives.test_gaia_releases::test_a_renamed_source_id_is_used_in_the_joins_and_the_range"
+      - "python/tests.archives.test_gaia_releases::test_saved_orbit_parts_of_another_release_are_never_mixed_in"
+
+  - id: DSI-028
+    pattern: event
+    text: "When `sdp archive gaia-check --release <name>` is invoked, the system shall ask the archive's TAP_SCHEMA for every table and column SDP reads under that release's names, and the bulk folder for its file list, and exit 1 naming each table or column that is missing and each listing that does not answer."
+    rationale: "The release-day check: it turns 'are DR4's names what we guessed?' into one command whose output says exactly what to correct in gaia_releases.yaml."
+    verification: test
+    tiers: [T1]
+    status: approved
+    traces:
+      - "python/tests.archives.test_gaia_releases::test_the_check_names_every_missing_table_and_column_and_counts_the_bulk_files"

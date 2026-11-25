@@ -4,7 +4,9 @@ release, and how stars of one release map to the next.
 * Hunt & Reffert 2023's cluster rows and DR3 member lists come from VizieR's classic interface (ASU),
   at CDS or the first official mirror that answers (``MirrorTransport``): TAPVizieR is often refused.
 * Each cluster's stars in a release come from the Gaia archive's TAP service: one cone of the cluster's
-  tidal radius, cut to a parallax window and a magnitude limit on the server.
+  tidal radius, cut to a parallax window and a magnitude limit on the server, run as an async job so no
+  request stays open while the archive works (#192: the synchronous service gave 408 and 503 on the
+  biggest nearby cones however often it was retried).
 * DR2 sources are matched to DR3 through Gaia's ``dr2_neighbourhood`` table, nearest neighbour first.
 
 Everything goes through a Transport, so tests replay without the network (ADR-015).
@@ -12,9 +14,10 @@ Everything goes through a Transport, so tests replay without the network (ADR-01
 
 from __future__ import annotations
 
+import time
 import urllib.parse
-from collections.abc import Iterable, Mapping, Sequence
-from typing import Any
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any, Literal
 
 import pyarrow as pa
 
@@ -22,7 +25,7 @@ from sdp.adapters.archives import votable
 from sdp.adapters.archives.benchmarks import VIZIER_MIRRORS
 from sdp.adapters.archives.transport import HttpRequest, MirrorTransport, Transport, TransportError
 from sdp.adapters.archives.untrusted import UntrustedInput, validate_votable
-from sdp.adapters.archives.vo import run_sync, sync_request
+from sdp.adapters.archives.vo import run_async, run_sync, sync_request
 
 GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap"
 HR23_CLUSTERS = "J/A+A/673/A114/clusters"
@@ -87,19 +90,49 @@ def hr23_members(transport: Transport, name: str) -> list[int]:
 
 
 def cone_query(
-    table: str, columns: Sequence[str], ra: float, dec: float, radius: float, plx_lo: float, plx_hi: float, g_max: float
+    table: str,
+    columns: Sequence[str],
+    ra: float,
+    dec: float,
+    radius: float,
+    plx_lo: float,
+    plx_hi: float,
+    g_max: float,
+    names: Mapping[str, str] | None = None,
 ) -> str:
+    """``names`` maps SDP's column name to the release's own where a release renamed one; the answer keeps
+    SDP's names. With none renamed the query is the one every kept cone was fetched with."""
     if not all(part.isidentifier() for part in table.split(".")) or table.count(".") != 1:
         raise ValueError(f"not a Gaia table name: {table!r}")
+    n = dict(names or {})
+    if not all(k.isidentifier() and v.isidentifier() for k, v in n.items()):
+        raise ValueError(f"not column names: {n!r}")
+
+    def col(c: str) -> str:
+        return n.get(c, c)
+
+    select = ", ".join(c if col(c) == c else f"{col(c)} AS {c}" for c in columns)
     return (
-        f"SELECT {', '.join(columns)} FROM {table} "
-        f"WHERE 1 = CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.8f}, {dec:.8f}, {radius:.8f})) "
-        f"AND parallax BETWEEN {plx_lo:.6f} AND {plx_hi:.6f} AND phot_g_mean_mag <= {g_max:.3f}"
+        f"SELECT {select} FROM {table} "
+        f"WHERE 1 = CONTAINS(POINT('ICRS', {col('ra')}, {col('dec')}), "
+        f"CIRCLE('ICRS', {ra:.8f}, {dec:.8f}, {radius:.8f})) "
+        f"AND {col('parallax')} BETWEEN {plx_lo:.6f} AND {plx_hi:.6f} AND {col('phot_g_mean_mag')} <= {g_max:.3f}"
     )
 
 
-def cone(transport: Transport, query: str, what: str) -> pa.Table:
-    table = run_sync(transport, sync_request(GAIA_TAP, query, MAXREC), what)
+def cone(
+    transport: Transport,
+    query: str,
+    what: str,
+    service_url: str = GAIA_TAP,
+    mode: Literal["async", "sync"] = "async",
+    sleep: Callable[[float], None] = time.sleep,
+) -> pa.Table:
+    """One cluster's cone, as an async job (the default, #192) or a synchronous request."""
+    if mode == "async":
+        table = run_async(transport, service_url, query, MAXREC, what, sleep=sleep)
+    else:
+        table = run_sync(transport, sync_request(service_url, query, MAXREC), what)
     if table.num_rows >= MAXREC:
         raise UntrustedInput(f"{what}: {table.num_rows} rows reached the {MAXREC} cap, so the cone was cut off")
     return table

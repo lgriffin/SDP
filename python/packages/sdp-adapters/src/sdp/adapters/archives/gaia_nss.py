@@ -1,4 +1,7 @@
-"""Gaia DR3 astrometric orbits with the masses Gaia fitted, from the Gaia TAP service (DSI-023).
+"""Gaia astrometric orbits with the masses Gaia fitted, from the Gaia TAP service (DSI-023).
+
+The release (DR3 by default, DR4 from 2 December 2026) comes from ``gaia_releases.yaml``: its table and
+column names, its service and its citation. The text below describes DR3.
 
 ``gaiadr3.nss_two_body_orbit`` holds the orbits Gaia fitted to stars that wobble; the rows with
 Thiele-Innes elements (about 169,000) are orbits on the sky. ``gaiadr3.binary_masses`` gives the visible
@@ -14,12 +17,15 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import pyarrow as pa
 
 from sdp.adapters.archives.transport import Transport
 from sdp.adapters.archives.vo import run_async, run_sync, sync_request
+
+if TYPE_CHECKING:
+    from sdp.adapters.archives.gaia_releases import GaiaRelease
 
 log = logging.getLogger("sdp.adapters.gaia_nss")
 
@@ -75,26 +81,40 @@ def ranges(parts: int = PARTS) -> list[tuple[int, int]]:
     return [(edges[i], edges[i + 1] - 1) for i in range(parts)]
 
 
-def _select() -> str:
-    cols = [f"n.{c}" for c in ORBIT_COLUMNS] + [f"g.{c}" for c in SOURCE_COLUMNS] + [f"b.{c}" for c in MASS_COLUMNS]
+def _dr3() -> GaiaRelease:
+    from sdp.adapters.archives.gaia_releases import release
+
+    return release("dr3")
+
+
+def _select(r: GaiaRelease | None = None) -> str:
+    r = r or _dr3()
+    sid = r.column("source_id")
+    cols = (
+        [r.select("n", c) for c in ORBIT_COLUMNS]
+        + [r.select("g", c) for c in SOURCE_COLUMNS]
+        + [r.select("b", c) for c in MASS_COLUMNS]
+    )
     return (
-        f"SELECT {', '.join(cols)} FROM gaiadr3.nss_two_body_orbit AS n "
-        "JOIN gaiadr3.gaia_source AS g ON g.source_id = n.source_id "
-        "LEFT OUTER JOIN gaiadr3.binary_masses AS b ON b.source_id = n.source_id "
-        "WHERE n.a_thiele_innes IS NOT NULL"
+        f"SELECT {', '.join(cols)} FROM {r.table('nss_two_body_orbit')} AS n "
+        f"JOIN {r.table('gaia_source')} AS g ON g.{sid} = n.{sid} "
+        f"LEFT OUTER JOIN {r.table('binary_masses')} AS b ON b.{sid} = n.{sid} "
+        f"WHERE n.{r.column('a_thiele_innes')} IS NOT NULL"
     )
 
 
-def orbit_query(lo: int, hi: int) -> str:
-    return f"{_select()} AND n.source_id BETWEEN {int(lo)} AND {int(hi)}"
+def orbit_query(lo: int, hi: int, r: GaiaRelease | None = None) -> str:
+    r = r or _dr3()
+    return f"{_select(r)} AND n.{r.column('source_id')} BETWEEN {int(lo)} AND {int(hi)}"
 
 
-def targets_query(source_ids: Sequence[int]) -> str:
+def targets_query(source_ids: Sequence[int], r: GaiaRelease | None = None) -> str:
     """The same columns for named stars only: a refinement step's targets."""
     ids = sorted({int(s) for s in source_ids})
     if not ids:
         raise ValueError("no source_ids to ask for")
-    return f"{_select()} AND n.source_id IN ({', '.join(str(s) for s in ids)})"
+    r = r or _dr3()
+    return f"{_select(r)} AND n.{r.column('source_id')} IN ({', '.join(str(s) for s in ids)})"
 
 
 def one_mass_per_orbit(table: pa.Table) -> pa.Table:
@@ -124,10 +144,11 @@ def _checked(table: pa.Table, what: str) -> pa.Table:
     return table.select([*ORBIT_COLUMNS, *SOURCE_COLUMNS, *MASS_COLUMNS])
 
 
-def _with_metadata(table: pa.Table, query: str, parts: int) -> pa.Table:
+def _with_metadata(table: pa.Table, query: str, parts: int, r: GaiaRelease | None = None) -> pa.Table:
+    r = r or _dr3()
     meta = {
-        b"sdp.release": RELEASE.encode(),
-        b"sdp.citation": CITATION.encode(),
+        b"sdp.release": r.label.encode(),
+        b"sdp.citation": (r.orbits_citation or CITATION).encode(),
         b"sdp.licence": LICENCE.encode(),
         b"sdp.query": query.encode(),
         b"sdp.parts": str(parts).encode(),
@@ -135,29 +156,52 @@ def _with_metadata(table: pa.Table, query: str, parts: int) -> pa.Table:
     return table.replace_schema_metadata({**(table.schema.metadata or {}), **meta})
 
 
-def fetch_targets(transport: Transport, source_ids: Sequence[int], service_url: str = GAIA_TAP) -> pa.Table:
+def fetch_targets(
+    transport: Transport,
+    source_ids: Sequence[int],
+    service_url: str | None = None,
+    release: GaiaRelease | None = None,
+) -> pa.Table:
     """The orbits, if any, of named stars (at most a few thousand per call)."""
-    query = targets_query(source_ids)
-    table = run_sync(transport, sync_request(service_url, query, MAXREC), "Gaia DR3 orbits of targets")
-    return _with_metadata(one_mass_per_orbit(_checked(table, "Gaia DR3 orbits of targets")), query, 1)
+    r = release or _dr3()
+    what = f"Gaia {r.name.upper()} orbits of targets"
+    query = targets_query(source_ids, r)
+    table = run_sync(transport, sync_request(service_url or r.tap, query, MAXREC), what)
+    return _with_metadata(one_mass_per_orbit(_checked(table, what)), query, 1, r)
 
 
 def fetch_orbits(
     transport: Transport,
     parts: int = PARTS,
-    service_url: str = GAIA_TAP,
+    service_url: str | None = None,
     progress: Callable[[int, int], None] | None = None,
     parts_dir: Path | None = None,
     mode: Literal["async", "sync"] = "async",
     sleep: Callable[[float], None] = time.sleep,
+    release: GaiaRelease | None = None,
 ) -> pa.Table:
-    """Every Gaia DR3 orbit on the sky with its star's G, RUWE and Gaia's mass range, one table.
+    """Every Gaia orbit of the release (DR3 by default) on the sky with its star's G, RUWE and Gaia's mass range, one table.
 
     With ``parts_dir`` each source_id range is saved there as it arrives, and a range already saved is
     read back instead of asked for again, so a download that stops part way resumes where it stopped.
     Each range is an async job unless ``mode`` is ``"sync"``."""
     import pyarrow.parquet as pq
 
+    r = release or _dr3()
+    url = service_url or r.tap
+    if parts_dir is not None:
+        # saved parts are one release's: a folder left by another release is never mixed in
+        marker = parts_dir / "release.txt"
+        if marker.exists() and marker.read_text("utf-8").strip() != r.label:
+            raise ValueError(
+                f"{parts_dir} holds parts of {marker.read_text('utf-8').strip()}, not {r.label}; "
+                "move it away or give another --out"
+            )
+        unrecorded = parts_dir.exists() and not marker.exists() and any(parts_dir.glob("part-*.parquet"))
+        if unrecorded and r.label != "gaia:DR3":  # parts saved before releases were recorded are DR3's
+            raise ValueError(f"{parts_dir} holds parts of an unrecorded release (DR3), not {r.label}")
+        parts_dir.mkdir(parents=True, exist_ok=True)
+        marker.write_text(r.label + "\n", "utf-8")
     tables = []
     spans = ranges(parts)
     for i, (lo, hi) in enumerate(spans):
@@ -165,12 +209,12 @@ def fetch_orbits(
         if saved is not None and saved.exists():
             table = pq.read_table(saved)
         else:
-            what = f"Gaia DR3 orbits part {i + 1}/{len(spans)}"
+            what = f"Gaia {r.name.upper()} orbits part {i + 1}/{len(spans)}"
             if mode == "async":
-                table = run_async(transport, service_url, orbit_query(lo, hi), MAXREC, what, sleep=sleep)
+                table = run_async(transport, url, orbit_query(lo, hi, r), MAXREC, what, sleep=sleep)
             else:
-                table = run_sync(transport, sync_request(service_url, orbit_query(lo, hi), MAXREC), what)
-            table = _checked(table, f"Gaia DR3 orbits {lo}..{hi}")
+                table = run_sync(transport, sync_request(url, orbit_query(lo, hi, r), MAXREC), what)
+            table = _checked(table, f"Gaia {r.name.upper()} orbits {lo}..{hi}")
             if saved is not None:
                 saved.parent.mkdir(parents=True, exist_ok=True)
                 tmp = saved.with_suffix(".tmp")
@@ -180,4 +224,4 @@ def fetch_orbits(
         if progress is not None:
             progress(i + 1, len(spans))
     whole = one_mass_per_orbit(pa.concat_tables(tables, promote_options="permissive").combine_chunks())
-    return _with_metadata(whole, f"{_select()} (in {parts} source_id ranges)", parts)
+    return _with_metadata(whole, f"{_select(r)} (in {parts} source_id ranges)", parts, r)

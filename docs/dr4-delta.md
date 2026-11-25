@@ -7,7 +7,7 @@ selection fixed beforehand, and the engine tested on a release pair that already
 Requirements STL-030 to STL-032 (`requirements/stellar/dr4-delta.ears`). Science in
 `sdp_stellar/dr4_delta.py`, settings in `sdp_stellar/dr4_delta.json`, archive access in
 `sdp/adapters/archives/gaia_delta.py`, commands in `sdp/cli/delta.py`, PC script
-`harness/run-delta.ps1`.
+`harness/run-delta.ps1`. Release day (DR4's table names, async cones): [dr4-release-day.md](dr4-release-day.md).
 
 ## The seed set and the questions
 

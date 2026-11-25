@@ -1657,6 +1657,13 @@ def archive_bulk(
         str | None,
         typer.Option(help="Build a subset copy instead: rvs keeps the stars with a radial velocity, plus its columns"),
     ] = None,
+    release: Annotated[
+        str,
+        typer.Option(
+            help="With --source gaia: the Gaia release to copy, dr3 or dr4 (gaia_releases.yaml). A DR4 copy "
+            "sits beside the DR3 one and needs the release's names confirmed first"
+        ),
+    ] = "dr3",
 ) -> None:
     """Copy a whole catalogue release from the publisher's bulk files into the artifact store, one Parquet
     per file, skipping files already stored (#72). Stop it any time; run it again to resume.
@@ -1679,11 +1686,27 @@ def archive_bulk(
         )
     if subset is not None and source != "gaia":
         raise typer.BadParameter("only the Gaia copy has subsets", param_hint="--subset")
+    if release != "dr3" and source != "gaia":
+        raise typer.BadParameter("only the Gaia copy has releases", param_hint="--release")
     root = os.environ.get("SDP_ARTIFACT_ROOT")
     if not root:
         raise DomainError("SDP_ARTIFACT_ROOT is not set: it names the artifact store the sweep fills")
     descriptor = load_sources()[source].descriptor
     publisher = PUBLISHERS[source]
+    renames: dict[str, str] = {}
+    if source == "gaia" and release != "dr3":
+        from sdp.adapters.archives.bulk import gaia_publisher
+        from sdp.adapters.archives.gaia_releases import UnconfirmedRelease, confirmed_release, gaia_source
+
+        try:
+            r = confirmed_release(release)
+        except (KeyError, UnconfirmedRelease) as exc:
+            raise DomainError(str(exc)) from exc
+        if r.bulk is None:
+            raise DomainError(f"Gaia {release} has no bulk folder in gaia_releases.yaml")
+        descriptor = gaia_source(release).descriptor
+        publisher = gaia_publisher(r.bulk)
+        renames = dict(r.columns)
     if base_url is not None:
         # a folder the person names (a copy of their own) holds what it holds: the release's count is not asked
         publisher = replace(publisher, mirrors=(base_url,), file_count=None)
@@ -1698,6 +1721,7 @@ def archive_bulk(
         publisher=publisher,
         min_free_bytes=int(os.environ.get("SDP_MIN_FREE_BYTES", str(50 * 1024**3))),
         subset=subsets[subset] if subset is not None else None,
+        renames=renames,
     )
     if status:
         # the list stored by the last sweep: a status needs no answer from the publisher
@@ -1730,6 +1754,43 @@ def archive_bulk(
     )
     if failed:
         raise typer.Exit(1)
+
+
+@archive_app.command("gaia-check")
+def archive_gaia_check(
+    release: Annotated[str, typer.Option(help="The release to check, e.g. dr4")] = "dr4",
+    bulk: Annotated[bool, typer.Option(help="Also ask the bulk folder for its file list")] = True,
+) -> None:
+    """Check a Gaia release's names in gaia_releases.yaml against the live archive: every table and column
+    SDP reads (gaia_source for the bulk copy and the delta cones; the orbit tables for the companion screen)
+    and the bulk folder's file list. Exits 1 naming each name that is wrong. Run it on release day before
+    setting confirmed: true (docs/dr4-release-day.md)."""
+    from sdp.adapters.archives import gaia_nss
+    from sdp.adapters.archives.gaia_releases import check_release, http_get
+    from sdp.adapters.archives.gaia_releases import release as get_release
+    from sdp.adapters.archives.tap import load_sources
+    from sdp.adapters.archives.transport import ARCHIVE_RETRY, PoliteTransport, UrllibTransport
+    from sdp_stellar import dr4_delta
+
+    try:
+        r = get_release(release)
+    except KeyError as exc:
+        raise DomainError(str(exc)) from exc
+    transport = PoliteTransport.with_policy(UrllibTransport(timeout_s=120.0), ARCHIVE_RETRY)
+    from sdp.adapters.archives.bulk import load_subsets
+
+    subset_columns = {c.name for s in load_subsets().values() if s.parent == "gaia" for c in s.columns}
+    source_columns = sorted(
+        {*load_sources()["gaia"].descriptor.column_names(), *dr4_delta.STAR_COLUMNS, *subset_columns}
+    )
+    wanted: dict[str, list[str]] = {"gaia_source": source_columns}
+    if "nss_two_body_orbit" in r.tables:
+        wanted["nss_two_body_orbit"] = ["source_id", *gaia_nss.ORBIT_COLUMNS]
+        wanted["binary_masses"] = ["source_id", *gaia_nss.MASS_COLUMNS]
+    result = check_release(r, transport, wanted, (lambda url: http_get(url, transport)) if bulk else None)
+    emit({**result.to_document(), "confirmed_in_file": r.confirmed})
+    if result.problems:
+        raise SystemExit(1)
 
 
 @archive_app.command("smoke")

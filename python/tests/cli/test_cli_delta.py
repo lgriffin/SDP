@@ -40,7 +40,7 @@ def row(name: str) -> dict[str, Any]:
 def fakes(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[str]]:
     calls: dict[str, list[str]] = {"cluster": [], "members": [], "cone": [], "match": []}
 
-    def cone(t: object, query: str, what: str) -> pa.Table:
+    def cone(t: object, query: str, what: str, *args: Any, **kwargs: Any) -> pa.Table:
         calls["cone"].append(what)
         s = stars(
             n_members=50, n_field=200, plx_shift=0.01 if "dr3" in query else 0.0, first_id=1 if "dr2" in query else 501
@@ -53,6 +53,7 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[str]]:
         return {i: i + 500 for i in ids}
 
     monkeypatch.setattr(cmd, "transport", lambda: None)
+    monkeypatch.setattr(cmd, "gaia_transport", lambda: None)
     monkeypatch.setattr(gaia_delta, "vizier", lambda t: None)
 
     def cluster(v: object, name: str) -> dict[str, Any]:
@@ -128,7 +129,7 @@ def test_an_archive_error_costs_one_cluster_and_the_next_run_fetches_it(
 
     good: Any = gaia_delta.cone
 
-    def flaky(t: object, query: str, what: str) -> pa.Table:
+    def flaky(t: object, query: str, what: str, *args: Any) -> pa.Table:
         if what.endswith("NGC_188"):
             raise TransportError(f"{what}: HTTP 503")
         return good(t, query, what)
@@ -152,7 +153,7 @@ def test_a_refused_cone_or_a_missing_hr23_row_costs_one_cluster(
     good_cone: Any = gaia_delta.cone
     good_row: Any = gaia_delta.hr23_cluster
 
-    def capped(t: object, query: str, what: str) -> pa.Table:
+    def capped(t: object, query: str, what: str, *args: Any) -> pa.Table:
         if what.endswith("NGC_188"):
             raise UntrustedInput(f"{what}: rows reached the cap")
         return good_cone(t, query, what)
@@ -241,3 +242,34 @@ def test_a_dr4_comparison_runs_only_under_the_frozen_selection(
     monkeypatch.setattr(d, "load_settings", lambda: changed)
     result = runner.invoke(cli.app, ["delta", "compare", "--from", "dr3", "--to", "dr4", "--out", str(tmp_path)])
     assert result.exit_code != 0 and "frozen" in str(result.exception)
+
+
+@pytest.mark.req("DSI-027")
+def test_a_dr4_fetch_is_refused_until_its_names_are_confirmed(fakes: dict[str, list[str]], tmp_path: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["delta", "fetch", "--release", "dr4", "--cluster", "NGC_2682", "--out", str(tmp_path)]
+    )
+    assert result.exit_code != 0 and "gaia-check --release dr4" in str(result.exception)
+    assert fakes["cone"] == [], "no cone is asked for under a guessed table name"
+    compare = runner.invoke(cli.app, ["delta", "compare", "--from", "dr3", "--to", "dr4", "--out", str(tmp_path)])
+    assert compare.exit_code != 0 and "gaia-check --release dr4" in str(compare.exception)
+
+
+@pytest.mark.req("DSI-027")
+def test_once_confirmed_dr4_cones_name_the_dr4_table_and_carry_its_label(
+    fakes: dict[str, list[str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    import pyarrow.parquet as pq
+
+    from sdp.adapters.archives import gaia_releases
+
+    real = gaia_releases.load_releases()
+    patched = {**real, "dr4": replace(real["dr4"], confirmed=True, confirmed_on="2026-12-02")}
+    monkeypatch.setattr(gaia_releases, "load_releases", lambda path=None: patched)
+    args = ["delta", "fetch", "--release", "dr4", "--cluster", "NGC_2682", "--out", str(tmp_path)]
+    assert runner.invoke(cli.app, args).exit_code == 0
+    table = pq.read_table(tmp_path / "dr4" / "NGC_2682.parquet")
+    meta = table.schema.metadata
+    assert meta[b"sdp.release"] == b"gaia:DR4" and b"FROM gaiadr4.gaia_source" in meta[b"sdp.query"]

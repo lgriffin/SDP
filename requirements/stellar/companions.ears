@@ -71,3 +71,15 @@ requirements:
       - "python/tests.stellar.test_companions::test_holm_adjusts_in_the_given_order"
       - "python/tests.stellar.test_companions::test_a_screen_under_crowding_settings_needs_each_stars_crowding"
       - "python/tests.cli.test_cli_companions::test_a_uc06_screen_matches_the_field_on_crowding_and_gives_the_stacked_verdict"
+
+  - id: STL-045
+    pattern: event
+    text: "When `sdp companions screen` reads its stars from another Gaia release than its clusters' seeds (protocol UC-06: DR3 seeds, DR4 stars), the system shall fix each cluster's footprint from its seed members in the seeds' release and find the members, the field and the crowding in the stars' release, reporting both releases and the orbits' release in the summary; `--protocol uc06` reads by default the release uc06.json declares, and the UC-06 field list reads that release's orbits."
+    rationale: "Protocol UC-06 (locked 18 November 2026) says members are found again in DR4 from each cluster's DR3 seed footprint, fixed before DR4 is read; DR4 may give stars new source_ids, so the seeds cannot be looked up in DR4."
+    verification: test
+    tiers: [T4]
+    status: approved
+    traces:
+      - "python/tests.cli.test_cli_companions::test_a_dr4_screen_fixes_footprints_from_dr3_seeds_and_reads_members_and_field_from_dr4"
+      - "python/tests.cli.test_cli_companions::test_the_uc06_field_list_reads_the_declared_releases_orbits"
+      - "python/tests.cli.test_cli_companions::test_a_missing_dr4_copy_stops_the_screen_before_any_pass"
