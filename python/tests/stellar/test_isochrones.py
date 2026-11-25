@@ -207,7 +207,10 @@ def test_a_known_cluster_is_checked_against_its_window_by_any_of_its_names() -> 
     s = iso.load_settings()
     hit = iso.known_answer(["near-b009-t010-c0", "hr23:Melotte_22"], {"log_age": 8.05}, s)
     assert hit is not None and hit["cluster"] == "Melotte 22" and hit["inside"]
-    assert hit["verified_window"] is False
+    # the Pleiades window was checked against Babusiaux et al. 2018 (log age 8.04); the globulars' not yet
+    assert hit["verified_window"] is True and "Babusiaux" in hit["window_source"]
+    globular = iso.known_answer(["M3"], {"log_age": 10.1, "feh": -1.5}, s)
+    assert globular is not None and globular["verified_window"] is False
     miss = iso.known_answer(["Pleiades"], {"log_age": 9.2}, s)
     assert miss is not None and not miss["inside"]
     assert iso.known_answer(["Pleiades"], None, s)["inside"] is False  # type: ignore[index]
@@ -622,3 +625,14 @@ def test_member_flags_use_the_red_dwarfs_the_fit_judged() -> None:
     same = iso.member_masses(colour, mag, fit, g, s)
     other = iso.member_masses(colour, mag, {**fit, "red_dwarf_offset": fit["red_dwarf_offset"] - 3.0}, g, s)
     assert not np.allclose(same["distance"], other["distance"], equal_nan=True)  # the flags follow the fit's
+
+
+@pytest.mark.req("STL-033")
+def test_each_checked_open_cluster_window_holds_the_published_gaia_age_it_cites() -> None:
+    """Babusiaux et al. 2018, A&A 616, A10, Table 2 (log years), read on 2026-11-25."""
+    published = {"Melotte 22": 8.04, "Melotte 25": 8.90, "NGC 2632": 8.85, "NGC 2682": 9.54}
+    for entry in iso.load_settings()["known_answers"]["clusters"]:
+        if entry["names"][0] in published:
+            lo, hi = entry["log_age"]
+            assert entry["verified"] is True and f"{published[entry['names'][0]]:.2f}" in entry["source"]
+            assert lo <= published[entry["names"][0]] <= hi

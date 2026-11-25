@@ -71,9 +71,8 @@ def native(cols: dict[str, Any]) -> pa.Table:
     return pa.table(filled)
 
 
-def store_copy(root: Path, cols: dict[str, Any]) -> None:
+def store_copy(root: Path, cols: dict[str, Any], prefix: str = "bulk/gaia/gaia_DR3") -> None:
     store = artifact_store(root)
-    prefix = "bulk/gaia/gaia_DR3"
     store.put(
         "".join(f"{'0' * 32}  {name}\n" for name in NAMES).encode(), "text/plain", logical_path=f"{prefix}/_MD5SUM.txt"
     )
@@ -181,7 +180,8 @@ def test_a_screen_needs_one_source_of_clusters_and_a_fetched_orbit_table(data: P
 def test_fetch_writes_the_orbit_table_through_the_transport(data: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
-    def fake(transport: object, progress: Any = None, parts_dir: Path | None = None) -> pa.Table:
+    def fake(transport: object, progress: Any = None, parts_dir: Path | None = None, release: Any = None) -> pa.Table:
+        assert release is not None and release.label == "gaia:DR3"
         calls.append(1)
         return orbit_table([1], [1.0], [0.5], [3.0], [False])
 
@@ -276,10 +276,13 @@ def test_a_screen_with_isochrones_fits_each_cluster_and_needs_a_fetched_grid(dat
 
 @pytest.mark.req("STL-044")
 def test_a_uc06_screen_matches_the_field_on_crowding_and_gives_the_stacked_verdict(data: Path) -> None:
-    result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06"])
+    result = runner.invoke(
+        cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06", "--stars", "dr3"]
+    )
     assert result.exit_code == 0, result.output
     summary = json.loads(result.stdout)
     assert summary["protocol"] == "uc06-gaia-dr4-clusters" and summary["settings_file"] == "uc06.json"
+    assert summary["stars_release"] == "gaia:DR3" and summary["seeds_release"] == "gaia:DR3"
     assert summary["test"]["clusters_in_test"] == 1
     assert summary["test"]["verdict"] in ("H1", "H0", "inconclusive")
     # invented DR3 stars and an invented sweep: the verdict is shown but does not count
@@ -292,3 +295,64 @@ def test_a_uc06_screen_matches_the_field_on_crowding_and_gives_the_stacked_verdi
     assert hashlib.sha256(listing).hexdigest() == summary["cluster_list_sha256"]
     bad = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "dr9"])
     assert bad.exit_code != 0 and "'trial' or 'uc06'" in str(bad.exception)
+
+
+def _dr4_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """gaia_releases.yaml as it will be on release day: DR4's names confirmed."""
+    from dataclasses import replace
+
+    from sdp.adapters.archives import gaia_releases
+
+    real = gaia_releases.load_releases()
+    patched = {**real, "dr4": replace(real["dr4"], confirmed=True, confirmed_on="2026-12-02")}
+    monkeypatch.setattr(gaia_releases, "load_releases", lambda path=None: patched)
+
+
+@pytest.mark.req("STL-044")
+def test_a_uc06_screen_reads_dr4_by_default_and_refuses_while_its_names_are_unconfirmed(data: Path) -> None:
+    result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06"])
+    assert result.exit_code != 0
+    assert "gaia-check --release dr4" in str(result.exception)
+    fetch = runner.invoke(cli.app, ["companions", "fetch", "--release", "dr4"])
+    assert fetch.exit_code != 0 and "not yet checked" in str(fetch.exception)
+
+
+@pytest.mark.req("STL-044")
+def test_a_dr4_screen_fixes_footprints_from_dr3_seeds_and_reads_members_and_field_from_dr4(
+    data: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _dr4_confirmed(monkeypatch)
+    # the same sky in DR4, but every star under a new source_id: the DR3 seed ids are not in it, so members
+    # can only be found through footprints fixed from the DR3 copy
+    cols = stars(np.random.default_rng(23))
+    cols["source_id"] = cols["source_id"] + 50_000_000
+    store_copy(data / "artifacts", cols, prefix="bulk/gaia/gaia_DR4")
+    dr3 = pq.read_table(data / "companions" / cmd.ORBITS_FILE)
+    pq.write_table(
+        dr3.replace_schema_metadata({b"sdp.release": b"gaia:DR4"}), data / "companions" / cmd.orbits_file("dr4")
+    )
+    result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06"])
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.stdout)
+    assert summary["stars_release"] == "gaia:DR4" and summary["seeds_release"] == "gaia:DR3"
+    assert summary["orbits_release"] == "gaia:DR4"
+    assert summary["members"] > 100
+    with (data / "companions" / "clusters" / "candidates.csv").open(encoding="utf-8") as handle:
+        assert all(int(r["source_id"]) not in range(1, 201) for r in csv.DictReader(handle))
+    why = " ".join(summary["test"]["not_counted_because"])
+    # DR4 stars and orbits: only the invented sweep's cluster list keeps this verdict from counting
+    assert "orbits are" not in why and "stars are" not in why and "not the predeclared one" in why
+
+
+@pytest.mark.req("STL-044")
+def test_the_uc06_field_list_reads_the_declared_releases_orbits(data: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    missing = runner.invoke(cli.app, ["companions", "field", "--protocol", "uc06"])
+    assert missing.exit_code != 0 and cmd.orbits_file("dr4") in str(missing.exception)
+    dr3 = pq.read_table(data / "companions" / cmd.ORBITS_FILE)
+    pq.write_table(
+        dr3.replace_schema_metadata({b"sdp.release": b"gaia:DR4"}), data / "companions" / cmd.orbits_file("dr4")
+    )
+    result = runner.invoke(cli.app, ["companions", "field", "--protocol", "uc06"])
+    assert result.exit_code == 0, result.output
+    assert (data / "companions" / "field-uc06.csv").exists()
+    assert json.loads(result.stdout)["gaia_bh1"]["verdict"] == "neutron-star-or-black-hole"

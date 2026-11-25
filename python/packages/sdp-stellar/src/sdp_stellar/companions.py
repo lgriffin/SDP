@@ -658,6 +658,7 @@ def screen(
     settings: Mapping[str, Any],
     grid: Any = None,
     fits: Mapping[str, Mapping[str, Any]] | None = None,
+    seed_stars: Mapping[str, Array] | None = None,
 ) -> dict[str, Any]:
     """Every cluster's members found again, their wobble z and any published orbit's partner mass, and
     each cluster's counts against what the field gives for stars of the same G and parallax.
@@ -671,9 +672,19 @@ def screen(
     modulus, and each orbit's row gains the visible star's mass on that isochrone, the partner's masses
     with it, and whether the partner's lower bound is heavier than any star still alive at the cluster's
     age. The verdicts stay Gaia's rule (STL-020); the isochrone columns sit beside them. ``fits`` (by
-    cluster id, as ``sdp isochrones fit`` writes them) are used instead of fitting a cluster again."""
+    cluster id, as ``sdp isochrones fit`` writes them) are used instead of fitting a cluster again.
+
+    ``seed_stars``, when given, holds the seed members' rows from another release than ``stars``: each
+    footprint is fixed from them, and the members are found in ``stars`` (UC-06: footprints from DR3, members
+    in DR4). Without it the seeds are looked up in ``stars``."""
     ids = np.asarray(stars["source_id"], dtype=np.int64)
     row_of = {int(s): i for i, s in enumerate(ids)}
+    seed_source = stars if seed_stars is None else seed_stars
+    seed_row_of = (
+        row_of
+        if seed_stars is None
+        else {int(s): i for i, s in enumerate(np.asarray(seed_stars["source_id"], dtype=np.int64))}
+    )
     orbit_ids = np.asarray(orbits["source_id"], dtype=np.int64)
     orbit_rows: dict[int, list[int]] = {}
     for i, s in enumerate(orbit_ids):
@@ -691,8 +702,8 @@ def screen(
     rows: list[dict[str, Any]] = []
     summary: list[dict[str, Any]] = []
     for c in clusters:
-        seeds = np.asarray(sorted(row_of[s] for s in c.seed_ids if s in row_of), dtype=np.int64)
-        fp = footprint(stars, seeds, settings)
+        seeds = np.asarray(sorted(seed_row_of[s] for s in c.seed_ids if s in seed_row_of), dtype=np.int64)
+        fp = footprint(seed_source, seeds, settings)
         if fp is None:
             floor = float(settings["membership"]["parallax_min_mas"])
             summary.append(

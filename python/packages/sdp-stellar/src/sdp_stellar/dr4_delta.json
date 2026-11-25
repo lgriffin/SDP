@@ -39,9 +39,10 @@
     "fetch_parallax_halfwidth_spreads": 5.0
   },
   "releases": {
-    "dr2": {"table": "gaiadr2.gaia_source", "label": "gaia:DR2"},
-    "dr3": {"table": "gaiadr3.gaia_source", "label": "gaia:DR3"},
-    "dr4": {"table": "gaiadr4.gaia_source", "label": "gaia:DR4", "note": "table name to confirm on 2 December 2026"}
+    "note": "The releases the delta compares. Their table and column names live in sdp/adapters/archives/gaia_releases.yaml, where DR4's are confirmed on release day (not part of the frozen hash).",
+    "dr2": {"label": "gaia:DR2"},
+    "dr3": {"label": "gaia:DR3"},
+    "dr4": {"label": "gaia:DR4"}
   },
   "matches": {
     "dr2->dr3": {"table": "gaiadr3.dr2_neighbourhood", "from_column": "dr2_source_id", "to_column": "dr3_source_id", "order_by": "angular_distance"},

@@ -39,10 +39,31 @@ def _say(text: str) -> None:
 
 
 def transport() -> Transport:
-    """Live archives, politely; tests replace this."""
+    """Live archives, politely; tests replace this. VizieR goes through it with no retries, so a mirror
+    that does not answer hands over to the next one at once."""
     from sdp.adapters.archives.transport import PoliteTransport, UrllibTransport
 
     return PoliteTransport(UrllibTransport(timeout_s=600.0), min_seconds_between_calls=1.0)
+
+
+def gaia_transport() -> Transport:
+    """The Gaia archive, politely, with the shared archive retry policy (a 408, 429 or 5xx is tried again
+    with backoff); tests replace this. Cones run as async jobs (#192), so no one request stays open while
+    the archive works."""
+    from sdp.adapters.archives.transport import ARCHIVE_RETRY, PoliteTransport, UrllibTransport
+
+    return PoliteTransport.with_policy(UrllibTransport(timeout_s=180.0), ARCHIVE_RETRY)
+
+
+def gaia(release: str) -> Any:
+    """The release's names from gaia_releases.yaml, refused while they are unconfirmed guesses (DR4 until
+    release day): no cone is fetched or compared under a guessed table name."""
+    from sdp.adapters.archives.gaia_releases import UnconfirmedRelease, confirmed_release
+
+    try:
+        return confirmed_release(release)
+    except (KeyError, UnconfirmedRelease) as exc:
+        raise DomainError(str(exc)) from exc
 
 
 def folder() -> Path:
@@ -104,6 +125,10 @@ def _kept_query(path: Path) -> str | None:
     return str(meta.get(b"sdp.query", b"").decode())
 
 
+def _releases(settings: Mapping[str, Any]) -> list[str]:
+    return [k for k in settings["releases"] if k != "note"]
+
+
 def _clusters(settings: Mapping[str, Any], only: Sequence[str]) -> list[str]:
     names = [c["hr23"] for c in settings["clusters"]]
     unknown = [n for n in only if n not in names]
@@ -117,9 +142,10 @@ def _cone_query(settings: Mapping[str, Any], release: str, c: Any) -> str:
     from sdp.adapters.archives import gaia_delta
     from sdp_stellar import dr4_delta as d
 
+    r = gaia(release)
     lo, hi = d.fetch_parallax_window(c, settings)
     return gaia_delta.cone_query(
-        settings["releases"][release]["table"],
+        r.table("gaia_source"),
         d.STAR_COLUMNS,
         c.ra,
         c.dec,
@@ -127,6 +153,7 @@ def _cone_query(settings: Mapping[str, Any], release: str, c: Any) -> str:
         lo,
         hi,
         float(settings["selection"]["g_max"]),
+        r.columns,
     )
 
 
@@ -143,8 +170,8 @@ def delta_fetch(
     from sdp_stellar import dr4_delta as d
 
     settings = d.load_settings()
-    if release not in settings["releases"]:
-        raise DomainError(f"unknown release {release!r}; known: {', '.join(settings['releases'])}")
+    if release not in _releases(settings):
+        raise DomainError(f"unknown release {release!r}; known: {', '.join(_releases(settings))}")
     base = out or folder()
     t = transport()
     names = _clusters(settings, cluster or [])
@@ -171,11 +198,11 @@ def _fetch_one(t: Transport, settings: Mapping[str, Any], release: str, c: Any, 
     if _kept_query(target) != query:
         if target.exists():
             _say(f"{release} {name}: the kept cone was fetched with other settings, so it is fetched again")
-        stars = gaia_delta.cone(t, query, f"{release} {name}")
+        stars = gaia_delta.cone(gaia_transport(), query, f"{release} {name}", gaia(release).tap)
         target.parent.mkdir(parents=True, exist_ok=True)
         tmp = target.with_suffix(".parquet.tmp")
         pq.write_table(
-            stars.replace_schema_metadata({"sdp.release": settings["releases"][release]["label"], "sdp.query": query}),
+            stars.replace_schema_metadata({"sdp.release": gaia(release).label, "sdp.query": query}),
             tmp,
         )
         tmp.replace(target)  # a cone is either whole or absent, so an interrupted write is fetched again
@@ -199,7 +226,7 @@ def _matches(
     kept = {int(k): int(v) for k, v in json.loads(path.read_text("utf-8")).items()} if path.exists() else {}
     wanted = [i for i in ids if i not in kept]
     if wanted:
-        kept |= gaia_delta.neighbourhood(t, match, wanted)
+        kept |= gaia_delta.neighbourhood(gaia_transport(), match, wanted)
         _write_json(path, {str(k): v for k, v in sorted(kept.items())})
     return kept
 
@@ -220,8 +247,8 @@ def delta_compare(
 
     settings = d.load_settings()
     for release in (earlier, later):
-        if release not in settings["releases"]:
-            raise DomainError(f"unknown release {release!r}; known: {', '.join(settings['releases'])}")
+        if release not in _releases(settings):
+            raise DomainError(f"unknown release {release!r}; known: {', '.join(_releases(settings))}")
     frozen = d.frozen_sha256(settings) == d.FROZEN_SHA256
     if "dr4" in (earlier, later) and not frozen:
         raise DomainError("the seed set, selection or questions differ from the ones frozen on 2026-11-05")

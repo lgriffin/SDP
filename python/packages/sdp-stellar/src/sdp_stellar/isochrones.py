@@ -936,7 +936,8 @@ def known_answer(
                 "window_log_age": [lo, hi],
                 "fitted_log_age": age,
                 "inside": age is not None and lo <= age <= hi,
-                "verified_window": bool(settings["known_answers"]["verified"]),
+                "verified_window": bool(entry.get("verified", settings["known_answers"]["verified"])),
+                "window_source": str(entry.get("source", "")),
             }
             if "feh" in entry:
                 f_lo, f_hi = (float(x) for x in entry["feh"])

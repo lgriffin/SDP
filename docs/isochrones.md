@@ -106,9 +106,14 @@ which pushed 45 fits to lower A_V and higher [Fe/H]. Each fit records `red_dwarf
 **Known answers.** The settings list sanity windows for four famous open clusters (the Pleiades, the
 Hyades, Praesepe and M67) and three globulars (M5, M3 and M30, which also carry an [Fe/H] window,
 STL-039). A run that fits one of them reports whether its age falls inside its window. The
-windows are broad and **not yet verified** against a published Gaia fit (for example Gaia
-Collaboration, Babusiaux et al. 2018); until Leigh checks them, a miss prints a warning instead of
-failing the run, unlike the companion screen's Gaia BH1 check.
+windows are broad, and a miss prints a warning instead of failing the run, unlike the companion
+screen's Gaia BH1 check. On 25 November 2026 the four open-cluster windows were checked: each holds
+the age of Gaia Collaboration, Babusiaux et al. 2018, A&A 616, A10, Table 2 (log years: Pleiades
+8.04, Hyades 8.90, Praesepe 8.85, NGC 2682 9.54), and each entry names its source
+(`verified_window`, `window_source` in the run's report). The globulars' windows and the
+metallicity prior's three globular [Fe/H] values are **not yet checked**: they need the Harris 2010
+table (`physwww.mcmaster.ca/~harris/mwgc.dat`, part III), which the cloud sandbox cannot reach. The
+prior's disc gradient (-0.07 dex/kpc) is Myers et al. 2022's -0.073 +- 0.002 rounded.
 
 ## Masses
 

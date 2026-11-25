@@ -1,0 +1,51 @@
+# Every Gaia data release SDP reads, in one place (#192, DR4 readiness).
+#
+# A release names its TAP tables, its bulk-file folder and, when the archive renamed one, the column
+# SDP reads under another name. Code asks this file for a release ("dr3", "dr4") instead of naming
+# gaiadr3 tables itself, so a new release is an edit here, not a code change.
+#
+# confirmed: false means the names are SDP's guess before the release: every command that would read
+# that release refuses until someone has checked the names against the live archive
+# (`sdp archive gaia-check --release dr4`) and set confirmed: true here, with the date.
+# Changing a table or column name here is a mapping, not a change to any predeclared selection:
+# protocol UC-06 says so ("Known weaknesses"), and no frozen settings hash covers this file.
+
+releases:
+  dr2:
+    label: "gaia:DR2"
+    confirmed: true
+    confirmed_on: "2018-04-25"
+    tap: https://gea.esac.esa.int/tap-server/tap
+    tables:
+      gaia_source: gaiadr2.gaia_source
+    citation: "Gaia Collaboration, Brown et al. 2018, A&A 616, A1"
+    doi: 10.1051/0004-6361/201833051
+
+  dr3:
+    label: "gaia:DR3"
+    confirmed: true
+    confirmed_on: "2022-06-13"
+    tap: https://gea.esac.esa.int/tap-server/tap
+    tables:
+      gaia_source: gaiadr3.gaia_source
+      nss_two_body_orbit: gaiadr3.nss_two_body_orbit
+      binary_masses: gaiadr3.binary_masses
+    bulk: https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/
+    citation: "Gaia Collaboration, Vallenari et al. 2023, A&A 674, A1"
+    doi: 10.1051/0004-6361/202243940
+    orbits_citation: "Gaia Collaboration, Arenou et al. 2023, A&A 674, A34 (Gaia DR3 stellar multiplicity); https://www.cosmos.esa.int/web/gaia-users/credits"
+
+  dr4:
+    label: "gaia:DR4"
+    # Released 2 December 2026. Until then every name below follows DR3's pattern and is a guess.
+    confirmed: false
+    tap: https://gea.esac.esa.int/tap-server/tap
+    tables:
+      gaia_source: gaiadr4.gaia_source
+      nss_two_body_orbit: gaiadr4.nss_two_body_orbit
+      binary_masses: gaiadr4.binary_masses
+    bulk: https://cdn.gea.esac.esa.int/Gaia/gdr4/gaia_source/
+    # SDP's column name -> the release's own, only where they differ (empty while DR3's names hold)
+    columns: {}
+    citation: "Gaia Collaboration 2026, Gaia Data Release 4 (to complete on release day)"
+    orbits_citation: "Gaia Collaboration 2026, Gaia DR4 non-single stars (to complete on release day)"

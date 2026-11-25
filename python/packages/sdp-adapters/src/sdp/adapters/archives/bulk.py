@@ -34,7 +34,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -442,21 +442,25 @@ def bulk_prefix(descriptor: SourceDescriptor, subset: BulkSubset | None = None) 
     return f"{base}/{subset.name}" if subset is not None else base
 
 
-def ecsv_to_table(path: Path, descriptor: SourceDescriptor, columns: Sequence[str]) -> pa.Table:
-    """Read the declared columns of a gzipped ECSV file (its ``#`` header lines skipped) with their types."""
+def ecsv_to_table(
+    path: Path, descriptor: SourceDescriptor, columns: Sequence[str], renames: Mapping[str, str] | None = None
+) -> pa.Table:
+    """Read the declared columns of a gzipped ECSV file (its ``#`` header lines skipped) with their types.
+    ``renames`` maps SDP's column name to the file's, where a release renamed one; the table keeps SDP's."""
+    theirs = {c: (renames or {}).get(c, c) for c in columns}
     with gzip.open(path, "rt", encoding="utf-8") as text:
         skip = 0
         for line in text:
             if not line.startswith("#"):
                 break
             skip += 1
-    types = {c.name: ARROW_TYPES.get(c.datatype, pa.string()) for c in descriptor.columns if c.name in columns}
+    types = {theirs[c.name]: ARROW_TYPES.get(c.datatype, pa.string()) for c in descriptor.columns if c.name in columns}
     with pa.input_stream(str(path), compression="gzip") as stream:
         table = pacsv.read_csv(
             stream,
             read_options=pacsv.ReadOptions(skip_rows=skip, block_size=64 << 20),
             convert_options=pacsv.ConvertOptions(
-                include_columns=list(columns),
+                include_columns=[theirs[c] for c in columns],
                 column_types=types,
                 null_values=["null", "", "NaN", "nan"],
                 strings_can_be_null=True,
@@ -464,7 +468,13 @@ def ecsv_to_table(path: Path, descriptor: SourceDescriptor, columns: Sequence[st
                 false_values=["False", "false", "0", "F"],
             ),
         )
-    return table.select(list(columns))
+    table = table.select([theirs[c] for c in columns])
+    return table.rename_columns(list(columns))
+
+
+def gaia_publisher(bulk_url: str) -> Publisher:
+    """ESA's gzipped ECSV files of one Gaia release (``bulk`` in ``gaia_releases.yaml``)."""
+    return Publisher("gaia-ecsv", (bulk_url,))
 
 
 @dataclass
@@ -484,6 +494,8 @@ class BulkSweep:
     publisher: Publisher | None = None
     read_range: Callable[[str, int, int], bytes] = _read_range
     size: Callable[[str], int] = _size
+    #: SDP's column name -> the publisher's, where a release renamed one (Gaia ECSV only)
+    renames: Mapping[str, str] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
@@ -702,7 +714,7 @@ class BulkSweep:
                 if self._publisher.format == "2mass-psc":
                     table = twomass_psc_to_table(download, self.descriptor, self.columns)
                     return typed(table, self.descriptor, self.columns), size, url, "gzip-crc"
-                return ecsv_to_table(download, self.descriptor, self.columns), size, url, "md5"
+                return ecsv_to_table(download, self.descriptor, self.columns, self.renames), size, url, "md5"
             except (OSError, EOFError, pa.ArrowInvalid) as exc:  # a bad copy on one mirror: try the next
                 failures.append(f"{url}: {exc}")
                 download.unlink(missing_ok=True)
