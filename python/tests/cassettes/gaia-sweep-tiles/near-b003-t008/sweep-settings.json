@@ -1,0 +1,83 @@
+{
+  "algorithms": [
+    "fast-hdbscan"
+  ],
+  "benchmarks": [
+    "hr23:v1.0",
+    "cga20:v1"
+  ],
+  "benchmarks_used": {
+    "cga20": "sha256:1da41405670481ee18fef3babd8bbb9ff7c35030e0878113641e6bc0df7a495a",
+    "hr23": "sha256:6b4547c99f2e8822f11e8c295617559c2c61facfd59ac5da4a2cb140e4445e6c"
+  },
+  "candidate_checks": {
+    "max_field_fraction": 0.5,
+    "min_cmd_coherence": 3.0,
+    "min_members": 10,
+    "min_stability": 0.5
+  },
+  "cmd_policy": "cluster-distance",
+  "crossmatch_radius_deg": 0.1,
+  "feature_space_policy": "fsp-v1",
+  "hyperparameter_grid": {
+    "fast-hdbscan": {
+      "min_cluster_size": [
+        10,
+        20,
+        40
+      ],
+      "min_samples": [
+        10
+      ]
+    }
+  },
+  "margin_deg": 0.5,
+  "max_tile_stars": 3000000,
+  "notes": "Settings of the exploratory whole-sky sweep (STL-009). Cuts, feature policy, pass marks and the cross-match window come from the UC-01 predeclaration; these are the sweep's own. Three HDBSCAN grid points give each candidate a stability; one null field per tile gives the false-positive rate. The sweep clusters with fast_hdbscan's Boruvka HDBSCAN, which matches scikit-learn's labels on the fixtures but grows about n log n rather than n squared with the stars in a tile (#133); the predeclared UC-01 run keeps sklearn-hdbscan. The CMD coherence check places every member at the cluster's distance (cmd_policy cluster-distance, STL-010), so a member's own parallax error does not blur the sequence. Each candidate also gets a significance in sigma (STL-011, after Hunt & Reffert 2021): its members' 10th-nearest-neighbour distances in the feature space against those of the 5x as many (at least 50) non-members around it; below 3 sigma it is rejected, and a potentially new one must beat every false candidate its tile's null fields produced. The sky is swept once per distance scale (STL-012): 12-degree tiles with a 3-degree rim within 250 pc (parallax 4 mas and up), 4-degree tiles within 1 kpc and 2-degree tiles beyond, each shell searched over its parallax range widened by 15% so a cluster on a boundary is seen whole; tile_deg stays the prepared catalogue's band size. A tile with more stars than max_tile_stars after the cuts is skipped with that reason rather than searched. Every grid point is capped at the largest cluster the field-fraction check accepts (max_cluster_size, #159): inside a shell's parallax window the field piles up at the window's dense edge, and uncapped, excess-of-mass selection kept that field-sized group instead of the real clusters inside it.",
+  "null_fields_per_tile": 1,
+  "pm_window_masyr": 1.0,
+  "prepared_files": "f38f3ed92bd1d12a981a3d61b3d96b3d2381e85c5b79a09c53f1cee46c23b055",
+  "quality_cuts": {
+    "astrometric_params_solved": [
+      31,
+      95
+    ],
+    "g_mag_max": 18.0,
+    "parallax_over_error_min": 5.0,
+    "ruwe_max": 1.4
+  },
+  "scales": [
+    {
+      "margin_deg": 3.0,
+      "name": "near",
+      "parallax_max_mas": null,
+      "parallax_min_mas": 4.0,
+      "parallax_rim": 0.15,
+      "tile_deg": 12.0
+    },
+    {
+      "margin_deg": 1.0,
+      "name": "mid",
+      "parallax_max_mas": 4.0,
+      "parallax_min_mas": 1.0,
+      "parallax_rim": 0.15,
+      "tile_deg": 4.0
+    },
+    {
+      "margin_deg": 0.5,
+      "name": "far",
+      "parallax_max_mas": 1.0,
+      "parallax_min_mas": null,
+      "parallax_rim": 0.15,
+      "tile_deg": 2.0
+    }
+  ],
+  "seed": 2026,
+  "significance": {
+    "field_multiple": 5,
+    "k": 10,
+    "min_field": 50,
+    "min_sigma": 3.0
+  },
+  "tile_deg": 2.0
+}
