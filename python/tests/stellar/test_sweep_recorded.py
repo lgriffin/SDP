@@ -138,3 +138,29 @@ def test_the_tile_check_passes_on_a_tiles_own_result_and_fails_on_a_changed_one(
     check_tile(export_synthetic(tmp_path / "same"))
     with pytest.raises(AssertionError):
         check_tile(export_synthetic(tmp_path / "changed", mutate=True))
+
+
+@pytest.mark.req("TST-011")
+def test_the_sweep_misses_ic_2391_although_its_members_are_in_the_tile() -> None:
+    # documents a known miss (#170): the near-shell tile holding IC 2391 swept on 2026-10-31 gave no candidate at
+    # all, while ~180 stars sit at hr23's IC 2391 position, motion and parallax. When the sweep is fixed this goes
+    # red; re-export the tile from the fixed sweep and replace this test with the new answer.
+    import numpy as np
+
+    folder = COMMITTED / "near-b003-t008"
+    recorded = json.loads((folder / "tile.json").read_text("utf-8"))
+    assert recorded["candidates"] == []
+    hr23 = pq.read_table(folder / "benchmark-hr23.parquet").to_pylist()
+    ic = next(r for r in hr23 if r["name"] == "IC_2391")
+    s = pq.read_table(folder / "stars.parquet")
+    col = {
+        n: s.column(n).to_numpy() for n in ("ra_deg", "dec_deg", "pm_ra_cosdec_masyr", "pm_dec_masyr", "parallax_mas")
+    }
+    near = (np.abs(col["dec_deg"] - ic["dec_deg"]) < 1.5) & (
+        np.abs((col["ra_deg"] - ic["ra_deg"]) * np.cos(np.radians(ic["dec_deg"]))) < 1.5
+    )
+    moving = (
+        np.hypot(col["pm_ra_cosdec_masyr"] - ic["pm_ra_cosdec_masyr"], col["pm_dec_masyr"] - ic["pm_dec_masyr"]) < 2
+    )
+    distance = np.abs(col["parallax_mas"] - ic["parallax_mas"]) < 1
+    assert (near & moving & distance).sum() >= 150
