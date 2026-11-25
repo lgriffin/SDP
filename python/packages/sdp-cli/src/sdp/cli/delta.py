@@ -252,6 +252,8 @@ def delta_compare(
     frozen = d.frozen_sha256(settings) == d.FROZEN_SHA256
     if "dr4" in (earlier, later) and not frozen:
         raise DomainError("the seed set, selection or questions differ from the ones frozen on 2026-11-05")
+    for release in (earlier, later):
+        gaia(release)  # an unconfirmed release is never compared, even with no cones fetched
     base = out or folder()
     t = transport()
     names = _clusters(settings, cluster or [])

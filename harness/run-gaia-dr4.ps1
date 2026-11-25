@@ -97,6 +97,11 @@ if ((Want "copy") -and -not $SkipCopy) {
 }
 
 if ((Want "screen") -and -not $SkipCopy) {
+    $grid = Join-Path $Data "isochrones\mist-v1.2-gaia.parquet"
+    if (-not (Test-Path -LiteralPath $grid)) {
+        Write-Host "`n=== the MIST isochrone grid the screen needs (about 116 MB) : $(Get-Date -Format HH:mm:ss) ==="
+        if ((Sdp isochrones fetch) -ne 0) { $failed += "isochrone grid" }
+    }
     Write-Host "`n=== Part B: the UC-06 screen (DR3 footprints, DR4 members) : $(Get-Date -Format HH:mm:ss) ==="
     if ((Sdp companions screen --sweep gaia-dr3 --protocol uc06 --isochrones --name uc06-dr4) -ne 0) {
         $failed += "screen"

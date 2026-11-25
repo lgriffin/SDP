@@ -153,3 +153,25 @@ def test_a_bulk_copy_of_a_release_that_renamed_a_column_stores_it_under_sdps_nam
     table = pq.read_table(io.BytesIO(store.get(artifact)))
     assert "parallax" in table.column_names and "plx" not in table.column_names
     assert table.column("parallax").to_pylist() == [0.5]
+
+
+@pytest.mark.req("DSI-027")
+def test_a_renamed_source_id_is_used_in_the_joins_and_the_range() -> None:
+    dr4 = replace(gr.load_releases()["dr4"], columns={"source_id": "sid"})
+    q = nss.orbit_query(0, 10, dr4)
+    assert "ON g.sid = n.sid" in q and "ON b.sid = n.sid" in q and "AND n.sid BETWEEN 0 AND 10" in q
+    assert "n.sid AS source_id" in q and ".source_id " not in q
+    assert "AND n.sid IN (5)" in nss.targets_query([5], dr4)
+
+
+@pytest.mark.req("DSI-027")
+def test_saved_orbit_parts_of_another_release_are_never_mixed_in(tmp_path: Path) -> None:
+    dr4 = gr.load_releases()["dr4"]
+    parts = tmp_path / "orbits.parts"
+    parts.mkdir()
+    (parts / "part-001-of-001.parquet").write_bytes(b"not read")
+    with pytest.raises(ValueError, match="unrecorded release"):
+        nss.fetch_orbits(PrimedService(), parts=1, parts_dir=parts, release=dr4)
+    (parts / "release.txt").write_text("gaia:DR3\n", "utf-8")
+    with pytest.raises(ValueError, match="holds parts of gaia:DR3, not gaia:DR4"):
+        nss.fetch_orbits(PrimedService(), parts=1, parts_dir=parts, release=dr4)

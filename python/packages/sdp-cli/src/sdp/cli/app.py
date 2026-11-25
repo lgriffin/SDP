@@ -1777,7 +1777,12 @@ def archive_gaia_check(
     except KeyError as exc:
         raise DomainError(str(exc)) from exc
     transport = PoliteTransport.with_policy(UrllibTransport(timeout_s=120.0), ARCHIVE_RETRY)
-    source_columns = sorted({*load_sources()["gaia"].descriptor.column_names(), *dr4_delta.STAR_COLUMNS})
+    from sdp.adapters.archives.bulk import load_subsets
+
+    subset_columns = {c.name for s in load_subsets().values() if s.parent == "gaia" for c in s.columns}
+    source_columns = sorted(
+        {*load_sources()["gaia"].descriptor.column_names(), *dr4_delta.STAR_COLUMNS, *subset_columns}
+    )
     wanted: dict[str, list[str]] = {"gaia_source": source_columns}
     if "nss_two_body_orbit" in r.tables:
         wanted["nss_two_body_orbit"] = ["source_id", *gaia_nss.ORBIT_COLUMNS]

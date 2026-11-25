@@ -315,6 +315,13 @@ def test_a_uc06_screen_reads_dr4_by_default_and_refuses_while_its_names_are_unco
     assert "gaia-check --release dr4" in str(result.exception)
     fetch = runner.invoke(cli.app, ["companions", "fetch", "--release", "dr4"])
     assert fetch.exit_code != 0 and "not yet checked" in str(fetch.exception)
+    # a DR4-labelled orbit table on disk does not get past the gate either
+    dr3 = pq.read_table(data / "companions" / cmd.ORBITS_FILE)
+    pq.write_table(
+        dr3.replace_schema_metadata({b"sdp.release": b"gaia:DR4"}), data / "companions" / cmd.orbits_file("dr4")
+    )
+    field = runner.invoke(cli.app, ["companions", "field", "--protocol", "uc06"])
+    assert field.exit_code != 0 and "not yet checked" in str(field.exception)
 
 
 @pytest.mark.req("STL-045")
@@ -346,6 +353,7 @@ def test_a_dr4_screen_fixes_footprints_from_dr3_seeds_and_reads_members_and_fiel
 
 @pytest.mark.req("STL-045")
 def test_the_uc06_field_list_reads_the_declared_releases_orbits(data: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _dr4_confirmed(monkeypatch)
     missing = runner.invoke(cli.app, ["companions", "field", "--protocol", "uc06"])
     assert missing.exit_code != 0 and cmd.orbits_file("dr4") in str(missing.exception)
     dr3 = pq.read_table(data / "companions" / cmd.ORBITS_FILE)
@@ -356,3 +364,23 @@ def test_the_uc06_field_list_reads_the_declared_releases_orbits(data: Path, monk
     assert result.exit_code == 0, result.output
     assert (data / "companions" / "field-uc06.csv").exists()
     assert json.loads(result.stdout)["gaia_bh1"]["verdict"] == "neutron-star-or-black-hole"
+
+
+@pytest.mark.req("STL-045")
+def test_a_missing_dr4_copy_stops_the_screen_before_any_pass(data: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _dr4_confirmed(monkeypatch)
+    passes: list[str] = []
+    real = cmd._scan
+
+    def counted(*args: Any, **kwargs: Any) -> Any:
+        passes.append(str(kwargs.get("release")))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(cmd, "_scan", counted)
+    dr3 = pq.read_table(data / "companions" / cmd.ORBITS_FILE)
+    pq.write_table(
+        dr3.replace_schema_metadata({b"sdp.release": b"gaia:DR4"}), data / "companions" / cmd.orbits_file("dr4")
+    )
+    result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06"])
+    assert result.exit_code != 0 and "bulk Gaia DR4 copy is missing" in str(result.exception)
+    assert passes == [], "no pass over any copy starts before both copies are known complete"

@@ -114,3 +114,21 @@ def test_a_neighbourhood_answer_that_reaches_the_row_cap_is_refused(monkeypatch:
     )
     with pytest.raises(UntrustedInput, match="cap"):
         g.neighbourhood(service, MATCH, [1])
+
+
+@pytest.mark.req("DSI-026")
+def test_a_job_whose_phase_the_service_stops_answering_is_deleted_not_left_behind() -> None:
+    from sdp.adapters.archives.transport import HttpRequest, HttpResponse, TransportError
+
+    class Failing(AsyncTapService):
+        def send(self, request: HttpRequest) -> HttpResponse:
+            if request.method == "GET" and request.url.endswith("/phase"):
+                self.sent.append(f"{request.method} {request.url}")
+                return HttpResponse(503, b"busy")
+            return super().send(request)
+
+    service = Failing(g.GAIA_TAP)
+    service.prime("Q", g.MAXREC, {"source_id": [1]})
+    with pytest.raises(TransportError, match="job phase HTTP 503"):
+        g.cone(service, "Q", "dr3 NGC_3532", sleep=service.sleep)
+    assert all(job.get("deleted") for job in service.jobs.values())

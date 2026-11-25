@@ -89,6 +89,7 @@ def _dr3() -> GaiaRelease:
 
 def _select(r: GaiaRelease | None = None) -> str:
     r = r or _dr3()
+    sid = r.column("source_id")
     cols = (
         [r.select("n", c) for c in ORBIT_COLUMNS]
         + [r.select("g", c) for c in SOURCE_COLUMNS]
@@ -96,14 +97,15 @@ def _select(r: GaiaRelease | None = None) -> str:
     )
     return (
         f"SELECT {', '.join(cols)} FROM {r.table('nss_two_body_orbit')} AS n "
-        f"JOIN {r.table('gaia_source')} AS g ON g.source_id = n.source_id "
-        f"LEFT OUTER JOIN {r.table('binary_masses')} AS b ON b.source_id = n.source_id "
+        f"JOIN {r.table('gaia_source')} AS g ON g.{sid} = n.{sid} "
+        f"LEFT OUTER JOIN {r.table('binary_masses')} AS b ON b.{sid} = n.{sid} "
         f"WHERE n.{r.column('a_thiele_innes')} IS NOT NULL"
     )
 
 
 def orbit_query(lo: int, hi: int, r: GaiaRelease | None = None) -> str:
-    return f"{_select(r)} AND n.source_id BETWEEN {int(lo)} AND {int(hi)}"
+    r = r or _dr3()
+    return f"{_select(r)} AND n.{r.column('source_id')} BETWEEN {int(lo)} AND {int(hi)}"
 
 
 def targets_query(source_ids: Sequence[int], r: GaiaRelease | None = None) -> str:
@@ -111,7 +113,8 @@ def targets_query(source_ids: Sequence[int], r: GaiaRelease | None = None) -> st
     ids = sorted({int(s) for s in source_ids})
     if not ids:
         raise ValueError("no source_ids to ask for")
-    return f"{_select(r)} AND n.source_id IN ({', '.join(str(s) for s in ids)})"
+    r = r or _dr3()
+    return f"{_select(r)} AND n.{r.column('source_id')} IN ({', '.join(str(s) for s in ids)})"
 
 
 def one_mass_per_orbit(table: pa.Table) -> pa.Table:
@@ -186,6 +189,19 @@ def fetch_orbits(
 
     r = release or _dr3()
     url = service_url or r.tap
+    if parts_dir is not None:
+        # saved parts are one release's: a folder left by another release is never mixed in
+        marker = parts_dir / "release.txt"
+        if marker.exists() and marker.read_text("utf-8").strip() != r.label:
+            raise ValueError(
+                f"{parts_dir} holds parts of {marker.read_text('utf-8').strip()}, not {r.label}; "
+                "move it away or give another --out"
+            )
+        unrecorded = parts_dir.exists() and not marker.exists() and any(parts_dir.glob("part-*.parquet"))
+        if unrecorded and r.label != "gaia:DR3":  # parts saved before releases were recorded are DR3's
+            raise ValueError(f"{parts_dir} holds parts of an unrecorded release (DR3), not {r.label}")
+        parts_dir.mkdir(parents=True, exist_ok=True)
+        marker.write_text(r.label + "\n", "utf-8")
     tables = []
     spans = ranges(parts)
     for i, (lo, hi) in enumerate(spans):

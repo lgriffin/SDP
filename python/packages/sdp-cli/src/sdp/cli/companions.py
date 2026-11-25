@@ -173,6 +173,7 @@ def companions_field(
         raise DomainError(f"--protocol is 'trial' or 'uc06', not {protocol!r}")
     settings = comp.load_settings(files[protocol])
     declared = str(settings["source_release"])
+    confirmed(short(declared))
     o, _ = _orbits(orbits, release=short(declared), wanted=declared)
     rows = field_orbits(o, settings)
     target = (out or folder()) / ("field.csv" if protocol == "trial" else f"field-{protocol}.csv")
@@ -245,6 +246,19 @@ def _scan(
 
     filters = [] if parallax_min is None else [("parallax", ">=", parallax_min)]
     yield from bulk.scan(columns, filters, progress=report)
+
+
+def _require_copy(release: str) -> None:
+    from sdp.adapters.archives.bulk import BulkCatalogueGateway
+    from sdp.adapters.archives.gaia_releases import gaia_source
+    from sdp.adapters.bootstrap import artifact_store
+    from sdp.cli.discover import _artifact_root
+
+    if not BulkCatalogueGateway(artifact_store(_artifact_root()), gaia_source(release).descriptor).complete():
+        flag = "" if release == "dr3" else f" --release {release}"
+        raise DomainError(
+            f"the bulk Gaia {release.upper()} copy is missing or incomplete; finish `sdp archive bulk{flag}` first"
+        )
 
 
 def _arrays(tables: Sequence[pa.Table]) -> dict[str, Any]:
@@ -416,8 +430,9 @@ def companions_screen(
         raise DomainError("no clusters to screen")
     stars_release = short(stars_from or str(settings["source_release"]))
     seeds_release = short(seeds_release)
-    for r in {stars_release, seeds_release}:
+    for r in sorted({stars_release, seeds_release}):
         confirmed(r)
+        _require_copy(r)  # before any pass: a missing copy must not surface hours into the run
     o, orbit_release = _orbits(orbits, any_release=protocol == "uc06", release=stars_release)
     seeds = pa.array(sorted({s for c in clusters for s in c.seed_ids}), type=pa.int64())
     plx_min = float(settings["membership"]["parallax_min_mas"])

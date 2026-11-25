@@ -91,8 +91,13 @@ def run_async(
     wait = poll_s
     started_run = False
     while True:
-        response = transport.send(HttpRequest("GET", f"{job}/phase"))
+        try:
+            response = transport.send(HttpRequest("GET", f"{job}/phase"))
+        except TransportError:
+            _delete(transport, job)  # a job the service stopped answering for is not left behind
+            raise
         if response.status != 200:
+            _delete(transport, job)
             raise TransportError(f"{what}: job phase HTTP {response.status}", response.status)
         phase = response.body.decode("utf-8", "replace").strip().upper()
         if phase == "COMPLETED":

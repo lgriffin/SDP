@@ -231,6 +231,7 @@ requirements:
       - "python/tests.archives.test_gaia_nss::test_a_job_that_never_finishes_is_aborted_and_reported_as_a_timeout"
       - "python/tests.archives.test_gaia_delta::test_by_default_a_cone_is_an_async_job_so_no_request_waits_on_the_archive"
       - "python/tests.archives.test_gaia_delta::test_a_capped_async_cone_is_refused_too"
+      - "python/tests.archives.test_gaia_delta::test_a_job_whose_phase_the_service_stops_answering_is_deleted_not_left_behind"
 
   - id: DSI-027
     pattern: unwanted
@@ -252,6 +253,8 @@ requirements:
       - "python/tests.cli.test_cli_delta::test_a_dr4_fetch_is_refused_until_its_names_are_confirmed"
       - "python/tests.cli.test_cli_delta::test_once_confirmed_dr4_cones_name_the_dr4_table_and_carry_its_label"
       - "python/tests.cli.test_cli_companions::test_a_uc06_screen_reads_dr4_by_default_and_refuses_while_its_names_are_unconfirmed"
+      - "python/tests.archives.test_gaia_releases::test_a_renamed_source_id_is_used_in_the_joins_and_the_range"
+      - "python/tests.archives.test_gaia_releases::test_saved_orbit_parts_of_another_release_are_never_mixed_in"
 
   - id: DSI-028
     pattern: event

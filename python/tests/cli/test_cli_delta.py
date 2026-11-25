@@ -251,6 +251,8 @@ def test_a_dr4_fetch_is_refused_until_its_names_are_confirmed(fakes: dict[str, l
     )
     assert result.exit_code != 0 and "gaia-check --release dr4" in str(result.exception)
     assert fakes["cone"] == [], "no cone is asked for under a guessed table name"
+    compare = runner.invoke(cli.app, ["delta", "compare", "--from", "dr3", "--to", "dr4", "--out", str(tmp_path)])
+    assert compare.exit_code != 0 and "gaia-check --release dr4" in str(compare.exception)
 
 
 @pytest.mark.req("DSI-027")

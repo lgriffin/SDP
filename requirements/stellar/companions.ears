@@ -82,3 +82,4 @@ requirements:
     traces:
       - "python/tests.cli.test_cli_companions::test_a_dr4_screen_fixes_footprints_from_dr3_seeds_and_reads_members_and_field_from_dr4"
       - "python/tests.cli.test_cli_companions::test_the_uc06_field_list_reads_the_declared_releases_orbits"
+      - "python/tests.cli.test_cli_companions::test_a_missing_dr4_copy_stops_the_screen_before_any_pass"
