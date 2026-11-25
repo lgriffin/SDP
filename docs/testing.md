@@ -82,7 +82,7 @@ Three rules keep it honest.
 | Layer | Where it runs | What it holds |
 |---|---|---|
 | Recordings | Every pull request (`python-fast`) and nightly | M13 cone (REL-021), Oort sample (STL-019), Gaia DR3 orbit slice and the PC field list (STL-020, STL-023), recorded archive replies |
-| Full tables (`-m realdata`) | Wherever `SDP_REALDATA` points at the tables (the PC's data folder; in the cloud sandbox the project share); skipped elsewhere, saying which file it looked for | The full 169,227-orbit DR3 table must give back the PC field list orbit for orbit |
+| Full tables (`-m realdata`) | Wherever `SDP_REALDATA` points at the tables (the PC's data folder; in the cloud sandbox the project share); skipped elsewhere, saying which file it looked for | The full 169,227-orbit DR3 table must give back the PC field list orbit for orbit; each sweep tile exported by `tools/realdata_slice.py sweep-cluster` (the nearby clusters of #170) must, swept again, give back what the sweep wrote |
 | Full-sky measures | The PC, `harness\run-realdata.ps1` | Known clusters the sweep recovers, its null false-positive rate, the companion screen's counts, checked against `realdata/baselines.json` |
 
 ### The ratchet
