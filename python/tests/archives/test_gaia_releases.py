@@ -26,7 +26,7 @@ from .vo_fakes import PrimedService
 pytestmark = pytest.mark.tier("T1")
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 def test_the_packaged_file_names_dr2_dr3_and_an_unconfirmed_dr4() -> None:
     releases = gr.load_releases()
     assert {"dr2", "dr3", "dr4"} <= set(releases)
@@ -37,7 +37,7 @@ def test_the_packaged_file_names_dr2_dr3_and_an_unconfirmed_dr4() -> None:
     assert gr.release("gaia:DR4") is not None and gr.by_label("gaia:DR3").name == "dr3"
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 def test_an_unconfirmed_release_is_refused_with_the_command_that_checks_it() -> None:
     with pytest.raises(gr.UnconfirmedRelease, match="sdp archive gaia-check --release dr4"):
         gr.confirmed_release("dr4")
@@ -46,7 +46,7 @@ def test_an_unconfirmed_release_is_refused_with_the_command_that_checks_it() -> 
         gr.release("dr9")
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 def test_a_release_file_with_unsafe_or_incomplete_names_is_refused() -> None:
     good = gr.load_releases()["dr4"]
     with pytest.raises(ValueError, match=r"schema\.table"):
@@ -59,7 +59,7 @@ def test_a_release_file_with_unsafe_or_incomplete_names_is_refused() -> None:
         replace(good, bulk="https://example.org/gdr4")
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 def test_the_dr3_source_is_unchanged_and_dr4s_shares_its_columns_under_its_own_table() -> None:
     dr3 = load_sources()["gaia"]
     assert gr.gaia_source("dr3") == dr3
@@ -69,7 +69,7 @@ def test_the_dr3_source_is_unchanged_and_dr4s_shares_its_columns_under_its_own_t
     assert dr4.dialect_id == "gaia-dr4"
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 def test_dr3_orbit_queries_are_byte_for_byte_the_ones_sdp_always_sent() -> None:
     """Kept orbit parts and recordings are keyed on the query; the release file must not change DR3's."""
     q = nss.orbit_query(0, 10)
@@ -80,7 +80,7 @@ def test_dr3_orbit_queries_are_byte_for_byte_the_ones_sdp_always_sent() -> None:
     assert " AS " not in q.split(" FROM ")[0], "no column is aliased for DR3"
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 def test_a_dr4_orbit_fetch_names_dr4s_tables_renamed_columns_and_label() -> None:
     dr4 = replace(gr.load_releases()["dr4"], columns={"ruwe": "ruwe_new", "a_thiele_innes": "a_ti"})
     q = nss.orbit_query(0, 10, dr4)
@@ -95,7 +95,7 @@ def test_a_dr4_orbit_fetch_names_dr4s_tables_renamed_columns_and_label() -> None
     assert meta[b"sdp.release"] == b"gaia:DR4" and b"gaiadr4.nss_two_body_orbit" in meta[b"sdp.query"]
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-028")
 def test_the_check_names_every_missing_table_and_column_and_counts_the_bulk_files() -> None:
     dr4 = gr.load_releases()["dr4"]
     service = PrimedService()
@@ -123,7 +123,7 @@ def test_the_check_names_every_missing_table_and_column_and_counts_the_bulk_file
     assert gr.check_release(renamed, ok, {"gaia_source": ["source_id", "parallax"]}).problems == ()
 
 
-@pytest.mark.req("DSI-026")
+@pytest.mark.req("DSI-027")
 @pytest.mark.tier("T3")
 def test_a_bulk_copy_of_a_release_that_renamed_a_column_stores_it_under_sdps_name(tmp_path: Path) -> None:
     dr4 = gr.gaia_source("dr4").descriptor

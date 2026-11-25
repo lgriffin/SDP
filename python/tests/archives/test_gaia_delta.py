@@ -37,7 +37,7 @@ def test_a_cone_that_reaches_the_row_cap_is_refused(monkeypatch: pytest.MonkeyPa
         g.cone(service, "Q", "dr3 test", mode="sync")
 
 
-@pytest.mark.req("STL-032")
+@pytest.mark.req("DSI-026")
 def test_by_default_a_cone_is_an_async_job_so_no_request_waits_on_the_archive() -> None:
     """#192: four nearby clusters' cones timed out (408/503) on the synchronous service every time."""
     service = AsyncTapService(g.GAIA_TAP)
@@ -48,7 +48,7 @@ def test_by_default_a_cone_is_an_async_job_so_no_request_waits_on_the_archive() 
     assert all(job.get("deleted") for job in service.jobs.values())
 
 
-@pytest.mark.req("STL-032")
+@pytest.mark.req("DSI-026")
 def test_a_capped_async_cone_is_refused_too(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(g, "MAXREC", 2)
     service = AsyncTapService(g.GAIA_TAP)
@@ -57,7 +57,7 @@ def test_a_capped_async_cone_is_refused_too(monkeypatch: pytest.MonkeyPatch) -> 
         g.cone(service, "Q", "dr3 test", sleep=service.sleep)
 
 
-@pytest.mark.req("STL-032")
+@pytest.mark.req("DSI-027")
 def test_with_no_column_renamed_the_cone_query_is_the_one_kept_cones_were_fetched_with() -> None:
     """A kept cone is fetched again when its query differs, so the DR2/DR3 queries must not change."""
     q = g.cone_query("gaiadr3.gaia_source", ("source_id", "ra", "dec"), 1.0, 2.0, 0.5, 1.0, 2.0, 18.0)
@@ -68,7 +68,7 @@ def test_with_no_column_renamed_the_cone_query_is_the_one_kept_cones_were_fetche
     )
 
 
-@pytest.mark.req("STL-032")
+@pytest.mark.req("DSI-027")
 def test_a_renamed_column_is_read_under_sdps_name() -> None:
     q = g.cone_query(
         "gaiadr4.gaia_source", ("source_id", "parallax"), 1.0, 2.0, 0.5, 1.0, 2.0, 18.0, {"parallax": "plx"}

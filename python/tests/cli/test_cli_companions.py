@@ -308,7 +308,7 @@ def _dr4_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(gaia_releases, "load_releases", lambda path=None: patched)
 
 
-@pytest.mark.req("STL-044")
+@pytest.mark.req("DSI-027")
 def test_a_uc06_screen_reads_dr4_by_default_and_refuses_while_its_names_are_unconfirmed(data: Path) -> None:
     result = runner.invoke(cli.app, ["companions", "screen", "--sweep", "gaia-dr3", "--protocol", "uc06"])
     assert result.exit_code != 0
@@ -317,7 +317,7 @@ def test_a_uc06_screen_reads_dr4_by_default_and_refuses_while_its_names_are_unco
     assert fetch.exit_code != 0 and "not yet checked" in str(fetch.exception)
 
 
-@pytest.mark.req("STL-044")
+@pytest.mark.req("STL-045")
 def test_a_dr4_screen_fixes_footprints_from_dr3_seeds_and_reads_members_and_field_from_dr4(
     data: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -344,7 +344,7 @@ def test_a_dr4_screen_fixes_footprints_from_dr3_seeds_and_reads_members_and_fiel
     assert "orbits are" not in why and "stars are" not in why and "not the predeclared one" in why
 
 
-@pytest.mark.req("STL-044")
+@pytest.mark.req("STL-045")
 def test_the_uc06_field_list_reads_the_declared_releases_orbits(data: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     missing = runner.invoke(cli.app, ["companions", "field", "--protocol", "uc06"])
     assert missing.exit_code != 0 and cmd.orbits_file("dr4") in str(missing.exception)

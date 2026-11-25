@@ -244,7 +244,7 @@ def test_a_dr4_comparison_runs_only_under_the_frozen_selection(
     assert result.exit_code != 0 and "frozen" in str(result.exception)
 
 
-@pytest.mark.req("STL-032")
+@pytest.mark.req("DSI-027")
 def test_a_dr4_fetch_is_refused_until_its_names_are_confirmed(fakes: dict[str, list[str]], tmp_path: Path) -> None:
     result = runner.invoke(
         cli.app, ["delta", "fetch", "--release", "dr4", "--cluster", "NGC_2682", "--out", str(tmp_path)]
@@ -253,7 +253,7 @@ def test_a_dr4_fetch_is_refused_until_its_names_are_confirmed(fakes: dict[str, l
     assert fakes["cone"] == [], "no cone is asked for under a guessed table name"
 
 
-@pytest.mark.req("STL-032")
+@pytest.mark.req("DSI-027")
 def test_once_confirmed_dr4_cones_name_the_dr4_table_and_carry_its_label(
     fakes: dict[str, list[str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
