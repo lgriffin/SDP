@@ -35,12 +35,13 @@ $Stamp = Get-Date -Format "yyyy-MM-dd_HHmm"
 Start-Transcript -Path (Join-Path $Reports "run-$Stamp.log") | Out-Null
 Use-RunCheckout
 $Summary = @()
+$Failed = $false
 
 function Step($Name, [scriptblock]$Body) {
     Write-Host "`n=== ${Name}: started $(Get-Date -Format HH:mm:ss) ==="
     $t = [Diagnostics.Stopwatch]::StartNew()
     $ok = $true
-    try { & $Body } catch { $ok = $false; Write-Host "FAILED: $_" }
+    try { & $Body } catch { $ok = $false; $script:Failed = $true; Write-Host "FAILED: $_" }
     $t.Stop()
     $line = "{0,-34} {1,-6} {2}" -f $Name, ($(if ($ok) { "ok" } else { "FAILED" })), $t.Elapsed.ToString("hh\:mm\:ss")
     Write-Host "=== $line ==="
@@ -90,3 +91,6 @@ Write-Host "`n=== Summary ==="
 $Summary | ForEach-Object { Write-Host $_ }
 Stop-Transcript | Out-Null
 Write-Host "Log: $Reports\run-$Stamp.log"
+# a failed step fails the run, so a caller (run-realdata.ps1) never measures a half-finished sweep
+if ($Failed -or -not $band) { exit 1 }
+exit 0

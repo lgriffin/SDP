@@ -146,6 +146,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--screen", type=Path, help="measure: the summary.json of `sdp companions screen`")
     parser.add_argument("--baselines", type=Path, default=BASELINES)
     parser.add_argument("--source", default="", help="update: what ran, on which commit and machine")
+    parser.add_argument(
+        "--require-all", action="store_true", help="check/update: a mark with a value that was not measured fails too"
+    )
     args = parser.parse_args(argv)
 
     if args.action == "measure":
@@ -165,6 +168,10 @@ def main(argv: list[str] | None = None) -> int:
     worse = [o.metric for o in outcomes if o.failed]
     if worse:
         print(f"FAILED: {len(worse)} real-data value(s) worse than the mark: {', '.join(worse)}")
+        return 1
+    unmeasured = [o.metric for o in outcomes if o.status == "not-measured" and o.mark is not None]
+    if args.require_all and unmeasured:
+        print(f"FAILED: {len(unmeasured)} mark(s) not measured: {', '.join(unmeasured)}")
         return 1
     if args.action == "update":
         if not args.source:

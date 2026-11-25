@@ -14,7 +14,8 @@
 #    exported tile, swept again, must give back what the sweep wrote. A missing table is skipped, saying where it looked.
 # 6. sdp companions field: the field list again (seconds)
 # 7. Measures known clusters recovered, the null false-positive rate and the companion counts, and checks them
-#    against realdata\baselines.json: a value worse than its mark fails the run. Marks are not moved here.
+#    against realdata\baselines.json: a value worse than its mark, or a mark left unmeasured, fails the run.
+#    Marks are not moved here.
 # Nothing is deleted. Writes measured-<date>.json beside the log; paste the log's last block into the thread.
 
 param(
@@ -106,12 +107,14 @@ $m = @("run", "python", "tools/realdata.py", "measure", $Measured)
 $tiles = Join-Path $Data "sweep\$Name\tiles"
 $field = Join-Path $Data "companions\field.csv"
 $screenSummary = Join-Path $Data "companions\$ScreenFolder\summary.json"
-if (Test-Path $tiles) { $m += @("--sweep", $tiles) } else { Write-Host "No sweep tiles at ${tiles}: the sweep is not measured" }
+if ($Sweep -and -not $ok.sweep) { Write-Host "The sweep rerun failed, so its tiles are not measured" }
+elseif (Test-Path $tiles) { $m += @("--sweep", $tiles) } else { Write-Host "No sweep tiles at ${tiles}: the sweep is not measured" }
 if (Test-Path $field) { $m += @("--field", $field) } else { Write-Host "No field list at $field" }
-if (Test-Path $screenSummary) { $m += @("--screen", $screenSummary) } else { Write-Host "No screen summary at $screenSummary" }
+if ($Screen -and -not $ok.screen) { Write-Host "The screen failed, so it is not measured" }
+elseif (Test-Path $screenSummary) { $m += @("--screen", $screenSummary) } else { Write-Host "No screen summary at $screenSummary" }
 $ok.measure = Step "6 Measure" { Native "measure" { uv @m } }
 $ok.ratchet = Step "7 Check against the marks" {
-    Native "ratchet" { uv run python tools/realdata.py check $Measured }
+    Native "ratchet" { uv run python tools/realdata.py check $Measured --require-all }
 }
 Pop-Location
 

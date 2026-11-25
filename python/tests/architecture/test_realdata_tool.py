@@ -78,6 +78,19 @@ def test_values_at_or_better_than_their_marks_pass_and_unmeasured_ones_are_liste
 
 
 @pytest.mark.req("TST-012")
+def test_with_require_all_a_mark_left_unmeasured_fails_the_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    t = tool()
+    path = baselines(tmp_path, MARKS)
+    partial = measured(tmp_path, {"known": 14, "bh": 136})
+    assert t.main(["check", str(partial), "--baselines", str(path)]) == 0
+    assert t.main(["check", str(partial), "--baselines", str(path), "--require-all"]) == 1
+    # an unseeded mark has nothing to hold the run to
+    assert "not measured: null" in capsys.readouterr().out
+
+
+@pytest.mark.req("TST-012")
 def test_update_moves_marks_only_the_better_way_and_seeds_empty_ones(tmp_path: Path) -> None:
     t = tool()
     path = baselines(tmp_path, MARKS)
